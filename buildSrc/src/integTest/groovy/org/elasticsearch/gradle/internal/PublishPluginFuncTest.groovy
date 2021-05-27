@@ -93,25 +93,20 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-              <!-- This module was also published with a richer model, Gradle metadata,  -->
-              <!-- which should be used instead. Do not delete the following line which  -->
-              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
-              <!-- that they should prefer consuming it instead. -->
-              <!-- do_not_remove: published-with-gradle-metadata -->
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
+              <name>hello-world</name>
+              <description>some description</description>
               <dependencies>
                 <dependency>
                   <groupId>org.slf4j</groupId>
                   <artifactId>slf4j-api</artifactId>
                   <version>1.7.30</version>
-                  <scope>compile</scope>
+                  <scope>runtime</scope>
                 </dependency>
               </dependencies>
-              <name>hello-world</name>
-              <description>some description</description>
             </project>"""
         )
     }
@@ -159,25 +154,20 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         file("build/distributions/hello-world-1.0.pom").exists()
         assertXmlEquals(file("build/distributions/hello-world-1.0.pom").text, """
             <project xmlns="http://maven.apache.org/POM/4.0.0" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-              <!-- This module was also published with a richer model, Gradle metadata,  -->
-              <!-- which should be used instead. Do not delete the following line which  -->
-              <!-- is to indicate to Gradle or any Gradle module metadata file consumer  -->
-              <!-- that they should prefer consuming it instead. -->
-              <!-- do_not_remove: published-with-gradle-metadata -->
               <modelVersion>4.0.0</modelVersion>
               <groupId>org.acme</groupId>
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
+              <name>hello-world</name>
+              <description>some description</description>
               <dependencies>
                 <dependency>
                   <groupId>org.acme</groupId>
                   <artifactId>someLib</artifactId>
                   <version>1.0</version>
-                  <scope>compile</scope>
+                  <scope>runtime</scope>
                 </dependency>
               </dependencies>
-              <name>hello-world</name>
-              <description>some description</description>
             </project>"""
         )
     }

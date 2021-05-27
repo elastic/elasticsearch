@@ -8,12 +8,14 @@
 
 package org.elasticsearch.gradle.internal;
 
+import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import groovy.util.Node;
 import groovy.util.NodeList;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.internal.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -51,8 +53,15 @@ public class PublishPlugin implements Plugin<Project> {
     private void configurePublications(Project project) {
         PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
         MavenPublication publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
-        project.getPlugins().withType(JavaPlugin.class, plugin -> publication.from(project.getComponents().getByName("java")));
-        project.getPlugins().withType(ShadowPlugin.class, plugin -> configureWithShadowPlugin(project, publication));
+        project.afterEvaluate(project1 -> {
+            if(project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
+                configureWithShadowPlugin(project1, publication);
+            } else if(project1.getPlugins().hasPlugin(JavaPlugin.class)) {
+                publication.from(project.getComponents().getByName("java"));
+            }
+        });
+//        project.getPlugins().withType(JavaPlugin.class, plugin -> publication.from(project.getComponents().getByName("java")));
+//        project.getPlugins().withType(ShadowPlugin.class, plugin -> configureWithShadowPlugin(project, publication));
     }
 
     private static String getArchivesBaseName(Project project) {
@@ -101,24 +110,27 @@ public class PublishPlugin implements Plugin<Project> {
 
     @SuppressWarnings("unchecked")
     private static void configureWithShadowPlugin(Project project, MavenPublication publication) {
-        AdhocComponentWithVariants javaComponent = (AdhocComponentWithVariants) project.getComponents().findByName("java");
-        javaComponent.addVariantsFromConfiguration(project.getConfigurations().getByName("runtimeElements"), d -> d.skip());
+        ShadowExtension shadow = project.getExtensions().getByType(ShadowExtension.class);
+        shadow.component(publication);
 
-        // Workaround for removing the optional flag from shadow dependencies
-        publication.getPom().withXml(xml -> {
-            Node root = xml.asNode();
-            NodeList dependencies = (NodeList) root.get("dependencies");
-            Node dependenciesNode = (dependencies.size() == 0)
-                ? root.appendNode("dependencies")
-                : (Node) ((NodeList) root.get("dependencies")).get(0);
-            dependenciesNode.children().forEach(o -> {
-                Node dependencyNode = (Node) o;
-                NodeList optional = (NodeList) dependencyNode.get("optional");
-                if (optional.size() == 1) {
-                    dependencyNode.remove((Node) optional.get(0));
-                }
-            });
-        });
+//        AdhocComponentWithVariants javaComponent = (AdhocComponentWithVariants) project.getComponents().findByName("java");
+//        javaComponent.addVariantsFromConfiguration(project.getConfigurations().getByName("runtimeElements"), d -> d.skip());
+//
+//        // Workaround for removing the optional flag from shadow dependencies
+//        publication.getPom().withXml(xml -> {
+//            Node root = xml.asNode();
+//            NodeList dependencies = (NodeList) root.get("dependencies");
+//            Node dependenciesNode = (dependencies.size() == 0)
+//                ? root.appendNode("dependencies")
+//                : (Node) ((NodeList) root.get("dependencies")).get(0);
+//            dependenciesNode.children().forEach(o -> {
+//                Node dependencyNode = (Node) o;
+//                NodeList optional = (NodeList) dependencyNode.get("optional");
+//                if (optional.size() == 1) {
+//                    dependencyNode.remove((Node) optional.get(0));
+//                }
+//            });
+//        });
     }
 
     private static void addScmInfo(XmlProvider xml) {

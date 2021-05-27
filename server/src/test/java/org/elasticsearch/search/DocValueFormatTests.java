@@ -56,14 +56,14 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("###.##", ((DocValueFormat.Decimal) vf).pattern);
 
         DateFormatter formatter = DateFormatter.forPattern("epoch_second");
-        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1), Resolution.MILLISECONDS);
+        DocValueFormat.DateTime dateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, Resolution.MILLISECONDS);
         out = new BytesStreamOutput();
         out.writeNamedWriteable(dateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
 
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
@@ -73,18 +73,18 @@ public class DocValueFormatTests extends ESTestCase {
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
         assertTrue(dateFormat.formatSortValues);
 
-        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.ofHours(1),Resolution.NANOSECONDS);
+        DocValueFormat.DateTime nanosDateFormat = new DocValueFormat.DateTime(formatter, ZoneOffset.UTC, Resolution.NANOSECONDS);
         out = new BytesStreamOutput();
         out.writeNamedWriteable(nanosDateFormat);
         in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry);
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.NANOSECONDS, ((DocValueFormat.DateTime) vf).resolution);
 
         out = new BytesStreamOutput();

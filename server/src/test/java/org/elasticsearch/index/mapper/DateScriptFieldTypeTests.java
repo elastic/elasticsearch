@@ -48,6 +48,7 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -134,7 +135,12 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             assertThat(indexed.docValueFormat(null, null).format(date), equalTo(scripted.docValueFormat(null, null).format(date)));
             String format = randomDateFormatterPattern();
             assertThat(indexed.docValueFormat(format, null).format(date), equalTo(scripted.docValueFormat(format, null).format(date)));
-            ZoneId zone = randomZone();
+            ZoneId zone;
+            if (format == "epoch_millis" || format == "epoch_second") {
+                zone = ZoneOffset.UTC;
+            } else {
+                zone = randomZone();
+            }
             assertThat(indexed.docValueFormat(null, zone).format(date), equalTo(scripted.docValueFormat(null, zone).format(date)));
             assertThat(indexed.docValueFormat(format, zone).format(date), equalTo(scripted.docValueFormat(format, zone).format(date)));
         }

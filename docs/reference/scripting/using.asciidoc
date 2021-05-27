@@ -565,5 +565,5 @@ DELETE /_ingest/pipeline/my_test_scores_pipeline
 // TEST[continued]
 
 ////
+
 include::dissect-syntax.asciidoc[]
-include::common-script-uses.asciidoc[]

@@ -11,8 +11,11 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -69,6 +72,7 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.ExpensiveQueriesToPrepare;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -164,6 +168,23 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<List<Class<? extends Query>>> EXPENSIVE_QUERIES_TO_PREPARE = Setting.listSetting(
+        "search.expensive_to_prepare",
+        List.of(AutomatonQuery.class.getName(), TermInSetQuery.class.getName()),
+        s -> {
+            try {
+                // TODO should we skip when the class isn't found an warn? without that upgrades might be tricky.
+                return Class.forName(s).asSubclass(Query.class);
+            } catch (ClassNotFoundException e) {
+                throw new IllegalArgumentException("Unknown query [" + s + "]", e);
+            } catch (ClassCastException e) {
+                throw new IllegalArgumentException("Not a query [" + s + "]", e);
+            }
+        },
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -196,6 +217,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private volatile boolean lowLevelCancellation;
 
     private volatile int maxOpenScrollContext;
+
+    private volatile ExpensiveQueriesToPrepare expensiveQueriesToPrepare;
 
     private final Cancellable keepAliveReaper;
 
@@ -243,6 +266,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        setExpensiveQueriesToPrepare(EXPENSIVE_QUERIES_TO_PREPARE.get(settings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(EXPENSIVE_QUERIES_TO_PREPARE, this::setExpensiveQueriesToPrepare);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -277,6 +303,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setExpensiveQueriesToPrepare(List<Class<? extends Query>> expensiveQueriesToPrepare) {
+        this.expensiveQueriesToPrepare = new ExpensiveQueriesToPrepare(expensiveQueriesToPrepare);
     }
 
     @Override
@@ -968,7 +998,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
-                context::buildFilteredQuery
+                context::buildFilteredQuery,
+                expensiveQueriesToPrepare
             );
             context.addReleasable(aggContext);
             try {

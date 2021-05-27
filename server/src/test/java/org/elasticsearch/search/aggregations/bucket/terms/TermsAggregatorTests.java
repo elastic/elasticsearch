@@ -22,11 +22,15 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -79,6 +83,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
@@ -121,6 +126,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
@@ -835,7 +842,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .size(numTerms)
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
-                        context = createAggregationContext(indexSearcher, null, fieldType, filterFieldType);
+                        context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType, filterFieldType);
                         aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1020,7 +1027,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
                             .userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]).missing(missingValues[i]);
-                        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType1);
+                        AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType1);
                         Aggregator aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1764,7 +1771,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
          * would trigger that bug.
          */
         builder.size(2).order(BucketOrder.key(true));
-        Query topLevel = new TermInSetQuery("k", new BytesRef[] {new BytesRef("b"), new BytesRef("c")});
+        Query topLevel = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
+            .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
+            .build();
         testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
             assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
         }, kft);
@@ -1816,6 +1826,51 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             assertThat(delegateDebug, not(hasKey("estimated_cost")));
             assertThat(delegateDebug, not(hasKey("max_cost")));
             assertThat((int) delegateDebug.get("segments_counted"), greaterThan(0));
+        }, new KeywordFieldType("k", true, true, Collections.emptyMap()));
+    }
+
+    /**
+     * If the top level is a {@link TermInSetQuery} we shouldn't try to optimize
+     * the agg into {@link FilterByFilter} because those queries don't tend to
+     * cache their weights which makes the {@link FilterByFilter} strategy
+     * very slow.
+     */
+    public void testTermInSetTopLevelQueryNotOptimized() throws IOException {
+        randomizeAggregatorImpl = false;
+        long totalDocs = 500;
+        BytesRef[] set = new BytesRef[20]; // has to be more than 16 or we'll rewrite into a bool query
+        for (int i = 0; i < set.length; i++) {
+            set[i] = new BytesRef(Integer.toString(i, 26));
+        }
+        Query query = new TermInSetQuery("dummy", set);
+        BytesRef[] values = new BytesRef[] {
+            new BytesRef("stuff"), new BytesRef("more_stuff"), new BytesRef("other_stuff"),
+        };
+        debugTestCase(new TermsAggregationBuilder("t").field("k"), query, iw -> {
+            for (int d = 0; d < totalDocs; d++) {
+                BytesRef value = values[d % values.length];
+                iw.addDocument(
+                    List.of(
+                        new Field("dummy", "a", KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new Field("k", value, KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        new SortedSetDocValuesField("k", value)
+                    )
+                );
+            }
+        }, (StringTerms r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+            assertThat(
+                r.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                equalTo(List.of("more_stuff", "stuff", "other_stuff"))
+            );
+            assertThat(r.getBuckets().stream().map(StringTerms.Bucket::getDocCount).collect(toList()), equalTo(List.of(167L, 167L, 166L)));
+            assertThat(impl, equalTo(GlobalOrdinalsStringTermsAggregator.LowCardinality.class));
+            assertMap(debug, matchesMap()
+                .entry("t", matchesMap()
+                    .entry("segments_with_single_valued_ords", greaterThan(0))
+                    .entry("segments_with_multi_valued_ords", 0)
+                    .entry("result_strategy", "terms")
+                    .entry("collection_strategy", "dense")
+                    .entry("has_filter", false)));
         }, new KeywordFieldType("k", true, true, Collections.emptyMap()));
     }
 

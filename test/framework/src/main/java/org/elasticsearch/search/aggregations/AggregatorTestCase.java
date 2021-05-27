@@ -99,6 +99,7 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -292,7 +293,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             randomInt(),
             () -> 0L,
             () -> false,
-            q -> q
+            q -> q,
+            new ExpensiveQueriesToPrepare(SearchService.EXPENSIVE_QUERIES_TO_PREPARE.get(Settings.EMPTY))
         );
         releasables.add(context);
         return context;

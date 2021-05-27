@@ -333,6 +333,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public boolean topLevelIsExpensiveToPrepare() {
+            return false;
+        }
+
+        @Override
         public void close() {
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
             releaseMe.add(preallocated);

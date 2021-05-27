@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.support;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.ExpensiveQueriesToPrepare;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -245,6 +247,13 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isCacheable();
 
     /**
+     * Is it expensive to rewrite the top level query and build its
+     * {@link BulkScorer}s? If this returns true it disables some optimizations
+     * that rely on the query being quick to prepare.
+     */
+    public abstract boolean topLevelIsExpensiveToPrepare();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -264,6 +273,7 @@ public abstract class AggregationContext implements Releasable {
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
+        private final ExpensiveQueriesToPrepare expensiveQueriesToPrepare;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
@@ -279,7 +289,8 @@ public abstract class AggregationContext implements Releasable {
             int randomSeed,
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
-            Function<Query, Query> filterQuery
+            Function<Query, Query> filterQuery,
+            ExpensiveQueriesToPrepare expensiveQueriesToPrepare
         ) {
             this.context = context;
             if (bytesToPreallocate == 0) {
@@ -310,6 +321,7 @@ public abstract class AggregationContext implements Releasable {
             this.relativeTimeInMillis = relativeTimeInMillis;
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
+            this.expensiveQueriesToPrepare = expensiveQueriesToPrepare;
         }
 
         @Override
@@ -464,6 +476,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean isCacheable() {
             return context.isCacheable();
+        }
+
+        @Override
+        public boolean topLevelIsExpensiveToPrepare() {
+            return expensiveQueriesToPrepare.isExpensive(topLevelQuery.get());
         }
 
         @Override

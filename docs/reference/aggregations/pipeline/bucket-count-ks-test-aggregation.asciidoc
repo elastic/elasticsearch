@@ -39,7 +39,7 @@ A list of doubles indicating the distribution of the samples with which to compa
 `sampling_method`::
 (Optional, string)
 Indicates the sampling methodology when calculating the K-S test. Note, this is sampling
-of the returned values. This determines the cumulative distribution function (cdf) points
+of the returned values. This determines the cumulative distribution function (CDF) points
 used comparing the two samples. Default is `upper_tail`, which emphasizes the upper
 end of the CDF points. Valid options are: `upper_tail`, `uniform`, and `lower_tail`.
 

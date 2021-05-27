@@ -169,9 +169,6 @@ public class BucketCountKSTestAggregationBuilder extends BucketMetricsPipelineAg
     @Override
     protected void validate(ValidationContext context) {
         super.validate(context);
-        if (alternative.size() == 0) {
-            context.addValidationError("[alternative] must not be empty for aggregation [" + name + "]");
-        }
         if (bucketsPaths[0].endsWith("_count") == false) {
             context.addBucketPathValidationError("[bucket_count_ks_test] requires that buckets_path points to bucket [_count]");
         }

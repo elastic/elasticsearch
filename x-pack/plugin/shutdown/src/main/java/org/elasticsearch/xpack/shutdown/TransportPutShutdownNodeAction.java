@@ -63,78 +63,75 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask(
-            "put-node-shutdown-" + request.getNodeId(),
-            new ClusterStateUpdateTask() {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
-                    if (currentShutdownMetadata == null) {
-                        currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
-                    }
-
-                    // Verify that there's not already a shutdown metadata for this node
-                    if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()))) {
-                        logger.error(Strings.toString(currentShutdownMetadata));
-                        throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
-                    }
-
-                    SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
-                        .setNodeId(request.getNodeId())
-                        .setType(request.getType())
-                        .setReason(request.getReason())
-                        .setStartedAtMillis(System.currentTimeMillis())
-                        .build();
-
-                    return ClusterState.builder(currentState)
-                        .metadata(
-                            Metadata.builder(currentState.metadata())
-                                .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata))
-                        )
-                        .build();
+        clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
+                if (currentShutdownMetadata == null) {
+                    currentShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
                 }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
-                    listener.onFailure(e);
+                // Verify that there's not already a shutdown metadata for this node
+                if (Objects.nonNull(currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()))) {
+                    logger.error(Strings.toString(currentShutdownMetadata));
+                    throw new IllegalArgumentException("node [" + request.getNodeId() + "] is already shutting down");
                 }
 
-                @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())) {
-                        clusterService.getRerouteService()
-                            .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
-                                @Override
-                                public void onResponse(ClusterState clusterState) {
-                                    logger.trace("started reroute after registering node [{}] for removal", request.getNodeId());
-                                    listener.onResponse(AcknowledgedResponse.TRUE);
-                                }
+                SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
+                    .setNodeId(request.getNodeId())
+                    .setType(request.getType())
+                    .setReason(request.getReason())
+                    .setStartedAtMillis(System.currentTimeMillis())
+                    .build();
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    logger.warn(
-                                        new ParameterizedMessage(
-                                            "failed to start reroute after registering node [{}] for removal",
-                                            request.getNodeId()
-                                        ),
-                                        e
-                                    );
-                                    listener.onFailure(e);
-                                }
-                            });
-                    } else {
-                        logger.trace(
-                            "not starting reroute after registering node ["
-                                + request.getNodeId()
-                                + "] for shutdown of type ["
-                                + request.getType()
-                                + "]"
-                        );
-                    }
+                return ClusterState.builder(currentState)
+                    .metadata(
+                        Metadata.builder(currentState.metadata())
+                            .putCustom(NodesShutdownMetadata.TYPE, currentShutdownMetadata.putSingleNodeMetadata(newNodeMetadata))
+                    )
+                    .build();
+            }
+
+            @Override
+            public void onFailure(String source, Exception e) {
+                logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
+                listener.onFailure(e);
+            }
+
+            @Override
+            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())) {
+                    clusterService.getRerouteService()
+                        .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                            @Override
+                            public void onResponse(ClusterState clusterState) {
+                                logger.trace("started reroute after registering node [{}] for removal", request.getNodeId());
+                                listener.onResponse(AcknowledgedResponse.TRUE);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.warn(
+                                    new ParameterizedMessage(
+                                        "failed to start reroute after registering node [{}] for removal",
+                                        request.getNodeId()
+                                    ),
+                                    e
+                                );
+                                listener.onFailure(e);
+                            }
+                        });
+                } else {
+                    logger.trace(
+                        "not starting reroute after registering node ["
+                            + request.getNodeId()
+                            + "] for shutdown of type ["
+                            + request.getType()
+                            + "]"
+                    );
                 }
             }
-        );
+        });
     }
 
     @Override

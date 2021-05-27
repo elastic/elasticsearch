@@ -53,10 +53,11 @@ public enum Transports {
     public static boolean assertDefaultThreadContext(ThreadContext threadContext) {
         assert threadContext.getRequestHeadersOnly().isEmpty() ||
             threadContext.getRequestHeadersOnly().size() == 1 && threadContext.getRequestHeadersOnly().containsKey(Task.X_OPAQUE_ID) :
-            "[request headers] expected empty context but was " + threadContext.getRequestHeadersOnly() + " "+threadContext.getResponseHeaders()
-                + " on " + Thread.currentThread().getName();
+            "[request headers] expected empty context but was " + threadContext.getRequestHeadersOnly()
+                + " "+threadContext.getResponseHeaders() + " on " + Thread.currentThread().getName();
         assert threadContext.getResponseHeaders().isEmpty() :
-            "[response headers] expected empty context but was " + threadContext.getResponseHeaders() + " on " + Thread.currentThread().getName();
+            "[response headers] expected empty context but was " + threadContext.getResponseHeaders()
+                + " on " + Thread.currentThread().getName();
         return true;
     }
 }

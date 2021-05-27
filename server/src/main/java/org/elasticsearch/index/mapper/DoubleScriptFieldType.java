@@ -34,32 +34,8 @@ import java.util.function.Supplier;
 
 public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleFieldScript.LeafFactory> {
 
-    static final DoubleFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (DoubleFieldScript.LeafFactory) ctx -> new DoubleFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v instanceof Number) {
-                    emit(((Number) v).doubleValue());
-                } else if (v instanceof String) {
-                    try {
-                        emit(Double.parseDouble((String) v));
-                    } catch (NumberFormatException e) {
-                        // ignore
-                    }
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DoubleFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, DoubleFieldScript.CONTEXT, DoubleFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(DoubleFieldScript.Factory scriptFactory) {
                 return new DoubleScriptFieldType(name, scriptFactory, getScript(), meta(), this);
@@ -67,7 +43,7 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
         });
 
     public DoubleScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     DoubleScriptFieldType(

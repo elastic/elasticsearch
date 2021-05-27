@@ -15,7 +15,7 @@ import org.gradle.api.tasks.Internal;
 
 /**
  * A transformation to replace the key in a length assertion.
- * For example, change from "length ":{"index._type": 1} to "length ":{"index._doc": 1}
+ * For example, change from "length":{"index._type": 1} to "length":{"index._doc": 1}
  */
 public class ReplaceKeyInLength extends ReplaceByKey {
 
@@ -30,10 +30,10 @@ public class ReplaceKeyInLength extends ReplaceByKey {
     }
 
     @Override
-    public void transformTest(ObjectNode matchParent) {
-        ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
-        JsonNode previousValue = matchNode.get(requiredChildKey());
-        matchNode.remove(requiredChildKey());
-        matchNode.set(getNewChildKey(), previousValue);
+    public void transformTest(ObjectNode lengthParent) {
+        ObjectNode lengthNode = (ObjectNode) lengthParent.get(getKeyToFind());
+        JsonNode previousValue = lengthNode.get(requiredChildKey());
+        lengthNode.remove(requiredChildKey());
+        lengthNode.set(getNewChildKey(), previousValue);
     }
 }

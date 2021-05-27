@@ -26,6 +26,10 @@ public class MlStatsIndex {
 
     private MlStatsIndex() {}
 
+    public static String wrappedMapping() {
+        return "{\n\"_doc\" : " + mapping() + "\n}";
+    }
+
     public static String mapping() {
         return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/stats_index_mappings.json",
             Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);

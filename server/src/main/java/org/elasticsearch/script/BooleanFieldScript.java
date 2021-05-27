@@ -9,6 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.Booleans;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
@@ -17,6 +18,20 @@ import java.util.function.Consumer;
 public abstract class BooleanFieldScript extends AbstractFieldScript {
 
     public static final ScriptContext<Factory> CONTEXT = newContext("boolean_field", Factory.class);
+
+    public static final BooleanFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (BooleanFieldScript.LeafFactory) ctx -> new BooleanFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -66,6 +81,18 @@ public abstract class BooleanFieldScript extends AbstractFieldScript {
      */
     public final int falses() {
         return falses;
+    }
+
+    protected final void emitFromObject(Object v) {
+        if (v instanceof Boolean) {
+            emit((Boolean) v);
+        } else if (v instanceof String) {
+            try {
+                emit(Booleans.parseBoolean((String) v));
+            } catch (IllegalArgumentException e) {
+                // ignore
+            }
+        }
     }
 
     public final void emit(boolean v) {

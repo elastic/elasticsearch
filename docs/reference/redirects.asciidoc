@@ -3,36 +3,6 @@
 
 The following pages have moved or been deleted.
 
-// [START] Service account redirects
-// These redirects are required for the CI builds to pass until the service
-//accounts PR is merged
-[role="exclude",id="security-api-get-service-credentials"]
-=== Get service credentials
-
-See <<security-api,Security APIs>>.
-
-[role="exclude",id="security-api-get-service-accounts"]
-=== Get service accounts
-
-See <<security-api,Security APIs>>.
-
-[role="exclude",id="security-api-delete-service-token"]
-=== Delete service account tokens
-
-See <<security-api,Security APIs>>.
-
-[role="exclude",id="security-api-clear-service-token-caches"]
-=== Clear service account token caches
-
-See <<security-api,Security APIs>>.
-
-[role="exclude",id="security-api-create-service-token"]
-=== Create service account tokens
-
-See <<security-api,Security APIs>>.
-
-// [END] Service account redirects
-
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]
@@ -60,10 +30,38 @@ See <<security-basic-setup,Set up basic security for the Elastic Stack>>.
 
 See <<secure-cluster,Secure the Elastic Stack>>.
 
+// [START] OpenID Connect authentication
+[role="exclude",id="oidc-guide-authentication"]
+=== Configure {es} for OpenID Connect authentication
+
+See <<oidc-elasticsearch-authentication,Configure {es} for OpenID Connect authentication>>.
+
+[role="exclude",id="oidc-claims-mapping"]
+==== Claims mapping
+
+See <<oidc-claims-mappings,Claims mapping for OpenID Connect>>.
+
+[role="exclude",id="oidc-kibana"]
+=== Configuring {kib}
+
+See <<oidc-configure-kibana,Configuring {kib} for OpenID Connect>>.
+
+[role="exclude",id="oidc-role-mapping"]
+=== Configuring role mappings
+
+See <<oidc-role-mappings,Configuring OpenID Connect role mappings>>.
+// [END] OpenID Connect authentication
+
+// [START] SAML authentication
 [role="exclude",id="saml-guide"]
 === Configure SAML single-sign on
 
 See <<saml-guide-stack,Configuring SAML single-sign-on on the {stack}>>.
+
+[role="exclude",id="saml-kibana"]
+=== Configuring {kib}
+
+See <<saml-configure-kibana,Configuring {kib} for SAML>>.
 
 [role="exclude",id="saml-guide-authentication"]
 === Configure {es} for SAML authentication
@@ -74,6 +72,12 @@ See <<saml-elasticsearch-authentication,Configure {es} for SAML authentication>>
 ==== Attribute mapping
 
 See <<saml-attributes-mapping,SAML attribute mapping>>.
+
+[role="exclude",id="saml-user-properties"]
+===== User properties
+
+See <<saml-es-user-properties,{es} user properties>>.
+// [END] SAML authentication
 
 [role="exclude",id="active-directory-ssl"]
 === Setting up SSL between {es} and Active Directory
@@ -1555,3 +1559,32 @@ See <<getting-started>>.
 === Settng JVM options
 
 See <<set-jvm-options>>.
+
+[role="exclude",id="terms-enum"]
+=== Terms enum API
+
+See <<search-terms-enum>>.
+
+[role="exclude",id="frozen-indices"]
+=== Frozen indices
+
+// tag::frozen-index-redirect[]
+include::{es-repo-dir}/indices/apis/freeze.asciidoc[tag=freeze-api-dep]
+
+For API documentation, see <<freeze-index-api>> and <<unfreeze-index-api>>.
+// end::frozen-index-redirect[]
+
+[role="exclude",id="best_practices"]
+=== Best practices for frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="searching_a_frozen_index"]
+=== Searching a frozen index
+
+include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="monitoring_frozen_indices"]
+=== Monitoring frozen indices
+
+include::redirects.asciidoc[tag=frozen-index-redirect]

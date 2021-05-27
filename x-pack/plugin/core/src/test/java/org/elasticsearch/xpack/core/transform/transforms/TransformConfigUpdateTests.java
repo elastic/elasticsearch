@@ -292,11 +292,6 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
     static class FooSync implements SyncConfig {
 
         @Override
-        public boolean isValid() {
-            return true;
-        }
-
-        @Override
         public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
             return null;
         }

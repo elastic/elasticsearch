@@ -68,13 +68,13 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
-    private static final String DS_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds", 1);
-    private static final String DS2_BACKING_INDEX_NAME = DataStream.getDefaultBackingIndexName("ds2", 1);
     private static final Map<String, Integer> DOCUMENT_SOURCE = Collections.singletonMap("@timestamp", 123);
     public static final String REPO = "repo";
     public static final String SNAPSHOT = "snap";
     private Client client;
 
+    private String dsBackingIndexName;
+    private String ds2BackingIndexName;
     private String id;
 
     @Override
@@ -97,6 +97,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         request = new CreateDataStreamAction.Request("other-ds");
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
+
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] {"*"});
+        GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
+        dsBackingIndexName = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
+        // Will be used in some tests, to test renaming while restoring a snapshot:
+        ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
 
         IndexResponse indexResponse = client.prepareIndex("ds").setOpType(DocWriteRequest.OpType.CREATE).setSource(DOCUMENT_SOURCE).get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -129,7 +135,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertTrue(
             client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "ds" }))
@@ -146,7 +152,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -157,7 +163,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(dsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
 
         GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));
@@ -179,7 +185,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         // Close all indices:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("*");
@@ -194,7 +200,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -206,7 +212,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             contains(equalTo("ds"), equalTo("other-ds"))
         );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
-        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(DS_BACKING_INDEX_NAME));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(dsBackingIndexName));
         backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
         String expectedBackingIndexName = DataStream.getDefaultBackingIndexName("other-ds", 1);
         assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(expectedBackingIndexName));
@@ -224,7 +230,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         // A rollover after taking snapshot. The new backing index should be a standalone index after restoring
         // and not part of the data stream:
@@ -246,7 +252,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .get();
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -259,7 +265,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
         assertThat(ds.getDataStreams().get(0).getDataStream().getIndices(), hasSize(1));
-        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(DS_BACKING_INDEX_NAME)));
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(equalTo(dsBackingIndexName)));
 
         // The backing index created as part of rollover should still exist (but just not part of the data stream)
         assertThat(indexExists(DataStream.getDefaultBackingIndexName("ds", 2)), is(true));
@@ -282,7 +288,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertEquals(Collections.singletonList(DS_BACKING_INDEX_NAME), getSnapshot(REPO, SNAPSHOT).indices());
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
         assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(new String[] { "*" })).get());
         assertAcked(client.admin().indices().prepareDelete("*").setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN));
@@ -296,7 +302,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
         SearchHit[] hits = client.prepareSearch("ds").get().getHits().getHits();
         assertEquals(1, hits.length);
         assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
@@ -307,7 +313,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(dsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
 
         GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds"));
@@ -348,9 +354,9 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(ds2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
         assertEquals(DOCUMENT_SOURCE, client.prepareSearch("ds2").get().getHits().getHits()[0].getSourceAsMap());
-        assertEquals(DOCUMENT_SOURCE, client.prepareGet(DS2_BACKING_INDEX_NAME, id).get().getSourceAsMap());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(ds2BackingIndexName, id).get().getSourceAsMap());
 
         GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "ds2", "other-ds"));
@@ -388,7 +394,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareRestoreSnapshot(REPO, SNAPSHOT)
             .setWaitForCompletion(true)
             .setIndices("ds")
-            .setRenamePattern(DS_BACKING_INDEX_NAME)
+            .setRenamePattern(dsBackingIndexName)
             .setRenameReplacement("new_index_name")
             .get();
 
@@ -396,7 +402,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
         GetDataStreamAction.Response response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
-        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
+        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(dsBackingIndexName));
     }
 
     public void testDataStreamAndBackingIndicesAreRenamedUsingRegex() {
@@ -439,7 +445,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // data stream "ds" should still exist in the system
         GetDataStreamAction.Request getDSRequest = new GetDataStreamAction.Request(new String[] { "ds" });
         response = client.execute(GetDataStreamAction.INSTANCE, getDSRequest).actionGet();
-        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(DS_BACKING_INDEX_NAME));
+        assertThat(response.getDataStreams().get(0).getDataStream().getIndices().get(0).getName(), is(dsBackingIndexName));
     }
 
     public void testWildcards() throws Exception {
@@ -471,7 +477,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         ).get();
         assertEquals(1, ds.getDataStreams().size());
         assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-        assertEquals(DS2_BACKING_INDEX_NAME, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+        assertEquals(ds2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
         assertThat(
             "we renamed the restored data stream to one that doesn't match any existing composable template",
             ds.getDataStreams().get(0).getIndexTemplate(),
@@ -484,7 +490,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .cluster()
             .prepareCreateSnapshot(REPO, "snap2")
             .setWaitForCompletion(true)
-            .setIndices(DS_BACKING_INDEX_NAME)
+            .setIndices(dsBackingIndexName)
             .setIncludeGlobalState(false)
             .get();
 

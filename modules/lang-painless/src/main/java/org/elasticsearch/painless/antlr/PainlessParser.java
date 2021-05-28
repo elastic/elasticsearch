@@ -1,25 +1,13 @@
 // ANTLR GENERATED CODE: DO NOT EDIT
 package org.elasticsearch.painless.antlr;
-
-import org.antlr.v4.runtime.FailedPredicateException;
-import org.antlr.v4.runtime.NoViableAltException;
-import org.antlr.v4.runtime.Parser;
-import org.antlr.v4.runtime.ParserRuleContext;
-import org.antlr.v4.runtime.RecognitionException;
-import org.antlr.v4.runtime.RuleContext;
-import org.antlr.v4.runtime.RuntimeMetaData;
-import org.antlr.v4.runtime.TokenStream;
-import org.antlr.v4.runtime.Vocabulary;
-import org.antlr.v4.runtime.VocabularyImpl;
-import org.antlr.v4.runtime.atn.ATN;
-import org.antlr.v4.runtime.atn.ATNDeserializer;
-import org.antlr.v4.runtime.atn.ParserATNSimulator;
-import org.antlr.v4.runtime.atn.PredictionContextCache;
+import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
-import org.antlr.v4.runtime.tree.ParseTreeVisitor;
-import org.antlr.v4.runtime.tree.TerminalNode;
-
+import org.antlr.v4.runtime.*;
+import org.antlr.v4.runtime.misc.*;
+import org.antlr.v4.runtime.tree.*;
 import java.util.List;
+import java.util.Iterator;
+import java.util.ArrayList;
 
 @SuppressWarnings({"all", "warnings", "unchecked", "unused", "cast"})
 class PainlessParser extends Parser {
@@ -29,60 +17,60 @@ class PainlessParser extends Parser {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    WS=1, COMMENT=2, LBRACK=3, RBRACK=4, LBRACE=5, RBRACE=6, LP=7, RP=8, DOT=9,
-    NSDOT=10, COMMA=11, SEMICOLON=12, IF=13, IN=14, ELSE=15, WHILE=16, DO=17,
-    FOR=18, CONTINUE=19, BREAK=20, RETURN=21, NEW=22, TRY=23, CATCH=24, THROW=25,
-    THIS=26, INSTANCEOF=27, BOOLNOT=28, BWNOT=29, MUL=30, DIV=31, REM=32,
-    ADD=33, SUB=34, LSH=35, RSH=36, USH=37, LT=38, LTE=39, GT=40, GTE=41,
-    EQ=42, EQR=43, NE=44, NER=45, BWAND=46, XOR=47, BWOR=48, BOOLAND=49, BOOLOR=50,
-    COND=51, COLON=52, ELVIS=53, REF=54, ARROW=55, FIND=56, MATCH=57, INCR=58,
-    DECR=59, ASSIGN=60, AADD=61, ASUB=62, AMUL=63, ADIV=64, AREM=65, AAND=66,
-    AXOR=67, AOR=68, ALSH=69, ARSH=70, AUSH=71, OCTAL=72, HEX=73, INTEGER=74,
-    DECIMAL=75, STRING=76, REGEX=77, TRUE=78, FALSE=79, NULL=80, PRIMITIVE=81,
+    WS=1, COMMENT=2, LBRACK=3, RBRACK=4, LBRACE=5, RBRACE=6, LP=7, RP=8, DOT=9, 
+    NSDOT=10, COMMA=11, SEMICOLON=12, IF=13, IN=14, ELSE=15, WHILE=16, DO=17, 
+    FOR=18, CONTINUE=19, BREAK=20, RETURN=21, NEW=22, TRY=23, CATCH=24, THROW=25, 
+    THIS=26, INSTANCEOF=27, BOOLNOT=28, BWNOT=29, MUL=30, DIV=31, REM=32, 
+    ADD=33, SUB=34, LSH=35, RSH=36, USH=37, LT=38, LTE=39, GT=40, GTE=41, 
+    EQ=42, EQR=43, NE=44, NER=45, BWAND=46, XOR=47, BWOR=48, BOOLAND=49, BOOLOR=50, 
+    COND=51, COLON=52, ELVIS=53, REF=54, ARROW=55, FIND=56, MATCH=57, INCR=58, 
+    DECR=59, ASSIGN=60, AADD=61, ASUB=62, AMUL=63, ADIV=64, AREM=65, AAND=66, 
+    AXOR=67, AOR=68, ALSH=69, ARSH=70, AUSH=71, OCTAL=72, HEX=73, INTEGER=74, 
+    DECIMAL=75, STRING=76, REGEX=77, TRUE=78, FALSE=79, NULL=80, PRIMITIVE=81, 
     DEF=82, ID=83, DOTINTEGER=84, DOTID=85;
   public static final int
-    RULE_source = 0, RULE_function = 1, RULE_parameters = 2, RULE_statement = 3,
-    RULE_rstatement = 4, RULE_dstatement = 5, RULE_trailer = 6, RULE_block = 7,
-    RULE_empty = 8, RULE_initializer = 9, RULE_afterthought = 10, RULE_declaration = 11,
-    RULE_decltype = 12, RULE_type = 13, RULE_declvar = 14, RULE_trap = 15,
-    RULE_noncondexpression = 16, RULE_expression = 17, RULE_unary = 18, RULE_unarynotaddsub = 19,
-    RULE_castexpression = 20, RULE_primordefcasttype = 21, RULE_refcasttype = 22,
-    RULE_chain = 23, RULE_primary = 24, RULE_postfix = 25, RULE_postdot = 26,
-    RULE_callinvoke = 27, RULE_fieldaccess = 28, RULE_braceaccess = 29, RULE_arrayinitializer = 30,
-    RULE_listinitializer = 31, RULE_mapinitializer = 32, RULE_maptoken = 33,
-    RULE_arguments = 34, RULE_argument = 35, RULE_lambda = 36, RULE_lamtype = 37,
+    RULE_source = 0, RULE_function = 1, RULE_parameters = 2, RULE_statement = 3, 
+    RULE_rstatement = 4, RULE_dstatement = 5, RULE_trailer = 6, RULE_block = 7, 
+    RULE_empty = 8, RULE_initializer = 9, RULE_afterthought = 10, RULE_declaration = 11, 
+    RULE_decltype = 12, RULE_type = 13, RULE_declvar = 14, RULE_trap = 15, 
+    RULE_noncondexpression = 16, RULE_expression = 17, RULE_unary = 18, RULE_unarynotaddsub = 19, 
+    RULE_castexpression = 20, RULE_primordefcasttype = 21, RULE_refcasttype = 22, 
+    RULE_chain = 23, RULE_primary = 24, RULE_postfix = 25, RULE_postdot = 26, 
+    RULE_callinvoke = 27, RULE_fieldaccess = 28, RULE_braceaccess = 29, RULE_arrayinitializer = 30, 
+    RULE_listinitializer = 31, RULE_mapinitializer = 32, RULE_maptoken = 33, 
+    RULE_arguments = 34, RULE_argument = 35, RULE_lambda = 36, RULE_lamtype = 37, 
     RULE_funcref = 38;
   public static final String[] ruleNames = {
-    "source", "function", "parameters", "statement", "rstatement", "dstatement",
-    "trailer", "block", "empty", "initializer", "afterthought", "declaration",
-    "decltype", "type", "declvar", "trap", "noncondexpression", "expression",
-    "unary", "unarynotaddsub", "castexpression", "primordefcasttype", "refcasttype",
-    "chain", "primary", "postfix", "postdot", "callinvoke", "fieldaccess",
-    "braceaccess", "arrayinitializer", "listinitializer", "mapinitializer",
+    "source", "function", "parameters", "statement", "rstatement", "dstatement", 
+    "trailer", "block", "empty", "initializer", "afterthought", "declaration", 
+    "decltype", "type", "declvar", "trap", "noncondexpression", "expression", 
+    "unary", "unarynotaddsub", "castexpression", "primordefcasttype", "refcasttype", 
+    "chain", "primary", "postfix", "postdot", "callinvoke", "fieldaccess", 
+    "braceaccess", "arrayinitializer", "listinitializer", "mapinitializer", 
     "maptoken", "arguments", "argument", "lambda", "lamtype", "funcref"
   };
 
   private static final String[] _LITERAL_NAMES = {
-    null, null, null, "'{'", "'}'", "'['", "']'", "'('", "')'", "'.'", "'?.'",
-    "','", "';'", "'if'", "'in'", "'else'", "'while'", "'do'", "'for'", "'continue'",
-    "'break'", "'return'", "'new'", "'try'", "'catch'", "'throw'", "'this'",
-    "'instanceof'", "'!'", "'~'", "'*'", "'/'", "'%'", "'+'", "'-'", "'<<'",
-    "'>>'", "'>>>'", "'<'", "'<='", "'>'", "'>='", "'=='", "'==='", "'!='",
-    "'!=='", "'&'", "'^'", "'|'", "'&&'", "'||'", "'?'", "':'", "'?:'", "'::'",
-    "'->'", "'=~'", "'==~'", "'++'", "'--'", "'='", "'+='", "'-='", "'*='",
-    "'/='", "'%='", "'&='", "'^='", "'|='", "'<<='", "'>>='", "'>>>='", null,
+    null, null, null, "'{'", "'}'", "'['", "']'", "'('", "')'", "'.'", "'?.'", 
+    "','", "';'", "'if'", "'in'", "'else'", "'while'", "'do'", "'for'", "'continue'", 
+    "'break'", "'return'", "'new'", "'try'", "'catch'", "'throw'", "'this'", 
+    "'instanceof'", "'!'", "'~'", "'*'", "'/'", "'%'", "'+'", "'-'", "'<<'", 
+    "'>>'", "'>>>'", "'<'", "'<='", "'>'", "'>='", "'=='", "'==='", "'!='", 
+    "'!=='", "'&'", "'^'", "'|'", "'&&'", "'||'", "'?'", "':'", "'?:'", "'::'", 
+    "'->'", "'=~'", "'==~'", "'++'", "'--'", "'='", "'+='", "'-='", "'*='", 
+    "'/='", "'%='", "'&='", "'^='", "'|='", "'<<='", "'>>='", "'>>>='", null, 
     null, null, null, null, null, "'true'", "'false'", "'null'", null, "'def'"
   };
   private static final String[] _SYMBOLIC_NAMES = {
-    null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP",
-    "DOT", "NSDOT", "COMMA", "SEMICOLON", "IF", "IN", "ELSE", "WHILE", "DO",
-    "FOR", "CONTINUE", "BREAK", "RETURN", "NEW", "TRY", "CATCH", "THROW",
-    "THIS", "INSTANCEOF", "BOOLNOT", "BWNOT", "MUL", "DIV", "REM", "ADD",
-    "SUB", "LSH", "RSH", "USH", "LT", "LTE", "GT", "GTE", "EQ", "EQR", "NE",
-    "NER", "BWAND", "XOR", "BWOR", "BOOLAND", "BOOLOR", "COND", "COLON", "ELVIS",
-    "REF", "ARROW", "FIND", "MATCH", "INCR", "DECR", "ASSIGN", "AADD", "ASUB",
-    "AMUL", "ADIV", "AREM", "AAND", "AXOR", "AOR", "ALSH", "ARSH", "AUSH",
-    "OCTAL", "HEX", "INTEGER", "DECIMAL", "STRING", "REGEX", "TRUE", "FALSE",
+    null, "WS", "COMMENT", "LBRACK", "RBRACK", "LBRACE", "RBRACE", "LP", "RP", 
+    "DOT", "NSDOT", "COMMA", "SEMICOLON", "IF", "IN", "ELSE", "WHILE", "DO", 
+    "FOR", "CONTINUE", "BREAK", "RETURN", "NEW", "TRY", "CATCH", "THROW", 
+    "THIS", "INSTANCEOF", "BOOLNOT", "BWNOT", "MUL", "DIV", "REM", "ADD", 
+    "SUB", "LSH", "RSH", "USH", "LT", "LTE", "GT", "GTE", "EQ", "EQR", "NE", 
+    "NER", "BWAND", "XOR", "BWOR", "BOOLAND", "BOOLOR", "COND", "COLON", "ELVIS", 
+    "REF", "ARROW", "FIND", "MATCH", "INCR", "DECR", "ASSIGN", "AADD", "ASUB", 
+    "AMUL", "ADIV", "AREM", "AAND", "AXOR", "AOR", "ALSH", "ARSH", "AUSH", 
+    "OCTAL", "HEX", "INTEGER", "DECIMAL", "STRING", "REGEX", "TRUE", "FALSE", 
     "NULL", "PRIMITIVE", "DEF", "ID", "DOTINTEGER", "DOTID"
   };
   public static final Vocabulary VOCABULARY = new VocabularyImpl(_LITERAL_NAMES, _SYMBOLIC_NAMES);
@@ -177,7 +165,7 @@ class PainlessParser extends Parser {
           setState(78);
           function();
           }
-          }
+          } 
         }
         setState(83);
         _errHandler.sync(this);
@@ -438,7 +426,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_rstatement; }
-
+   
     public RstatementContext() { }
     public void copyFrom(RstatementContext ctx) {
       super.copyFrom(ctx);
@@ -819,7 +807,7 @@ class PainlessParser extends Parser {
         match(TRY);
         setState(173);
         block();
-        setState(175);
+        setState(175); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -835,7 +823,7 @@ class PainlessParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          setState(177);
+          setState(177); 
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,11,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -859,7 +847,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_dstatement; }
-
+   
     public DstatementContext() { }
     public void copyFrom(DstatementContext ctx) {
       super.copyFrom(ctx);
@@ -1171,7 +1159,7 @@ class PainlessParser extends Parser {
           setState(205);
           statement();
           }
-          }
+          } 
         }
         setState(210);
         _errHandler.sync(this);
@@ -1432,7 +1420,7 @@ class PainlessParser extends Parser {
           setState(235);
           match(RBRACE);
           }
-          }
+          } 
         }
         setState(240);
         _errHandler.sync(this);
@@ -1512,7 +1500,7 @@ class PainlessParser extends Parser {
             setState(245);
             match(DOTID);
             }
-            }
+            } 
           }
           setState(250);
           _errHandler.sync(this);
@@ -1643,7 +1631,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_noncondexpression; }
-
+   
     public NoncondexpressionContext() { }
     public void copyFrom(NoncondexpressionContext ctx) {
       super.copyFrom(ctx);
@@ -1979,7 +1967,7 @@ class PainlessParser extends Parser {
             }
             break;
           }
-          }
+          } 
         }
         setState(311);
         _errHandler.sync(this);
@@ -2003,7 +1991,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_expression; }
-
+   
     public ExpressionContext() { }
     public void copyFrom(ExpressionContext ctx) {
       super.copyFrom(ctx);
@@ -2133,7 +2121,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_unary; }
-
+   
     public UnaryContext() { }
     public void copyFrom(UnaryContext ctx) {
       super.copyFrom(ctx);
@@ -2258,7 +2246,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_unarynotaddsub; }
-
+   
     public UnarynotaddsubContext() { }
     public void copyFrom(UnarynotaddsubContext ctx) {
       super.copyFrom(ctx);
@@ -2385,7 +2373,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_castexpression; }
-
+   
     public CastexpressionContext() { }
     public void copyFrom(CastexpressionContext ctx) {
       super.copyFrom(ctx);
@@ -2556,7 +2544,7 @@ class PainlessParser extends Parser {
         {
         setState(355);
         match(DEF);
-        setState(358);
+        setState(358); 
         _errHandler.sync(this);
         _la = _input.LA(1);
         do {
@@ -2568,7 +2556,7 @@ class PainlessParser extends Parser {
           match(RBRACE);
           }
           }
-          setState(360);
+          setState(360); 
           _errHandler.sync(this);
           _la = _input.LA(1);
         } while ( _la==LBRACE );
@@ -2579,7 +2567,7 @@ class PainlessParser extends Parser {
         {
         setState(362);
         match(PRIMITIVE);
-        setState(365);
+        setState(365); 
         _errHandler.sync(this);
         _la = _input.LA(1);
         do {
@@ -2591,7 +2579,7 @@ class PainlessParser extends Parser {
           match(RBRACE);
           }
           }
-          setState(367);
+          setState(367); 
           _errHandler.sync(this);
           _la = _input.LA(1);
         } while ( _la==LBRACE );
@@ -2656,7 +2644,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_chain; }
-
+   
     public ChainContext() { }
     public void copyFrom(ChainContext ctx) {
       super.copyFrom(ctx);
@@ -2715,7 +2703,7 @@ class PainlessParser extends Parser {
             setState(387);
             postfix();
             }
-            }
+            } 
           }
           setState(392);
           _errHandler.sync(this);
@@ -2749,7 +2737,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_primary; }
-
+   
     public PrimaryContext() { }
     public void copyFrom(PrimaryContext ctx) {
       super.copyFrom(ctx);
@@ -3276,7 +3264,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_arrayinitializer; }
-
+   
     public ArrayinitializerContext() { }
     public void copyFrom(ArrayinitializerContext ctx) {
       super.copyFrom(ctx);
@@ -3367,7 +3355,7 @@ class PainlessParser extends Parser {
         match(NEW);
         setState(438);
         type();
-        setState(443);
+        setState(443); 
         _errHandler.sync(this);
         _alt = 1;
         do {
@@ -3387,7 +3375,7 @@ class PainlessParser extends Parser {
           default:
             throw new NoViableAltException(this);
           }
-          setState(445);
+          setState(445); 
           _errHandler.sync(this);
           _alt = getInterpreter().adaptivePredict(_input,40,_ctx);
         } while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER );
@@ -3408,7 +3396,7 @@ class PainlessParser extends Parser {
               setState(448);
               postfix();
               }
-              }
+              } 
             }
             setState(453);
             _errHandler.sync(this);
@@ -3470,7 +3458,7 @@ class PainlessParser extends Parser {
             setState(472);
             postfix();
             }
-            }
+            } 
           }
           setState(477);
           _errHandler.sync(this);
@@ -4023,7 +4011,7 @@ class PainlessParser extends Parser {
       super(parent, invokingState);
     }
     @Override public int getRuleIndex() { return RULE_funcref; }
-
+   
     public FuncrefContext() { }
     public void copyFrom(FuncrefContext ctx) {
       super.copyFrom(ctx);

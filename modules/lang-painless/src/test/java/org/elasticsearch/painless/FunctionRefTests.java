@@ -273,4 +273,15 @@ public class FunctionRefTests extends ScriptTestCase {
         });
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
     }
+
+    public void testObjectMethodOverride() {
+        assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} CharSequence s = 's'; return test(s::toString);"));
+        assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} def s = 's'; return test(s::toString);"));
+    }
+
+    public void testInvalidMethodReference() {
+        //exec("def test(Supplier s) {return s.get();} int i = 1; test(i::toString)");
+        //throw new RuntimeException(Debugger.toString("def test(Supplier s) {return s.get();} String s = 's'; test(s::toString)"));
+        //exec("def test(Supplier s) {return s.get();} test(Integer::toString)");
+    }
 }

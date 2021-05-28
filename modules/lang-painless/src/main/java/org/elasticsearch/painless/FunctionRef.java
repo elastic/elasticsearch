@@ -165,6 +165,16 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
+
+                // interfaces that override a method from Object receive the method handle for
+                // Object rather than for the interface; we change the first parameter to match
+                // the interface type so the constant interface method reference is correctly
+                // written to the constant pool
+                if (delegateInvokeType != H_INVOKESTATIC &&
+                        painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
+                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
+                }
+
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
                 delegateMethodReturnType = painlessMethod.returnType;

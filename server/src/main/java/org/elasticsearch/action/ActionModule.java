@@ -441,14 +441,14 @@ public class ActionModule extends AbstractModule {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                if (restWrapper != null) {
-                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
-                }
-                restWrapper = newRestWrapper;
                 if ("org.elasticsearch.xpack.security.Security".equals(plugin.getClass().getCanonicalName()) == false) {
                     logger.warn("The " + plugin.getClass().getName() + " plugin tried to install a custom REST wrapper. This " +
                         "functionality is not available anymore, and the plugin has been disabled.");
                 }
+                if (restWrapper != null) {
+                    throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
+                }
+                restWrapper = newRestWrapper;
             }
         }
         mappingRequestValidators = new RequestValidators<>(

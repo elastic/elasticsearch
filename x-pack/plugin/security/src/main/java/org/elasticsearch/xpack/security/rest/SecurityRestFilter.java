@@ -62,7 +62,7 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (request.method() == Method.OPTIONS){
+        if (request.method() == Method.OPTIONS) {
             // CORS - allow for preflight unauthenticated OPTIONS request
             restHandler.handleRequest(request, channel, client);
             return;

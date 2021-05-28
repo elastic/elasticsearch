@@ -33,6 +33,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
@@ -45,9 +46,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackField;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -80,6 +79,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
@@ -531,7 +531,6 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
 
-        XPackPlugin xpackPlugin = new LocalStateCompositeXPackPlugin(settings, null);
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
@@ -542,7 +541,7 @@ public class SecurityTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, Arrays.asList(xpackPlugin, security), null, null, usageService, null);
+                threadPool, Arrays.asList(security), null, null, usageService, null);
             actionModule.initRestHandlers(null);
 
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -558,6 +557,43 @@ public class SecurityTests extends ESTestCase {
                     }
                 }));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    public void test3rdPartyHandlerIsNotInstalled() {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        class FakeHandler implements RestHandler {
+            @Override
+            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+            }
+        }
+        ActionPlugin secPlugin = new ActionPlugin() {
+            @Override
+            public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+                return handler -> new FakeHandler();
+            }
+        };
+
+        try {
+            UsageService usageService = new UsageService();
+            Security security = new Security(settings, null);
+
+            Exception e = expectThrows(IllegalArgumentException.class, () ->
+                new ActionModule(settingsModule.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                threadPool, Arrays.asList(security, secPlugin), null, null, usageService, null)
+            );
+            assertThat(e.getMessage(), startsWith("Cannot have more than one plugin implementing a REST wrapper"));
         } finally {
             threadPool.shutdown();
         }

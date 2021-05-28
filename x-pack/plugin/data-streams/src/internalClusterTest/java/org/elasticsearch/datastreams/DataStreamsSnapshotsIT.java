@@ -98,7 +98,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         response = client.execute(CreateDataStreamAction.INSTANCE, request).get();
         assertTrue(response.isAcknowledged());
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] {"*"});
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response getDataStreamResponse = client.execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
         dsBackingIndexName = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
         // Will be used in some tests, to test renaming while restoring a snapshot:

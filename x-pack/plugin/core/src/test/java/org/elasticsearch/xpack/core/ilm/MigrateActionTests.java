@@ -23,7 +23,6 @@ import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.xpack.core.DataTier.DATA_COLD;
 import static org.elasticsearch.xpack.core.DataTier.DATA_HOT;
 import static org.elasticsearch.xpack.core.DataTier.DATA_WARM;
-import static org.elasticsearch.xpack.core.ilm.MigrateAction.getPreferredTiersConfiguration;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
@@ -81,14 +80,6 @@ public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {
             List<Step> steps = disabledMigrateAction.toSteps(null, phase, nextStepKey);
             assertEquals(0, steps.size());
         }
-    }
-
-    public void testGetPreferredTiersConfiguration() {
-        assertThat(getPreferredTiersConfiguration(DATA_HOT), is(DATA_HOT));
-        assertThat(getPreferredTiersConfiguration(DATA_WARM), is(DATA_WARM + "," + DATA_HOT));
-        assertThat(getPreferredTiersConfiguration(DATA_COLD), is(DATA_COLD + "," + DATA_WARM + "," + DATA_HOT));
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> getPreferredTiersConfiguration("no_tier"));
-        assertThat(exception.getMessage(), is("invalid data tier [no_tier]"));
     }
 
     public void testMigrateActionsConfiguresTierPreference() {

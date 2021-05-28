@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.io.IOException;
@@ -48,8 +49,10 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
+import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
+import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
+import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -638,6 +641,144 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             nextClusterState, now);
         LifecycleExecutionState executionState = LifecycleExecutionState.fromIndexMetadata(nextClusterState.metadata().index(indexName));
         assertThat(executionState.getFailedStepRetryCount(), is(1));
+    }
+
+    public void testRefreshPhaseJson() {
+        LifecycleExecutionState.Builder exState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep("check-rollover-ready")
+            .setPhaseDefinition("{\n" +
+                "        \"policy\" : \"my-policy\",\n" +
+                "        \"phase_definition\" : {\n" +
+                "          \"min_age\" : \"20m\",\n" +
+                "          \"actions\" : {\n" +
+                "            \"rollover\" : {\n" +
+                "              \"max_age\" : \"5s\"\n" +
+                "            },\n" +
+                "            \"set_priority\" : {\n" +
+                "              \"priority\" : 150\n" +
+                "            }\n" +
+                "          }\n" +
+                "        },\n" +
+                "        \"version\" : 1,\n" +
+                "        \"modified_date_in_millis\" : 1578521007076\n" +
+                "      }");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", exState);
+        String index = meta.getIndex().getName();
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("set_priority", new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy newPolicy = new LifecyclePolicy("my-policy", phases);
+        LifecyclePolicyMetadata policyMetadata = new LifecyclePolicyMetadata(newPolicy, Collections.emptyMap(), 2L, 2L);
+
+        ClusterState existingState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder(Metadata.EMPTY_METADATA)
+                .put(meta, false)
+                .build())
+            .build();
+
+        ClusterState changedState = refreshPhaseDefinition(existingState, index, policyMetadata);
+
+        IndexMetadata newIdxMeta = changedState.metadata().index(index);
+        LifecycleExecutionState afterExState = LifecycleExecutionState.fromIndexMetadata(newIdxMeta);
+        Map<String, String> beforeState = new HashMap<>(exState.build().asMap());
+        beforeState.remove("phase_definition");
+        Map<String, String> afterState = new HashMap<>(afterExState.asMap());
+        afterState.remove("phase_definition");
+        // Check that no other execution state changes have been made
+        assertThat(beforeState, equalTo(afterState));
+
+        // Check that the phase definition has been refreshed
+        assertThat(afterExState.getPhaseDefinition(),
+            equalTo("{\"policy\":\"my-policy\",\"phase_definition\":{\"min_age\":\"0ms\",\"actions\":{\"rollover\":{\"max_docs\":1}," +
+                "\"set_priority\":{\"priority\":100}}},\"version\":2,\"modified_date_in_millis\":2}"));
+    }
+
+    public void testEligibleForRefresh() {
+        IndexMetadata meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .build();
+        assertFalse(eligibleToCheckForRefresh(meta));
+
+        LifecycleExecutionState state = LifecycleExecutionState.builder().build();
+        meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
+            .build();
+        assertFalse(eligibleToCheckForRefresh(meta));
+
+        state = LifecycleExecutionState.builder()
+            .setPhase("phase")
+            .setAction("action")
+            .setStep("step")
+            .build();
+        meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
+            .build();
+        assertFalse(eligibleToCheckForRefresh(meta));
+
+        state = LifecycleExecutionState.builder()
+            .setPhaseDefinition("{}")
+            .build();
+        meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
+            .build();
+        assertFalse(eligibleToCheckForRefresh(meta));
+
+        state = LifecycleExecutionState.builder()
+            .setPhase("phase")
+            .setAction("action")
+            .setStep(ErrorStep.NAME)
+            .setPhaseDefinition("{}")
+            .build();
+        meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
+            .build();
+        assertFalse(eligibleToCheckForRefresh(meta));
+
+        state = LifecycleExecutionState.builder()
+            .setPhase("phase")
+            .setAction("action")
+            .setStep("step")
+            .setPhaseDefinition("{}")
+            .build();
+        meta = IndexMetadata.builder("index")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(5)))
+            .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
+            .build();
+        assertTrue(eligibleToCheckForRefresh(meta));
     }
 
     private static LifecyclePolicy createPolicy(String policyName, Step.StepKey safeStep, Step.StepKey unsafeStep) {

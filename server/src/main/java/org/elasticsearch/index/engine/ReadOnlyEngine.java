@@ -583,4 +583,8 @@ public class ReadOnlyEngine extends Engine {
             }
         };
     }
+
+    public final String getCommitId() {
+        return commitId;
+    }
 }

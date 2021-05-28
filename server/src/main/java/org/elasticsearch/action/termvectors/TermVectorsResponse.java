@@ -19,6 +19,7 @@ import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
+import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -169,6 +170,9 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
         builder.field(FieldStrings._INDEX, index);
         if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
+        }
+        if(builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         builder.field(FieldStrings._VERSION, docVersion);
         builder.field(FieldStrings.FOUND, isExists());

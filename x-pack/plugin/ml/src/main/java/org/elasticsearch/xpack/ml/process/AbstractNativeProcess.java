@@ -319,6 +319,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     public void consumeAndCloseOutputStream() {
+        if (processOutStream.get() == null) {
+            return;
+        }
+
         try (InputStream outStream = processOutStream()) {
             byte[] buff = new byte[512];
             while (outStream.read(buff) >= 0) {

@@ -66,6 +66,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -115,6 +116,7 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -1916,10 +1918,12 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     public void testCanAuthenticateServiceAccount() throws ExecutionException, InterruptedException {
         Mockito.reset(serviceAccountService);
+        final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
         final Authentication authentication = new Authentication(
             new User("elastic/fleet-server"),
-            new RealmRef("service_account", "service_account", "foo"), null,
-            Version.CURRENT, AuthenticationType.TOKEN, Map.of("_token_name", ValidationTests.randomTokenName()));
+            new RealmRef("_service_account", "_service_account", "foo"), null,
+            Version.CURRENT, AuthenticationType.TOKEN,
+            Map.of("_token_name", ValidationTests.randomTokenName(), "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();

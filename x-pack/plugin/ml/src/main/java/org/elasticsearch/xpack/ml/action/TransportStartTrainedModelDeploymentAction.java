@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -265,10 +266,13 @@ public class TransportStartTrainedModelDeploymentAction
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params, ClusterState clusterState) {
+        public PersistentTasksCustomMetadata.Assignment getAssignment(TaskParams params,
+                                                                      Collection<DiscoveryNode> candidateNodes,
+                                                                      ClusterState clusterState) {
             JobNodeSelector jobNodeSelector =
                 new JobNodeSelector(
                     clusterState,
+                    candidateNodes,
                     params.getModelId(),
                     MlTasks.TRAINED_MODEL_DEPLOYMENT_TASK_NAME,
                     memoryTracker,
@@ -279,7 +283,6 @@ public class TransportStartTrainedModelDeploymentAction
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
                 maxNodeMemory,
-                false,
                 useAutoMemoryPercentage
             );
             return assignment;

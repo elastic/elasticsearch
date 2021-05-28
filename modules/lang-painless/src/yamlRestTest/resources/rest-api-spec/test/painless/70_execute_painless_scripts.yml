@@ -307,3 +307,23 @@ setup:
             index: "my-index"
   - match: { result.0: "my_keyword" }
   - match: { result.1: "my_keyword_test" }
+
+---
+"Execute against an empty index with no mappings":
+  - do:
+      indices.create:
+        index: empty-index
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit((long)params.max_rank)"
+            params:
+              max_rank: 20.0
+          context: "long_field"
+          context_setup:
+            document:
+              rank: 4
+            index: "empty-index"
+  - match: { result: [ 20 ] }
+

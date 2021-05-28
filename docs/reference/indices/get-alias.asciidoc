@@ -1,12 +1,10 @@
 [[indices-get-alias]]
-=== Get index alias API
+=== Get alias API
 ++++
-<titleabbrev>Get index alias</titleabbrev>
+<titleabbrev>Get alias</titleabbrev>
 ++++
 
-Returns information about one or more index aliases.
-
-include::{es-repo-dir}/indices/add-alias.asciidoc[tag=index-alias-desc]
+Retrieves information for one or more <<alias,aliases>>.
 
 [source,console]
 ----

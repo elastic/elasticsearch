@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -88,7 +89,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final int lengthWritten = randomIntBetween(1, 100);
             final byte[] blobData = randomByteArrayOfLength(lengthWritten);
             blobContainer.writeBlob(blobName, new ByteArrayInputStream(blobData), lengthWritten, true);
-            blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             assertThrowsOnInconsistentRead(blobContainer, blobName);
             blobStoreContext.forceConsistent();
             expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob(blobName));

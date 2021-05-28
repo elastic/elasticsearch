@@ -1,15 +1,10 @@
 [[indices-add-alias]]
-=== Create or update index alias API
+=== Create or update alias API
 ++++
-<titleabbrev>Create or update index alias</titleabbrev>
+<titleabbrev>Create or update alias</titleabbrev>
 ++++
 
-Creates or updates an index alias.
-
-//tag::index-alias-desc[]
-An index alias is a secondary name for one or more indices. Most {es} APIs
-accept an index alias in place of an index name.
-//end::index-alias-desc[]
+Adds a data stream or index to an <<alias,alias>>.
 
 [source,console]
 ----
@@ -64,10 +59,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 ==== {api-request-body-title}
 
 `filter`::
-(Required, query object)
+(Optional, query object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 [[add-alias-api-example]]
 ==== {api-examples-title}

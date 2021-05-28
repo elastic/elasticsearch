@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -83,8 +84,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), jobId, request.getDeleteInterveningResults());
 
-        // 4. Revert the state
-        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+        // 5. Revert the state
+        ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(
             r -> {
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(jobId, tasks);
@@ -116,10 +117,17 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             listener::onFailure
         );
 
+        // 4. Ensure the annotations index mappings are up to date
+        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+            r -> AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, state, request.masterNodeTimeout(),
+                annotationsIndexUpdateListener),
+            listener::onFailure
+        );
+
         // 3. Ensure the config index mappings are up to date
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(MlConfigIndex.indexName(), MlConfigIndex::mapping,
-                client, state, configMappingUpdateListener),
+                client, state, request.masterNodeTimeout(), configMappingUpdateListener),
             listener::onFailure
         );
 
@@ -130,7 +138,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         );
 
         // 1. Verify/Create the state index and its alias exists
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, createStateIndexListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, request.masterNodeTimeout(),
+            createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,

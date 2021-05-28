@@ -12,6 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -29,9 +30,12 @@ import java.util.List;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anySetOf;
@@ -496,6 +500,30 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
             singletonList(new AliasAction.Add(backingIndexName, "test", null, null, null, null, null))));
         assertThat(exception.getMessage(), is("The provided index [" + backingIndexName + "] is a backing index belonging to data " +
             "stream [foo-stream]. Data streams and their backing indices don't support alias operations."));
+    }
+
+    public void testDataStreamAliases() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(List.of(
+            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), List.of());
+
+        ClusterState result = service.applyAliasActions(state, List.of(
+            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar"),
+            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar")
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
+            containsInAnyOrder("logs-foobar", "metrics-foobar"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(), containsInAnyOrder("metrics-foobar"));
+
+        result = service.applyAliasActions(result, List.of(
+            new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("foobar"), nullValue());
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

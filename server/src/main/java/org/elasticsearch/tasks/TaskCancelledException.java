@@ -9,13 +9,14 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 
 /**
  * A generic exception that can be thrown by a task when it's cancelled by the task manager API
  */
-public class TaskCancelledException  extends ElasticsearchException {
+public class TaskCancelledException extends ElasticsearchException {
 
     public TaskCancelledException(String msg) {
         super(msg);
@@ -23,5 +24,10 @@ public class TaskCancelledException  extends ElasticsearchException {
 
     public TaskCancelledException(StreamInput in) throws IOException{
         super(in);
+    }
+
+    @Override
+    public RestStatus status() {
+        return RestStatus.BAD_REQUEST;
     }
 }

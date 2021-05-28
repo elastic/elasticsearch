@@ -187,6 +187,24 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
+    public void testDynamicRuntimeFields() {
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(emptyList(), emptyList(),
+            Collections.singletonList(new TestDynamicRuntimeField("test")));
+
+        assertNull(fieldTypeLookup.get("test"));
+        assertEquals(0, fieldTypeLookup.getMatchingFieldTypes("test").size());
+        assertEquals(0, fieldTypeLookup.getMatchingFieldNames("test").size());
+
+        String fieldName = "test." + randomAlphaOfLengthBetween(3, 6);
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldTypeLookup.get(fieldName).typeName());
+        Collection<MappedFieldType> matchingFieldTypes = fieldTypeLookup.getMatchingFieldTypes(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, matchingFieldTypes.iterator().next().typeName());
+        Set<String> matchingFieldNames = fieldTypeLookup.getMatchingFieldNames(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(fieldName, matchingFieldNames.iterator().next());
+    }
+
     public void testFlattenedLookup() {
         String fieldName = "object1.object2.field";
         FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);

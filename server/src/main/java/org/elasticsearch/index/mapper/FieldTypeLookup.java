@@ -79,9 +79,15 @@ final class FieldTypeLookup {
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
+            if (runtimeField instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(runtimeField.name(), (DynamicFieldType) runtimeField);
+            }
             MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
-            //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            assert runtimeFieldType != null || runtimeField instanceof DynamicFieldType;
+            if (runtimeFieldType != null) {
+                //this will override concrete fields with runtime fields that have the same name
+                fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            }
         }
     }
 

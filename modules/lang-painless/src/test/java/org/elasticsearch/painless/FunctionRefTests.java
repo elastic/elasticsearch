@@ -275,8 +275,22 @@ public class FunctionRefTests extends ScriptTestCase {
     }
 
     public void testPrimitiveMethodReferences() {
-        assertEquals(1L, exec("long test(Function s) {return s.apply(Integer.valueOf(1));} return test(int::intValue);"));
-        assertEquals(1L, exec("long test(Supplier s) {return s.get();} int i = 1; return test(i::intValue);"));
+        assertEquals(true, exec("boolean test(Function s) {return s.apply(Boolean.valueOf(true));} return test(boolean::booleanValue);"));
+        assertEquals(true, exec("boolean test(Supplier s) {return s.get();} boolean b = true; return test(b::booleanValue);"));
+        assertEquals((byte)1, exec("byte test(Function s) {return s.apply(Byte.valueOf(1));} return test(byte::byteValue);"));
+        assertEquals((byte)1, exec("byte test(Supplier s) {return s.get();} byte b = 1; return test(b::byteValue);"));
+        assertEquals((short)1, exec("short test(Function s) {return s.apply(Short.valueOf(1));} return test(short::shortValue);"));
+        assertEquals((short)1, exec("short test(Supplier s) {return s.get();} short s = 1; return test(s::shortValue);"));
+        assertEquals((char)1, exec("char test(Function s) {return s.apply(Character.valueOf(1));} return test(char::charValue);"));
+        assertEquals((char)1, exec("char test(Supplier s) {return s.get();} char c = 1; return test(c::charValue);"));
+        assertEquals(1, exec("int test(Function s) {return s.apply(Integer.valueOf(1));} return test(int::intValue);"));
+        assertEquals(1, exec("int test(Supplier s) {return s.get();} int i = 1; return test(i::intValue);"));
+        assertEquals((long)1, exec("long test(Function s) {return s.apply(Long.valueOf(1));} return test(long::longValue);"));
+        assertEquals((long)1, exec("long test(Supplier s) {return s.get();} long l = 1; return test(l::longValue);"));
+        assertEquals((float)1, exec("float test(Function s) {return s.apply(Short.valueOf(1));} return test(float::floatValue);"));
+        assertEquals((float)1, exec("float test(Supplier s) {return s.get();} float f = 1; return test(f::floatValue);"));
+        assertEquals((double)1, exec("double test(Function s) {return s.apply(Double.valueOf(1));} return test(double::doubleValue);"));
+        assertEquals((double)1, exec("double test(Supplier s) {return s.get();} double d = 1; return test(d::doubleValue);"));
     }
 
     public void testObjectMethodOverride() {

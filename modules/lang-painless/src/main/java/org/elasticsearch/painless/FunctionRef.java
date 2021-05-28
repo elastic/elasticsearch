@@ -175,6 +175,10 @@ public class FunctionRef {
                 // written to the constant pool
                 if (delegateInvokeType != H_INVOKESTATIC &&
                         painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
+                    if (painlessMethod.methodType.parameterType(0) != Object.class) {
+                        throw new IllegalStateException("internal error");
+                    }
+                    
                     delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
                 }
 

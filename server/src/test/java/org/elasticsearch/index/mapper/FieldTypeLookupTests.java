@@ -25,6 +25,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 
 public class FieldTypeLookupTests extends ESTestCase {
@@ -62,19 +63,18 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldTypeLookup lookup = new FieldTypeLookup(List.of(field1, field2), List.of(alias1, alias2), List.of());
+        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("baro",
+            Collections.singletonMap("meter", new TestRuntimeField("meter", "test")));
+
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(field1, field2), List.of(alias1, alias2), List.of(dynamicRuntimeField));
 
         Collection<String> names = lookup.getMatchingFieldNames("b*");
-
-        assertFalse(names.contains("foo"));
-        assertFalse(names.contains("food"));
-        assertTrue(names.contains("bar"));
-        assertTrue(names.contains("barometer"));
+        assertThat(names, containsInAnyOrder("bar", "barometer", "baro.meter"));
 
         Collection<MappedFieldType> fieldTypes = lookup.getMatchingFieldTypes("b*");
-        assertThat(fieldTypes, hasSize(2));     // both "bar" and "barometer" get returned as field types
+        assertThat(fieldTypes, hasSize(3));     // both "bar" and "barometer" get returned as field types
         Set<String> matchedNames = fieldTypes.stream().map(MappedFieldType::name).collect(Collectors.toSet());
-        assertThat(matchedNames, contains("bar"));  // but they both resolve to "bar" so we only have one name
+        assertThat(matchedNames, containsInAnyOrder("bar", "meter"));
     }
 
     public void testSourcePathWithMultiFields() {
@@ -185,6 +185,24 @@ public class FieldTypeLookupTests extends ESTestCase {
             assertEquals(1, sourcePaths.size());
             assertTrue(sourcePaths.contains("object.subfield"));
         }
+    }
+
+    public void testDynamicRuntimeFields() {
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(emptyList(), emptyList(),
+            Collections.singletonList(new TestDynamicRuntimeField("test")));
+
+        assertNull(fieldTypeLookup.get("test"));
+        assertEquals(0, fieldTypeLookup.getMatchingFieldTypes("test").size());
+        assertEquals(0, fieldTypeLookup.getMatchingFieldNames("test").size());
+
+        String fieldName = "test." + randomAlphaOfLengthBetween(3, 6);
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldTypeLookup.get(fieldName).typeName());
+        Collection<MappedFieldType> matchingFieldTypes = fieldTypeLookup.getMatchingFieldTypes(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, matchingFieldTypes.iterator().next().typeName());
+        Set<String> matchingFieldNames = fieldTypeLookup.getMatchingFieldNames(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(fieldName, matchingFieldNames.iterator().next());
     }
 
     public void testFlattenedLookup() {

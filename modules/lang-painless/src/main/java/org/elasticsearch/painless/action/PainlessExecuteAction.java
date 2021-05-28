@@ -58,6 +58,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentParser;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
@@ -647,7 +649,13 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     BytesReference document = request.contextSetup.document;
                     XContentType xContentType = request.contextSetup.xContentType;
                     SourceToParse sourceToParse = new SourceToParse(index, "_id", document, xContentType);
-                    ParsedDocument parsedDocument = indexService.mapperService().documentMapper().parse(sourceToParse);
+                    MappingLookup mappingLookup = indexService.mapperService().mappingLookup();
+                    DocumentParser documentParser = indexService.mapperService().documentParser();
+                    //Note that we are not doing anything with dynamic mapping updates, hence fields that are not mapped but are present
+                    //in the sample doc are not accessible from the script through doc['field'].
+                    //This is a problem especially for indices that have no mappings, as no fields will be accessible, neither through doc
+                    //nor _source (if there are no mappings there are no metadata fields).
+                    ParsedDocument parsedDocument = documentParser.parseDocument(sourceToParse, mappingLookup);
                     indexWriter.addDocuments(parsedDocument.docs());
                     try (IndexReader indexReader = DirectoryReader.open(indexWriter)) {
                         final IndexSearcher searcher = new IndexSearcher(indexReader);

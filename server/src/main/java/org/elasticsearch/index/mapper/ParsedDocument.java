@@ -65,7 +65,8 @@ public class ParsedDocument {
     }
 
     /**
-     * Create a delete tombstone document
+     * Create a delete tombstone document, which will be used in soft-update methods.
+     * The returned document consists only _uid, _seqno, _term and _version fields; other metadata fields are excluded.
      * @param id    the id of the deleted document
      */
     public static ParsedDocument deleteTombstone(String id) {

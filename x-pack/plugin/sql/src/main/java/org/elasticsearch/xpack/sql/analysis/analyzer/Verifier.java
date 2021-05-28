@@ -686,6 +686,20 @@ public final class Verifier {
                         }
                     }
                 });
+            } else {
+                Set<Expression> unsupported = new LinkedHashSet<>();
+                filter.condition().forEachDown(Expression.class, e -> {
+                    Expression f = attributeRefs.resolve(e, e);
+                    if (f instanceof TopHits) {
+                        unsupported.add(f);
+                    }
+                });
+                if (unsupported.isEmpty() == false) {
+                    String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                    localFailures.add(
+                            fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
+                                    Expressions.names(unsupported)));
+                }
             }
         }
     }

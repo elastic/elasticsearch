@@ -1,0 +1,423 @@
+---
+setup:
+  - skip:
+      version: " - 7.9.99"
+      reason:  TODO temporary version skip while we wait for backport to 7.x of search_after properties
+      features: headers
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "test_admin_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["*"], "privileges": ["all"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_admin"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "test_admin_role" ],
+            "full_name" : "user with full privileges to multiple indices"
+          }
+
+  - do:
+      security.put_role:
+        name: "dls_all_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"ck\": \"const\"}}" }
+              ]
+            }
+
+  - do:
+      security.put_role:
+        name: "dls_none_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"foo\": \"does_not_exist\"}}" }
+              ]
+            }
+  - do:
+      security.put_user:
+        username: "dls_all_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "dls_none_role", "dls_all_role" ],
+            "full_name" : "user with access to all docs in test_security index (using DLS)"
+          }
+
+  - do:
+      security.put_role:
+        name: "dls_some_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["test_security"], "privileges": ["read"], "query": "{\"term\": {\"foo\": \"bar_dls\"}}" }
+              ]
+            }
+  - do:
+      security.put_user:
+        username: "dls_some_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "dls_some_role" ],
+            "full_name" : "user with access to selected docs in index"
+          }
+  - do:
+      security.put_role:
+        name: "fls_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["test_security"], "privileges": ["read"], "field_security" : {"grant" : [ "*"],"except": [ "foo" ]} }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "fls_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "fls_role" ],
+            "full_name" : "user with access to selected docs in index"
+          }
+  - do:
+      indices.create:
+        index: test_k
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : keyword
+              timestamp:
+                type : date
+  - do:
+      indices.create:
+        index: test_ck
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : constant_keyword
+                value: bar_ck
+              other:
+                type : text
+              timestamp:
+                type : date
+  - do:
+      indices.create:
+        index: test_f
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              foo:
+                type : flattened
+              timestamp:
+                type : date
+  - do:
+      indices.create:
+        index: test_security
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              ck:
+                type : constant_keyword
+                value: const
+              foo:
+                type : keyword
+
+  - do:
+      index:
+          index:  test_k
+          id:     1
+          body:   { foo: "bar_k", "timestamp":"2021-01-01T01:01:01.000Z" }
+
+  - do:
+      index:
+          index:  test_ck
+          id:     2
+          body:   { other: "foo", "timestamp":"2020-01-01T01:01:01.000Z"  }
+
+  - do:
+      index:
+          index:  test_f
+          id:     3
+          body:   { foo: { bar: "bar_f" }, "timestamp":"2019-01-01T01:01:01.000Z" }
+  - do:
+      index:
+          index:  test_security
+          id:     4
+          body:   { foo: "bar_dls"}
+
+  - do: #superuser
+      headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin
+      indices.refresh: {}
+
+  - do: #superuser
+     cluster.health:
+          index: test_f
+          wait_for_status: green
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "dls_all_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "dls_all_role"
+        ignore: 404
+  - do:
+      security.delete_role:
+        name: "dls_none_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "dls_some_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "dls_some_role"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "fls_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "fls_role"
+        ignore: 404
+  - do:
+      security.delete_user:
+        username: "test_admin"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "test_admin_role"
+        ignore: 404
+
+---
+"Test basic term enumeration":
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 3}
+
+
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo.bar", "string":"b"}
+  - length: {terms: 1}
+
+---
+"Test case insensitivity":
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"B", "case_insensitive": true}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"B"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"B", "case_insensitive": true}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.Bar", "string":"B", "case_insensitive": true}
+  - length: {terms: 0}
+
+---
+"Test null search string allowed":
+  - skip:
+      version: " - 7.99.99"
+      reason:  TODO remove this skip after PR 73144 is backported to 7.x
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo"}
+  - length: {terms: 1}
+---
+"Test search after keyword field":
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"bar_k"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+
+---
+"Test search after flattened field":
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"bar_f"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+---
+"Test search after constant keyword field":
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"bar_ck"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+---
+"Test index filtering":
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "index_filter":{"range":{"timestamp":{"gte":"2021-01-01T01:01:01.000Z"}}}}
+  - length: {terms: 1}
+---
+"Test legal timeout":
+  - do:
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "timeout": "1s"}
+  - length: {terms: 3}
+---
+"Test illegal timeout":
+  - do:
+      catch: /Timeout cannot be > 1 minute/
+      terms_enum:
+        index:  test_*
+        body:  {"field": "foo", "string":"b", "timeout": "2m"}
+---
+"Test security":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin_user sees all docs
+      terms_enum:
+        index:  test_security
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 1}
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user sees all docs
+      terms_enum:
+        index:  test_security
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 1}
+
+  - do:
+      headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user sees selected docs
+      terms_enum:
+        index:  test_security
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 0}
+
+  - do:
+      headers: { Authorization: "Basic ZmxzX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" } # fls_user can't see field
+      terms_enum:
+        index:  test_security
+        body:  {"field": "foo", "string":"b"}
+  - length: {terms: 0}
+
+

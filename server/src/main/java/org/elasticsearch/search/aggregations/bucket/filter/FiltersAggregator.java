@@ -251,7 +251,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + otherBucketKey == null ? 0 : 1);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter<?> filter : filters) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
             buckets.add(bucket);

@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -744,8 +745,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 for (Index index : dataStream.getIndices()) {
                     final String indexName = index.getName();
                     if (builder.get(indexName) == null || indicesInSnapshot.contains(indexName) == false) {
-                        assert snapshot.partial() : "Data stream [" + dataStreamName +
-                                "] is missing index [" + index + "] but snapshot was not partial.";
                         missingIndex = true;
                         break;
                     }
@@ -756,7 +755,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             }
         }
-        return builder.dataStreams(dataStreams).build();
+        return builder.dataStreams(dataStreams, filterDataStreamAliases(dataStreams, metadata.dataStreamAliases())).build();
     }
 
     /**
@@ -1251,7 +1250,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                     dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
                                 }
                             }
-                            metaBuilder.dataStreams(dataStreamsToCopy);
+                            Map<String, DataStreamAlias> dataStreamAliasesToCopy =
+                                filterDataStreamAliases(dataStreamsToCopy, existing.dataStreamAliases());
+                            metaBuilder.dataStreams(dataStreamsToCopy, dataStreamAliasesToCopy);
                             return metaBuilder.build();
                         }));
             } else {
@@ -1300,16 +1301,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         final SnapshotInfo snapshotInfo = new SnapshotInfo(
                                 snapshot.getSnapshotId(),
                                 finalIndices,
-                                entry.partial() ? entry.dataStreams().stream()
-                                        .filter(metaForSnapshot.dataStreams()::containsKey)
-                                        .collect(Collectors.toList()) : entry.dataStreams(),
+                                entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey)
+                                    .collect(Collectors.toList()),
                                 entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
                                 failure,
                                 threadPool.absoluteTimeInMillis(),
                                 entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                                 shardFailures,
                                 entry.includeGlobalState(),
-                                entry.userMetadata(),
+                                // TODO: remove this hack making the metadata mutable once
+                                //       https://github.com/elastic/elasticsearch/pull/72776 has been merged
+                                entry.userMetadata() == null ? null : new HashMap<>(entry.userMetadata()),
                                 entry.startTime(),
                                 indexSnapshotDetails);
                         repo.finalizeSnapshot(
@@ -2208,8 +2210,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         updatedAssignmentsBuilder.put(shardId, updated);
                                     }
                                 }
-                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                                snapshotEntries.add(updatedEntry);
                                 changed = true;
+                                if (updatedEntry.state().completed()) {
+                                    newFinalizations.add(entry);
+                                }
                             }
                         }
                     } else {
@@ -2401,6 +2407,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             }
         }
         return indices;
+    }
+
+    /**
+     * Filters out the aliases that refer to data streams to do not exist in the provided data streams.
+     * Also rewrites the list of data streams an alias point to to only contain data streams that exist in the provided data streams.
+     *
+     * The purpose of this method is to capture the relevant data stream aliases based on the data streams
+     * that will be included in a snapshot.
+     *
+     * @param dataStreams       The provided data streams, which will be included in a snapshot.
+     * @param dataStreamAliases The data streams aliases that may contain aliases that refer to data streams
+     *                          that don't exist in the provided data streams.
+     * @return                  The filtered data streams aliases only referring to data streams in the provided data streams.
+     */
+    static Map<String, DataStreamAlias> filterDataStreamAliases(Map<String, DataStream> dataStreams,
+                                                                Map<String, DataStreamAlias> dataStreamAliases) {
+
+        return dataStreamAliases.values().stream()
+            .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
+            .map(alias -> {
+                List<String> intersectingDataStreams = alias.getDataStreams().stream()
+                    .filter(dataStreams::containsKey)
+                    .collect(Collectors.toList());
+                return new DataStreamAlias(alias.getName(), intersectingDataStreams);
+            }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
     /**

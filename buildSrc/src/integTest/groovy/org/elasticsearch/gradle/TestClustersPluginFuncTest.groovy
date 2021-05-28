@@ -136,8 +136,6 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
                 description = "test module description"
             }
             
-            licenseFile = file('license.txt')
-            noticeFile = file('notice.txt')
             version = "1.0"
             group = 'org.acme'
         """

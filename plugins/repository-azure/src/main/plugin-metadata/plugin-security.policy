@@ -19,4 +19,6 @@ grant {
   permission java.io.FilePermission "/etc/resolv.conf", "read";
   permission java.io.FilePermission "/etc/resolver", "read";
   permission java.io.FilePermission "/etc/resolver/-", "read";
+  // don't forget windows...
+  permission java.io.FilePermission "C:\Windows\system32\drivers\etc\hosts", "read";
 };

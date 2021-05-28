@@ -25,6 +25,8 @@ import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
@@ -39,6 +41,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -52,9 +55,10 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
 
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
-    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*");
+    private static final Automaton READ_AUTOMATON = patterns("indices:data/read/*", "internal:transport/proxy/indices:data/read/*");
     private static final Automaton READ_CROSS_CLUSTER_AUTOMATON = patterns("internal:transport/proxy/indices:data/read/*",
             ClusterSearchShardsAction.NAME);
     private static final Automaton CREATE_AUTOMATON = patterns("indices:data/write/index*", "indices:data/write/bulk*");
@@ -123,6 +127,10 @@ public final class IndexPrivilege extends Privilege {
             entry("maintenance", MAINTENANCE),
             entry("auto_configure", AUTO_CONFIGURE)));
 
+    private static final Map<String, String> DEPRECATED_INDEX_PRIVILEGES = Map.of(
+        "read_cross_cluster",
+        "The [read_cross_cluster] is deprecated and should be replaced by [read]. It will be removed in the next major release.");
+
     public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
     public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
@@ -141,6 +149,9 @@ public final class IndexPrivilege extends Privilege {
             if (theName.isEmpty()) {
                 return NONE;
             } else {
+                DEPRECATED_INDEX_PRIVILEGES.entrySet().stream().filter(entry -> name.contains(entry.getKey())).forEach(entry ->
+                    deprecationLogger.deprecate(DeprecationCategory.SECURITY, "index_privileges_" + entry.getKey(), entry.getValue())
+                );
                 return resolve(theName);
             }
         });

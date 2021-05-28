@@ -36,12 +36,14 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -92,6 +94,38 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
             List<String> concreteDataStreams =
                 indexNameExpressionResolver.dataStreamNames(state, request.indicesOptions(), action.indices());
             if (concreteDataStreams.size() != 0) {
+                // Fail if parameters are used that data streams don't support:
+                if (action.filter() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support filters");
+                }
+                if (action.routing() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support routing");
+                }
+                if (action.indexRouting() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support index_routing");
+                }
+                if (action.searchRouting() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support search_routing");
+                }
+                if (action.writeIndex() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support is_write_index");
+                }
+                if (action.isHidden() != null) {
+                    throw new IllegalArgumentException("aliases that point to data streams don't support is_hidden");
+                }
+                // Fail if expressions match both data streams and regular indices:
+                String[] concreteIndices =
+                    indexNameExpressionResolver.concreteIndexNames(state, request.indicesOptions(), true, action.indices());
+                List<String> nonBackingIndices = Arrays.stream(concreteIndices)
+                    .map(resolvedIndex -> state.metadata().getIndicesLookup().get(resolvedIndex))
+                    .filter(ia -> ia.getParentDataStream() == null)
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toList());
+                if (nonBackingIndices.isEmpty() == false) {
+                    throw new IllegalArgumentException("expressions " + Arrays.toString(action.indices()) +
+                        " that match with both data streams and regular indices are disallowed");
+                }
+
                 switch (action.actionType()) {
                     case ADD:
                         for (String dataStreamName : concreteDataStreams) {

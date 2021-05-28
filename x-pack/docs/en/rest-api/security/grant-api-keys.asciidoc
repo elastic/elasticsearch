@@ -73,6 +73,12 @@ intersection of API keys permissions and the permissions of the user or access
 token. The structure of role descriptor is the same as the request for create
 role API. For more details, see <<security-api-put-role>>.
 
+`metadata`:::
+(Optional, object) Arbitrary metadata that you want to associate with the API key.
+It supports nested data structure.
+Within the `metadata` object, keys beginning with `_` are reserved for
+system usage.
+
 `grant_type`::
 (Required, string)
 The type of grant. Supported grant types are: `access_token`,`password`.
@@ -128,6 +134,14 @@ POST /_security/api_key/grant
           "privileges": ["all"]
           }
         ]
+      }
+    },
+    "metadata": {
+      "application": "my-application",
+      "environment": {
+         "level": 1,
+         "trusted": true,
+         "tags": ["dev", "staging"]
       }
     }
   }

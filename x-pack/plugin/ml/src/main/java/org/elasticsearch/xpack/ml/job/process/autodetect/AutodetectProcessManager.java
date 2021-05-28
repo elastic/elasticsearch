@@ -493,13 +493,13 @@ public class AutodetectProcessManager implements ClusterStateListener {
         // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
         ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
             ack -> ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                AnomalyDetectorsIndex::resultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler),
+                AnomalyDetectorsIndex::wrappedResultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
                 logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
                 ElasticsearchMappings.addDocMappingIfMissing(AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                    AnomalyDetectorsIndex::resultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler);
+                    AnomalyDetectorsIndex::wrappedResultsMapping, client, clusterState, masterNodeTimeout, resultsMappingUpdateHandler);
             }
         );
 

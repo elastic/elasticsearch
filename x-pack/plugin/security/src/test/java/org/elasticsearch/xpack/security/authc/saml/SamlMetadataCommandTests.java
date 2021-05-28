@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc.saml;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.collect.Tuple;
@@ -550,6 +551,8 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     public void testDefaultOptionsWithSigningAndMultipleEncryptionKeys() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/68995",
+            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         final Path dir = createTempDir();
 
         final Path ksEncryptionFile = dir.resolve("saml-encryption.p12");

@@ -102,6 +102,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
                 "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 

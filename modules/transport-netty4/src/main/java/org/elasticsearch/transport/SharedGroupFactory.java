@@ -43,8 +43,8 @@ public final class SharedGroupFactory {
 
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
-        this.workerCount = Netty4Transport.WORKER_COUNT.get(settings);
-        this.httpWorkerCount = Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
+        this.workerCount = 1;//Netty4Transport.WORKER_COUNT.get(settings);
+        this.httpWorkerCount = 1;//Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
     }
 
     public Settings getSettings() {

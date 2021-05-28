@@ -16,6 +16,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty4.Netty4HttpServerTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
 
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -41,8 +43,8 @@ public final class SharedGroupFactory {
 
     public SharedGroupFactory(Settings settings) {
         this.settings = settings;
-        this.workerCount = 1;//Netty4Transport.WORKER_COUNT.get(settings);
-        this.httpWorkerCount = 1;//Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
+        this.workerCount = Netty4Transport.WORKER_COUNT.get(settings);
+        this.httpWorkerCount = Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.get(settings);
     }
 
     public Settings getSettings() {

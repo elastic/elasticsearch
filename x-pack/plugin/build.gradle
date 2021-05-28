@@ -103,6 +103,10 @@ tasks.named("yamlRestCompatTest").configure {
 
   //TODO: blacklist specific to REST API compatibility
   restTestBlacklist.addAll([
+    'indices.freeze/10_basic/Basic',
+    'indices.freeze/10_basic/Test index options',
+    'indices.freeze/20_stats/Translog stats on frozen indices',
+    'indices.freeze/30_usage/Usage stats on frozen indices',
     'license/30_enterprise_license/Installing enterprise license',
     'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header and column selection',
     'ml/data_frame_analytics_cat_apis/Test cat data frame analytics all jobs with header',

@@ -45,6 +45,9 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
+    public static final String FROZEN_INDICES_WARNING = "Frozen indices are deprecated because they provide no benefit given "
+        + "improvements in heap memory utilization. They will be removed in a future release.";
+
     private static final String WRITE_REPOSITORY_NAME = "repository";
     private static final String READ_REPOSITORY_NAME = "read-repository";
     private static final String SNAPSHOT_NAME = "searchable-snapshot";
@@ -173,6 +176,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testSearchResultsWhenFrozen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+            freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
             assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
             assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
@@ -182,6 +186,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
 
             final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
+            unfreezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
             assertOK(client().performRequest(unfreezeRequest));
             ensureGreen(restoredIndexName);
             assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
@@ -285,6 +290,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             if (frozen) {
                 logger.info("--> freezing index [{}]", restoredIndexName);
                 final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+                freezeRequest.setOptions(expectWarnings(FROZEN_INDICES_WARNING));
                 assertOK(client().performRequest(freezeRequest));
             }
 

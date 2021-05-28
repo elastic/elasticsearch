@@ -392,7 +392,8 @@ public class InternalComposite
      * for numbers and a string for {@link BytesRef}s.
      *
      * This method will then attempt to parse the formatted value using the specified format,
-     * and throw an IllegalArgumentException if parsing fails.
+     * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
+     * returning an after_key which we can't subsequently parse into the original value.
      */
     static Object formatObjectChecked(Object obj, DocValueFormat format) {
         Object formatted = formatObjectUnchecked(obj, format);

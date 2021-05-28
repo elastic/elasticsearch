@@ -387,8 +387,12 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             DateFieldMapper.Resolution.MILLISECONDS
         );
         long epoch = 1622060077L; // May 25th 2021, evening
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> InternalComposite.formatObjectChecked(epoch, weekYearMonth));
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObjectChecked(epoch, weekYearMonth));
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObjectChecked(epoch, new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.ofHours(1),
+            DateFieldMapper.Resolution.MILLISECONDS
+        )));
     }
 
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {

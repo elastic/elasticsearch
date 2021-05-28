@@ -272,7 +272,3 @@ tasks.register("integTest", Test) {
 }
 
 tasks.named("check").configure { dependsOn("integTest") }
-
-tasks.register("checkPart1") {
-  dependsOn 'check'
-}

@@ -89,7 +89,6 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-//        System.out.println("Util. = " + Util.);
         dependencies.add("checkstyle", project.files(getBuildSrcCodeSource()));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {

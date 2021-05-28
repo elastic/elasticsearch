@@ -154,11 +154,6 @@ normalization {
 
 tasks.named("check").configure { dependsOn("integTest") }
 
-tasks.register("checkPart1") {
-    dependsOn 'check'
-}
-
-
 // TODO These additional conventions will be applied once those plugins have been ported to build-conventions and
 //
 //  apply plugin: 'elasticsearch.build'

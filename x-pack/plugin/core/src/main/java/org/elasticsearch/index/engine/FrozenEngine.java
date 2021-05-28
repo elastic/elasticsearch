@@ -203,7 +203,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
             @Override
             public String getSearcherId() {
-                return commitId;
+                return getCommitId();
             }
         };
     }

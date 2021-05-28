@@ -91,6 +91,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
@@ -556,7 +557,7 @@ public class SecurityTests extends ESTestCase {
                         return List.of(new Route(GET, "/"));
                     }
                 }));
-            assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
+            assertThat(e.getMessage(), is("Cannot replace existing handler for [/] for method: GET"));
         } finally {
             threadPool.shutdown();
         }
@@ -593,7 +594,8 @@ public class SecurityTests extends ESTestCase {
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, Arrays.asList(security, secPlugin), null, null, usageService, null)
             );
-            assertThat(e.getMessage(), startsWith("Cannot have more than one plugin implementing a REST wrapper"));
+            assertThat(e.getMessage(), is("The org.elasticsearch.xpack.security.SecurityTests$3 plugin tried to install a custom REST" +
+                " wrapper. This functionality is not available anymore."));
         } finally {
             threadPool.shutdown();
         }

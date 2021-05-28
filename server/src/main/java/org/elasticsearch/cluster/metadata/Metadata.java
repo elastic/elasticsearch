@@ -1238,7 +1238,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     if (dataStreams.isEmpty()) {
                         aliasesToDelete.add(alias.getName());
                     } else {
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams), alias.getWriteDataStream()));
+                        String writeDataStream = alias.getWriteDataStream();
+                        if (dataStreams.contains(writeDataStream) == false) {
+                            writeDataStream = null;
+                        }
+                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams), writeDataStream));
                     }
                 }
             }

@@ -468,8 +468,12 @@ public class RestoreService implements ClusterStateApplier {
                 List<String> intersectingDataStreams = alias.getDataStreams().stream()
                     .filter(requestedDataStreams::contains)
                     .collect(Collectors.toList());
+                String writeDateStream = alias.getWriteDataStream();
+                if (intersectingDataStreams.contains(writeDateStream) == false) {
+                    writeDateStream = null;
+                }
                 if (intersectingDataStreams.isEmpty() == false) {
-                    DataStreamAlias copy = new DataStreamAlias(alias.getName(), intersectingDataStreams, alias.getWriteDataStream());
+                    DataStreamAlias copy = new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDateStream);
                     dataStreamAliases.put(alias.getName(), copy);
                 }
             }
@@ -1204,8 +1208,16 @@ public class RestoreService implements ClusterStateApplier {
                         // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
                         Set<String> mergedDataStreams = new HashSet<>(current.getDataStreams());
                         mergedDataStreams.addAll(alias.getDataStreams());
+
+                        String writeDataStream = alias.getWriteDataStream();
+                        if (writeDataStream == null) {
+                            if (current.getWriteDataStream() != null && mergedDataStreams.contains(current.getWriteDataStream())) {
+                                writeDataStream = current.getWriteDataStream();
+                            }
+                        }
+
                         DataStreamAlias newInstance =
-                            new DataStreamAlias(alias.getName(), List.copyOf(mergedDataStreams), alias.getWriteDataStream());
+                            new DataStreamAlias(alias.getName(), List.copyOf(mergedDataStreams), writeDataStream);
                         updatedDataStreamAliases.put(alias.getName(), newInstance);
                     }
                 });

@@ -27,6 +27,7 @@ else
   export JAVA12_HOME="${HOME}"/.java/openjdk12
   export JAVA13_HOME="${HOME}"/.java/openjdk13
   export JAVA14_HOME="${HOME}"/.java/openjdk14
+  export JAVA15_HOME="${HOME}"/.java/openjdk15
 
   ## 6.8 branch is not referenced from any bwc project in master so we need to
   ## resolve its dependencies explicitly

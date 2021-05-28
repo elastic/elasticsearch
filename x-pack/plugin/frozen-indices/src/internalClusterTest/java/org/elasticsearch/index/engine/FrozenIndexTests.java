@@ -218,6 +218,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             Index index = resolveIndex("index");
             IndexService indexService = indexServices.indexServiceSafe(index);
             assertTrue(indexService.getIndexSettings().isSearchThrottled());
+            assertTrue(FrozenEngine.INDEX_FROZEN.get(indexService.getIndexSettings().getSettings()));
+            assertTrue(FrozenEngine.INDEX_FROZEN.exists(indexService.getIndexSettings().getSettings()));
             IndexShard shard = indexService.getShard(0);
             assertEquals(0, shard.refreshStats().getTotal());
             assertThat(indexService.getMetadata().getTimestampRange(), sameInstance(IndexLongFieldRange.UNKNOWN));
@@ -229,6 +231,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
             Index index = resolveIndex("index");
             IndexService indexService = indexServices.indexServiceSafe(index);
             assertFalse(indexService.getIndexSettings().isSearchThrottled());
+            assertFalse(FrozenEngine.INDEX_FROZEN.get(indexService.getIndexSettings().getSettings()));
+            assertFalse(FrozenEngine.INDEX_FROZEN.exists(indexService.getIndexSettings().getSettings()));
             IndexShard shard = indexService.getShard(0);
             Engine engine = IndexShardTestCase.getEngine(shard);
             assertThat(engine, Matchers.instanceOf(InternalEngine.class));

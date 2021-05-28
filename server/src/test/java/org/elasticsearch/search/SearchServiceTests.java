@@ -1325,7 +1325,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 Throwable cancelledExc = e.getCause().getCause();
                 assertThat(cancelledExc, is(instanceOf(TaskCancelledException.class)));
                 assertThat(cancelledExc.getMessage(), is("cancelled"));
-                assertThat(((TaskCancelledException)e).status(), is(RestStatus.BAD_REQUEST));
+                assertThat(((TaskCancelledException) cancelledExc).status(), is(RestStatus.BAD_REQUEST));
                 latch.countDown();
             }
         });

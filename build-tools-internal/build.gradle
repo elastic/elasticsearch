@@ -176,15 +176,6 @@ sourceSets {
   integTest {
     compileClasspath += sourceSets["main"].output + configurations["testRuntimeClasspath"]
     runtimeClasspath += output + compileClasspath
-
-//    // workaround for having JarHellCheck available without relying
-//    // on elasticsearch build subpoject
-//    java {
-//      srcDirs '../libs/core/src/main/java'
-//      include 'org/elasticsearch/bootstrap/JdkJarHellCheck.java'
-//      include 'org/elasticsearch/common/SuppressForbidden.java'
-//      include 'org/elasticsearch/gradle/**'
-//    }
   }
 }
 

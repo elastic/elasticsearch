@@ -160,7 +160,7 @@ POST _ml/anomaly_detectors/_validate
       "char_filter" : [{
         "type" : "pattern_replace",
         "pattern" : "^(\\r?.[^\\n]*)\\n.*",
-        "replacement" : "$1",
+        "replacement" : "$$1",
         "flags" : "DOTALL"
       }],
       "tokenizer" : "ml_standard",
@@ -210,7 +210,7 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
       "char_filter" : [{
         "type" : "pattern_replace",
         "pattern" : "^(\\r?.[^\\n]*)\\n.*", <1>
-        "replacement" : "$1",
+        "replacement" : "$$1",
         "flags" : "DOTALL"
       }],
       "tokenizer": {

@@ -7,7 +7,7 @@
             "char_filter" : [
               { "type" : "pattern_replace",
                 "pattern" : "^(\\r?.[^\\n]*)\\n.*",
-                "replacement" : "$1",
+                "replacement" : "$$1",
                 "flags" : "DOTALL" }
             ],
             "tokenizer" : "ml_standard",

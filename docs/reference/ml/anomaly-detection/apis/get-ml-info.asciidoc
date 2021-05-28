@@ -53,7 +53,7 @@ This is a possible response:
           {
             "type" : "pattern_replace",
             "pattern" : "^(\\r?.[^\\n]*)\\n.*",
-            "replacement" : "$1",
+            "replacement" : "$$1",
             "flags" : "DOTALL"
           }
         ],

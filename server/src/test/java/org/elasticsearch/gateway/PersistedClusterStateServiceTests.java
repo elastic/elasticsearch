@@ -665,8 +665,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     .collect(Collectors.toList())));
             }
 
-            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadOnDiskState).getMessage(),
-                allOf(startsWith("metadata index at ["), endsWith("] is unreadable")));
+            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadOnDiskState).getMessage(), allOf(
+                    startsWith("metadata index at ["),
+                    endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
         }
     }
 

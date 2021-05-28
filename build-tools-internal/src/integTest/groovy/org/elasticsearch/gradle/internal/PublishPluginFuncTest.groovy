@@ -127,6 +127,29 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <version>1.0</version>
               <name>hello-world</name>
               <description>some description</description>
+              <url>unknown</url>
+              <scm>
+                <url>unknown</url>
+              </scm>
+              <inceptionYear>2009</inceptionYear>
+              <licenses>
+                <license>
+                  <name>Elastic License 2.0</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <distribution>repo</distribution>
+                </license>
+              </licenses>
+                <developers>
+                  <developer>
+                    <name>Elastic</name>
+                    <url>https://www.elastic.co</url>
+                  </developer>
+                </developers>
               <dependencies>
                 <dependency>
                   <groupId>org.slf4j</groupId>
@@ -188,6 +211,29 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <version>1.0</version>
               <name>hello-world</name>
               <description>some description</description>
+              <url>unknown</url>
+              <scm>
+                <url>unknown</url>
+              </scm>
+              <inceptionYear>2009</inceptionYear>
+              <licenses>
+                <license>
+                  <name>Elastic License 2.0</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>Server Side Public License, v 1</name>
+                  <url>https://www.mongodb.com/licensing/server-side-public-license</url>
+                  <distribution>repo</distribution>
+                </license>
+              </licenses>
+              <developers>
+                <developer>
+                  <name>Elastic</name>
+                  <url>https://www.elastic.co</url>
+                </developer>
+              </developers>
               <dependencies>
                 <dependency>
                   <groupId>org.acme</groupId>

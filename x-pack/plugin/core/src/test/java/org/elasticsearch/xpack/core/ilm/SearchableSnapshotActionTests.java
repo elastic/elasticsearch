@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -22,7 +23,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     @Override
     public void testToSteps() {
-        String phase = randomAlphaOfLengthBetween(1, 10);
+        String phase = randomBoolean() ? randomFrom(TimeseriesLifecycleType.ORDERED_VALID_PHASES) : randomAlphaOfLengthBetween(1, 10);
         SearchableSnapshotAction action = createTestInstance();
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
@@ -54,9 +55,22 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             assertThat(steps.get(17).getKey(), is(expectedSteps.get(17)));
             AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(8);
             assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(7)));
+            validateWaitForDataTierStep(phase, steps, 9, 10);
         } else {
             AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(6);
             assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(5)));
+            validateWaitForDataTierStep(phase, steps, 7, 8);
+        }
+    }
+
+    private void validateWaitForDataTierStep(String phase, List<Step> steps, int waitForDataTierStepIndex, int mountStepIndex) {
+        WaitForDataTierStep waitForDataTierStep = (WaitForDataTierStep) steps.get(waitForDataTierStepIndex);
+        if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)) {
+            assertThat(waitForDataTierStep.tierPreference(), equalTo(DataTier.DATA_HOT));
+        } else {
+            MountSnapshotStep mountStep = (MountSnapshotStep) steps.get(mountStepIndex);
+            assertThat(waitForDataTierStep.tierPreference(),
+                equalTo(MountSearchableSnapshotRequest.getDataTiersPreference(mountStep.getStorage())));
         }
     }
 

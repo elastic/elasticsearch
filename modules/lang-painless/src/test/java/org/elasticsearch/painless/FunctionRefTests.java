@@ -274,14 +274,21 @@ public class FunctionRefTests extends ScriptTestCase {
         assertThat(expected.getMessage(), containsString("lambda expects return type [long], but found return type [void]"));
     }
 
+    public void testPrimitiveMethodReferences() {
+        assertEquals(1L, exec("long test(Function s) {return s.apply(Integer.valueOf(1));} return test(int::intValue);"));
+        assertEquals(1L, exec("long test(Supplier s) {return s.get();} int i = 1; return test(i::intValue);"));
+    }
+
     public void testObjectMethodOverride() {
         assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} CharSequence s = 's'; return test(s::toString);"));
         assertEquals("s", exec("CharSequence test(Supplier s) {return s.get();} def s = 's'; return test(s::toString);"));
+        assertEquals("s", exec("CharSequence test(Function s) {return s.apply('s');} return test(CharSequence::toString);"));
     }
 
-    public void testInvalidMethodReference() {
-        //exec("def test(Supplier s) {return s.get();} int i = 1; test(i::toString)");
-        //throw new RuntimeException(Debugger.toString("def test(Supplier s) {return s.get();} String s = 's'; test(s::toString)"));
-        //exec("def test(Supplier s) {return s.get();} test(Integer::toString)");
+    public void testInvalidStaticCaptureMethodReference() {
+        IllegalArgumentException expected = expectScriptThrows(IllegalArgumentException.class, () ->
+            exec("int test(Function f, String s) {return f.apply(s);} Integer i = Integer.valueOf(1); test(i::parseInt, '1')")
+        );
+        assertThat(expected.getMessage(), containsString("cannot use a static method as a function reference"));
     }
 }

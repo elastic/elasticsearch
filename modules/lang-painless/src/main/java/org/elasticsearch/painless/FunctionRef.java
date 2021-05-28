@@ -148,7 +148,10 @@ public class FunctionRef {
                                 "not found");
                     }
                 } else if (captured) {
-                    throw new IllegalStateException("internal error");
+                    throw new IllegalArgumentException(
+                            "cannot use a static method as a function reference " +
+                            "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
+                            "with a non-static captured variable");
                 }
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();

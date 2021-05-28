@@ -1,5 +1,5 @@
 ---
-"Test analyze API with the standard 7.14+ ML analyzer":
+"Test analyze API with the standard 7.14 ML analyzer":
   - do:
       indices.analyze:
         body:  >

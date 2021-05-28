@@ -129,6 +129,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                             + request.getType()
                             + "]"
                     );
+                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
             }
         });

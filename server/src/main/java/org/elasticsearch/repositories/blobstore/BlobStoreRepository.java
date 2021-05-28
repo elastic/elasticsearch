@@ -91,6 +91,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -112,6 +113,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FilterInputStream;
@@ -1218,14 +1220,44 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     @Override
-    public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
-        try {
-            return SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
-        } catch (NoSuchFileException ex) {
-            throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
-        } catch (IOException | NotXContentException ex) {
-            throw new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
+    public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        // put snapshot info downloads into a task queue instead of pushing them all into the queue to not completely monopolize the
+        // snapshot meta pool for a single request
+        final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(), context.snapshotIds().size());
+        final BlockingQueue<SnapshotId> queue = new LinkedBlockingQueue<>(context.snapshotIds());
+        for (int i = 0; i < workers; i++) {
+            getOneSnapshotInfo(queue, context);
         }
+    }
+
+    /**
+     * Tries to poll a {@link SnapshotId} to load {@link SnapshotInfo} for from the given {@code queue}.
+     */
+    private void getOneSnapshotInfo(BlockingQueue<SnapshotId> queue, GetSnapshotInfoContext context) {
+        final SnapshotId snapshotId = queue.poll();
+        if (snapshotId == null) {
+            return;
+        }
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
+            if (context.isCancelled()) {
+                context.onFailure(new TaskCancelledException("task cancelled"));
+                return;
+            }
+            try {
+                try {
+                    context.onResponse(SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry));
+                } catch (NoSuchFileException ex) {
+                    context.onFailure(new SnapshotMissingException(metadata.name(), snapshotId, ex));
+                } catch (IOException | NotXContentException ex) {
+                    context.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex));
+                }
+            } catch (Exception e) {
+                context.onFailure(e instanceof SnapshotException
+                        ? e
+                        : new SnapshotException(metadata.name(), snapshotId, "Snapshot could not be read", e));
+            }
+            getOneSnapshotInfo(queue, context);
+        });
     }
 
     @Override
@@ -1857,36 +1889,36 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     .stream().filter(repositoryData::hasMissingDetails).collect(Collectors.toList());
             if (snapshotIdsWithMissingDetails.isEmpty() == false) {
                 final Map<SnapshotId, SnapshotDetails> extraDetailsMap = new ConcurrentHashMap<>();
-                final GroupedActionListener<Void> loadExtraDetailsListener = new GroupedActionListener<>(
-                    ActionListener.runAfter(
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Collection<Void> voids) {
-                                logger.info("Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
-                                    AllocationService.firstListElementsToCommaDelimitedString(
-                                        snapshotIdsWithMissingDetails, SnapshotId::toString, logger.isDebugEnabled()));
-                            }
+                getSnapshotInfo(
+                    new GetSnapshotInfoContext(
+                        snapshotIdsWithMissingDetails,
+                        false,
+                        () -> false,
+                        snapshotInfo -> extraDetailsMap.put(snapshotInfo.snapshotId(),
+                            new SnapshotDetails(
+                                snapshotInfo.state(),
+                                snapshotInfo.version(),
+                                snapshotInfo.startTime(),
+                                snapshotInfo.endTime())),
+                            ActionListener.runAfter(
+                                new ActionListener<>() {
+                                    @Override
+                                    public void onResponse(Void aVoid) {
+                                        logger.info(
+                                            "Successfully loaded all snapshots' detailed information for {} from snapshot metadata",
+                                            AllocationService.firstListElementsToCommaDelimitedString(
+                                                snapshotIdsWithMissingDetails, SnapshotId::toString, logger.isDebugEnabled()));
+                                    }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                logger.warn("Failure when trying to load missing details from snapshot metadata", e);
-                            }
-                        }, () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))),
-                        snapshotIdsWithMissingDetails.size());
-                for (SnapshotId snapshotId : snapshotIdsWithMissingDetails) {
-                    // Just spawn all the download jobs at the same time: this is pretty important, executes only rarely (typically once
-                    // after an upgrade) and each job is only a small download so this shouldn't block other SNAPSHOT activities for long.
-                    threadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.run(loadExtraDetailsListener, () ->
-                    {
-                        final SnapshotInfo snapshotInfo = getSnapshotInfo(snapshotId);
-                        extraDetailsMap.put(snapshotId,
-                                new SnapshotDetails(
-                                        snapshotInfo.state(),
-                                        snapshotInfo.version(),
-                                        snapshotInfo.startTime(),
-                                        snapshotInfo.endTime()));
-                    }));
-                }
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        logger.warn("Failure when trying to load missing details from snapshot metadata", e);
+                                    }
+                                },
+                                () -> filterRepositoryDataStep.onResponse(repositoryData.withExtraDetails(extraDetailsMap))
+                            )
+                    )
+                );
             } else {
                 filterRepositoryDataStep.onResponse(repositoryData);
             }

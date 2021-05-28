@@ -28,6 +28,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -72,10 +73,31 @@ public interface Repository extends LifecycleComponent {
     /**
      * Reads snapshot description from repository.
      *
-     * @param snapshotId  snapshot id
-     * @return information about snapshot
+     * @param context get-snapshot-info-context
      */
-    SnapshotInfo getSnapshotInfo(SnapshotId snapshotId);
+    void getSnapshotInfo(GetSnapshotInfoContext context);
+
+    default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
+        getSnapshotInfo(
+                new GetSnapshotInfoContext(
+                        List.of(snapshotId),
+                        true,
+                        () -> false,
+                        listener::onResponse,
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void o) {
+                                // ignored
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onFailure(e);
+                            }
+                        }
+                )
+        );
+    }
 
     /**
      * Returns global metadata associated with the snapshot.

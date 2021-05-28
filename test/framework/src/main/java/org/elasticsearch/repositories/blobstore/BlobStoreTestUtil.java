@@ -205,7 +205,7 @@ public final class BlobStoreTestUtil {
         final Map<IndexId, Integer> maxShardCountsSeen = new HashMap<>();
         // Assert that for each snapshot, the relevant metadata was written to index and shard folders
         for (SnapshotId snapshotId: snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = PlainActionFuture.get(f -> repository.getSnapshotInfo(snapshotId, f));
             for (String index : snapshotInfo.indices()) {
                 final IndexId indexId = repositoryData.resolveIndexId(index);
                 assertThat(indices, hasKey(indexId.getId()));

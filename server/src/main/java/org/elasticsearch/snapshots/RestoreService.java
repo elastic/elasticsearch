@@ -16,7 +16,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -234,32 +233,28 @@ public class RestoreService implements ClusterStateApplier {
             final StepListener<RepositoryData> repositoryDataListener = new StepListener<>();
             repository.getRepositoryData(repositoryDataListener);
 
-            repositoryDataListener.whenComplete(repositoryData ->
-                repositoryUuidRefreshListener.whenComplete(ignored ->
-                    // fork handling to the generic pool since it loads various pieces of metadata from the repository over a longer period
-                    // of time
-                    clusterService.getClusterApplierService().threadPool().generic().execute(
-                        ActionRunnable.wrap(
-                            listener,
-                            l -> {
-                                final String snapshotName = request.snapshot();
-                                final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
-                                        .filter(s -> snapshotName.equals(s.getName())).findFirst();
-                                if (matchingSnapshotId.isPresent() == false) {
-                                    throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
-                                }
+            repositoryDataListener.whenComplete(repositoryData -> repositoryUuidRefreshListener.whenComplete(ignored -> {
+                    final String snapshotName = request.snapshot();
+                    final Optional<SnapshotId> matchingSnapshotId = repositoryData.getSnapshotIds().stream()
+                            .filter(s -> snapshotName.equals(s.getName())).findFirst();
+                    if (matchingSnapshotId.isPresent() == false) {
+                        throw new SnapshotRestoreException(repositoryName, snapshotName, "snapshot does not exist");
+                    }
 
-                                final SnapshotId snapshotId = matchingSnapshotId.get();
-                                if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
-                                    throw new SnapshotRestoreException(repositoryName, snapshotName,
-                                            "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got ["
-                                                    + snapshotId.getUUID() + "]");
-                                }
-                                startRestore(repository.getSnapshotInfo(snapshotId), repository, request, repositoryData, updater, l);
-                            })
-                        ),
-                    listener::onFailure
-                ),
+                    final SnapshotId snapshotId = matchingSnapshotId.get();
+                    if (request.snapshotUuid() != null && request.snapshotUuid().equals(snapshotId.getUUID()) == false) {
+                        throw new SnapshotRestoreException(repositoryName, snapshotName,
+                                "snapshot UUID mismatch: expected [" + request.snapshotUuid() + "] but got ["
+                                        + snapshotId.getUUID() + "]");
+                    }
+                    repository.getSnapshotInfo(
+                            snapshotId,
+                            ActionListener.wrap(
+                                snapshotInfo -> startRestore(snapshotInfo, repository, request, repositoryData, updater, listener),
+                                listener::onFailure
+                            )
+                    );
+                }, listener::onFailure),
                 listener::onFailure
             );
         } catch (Exception e) {

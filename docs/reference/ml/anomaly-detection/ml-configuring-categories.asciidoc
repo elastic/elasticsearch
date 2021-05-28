@@ -159,7 +159,8 @@ POST _ml/anomaly_detectors/_validate
     "categorization_analyzer" : {
       "char_filter" : [{
         "type" : "pattern_replace",
-        "pattern" : "\\\\n.*",
+        "pattern" : "^(\\r?.[^\\n]*)\\n.*",
+        "replacement" : "$1",
         "flags" : "DOTALL"
       }],
       "tokenizer" : "ml_standard",
@@ -208,7 +209,8 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
     "categorization_analyzer":{
       "char_filter" : [{
         "type" : "pattern_replace",
-        "pattern" : "\\\\n.*", <1>
+        "pattern" : "^(\\r?.[^\\n]*)\\n.*", <1>
+        "replacement" : "$1",
         "flags" : "DOTALL"
       }],
       "tokenizer": {
@@ -242,7 +244,7 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
 ----------------------------------
 // TEST[skip:needs-licence]
 
-<1> Only consider the first line of the message for categorization purposes.
+<1> Only consider the first non-blank line of the message for categorization purposes.
 <2> Tokens basically consist of hyphens, digits, letters, underscores, dots and slashes.
 <3> By default, categorization ignores tokens that begin with a digit.
 <4> By default, categorization also ignores tokens that are hexadecimal numbers.

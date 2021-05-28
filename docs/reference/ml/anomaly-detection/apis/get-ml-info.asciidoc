@@ -52,7 +52,8 @@ This is a possible response:
         "char_filter" : [
           {
             "type" : "pattern_replace",
-            "pattern" : "\\\\n.*",
+            "pattern" : "^(\\r?.[^\\n]*)\\n.*",
+            "replacement" : "$1",
             "flags" : "DOTALL"
           }
         ],

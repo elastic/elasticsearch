@@ -173,7 +173,8 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
 
         Map<String, Object> firstLineOnlyCharFilter = new HashMap<>();
         firstLineOnlyCharFilter.put("type", "pattern_replace");
-        firstLineOnlyCharFilter.put("pattern", "\\\\n.*");
+        firstLineOnlyCharFilter.put("pattern", "^(\\r?.[^\\n]*)\\n.*");
+        firstLineOnlyCharFilter.put("replacement", "$1");
         firstLineOnlyCharFilter.put("flags", "DOTALL");
 
         return new CategorizationAnalyzerConfig.Builder()

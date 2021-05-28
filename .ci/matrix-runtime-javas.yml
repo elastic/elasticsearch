@@ -15,3 +15,4 @@ ES_RUNTIME_JAVA:
   - corretto8
   - adoptopenjdk11
   - adoptopenjdk8
+  - openjdk17

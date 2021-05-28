@@ -84,6 +84,16 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     @Override
+    public int readVInt() throws IOException {
+        return readVIntSlow();
+    }
+
+    @Override
+    public long readVLong() throws IOException {
+        return readVLongSlow();
+    }
+
+    @Override
     public void reset() throws IOException {
         delegate.reset();
         digest.reset();

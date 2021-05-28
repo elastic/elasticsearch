@@ -43,8 +43,8 @@ import static org.hamcrest.Matchers.not;
 public class SearchPreferenceIT extends ESIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING.getKey(), false).build();
     }
 

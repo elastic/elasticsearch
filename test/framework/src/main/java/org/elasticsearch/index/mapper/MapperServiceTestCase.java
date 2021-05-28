@@ -152,7 +152,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
-    protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
 
@@ -234,7 +234,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         XContentBuilder builder = JsonXContent.contentBuilder().startObject();
         build.accept(builder);
         builder.endObject();
-        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing);
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, Map.of());
+    }
+
+    protected final SourceToParse source(String id, CheckedConsumer<XContentBuilder, IOException> build,
+                                         @Nullable String routing, Map<String, String> dynamicTemplates) throws IOException {
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        build.accept(builder);
+        builder.endObject();
+        return new SourceToParse("test", id, BytesReference.bytes(builder), XContentType.JSON, routing, dynamicTemplates);
     }
 
     protected final SourceToParse source(String source) {
@@ -369,7 +377,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getFieldTypes() {
+            public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
                 throw new UnsupportedOperationException();
             }
 
@@ -385,6 +393,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public Query buildQuery(QueryBuilder builder) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Query filterQuery(Query query) {
                 throw new UnsupportedOperationException();
             }
 
@@ -505,13 +518,20 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.getObjectMapper(anyString())).thenAnswer(
             inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
-        when(searchExecutionContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
-            inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
+        when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
+        );
+        when(searchExecutionContext.getMatchingFieldTypes(anyObject())).thenAnswer(
+            inv -> mapperService.mappingLookup().getMatchingFieldTypes(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {
             throw new UnsupportedOperationException("search lookup not available");
         }));
+
+        SimilarityService similarityService = new SimilarityService(mapperService.getIndexSettings(), null, Map.of());
+        when(searchExecutionContext.getDefaultSimilarity()).thenReturn(similarityService.getDefaultSimilarity());
+
         return searchExecutionContext;
     }
 }

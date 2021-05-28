@@ -129,7 +129,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
@@ -232,8 +231,6 @@ public final class InternalTestCluster extends TestCluster {
     private final Collection<Class<? extends Plugin>> mockPlugins;
 
     private final boolean forbidPrivateIndexSettings;
-
-    private final int numDataPaths;
 
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
@@ -350,7 +347,6 @@ public final class InternalTestCluster extends TestCluster {
             numSharedDedicatedMasterNodes, numSharedDataNodes, numSharedCoordOnlyNodes,
             autoManageMasterNodes ? "auto-managed" : "manual");
         this.nodeConfigurationSource = nodeConfigurationSource;
-        numDataPaths = random.nextInt(5) == 0 ? 2 + random.nextInt(3) : 1;
         Builder builder = Settings.builder();
         builder.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
         builder.put(Environment.PATH_REPO_SETTING.getKey(), baseDir.resolve("repos"));
@@ -418,7 +414,7 @@ public final class InternalTestCluster extends TestCluster {
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = Settings.builder().put(defaultSettings)
             .put(getRandomNodeSettings(nodeSeed));
-        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal);
+        Settings settings = nodeConfigurationSource.nodeSettings(nodeOrdinal, others);
         if (settings != null) {
             if (settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey()) != null) {
                 throw new IllegalStateException("Tests must not set a '" + ClusterName.CLUSTER_NAME_SETTING.getKey()
@@ -628,14 +624,7 @@ public final class InternalTestCluster extends TestCluster {
         final Settings.Builder updatedSettings = Settings.builder();
 
         updatedSettings.put(Environment.PATH_HOME_SETTING.getKey(), baseDir);
-
-        if (numDataPaths > 1) {
-            updatedSettings.putList(Environment.PATH_DATA_SETTING.getKey(), IntStream.range(0, numDataPaths).mapToObj(i ->
-                baseDir.resolve(name).resolve("d" + i).toString()).collect(Collectors.toList()));
-        } else {
-            updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
-        }
-
+        updatedSettings.put(Environment.PATH_DATA_SETTING.getKey(), baseDir.resolve(name));
         updatedSettings.put(Environment.PATH_SHARED_DATA_SETTING.getKey(), baseDir.resolve(name + "-shared"));
 
         // allow overriding the above
@@ -928,9 +917,9 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = node.getNodeEnvironment();
                 if (nodeEnv.hasNodeFile()) {
-                    final Path[] locations = nodeEnv.nodeDataPaths();
-                    logger.debug("removing node data paths: [{}]", Arrays.toString(locations));
-                    IOUtils.rm(locations);
+                    final Path location = nodeEnv.nodeDataPath();
+                    logger.debug("removing node data path: [{}]", location);
+                    IOUtils.rm(location);
                 }
             }
         }
@@ -981,7 +970,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPath()));
             }
         }
 
@@ -989,7 +978,7 @@ public final class InternalTestCluster extends TestCluster {
             assert Thread.holdsLock(InternalTestCluster.this);
             NodeEnvironment nodeEnv = node.getNodeEnvironment();
             if (nodeEnv.hasNodeFile()) {
-                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+                dataDirToClean.removeAll(Arrays.asList(nodeEnv.nodeDataPath()));
             }
         }
     }
@@ -1050,17 +1039,19 @@ public final class InternalTestCluster extends TestCluster {
         final List<Settings> settings = new ArrayList<>();
 
         for (int i = 0; i < numSharedDedicatedMasterNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);
-            settings.add(nonDataNode(nodeSettings));
+            final Settings otherSettings = nonDataNode();
+            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], otherSettings);
+            settings.add(nodeSettings);
         }
         for (int i = numSharedDedicatedMasterNodes; i < numSharedDedicatedMasterNodes + numSharedDataNodes; i++) {
-            final Settings nodeSettings = getNodeSettings(i, sharedNodesSeeds[i], Settings.EMPTY);
+            final Settings otherSettings;
             if (numSharedDedicatedMasterNodes > 0) {
-                settings.add(removeRoles(nodeSettings, Set.of(DiscoveryNodeRole.MASTER_ROLE)));
+                otherSettings = removeRoles(Set.of(DiscoveryNodeRole.MASTER_ROLE));
             } else {
                 // if we don't have dedicated master nodes, keep things default
-                settings.add(nodeSettings);
+                otherSettings = Settings.EMPTY;
             }
+            settings.add(getNodeSettings(i, sharedNodesSeeds[i], otherSettings));
         }
         for (int i = numSharedDedicatedMasterNodes + numSharedDataNodes;
              i < numSharedDedicatedMasterNodes + numSharedDataNodes + numSharedCoordOnlyNodes; i++) {
@@ -2313,6 +2304,7 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized void assertAfterTest() throws Exception {
         super.assertAfterTest();
         assertRequestsFinished();
+        assertSearchContextsReleased();
         assertNoInFlightDocsInEngine();
         for (NodeAndClient nodeAndClient : nodes.values()) {
             NodeEnvironment env = nodeAndClient.node().getNodeEnvironment();
@@ -2351,6 +2343,20 @@ public final class InternalTestCluster extends TestCluster {
                     logger.error("Could not assert finished requests within timeout", e);
                     fail("Could not assert finished requests within timeout on node [" + nodeAndClient.name + "]");
                 }
+            }
+        }
+    }
+
+    private void assertSearchContextsReleased() {
+        for (NodeAndClient nodeAndClient : nodes.values()) {
+            SearchService searchService = getInstance(SearchService.class, nodeAndClient.name);
+            try {
+                assertBusy(() -> {
+                    assertThat(searchService.getActiveContexts(), equalTo(0));
+                    assertThat(searchService.getOpenScrollContexts(), equalTo(0));
+                });
+            } catch (Exception e) {
+                throw new AssertionError("Failed to verify search contexts", e);
             }
         }
     }

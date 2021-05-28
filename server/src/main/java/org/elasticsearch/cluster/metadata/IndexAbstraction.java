@@ -68,6 +68,13 @@ public interface IndexAbstraction {
     boolean isSystem();
 
     /**
+     * @return whether this index abstraction is related to data streams
+     */
+    default boolean isDataStreamRelated() {
+        return getType() == Type.DATA_STREAM || this instanceof DataStreamAlias;
+    }
+
+    /**
      * An index abstraction type.
      */
     enum Type {
@@ -317,12 +324,62 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isSystem() {
-            // No such thing as system data streams (yet)
-            return false;
+            return dataStream.isSystem();
         }
 
         public org.elasticsearch.cluster.metadata.DataStream getDataStream() {
             return dataStream;
+        }
+    }
+
+    class DataStreamAlias implements IndexAbstraction {
+
+        private final org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias;
+        private final List<IndexMetadata> indicesOfAllDataStreams;
+
+        public DataStreamAlias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
+                               List<IndexMetadata> indicesOfAllDataStreams) {
+            this.dataStreamAlias = dataStreamAlias;
+            this.indicesOfAllDataStreams = indicesOfAllDataStreams;
+        }
+
+        @Override
+        public Type getType() {
+            return Type.ALIAS;
+        }
+
+        @Override
+        public String getName() {
+            return dataStreamAlias.getName();
+        }
+
+        @Override
+        public List<IndexMetadata> getIndices() {
+            return indicesOfAllDataStreams;
+        }
+
+        @Override
+        public IndexMetadata getWriteIndex() {
+            return null;
+        }
+
+        @Override
+        public DataStream getParentDataStream() {
+            return null;
+        }
+
+        @Override
+        public boolean isHidden() {
+            return false;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return false;
+        }
+
+        public org.elasticsearch.cluster.metadata.DataStreamAlias getDataStreamAlias() {
+            return dataStreamAlias;
         }
     }
 }

@@ -5,7 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
@@ -23,6 +23,7 @@ dependencies {
 
 testClusters.all {
   testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("test").configure { enabled = false }

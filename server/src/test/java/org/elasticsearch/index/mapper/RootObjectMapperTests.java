@@ -10,17 +10,21 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -677,5 +681,33 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "keyword").field("unsupported", "value"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertEquals("Failed to parse mapping: unknown parameter [unsupported] on mapper [field] of type [keyword]", e.getMessage());
+    }
+
+    public void testTemplateWithoutMatchPredicates() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject(MapperService.SINGLE_MAPPING_NAME);
+            mapping.startArray("dynamic_templates");
+            {
+                mapping.startObject();
+                mapping.startObject("geo_point");
+                {
+                    mapping.startObject("mapping");
+                    mapping.field("type", "geo_point");
+                    mapping.endObject();
+                }
+                mapping.endObject();
+                mapping.endObject();
+            }
+            mapping.endArray();
+            mapping.endObject();
+        }
+        mapping.endObject();
+        MapperService mapperService = createMapperService(mapping);
+        ParsedDocument doc = mapperService.documentMapper().parse(new SourceToParse("test", "1",
+            new BytesArray("{\"foo\": \"41.12,-71.34\", \"bar\": \"41.12,-71.34\"}"), XContentType.JSON, null, Map.of("foo", "geo_point")));
+        assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
+        assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));
     }
 }

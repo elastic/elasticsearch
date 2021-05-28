@@ -41,7 +41,6 @@ import com.nimbusds.openid.connect.sdk.claims.AccessTokenHash;
 import com.nimbusds.openid.connect.sdk.validators.IDTokenValidator;
 import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 import net.minidev.json.JSONArray;
-import net.minidev.json.JSONObject;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -74,6 +73,7 @@ import java.security.interfaces.RSAPublicKey;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.Date;
+import java.util.Map;
 import java.util.UUID;
 
 import static java.time.Instant.now;
@@ -698,14 +698,14 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final JWK jwk = keyMaterial.v2().getKeys().get(0);
         RelyingPartyConfiguration rpConfig = getRpConfig(jwk.getAlgorithm().getName());
         OpenIdConnectProviderConfiguration opConfig = getOpConfig();
-        JSONObject address = new JWTClaimsSet.Builder()
+        Map<String, Object> address = new JWTClaimsSet.Builder()
             .claim("street_name", "12, Test St.")
             .claim("locality", "New York")
             .claim("region", "NY")
             .claim("country", "USA")
             .build()
             .toJSONObject();
-        JSONObject idTokenObject = new JWTClaimsSet.Builder()
+        Map<String, Object> idTokenObject = new JWTClaimsSet.Builder()
             .jwtID(randomAlphaOfLength(8))
             .audience(rpConfig.getClientId().getValue())
             .expirationTime(Date.from(now().plusSeconds(3600)))
@@ -724,7 +724,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .build()
             .toJSONObject();
 
-        JSONObject userinfoObject = new JWTClaimsSet.Builder()
+        Map<String, Object> userinfoObject = new JWTClaimsSet.Builder()
             .claim("given_name", "Jane Doe")
             .claim("family_name", "Doe")
             .claim("profile", "https://test-profiles.com/jane.doe")
@@ -752,7 +752,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertTrue(idTokenObject.containsKey("email"));
 
         // Claims with different types throw an error
-        JSONObject wrongTypeInfo = new JWTClaimsSet.Builder()
+        Map<String, Object> wrongTypeInfo = new JWTClaimsSet.Builder()
             .claim("given_name", "Jane Doe")
             .claim("family_name", 123334434)
             .claim("profile", "https://test-profiles.com/jane.doe")
@@ -767,7 +767,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         });
 
         // Userinfo Claims overwrite ID Token claims
-        JSONObject overwriteUserInfo = new JWTClaimsSet.Builder()
+        Map<String, Object> overwriteUserInfo = new JWTClaimsSet.Builder()
             .claim("given_name", "Jane Doe")
             .claim("family_name", "Doe")
             .claim("profile", "https://test-profiles.com/jane.doe2")
@@ -778,11 +778,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .toJSONObject();
 
         OpenIdConnectAuthenticator.mergeObjects(idTokenObject, overwriteUserInfo);
-        assertThat(idTokenObject.getAsString("email"), equalTo("jane.doe@example.com"));
-        assertThat(idTokenObject.getAsString("profile"), equalTo("https://test-profiles.com/jane.doe"));
+        assertThat(idTokenObject.get("email"), equalTo("jane.doe@example.com"));
+        assertThat(idTokenObject.get("profile"), equalTo("https://test-profiles.com/jane.doe"));
 
         // Merging Arrays
-        JSONObject userInfoWithRoles = new JWTClaimsSet.Builder()
+        Map<String, Object> userInfoWithRoles = new JWTClaimsSet.Builder()
             .claim("given_name", "Jane Doe")
             .claim("family_name", "Doe")
             .claim("profile", "https://test-profiles.com/jane.doe")
@@ -797,13 +797,13 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertThat((JSONArray) idTokenObject.get("roles"), containsInAnyOrder("role1", "role2", "role3", "role4", "role5"));
 
         // Merging nested objects
-        JSONObject addressUserInfo = new JWTClaimsSet.Builder()
+        Map<String, Object> addressUserInfo = new JWTClaimsSet.Builder()
             .claim("street_name", "12, Test St.")
             .claim("locality", "New York")
             .claim("postal_code", "10024")
             .build()
             .toJSONObject();
-        JSONObject userInfoWithAddress = new JWTClaimsSet.Builder()
+        Map<String, Object> userInfoWithAddress = new JWTClaimsSet.Builder()
             .claim("given_name", "Jane Doe")
             .claim("family_name", "Doe")
             .claim("profile", "https://test-profiles.com/jane.doe")
@@ -816,7 +816,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             .toJSONObject();
         OpenIdConnectAuthenticator.mergeObjects(idTokenObject, userInfoWithAddress);
         assertTrue(idTokenObject.containsKey("address"));
-        JSONObject combinedAddress = (JSONObject) idTokenObject.get("address");
+        Map<String, Object> combinedAddress = (Map<String, Object>) idTokenObject.get("address");
         assertTrue(combinedAddress.containsKey("street_name"));
         assertTrue(combinedAddress.containsKey("locality"));
         assertTrue(combinedAddress.containsKey("street_name"));
@@ -826,14 +826,14 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
     }
 
     public void testJsonObjectMergingWithBooleanLeniency() {
-        final JSONObject idTokenObject = new JWTClaimsSet.Builder()
+        final Map<String, Object> idTokenObject = new JWTClaimsSet.Builder()
             .claim("email_verified", true)
             .claim("email_verified_1", "true")
             .claim("email_verified_2", false)
             .claim("email_verified_3", "false")
             .build()
             .toJSONObject();
-        final JSONObject userInfoObject = new JWTClaimsSet.Builder()
+        final Map<String, Object> userInfoObject = new JWTClaimsSet.Builder()
             .claim("email_verified", "true")
             .claim("email_verified_1", true)
             .claim("email_verified_2", "false")
@@ -846,11 +846,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         assertSame(Boolean.FALSE, idTokenObject.get("email_verified_2"));
         assertSame(Boolean.FALSE, idTokenObject.get("email_verified_3"));
 
-        final JSONObject idTokenObject1 = new JWTClaimsSet.Builder()
+        final Map<String, Object> idTokenObject1 = new JWTClaimsSet.Builder()
             .claim("email_verified", true)
             .build()
             .toJSONObject();
-        final JSONObject userInfoObject1 = new JWTClaimsSet.Builder()
+        final Map<String, Object> userInfoObject1 = new JWTClaimsSet.Builder()
             .claim("email_verified", "false")
             .build()
             .toJSONObject();
@@ -858,11 +858,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             expectThrows(IllegalStateException.class, () -> OpenIdConnectAuthenticator.mergeObjects(idTokenObject1, userInfoObject1));
         assertThat(e.getMessage(), containsString("Cannot merge [java.lang.Boolean] with [java.lang.String]"));
 
-        final JSONObject idTokenObject2 = new JWTClaimsSet.Builder()
+        final Map<String, Object> idTokenObject2 = new JWTClaimsSet.Builder()
             .claim("email_verified", true)
             .build()
             .toJSONObject();
-        final JSONObject userInfoObject2 = new JWTClaimsSet.Builder()
+        final Map<String, Object> userInfoObject2 = new JWTClaimsSet.Builder()
             .claim("email_verified", "yes")
             .build()
             .toJSONObject();
@@ -951,7 +951,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         if (withAccessToken) {
             accessToken = new BearerAccessToken(Base64.getUrlEncoder().encodeToString(randomByteArrayOfLength(32)));
             AccessTokenHash expectedHash = AccessTokenHash.compute(accessToken, JWSAlgorithm.parse(alg));
-            idToken = JWTClaimsSet.parse(idToken.toJSONObject().appendField("at_hash", expectedHash.getValue()));
+            Map<String, Object> idTokenMap = idToken.toJSONObject();
+            idTokenMap.put("at_hash", expectedHash.getValue());
+            // This is necessary as if nonce claim is of type Nonce, the library won't take it into consideration when serializing the JWT
+            idTokenMap.put("nonce", idTokenMap.get("nonce").toString());
+            idToken = JWTClaimsSet.parse(idTokenMap);
         }
         SignedJWT jwt = new SignedJWT(
             new JWSHeader.Builder(JWSAlgorithm.parse(alg)).keyID(keyId).build(),

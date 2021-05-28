@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -916,7 +917,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         @Override
         public void performAction(IndexMetadata indexMetadata, ClusterState currentState,
-                                  ClusterStateObserver observer, Listener listener) {
+                                  ClusterStateObserver observer, ActionListener<Boolean> listener) {
             executeCount++;
             if (latch != null) {
                 latch.countDown();

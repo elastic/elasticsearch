@@ -8,10 +8,12 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
+import java.io.IOException;
 import java.util.List;
 
 public class RestPutShutdownNodeAction extends BaseRestHandler {
@@ -27,12 +29,12 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+    protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String nodeId = request.param("nodeId");
-        return channel -> client.execute(
-            PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(nodeId),
-            new RestToXContentListener<>(channel)
-        );
+        try (XContentParser parser = request.contentParser()) {
+            PutShutdownNodeAction.Request parsedRequest = PutShutdownNodeAction.Request.parseRequest(nodeId, parser);
+
+            return channel -> client.execute(PutShutdownNodeAction.INSTANCE, parsedRequest, new RestToXContentListener<>(channel));
+        }
     }
 }

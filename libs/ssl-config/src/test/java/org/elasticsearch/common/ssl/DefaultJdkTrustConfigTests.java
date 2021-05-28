@@ -44,11 +44,12 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
         assertThat(trustManager.getAcceptedIssuers(), not(emptyArray()));
         // This is a sample of the CAs that we expect on every JRE.
         // We can safely change this list if the JRE's issuer list changes, but we want to assert something useful.
-        assertHasTrustedIssuer(trustManager, "VeriSign");
-        assertHasTrustedIssuer(trustManager, "GeoTrust");
         assertHasTrustedIssuer(trustManager, "DigiCert");
-        assertHasTrustedIssuer(trustManager, "thawte");
         assertHasTrustedIssuer(trustManager, "COMODO");
+        assertHasTrustedIssuer(trustManager, "GlobalSign");
+        assertHasTrustedIssuer(trustManager, "GoDaddy");
+        assertHasTrustedIssuer(trustManager, "QuoVadis");
+        assertHasTrustedIssuer(trustManager, "Internet Security Research Group");
     }
 
     private void assertHasTrustedIssuer(X509ExtendedTrustManager trustManager, String name) {

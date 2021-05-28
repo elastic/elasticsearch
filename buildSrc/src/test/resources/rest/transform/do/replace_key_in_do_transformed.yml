@@ -1,0 +1,16 @@
+---
+"First test":
+
+  - do:
+      do.key.replaced:
+        something_else.is: true
+
+  - do:
+      and: again
+
+      do.key.replaced:
+        some_other.thing.is: true
+
+  - length: { length.key: 1 }
+  - match: { _shards.total: 2 }
+  - match: { _shards.successful: 2 }

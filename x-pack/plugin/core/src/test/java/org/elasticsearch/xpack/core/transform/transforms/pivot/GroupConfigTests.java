@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -28,6 +29,11 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
 
@@ -49,7 +55,7 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // ensure that the unlikely does not happen: 2 group_by's share the same name
         Set<String> names = new HashSet<>();
         for (int i = 0; i < randomIntBetween(1, 20); ++i) {
-            String targetFieldName = randomAlphaOfLengthBetween(1, 20);
+            String targetFieldName = "group_" + randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
                 SingleGroupSource groupBy = singleGroupSourceSupplier.get();
                 source.put(targetFieldName, Collections.singletonMap(groupBy.getType().value(), getSource(groupBy)));
@@ -98,7 +104,9 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
         }
 
         // strict throws
@@ -126,7 +134,9 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("pivot.groups must not be null"));
         }
 
         // strict throws
@@ -148,13 +158,15 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(source)) {
             GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
-            assertFalse(groupConfig.isValid());
+            ValidationException validationException = groupConfig.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("Required one of fields [field, script], but none were specified"));
         }
 
         // strict throws
         try (XContentParser parser = createParser(source)) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> GroupConfig.fromXContent(parser, false));
-            assertTrue(e.getMessage().startsWith("Required one of fields [field, script], but none were specified."));
+            assertThat(e.getMessage(), startsWith("Required one of fields [field, script], but none were specified"));
         }
     }
 

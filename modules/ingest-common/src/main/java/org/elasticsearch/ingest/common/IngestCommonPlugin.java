@@ -79,9 +79,10 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
                 entry(HtmlStripProcessor.TYPE, new HtmlStripProcessor.Factory()),
                 entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
                 entry(UriPartsProcessor.TYPE, new UriPartsProcessor.Factory()),
-                entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory()),
+                entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
                 entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
-                entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory())
+                entry(FingerprintProcessor.TYPE, new FingerprintProcessor.Factory()),
+                entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory())
             );
     }
 

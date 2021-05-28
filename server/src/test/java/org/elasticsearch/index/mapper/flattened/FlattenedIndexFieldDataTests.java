@@ -24,8 +24,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldData;
-import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -46,12 +46,13 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             indexService.mapperService());
 
         FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("json").build(new ContentPath(1));
+        MappedFieldType fieldType1 = fieldMapper.fieldType().getChildFieldType("key");
 
         AtomicInteger onCacheCalled = new AtomicInteger();
         ifdService.setListener(new IndexFieldDataCache.Listener() {
             @Override
             public void onCache(ShardId shardId, String fieldName, Accountable ramUsage) {
-                assertEquals(fieldMapper.keyedFieldName(), fieldName);
+                assertEquals(fieldType1.name(), fieldName);
                 onCacheCalled.incrementAndGet();
             }
         });
@@ -71,7 +72,6 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
             new ShardId("test", "_na_", 1));
 
         // Load global field data for subfield 'key'.
-        KeyedFlattenedFieldType fieldType1 = fieldMapper.keyedFieldType("key");
         IndexFieldData<?> ifd1 = ifdService.getForField(fieldType1, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });
@@ -83,7 +83,7 @@ public class FlattenedIndexFieldDataTests extends ESSingleNodeTestCase  {
         assertEquals(1, onCacheCalled.get());
 
         // Load global field data for the subfield 'other_key'.
-        KeyedFlattenedFieldType fieldType2 = fieldMapper.keyedFieldType("other_key");
+        MappedFieldType fieldType2 = fieldMapper.fieldType().getChildFieldType("other_key");
         IndexFieldData<?> ifd2 = ifdService.getForField(fieldType2, "test", () -> {
             throw new UnsupportedOperationException("search lookup not available");
         });

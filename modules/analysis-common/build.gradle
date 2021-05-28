@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -22,4 +23,13 @@ restResources {
 
 dependencies {
   compileOnly project(':modules:lang-painless')
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    'search.query/50_queries_with_synonyms/Test common terms query with stacked tokens',
+    'indices.analyze/10_analyze/htmlStrip_deprecated',
+    'analysis-common/40_token_filters/delimited_payload_filter_error',
+    'analysis-common/20_analyzers/standard_html_strip'
+  ].join(',')
 }

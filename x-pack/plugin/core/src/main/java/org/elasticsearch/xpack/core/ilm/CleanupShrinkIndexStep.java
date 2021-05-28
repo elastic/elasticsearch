@@ -36,7 +36,7 @@ public class CleanupShrinkIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
-    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
+    void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, ActionListener<Boolean> listener) {
         final String shrunkenIndexSource = IndexMetadata.INDEX_RESIZE_SOURCE_NAME.get(indexMetadata.getSettings());
         if (Strings.isNullOrEmpty(shrunkenIndexSource) == false) {
             // the current managed index is a shrunk index

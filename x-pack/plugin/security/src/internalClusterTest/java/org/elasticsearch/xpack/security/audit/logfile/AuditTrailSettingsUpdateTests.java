@@ -57,9 +57,9 @@ public class AuditTrailSettingsUpdateTests extends SecurityIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(super.nodeSettings(nodeOrdinal));
+        settingsBuilder.put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         // enable auditing
         settingsBuilder.put("xpack.security.audit.enabled", "true");

@@ -42,7 +42,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
     private Path updateableCertPath;
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // Nodes start trusting testnode.crt and testclient.crt
         Path origKeyPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem");
         Path origCertPath = getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt");
@@ -70,7 +70,7 @@ public class SSLReloadIntegTests extends SecurityIntegTestCase {
             throw new ElasticsearchException("failed to copy key or certificate", e);
         }
 
-        Settings settings = super.nodeSettings(nodeOrdinal);
+        Settings settings = super.nodeSettings(nodeOrdinal, otherSettings);
         Settings.Builder builder = Settings.builder()
                 .put(settings.filter((s) -> s.startsWith("xpack.security.transport.ssl.") == false));
         builder.put("path.home", createTempDir())

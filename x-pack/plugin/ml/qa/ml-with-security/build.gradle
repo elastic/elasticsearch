@@ -216,7 +216,6 @@ tasks.named("yamlRestTest").configure {
   ].join(',')
 }
 
-
 testClusters.all {
   testDistribution = 'DEFAULT'
   extraConfigFile 'roles.yml', file('roles.yml')

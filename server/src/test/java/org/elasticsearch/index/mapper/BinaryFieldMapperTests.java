@@ -131,4 +131,9 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "binary").field("doc_values", true); // enable doc_values so the test is happy
     }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
 }

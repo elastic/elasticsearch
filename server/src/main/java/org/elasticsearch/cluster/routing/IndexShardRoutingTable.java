@@ -281,7 +281,7 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             Optional<ResponseCollectorService.ComputedNodeStats> maybeStats = entry.getValue();
             maybeStats.ifPresent(stats -> {
                 final String nodeId = entry.getKey();
-                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 1L)));
+                nodeRanks.put(nodeId, stats.rank(nodeSearchCounts.getOrDefault(nodeId, 0L)));
             });
         }
         return nodeRanks;

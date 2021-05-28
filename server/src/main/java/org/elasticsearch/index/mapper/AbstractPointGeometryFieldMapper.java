@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -20,15 +21,12 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 import java.io.IOException;
-import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
 /** Base class for for spatial fields that only support indexing points */
-public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extends AbstractGeometryFieldMapper<Parsed, Processed> {
+public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static Parameter<ParsedPoint> nullValueParam(Function<FieldMapper, ParsedPoint> initializer,
                                                         TriFunction<String, ParserContext, Object, ParsedPoint> parser,
@@ -41,9 +39,16 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                                MultiFields multiFields, Explicit<Boolean> ignoreMalformed,
                                                Explicit<Boolean> ignoreZValue, ParsedPoint nullValue, CopyTo copyTo,
-                                               Indexer<Parsed, Processed> indexer, Parser<Parsed> parser) {
-        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, indexer, parser);
+                                               Parser<? extends T> parser) {
+        super(simpleName, mappedFieldType, ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
         this.nullValue = nullValue;
+    }
+
+    protected AbstractPointGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
+                                               MultiFields multiFields, CopyTo copyTo,
+                                               Parser<? extends T> parser, String onScriptError) {
+        super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
+        this.nullValue = null;
     }
 
     @Override
@@ -67,7 +72,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
     }
 
     /** A parser implementation that can parse the various point formats */
-    public static class PointParser<P extends ParsedPoint> extends Parser<List<P>> {
+    public static class PointParser<P extends ParsedPoint> extends Parser<P> {
         /**
          * Note that this parser is only used for formatting values.
          */
@@ -88,7 +93,7 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
             this.field = field;
             this.pointSupplier = pointSupplier;
             this.objectParser = objectParser;
-            this.nullValue = nullValue;
+            this.nullValue = nullValue == null ? null : process(nullValue);
             this.ignoreZValue = ignoreZValue;
             this.ignoreMalformed = ignoreMalformed;
             this.geometryParser = new GeometryParser(true, true, true);
@@ -104,12 +109,14 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
         }
 
         @Override
-        public List<P> parse(XContentParser parser) throws IOException, ParseException {
-
+        public void parse(
+            XContentParser parser,
+            CheckedConsumer<P, IOException> consumer,
+            Consumer<Exception> onMalformed
+        ) throws IOException {
             if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
                 XContentParser.Token token = parser.nextToken();
                 P point = pointSupplier.get();
-                ArrayList<P> points = new ArrayList<>();
                 if (token == XContentParser.Token.VALUE_NUMBER) {
                     double x = parser.doubleValue();
                     parser.nextToken();
@@ -122,35 +129,41 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                     }
 
                     point.resetCoords(x, y);
-                    points.add(process(point));
+                    consumer.accept(process(point));
                 } else {
                     while (token != XContentParser.Token.END_ARRAY) {
-                        points.add(process(objectParser.apply(parser, point)));
+                        parseAndConsumeFromObject(parser, point, consumer, onMalformed);
                         point = pointSupplier.get();
                         token = parser.nextToken();
                     }
                 }
-                return points;
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                if (nullValue == null) {
-                    return null;
-                } else {
-                    return Collections.singletonList(nullValue);
+                if (nullValue != null) {
+                    consumer.accept(nullValue);
                 }
             } else {
-                return Collections.singletonList(process(objectParser.apply(parser, pointSupplier.get())));
+                parseAndConsumeFromObject(parser, pointSupplier.get(), consumer, onMalformed);
+            }
+        }
+
+        private void parseAndConsumeFromObject(
+            XContentParser parser,
+            P point,
+            CheckedConsumer<P, IOException> consumer,
+            Consumer<Exception> onMalformed
+        ) {
+            try {
+                point = objectParser.apply(parser, point);
+                consumer.accept(process(point));
+            } catch (Exception e) {
+                onMalformed.accept(e);
             }
         }
 
         @Override
-        public Object format(List<P> points, String format) {
-            List<Object> result = new ArrayList<>();
+        public Object format(P point, String format) {
             GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            for (ParsedPoint point : points) {
-                Geometry geometry = point.asGeometry();
-                result.add(geometryFormat.toXContentAsObject(geometry));
-            }
-            return result;
+            return geometryFormat.toXContentAsObject(point.asGeometry());
         }
     }
 }

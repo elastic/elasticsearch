@@ -406,7 +406,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             TransportAddress transportAddress = new TransportAddress(parseConfiguredAddress(proxyAddress));
             String hostName = RemoteConnectionStrategy.parseHost(proxyAddress);
             return new DiscoveryNode("", clusterAlias + "#" + address, UUIDs.randomBase64UUID(), hostName, address,
-                transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.BUILT_IN_ROLES,
+                transportAddress, Collections.singletonMap("server_name", hostName), DiscoveryNodeRole.roles(),
                 Version.CURRENT.minimumCompatibilityVersion());
         }
     }

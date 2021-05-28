@@ -88,7 +88,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         // The configuration is always created however when dealing with the next page, only the timeouts are relevant
         // the rest having default values (since the query is already created)
         SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.fetchSize(), request.requestTimeout(), request.pageTimeout(),
-                request.filter(), request.mode(), request.clientId(), request.version(), username, clusterName,
+                request.filter(), request.runtimeMappings(), request.mode(), request.clientId(), request.version(), username, clusterName,
                 request.fieldMultiValueLeniency(), request.indexIncludeFrozen());
 
         if (Strings.hasText(request.cursor()) == false) {

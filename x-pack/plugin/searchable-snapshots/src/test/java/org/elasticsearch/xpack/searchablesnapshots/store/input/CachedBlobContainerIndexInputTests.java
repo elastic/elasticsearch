@@ -87,14 +87,14 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final boolean prewarmEnabled = randomBoolean();
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
-                if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
+                if (input.length == partSize && prewarmEnabled == false) {
                     blobContainer = new CountingBlobContainer(singleBlobContainer);
                 } else {
                     blobContainer = singleBlobContainer;
                 }
 
                 final boolean recoveryFinalizedDone = randomBoolean();
-                final Path shardDir = randomShardPath(shardId);
+                final Path shardDir = shardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final FrozenCacheService frozenCacheService = defaultFrozenCacheService();
@@ -198,7 +198,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final Path shardDir = randomShardPath(shardId);
+            final Path shardDir = shardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

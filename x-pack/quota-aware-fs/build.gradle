@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   description 'A bootstrap plugin that adds support for interfacing with filesystem that enforce user quotas.'

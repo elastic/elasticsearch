@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -98,7 +99,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     public void testNotCreatedWhenAfterOtherMlIndexAndResetInProgress() throws Exception {
 
-        client().execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.enabled()).actionGet();
+        client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled()).actionGet();
 
         try {
 
@@ -117,7 +118,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                 assertEquals(0, numberOfAnnotationsAliases());
             });
         } finally {
-            client().execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled()).actionGet();
+            client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true)).actionGet();
         }
     }
 

@@ -51,7 +51,12 @@ public abstract class AbstractRefCounted implements RefCounted {
         int i = refCount.decrementAndGet();
         assert i >= 0;
         if (i == 0) {
-            closeInternal();
+            try {
+                closeInternal();
+            } catch (Exception e) {
+                assert false : e;
+                throw e;
+            }
             return true;
         }
         return false;
@@ -81,5 +86,9 @@ public abstract class AbstractRefCounted implements RefCounted {
         return name;
     }
 
+    /**
+     * Method that is invoked once the reference count reaches zero.
+     * Implementations of this method must handle all exceptions and may not throw any exceptions.
+     */
     protected abstract void closeInternal();
 }

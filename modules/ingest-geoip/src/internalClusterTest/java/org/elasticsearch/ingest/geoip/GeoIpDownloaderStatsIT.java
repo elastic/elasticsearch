@@ -47,8 +47,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ENDPOINT != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
         }

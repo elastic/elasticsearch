@@ -459,6 +459,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
     }
 
+    public void testScriptAndPrecludedParameters() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.field("script", "test");
+            b.field("null_value", true);
+        })));
+        assertThat(e.getMessage(),
+            equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+    }
+
     @Override
     protected Object generateRandomInputValue(MappedFieldType ft) {
         switch (between(0, 3)) {
@@ -475,5 +485,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             default:
                 throw new IllegalStateException();
         }
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

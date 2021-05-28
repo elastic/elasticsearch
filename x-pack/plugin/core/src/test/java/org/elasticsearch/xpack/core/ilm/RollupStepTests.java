@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -88,27 +88,13 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         mockClientRollupCall(index);
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
     }
 
     public void testPerformActionFailureInvalidExecutionState() {
@@ -119,9 +105,9 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
         String indexName = indexMetadata.getIndex().getName();
         RollupStep step = createRandomInstance();
-        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {
             @Override
-            public void onResponse(boolean complete) {
+            public void onResponse(Boolean complete) {
                 fail("expecting a failure as the index doesn't have any rollup index name in its ILM execution state");
             }
 
@@ -143,7 +129,6 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
         mockClientRollupCall(backingIndexName);
 
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
                 Metadata.builder()
@@ -152,20 +137,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
                     .put(indexMetadata, true)
             )
             .build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
     }
 
     private void mockClientRollupCall(String sourceIndex) {

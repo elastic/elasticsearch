@@ -487,7 +487,7 @@ public class Docker {
             .forEach(
                 cliBinary -> assertTrue(
                     cliBinary + " ought to be available.",
-                    dockerShell.runIgnoreExitCode("hash " + cliBinary).isSuccess()
+                    dockerShell.runIgnoreExitCode("bash -c  'hash " + cliBinary + "'").isSuccess()
                 )
             );
     }
@@ -611,5 +611,12 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
     }
 }

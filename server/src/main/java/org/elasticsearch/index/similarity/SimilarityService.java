@@ -118,11 +118,13 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
     }
 
+    /**
+     * The similarity to use in searches, which takes into account per-field configuration.
+     */
     public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
         return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) :
                 defaultSimilarity;
     }
-
 
     public SimilarityProvider getSimilarity(String name) {
         Supplier<Similarity> sim = similarities.get(name);
@@ -132,8 +134,10 @@ public final class SimilarityService extends AbstractIndexComponent {
         return new SimilarityProvider(name, sim.get());
     }
 
-    // for testing
-    Similarity getDefaultSimilarity() {
+    /**
+     * The default similarity configured in the index settings.
+     */
+    public Similarity getDefaultSimilarity() {
         return defaultSimilarity;
     }
 

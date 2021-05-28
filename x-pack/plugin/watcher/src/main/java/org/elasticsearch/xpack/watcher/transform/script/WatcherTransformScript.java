@@ -46,5 +46,5 @@ public abstract class WatcherTransformScript {
     }
 
     public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_transform", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
 }

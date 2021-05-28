@@ -53,9 +53,9 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
 

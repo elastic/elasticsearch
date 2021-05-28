@@ -90,10 +90,10 @@ public class DiscoveryNodeFilters {
         }
 
         Map<String, String[]> newFilters = original.filters.entrySet().stream()
-            // Remove all entries that start with "_tier", as these will be handled elsewhere
+            // Remove all entries that use "_tier_preference", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();
-                return attr != null && attr.startsWith("_tier") == false;
+                return attr != null && attr.equals("_tier_preference") == false;
             })
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 

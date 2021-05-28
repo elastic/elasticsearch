@@ -161,7 +161,7 @@ public class AutoscalingMemoryInfoService {
     }
 
     private Set<DiscoveryNodeRole> toRoles(SortedSet<String> roleNames) {
-        return roleNames.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet());
+        return roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
     }
 
     private void retainAliveNodes(Set<DiscoveryNode> currentNodes) {

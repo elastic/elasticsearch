@@ -61,7 +61,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
-    private static final String ENDPOINT = System.getProperty("geoip_endpoint");
+    protected static final String ENDPOINT = System.getProperty("geoip_endpoint");
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -69,8 +69,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         if (ENDPOINT != null) {
             settings.put(GeoIpDownloader.ENDPOINT_SETTING.getKey(), ENDPOINT);
         }
@@ -247,8 +247,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                 try (Stream<Path> list = Files.list(geoipTmpDir)) {
                     List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
                     assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
-                        "GeoLite2-City.mmdb_COPYRIGHT.txt","GeoLite2-Country.mmdb_COPYRIGHT.txt","GeoLite2-ASN.mmdb_COPYRIGHT.txt",
-                        "GeoLite2-City.mmdb_LICENSE.txt","GeoLite2-Country.mmdb_LICENSE.txt","GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt", "GeoLite2-Country.mmdb_COPYRIGHT.txt", "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt", "GeoLite2-Country.mmdb_LICENSE.txt", "GeoLite2-ASN.mmdb_LICENSE.txt",
                         "GeoLite2-ASN.mmdb_README.txt"));
                 }
             }

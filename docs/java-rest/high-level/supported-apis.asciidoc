@@ -689,6 +689,20 @@ include::ilm/snapshot_lifecycle_management_status.asciidoc[]
 include::ilm/execute_snapshot_lifecycle_policy.asciidoc[]
 include::ilm/execute_snapshot_lifecycle_retention.asciidoc[]
 
+[role="xpack"]
+== Searchable Snapshots APIs
+
+:upid: {mainid}-searchable-snapshots
+:doc-tests-file: {doc-tests}/SearchableSnapshotsDocumentationIT.java
+
+The Java High Level REST Client supports the following Searchable Snapshots APIs:
+
+* <<{upid}-searchable-snapshots-mount-snapshot>>
+* <<{upid}-searchable-snapshots-caches-stats>>
+
+
+include::searchable_snapshots/mount_snapshot.asciidoc[]
+include::searchable_snapshots/caches_stats.asciidoc[]
 
 [role="xpack"]
 [[transform_apis]]

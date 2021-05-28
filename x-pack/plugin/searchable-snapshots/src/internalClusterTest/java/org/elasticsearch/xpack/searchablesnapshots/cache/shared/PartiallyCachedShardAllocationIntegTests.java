@@ -14,7 +14,9 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplan
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.ListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -32,7 +34,7 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.BaseFrozenSearchableSnapshotsIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.FrozenCacheInfoNodeAction;
 
@@ -50,17 +52,19 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 
-public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class PartiallyCachedShardAllocationIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             // default to no cache: the tests create nodes with a cache configured as needed
             .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ZERO)
             .build();
@@ -137,6 +141,46 @@ public class PartiallyCachedShardAllocationIntegTests extends BaseSearchableSnap
                 .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
                 .build()
         );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen(req.mountedIndexName());
+
+        final ClusterState state = client().admin().cluster().prepareState().clear().setNodes(true).setRoutingTable(true).get().getState();
+        final Set<String> newNodeIds = newNodeNames.stream().map(n -> state.nodes().resolveNode(n).getId()).collect(Collectors.toSet());
+        for (ShardRouting shardRouting : state.routingTable().index(req.mountedIndexName()).shardsWithState(ShardRoutingState.STARTED)) {
+            assertThat(state.toString(), newNodeIds, hasItem(shardRouting.currentNodeId()));
+        }
+    }
+
+    public void testOnlyPartialSearchableSnapshotAllocatedToDedicatedFrozenNodes() throws Exception {
+
+        final MountSearchableSnapshotRequest req = prepareMountRequest();
+
+        final List<String> newNodeNames = internalCluster().startNodes(
+            between(1, 3),
+            Settings.builder()
+                .put(SNAPSHOT_CACHE_SIZE_SETTING.getKey(), new ByteSizeValue(randomLongBetween(1, ByteSizeValue.ofMb(10).getBytes())))
+                .put(onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))
+                .build()
+        );
+
+        createIndex("other-index", Settings.builder().putNull(INDEX_ROUTING_PREFER).build());
+        ensureGreen("other-index");
+        final RoutingNodes routingNodes = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setRoutingTable(true)
+            .setNodes(true)
+            .get()
+            .getState()
+            .getRoutingNodes();
+        for (RoutingNode routingNode : routingNodes) {
+            if (newNodeNames.contains(routingNode.node().getName())) {
+                assertTrue(routingNode + " should be empty in " + routingNodes, routingNode.isEmpty());
+            }
+        }
 
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));

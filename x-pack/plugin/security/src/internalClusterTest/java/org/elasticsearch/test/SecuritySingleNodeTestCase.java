@@ -167,7 +167,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     @Override
     protected Settings nodeSettings() {
         Settings.Builder builder = Settings.builder().put(super.nodeSettings());
-        Settings customSettings = customSecuritySettingsSource.nodeSettings(0);
+        Settings customSettings = customSecuritySettingsSource.nodeSettings(0, Settings.EMPTY);
         builder.put(customSettings, false); // handle secure settings separately
         builder.put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial");
         builder.put("transport.type", "security4");

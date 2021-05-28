@@ -267,7 +267,6 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(false));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71212")
     public void testExtractionGivenCancelHalfWay() throws IOException {
         int numBuckets = 10;
         List<CompositeAggregation.Bucket> buckets = new ArrayList<>(numBuckets);

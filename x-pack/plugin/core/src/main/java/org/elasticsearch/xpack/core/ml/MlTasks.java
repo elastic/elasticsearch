@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -37,6 +38,20 @@ public final class MlTasks {
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
             "persistent task cannot be assigned while upgrade mode is enabled.");
+    public static final PersistentTasksCustomMetadata.Assignment RESET_IN_PROGRESS =
+        new PersistentTasksCustomMetadata.Assignment(null,
+            "persistent task will not be assigned as a feature reset is in progress.");
+
+    // When a master node action is executed and there is no master node the transport will wait
+    // for a new master node to be elected and retry against that, but will only wait as long as
+    // the configured master node timeout. In ESS rolling upgrades can be very slow, and a cluster
+    // might not have a master node for an extended period - over 1 minute was observed in the test
+    // that led to this constant being added. The default master node timeout is 30 seconds, which
+    // makes sense for user-invoked actions. But for actions invoked by persistent tasks that will
+    // cause the persistent task to fail if they time out waiting for a master node we should wait
+    // pretty much indefinitely, because failing the task just because a rolling upgrade was slow
+    // defeats the point of the task being "persistent".
+    public static final TimeValue PERSISTENT_TASK_MASTER_NODE_TIMEOUT = TimeValue.timeValueDays(365);
 
     private MlTasks() {
     }
@@ -206,11 +221,20 @@ public final class MlTasks {
             return Collections.emptySet();
         }
 
-        return tasks.findTasks(JOB_TASK_NAME, task -> true)
+        return openJobTasks(tasks)
                 .stream()
                 .map(t -> t.getId().substring(JOB_TASK_ID_PREFIX.length()))
                 .collect(Collectors.toSet());
     }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> openJobTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> true);
+    }
+
 
     /**
      * Get the job Ids of anomaly detector job tasks that do

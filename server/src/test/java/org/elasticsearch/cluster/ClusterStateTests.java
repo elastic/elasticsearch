@@ -150,7 +150,21 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\",\n" +
+            "        \"voting_only\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +
@@ -343,7 +357,21 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\",\n" +
+            "        \"voting_only\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +
@@ -529,7 +557,21 @@ public class ClusterStateTests extends ESTestCase {
             "      \"name\" : \"\",\n" +
             "      \"ephemeral_id\" : \"" + ephemeralId + "\",\n" +
             "      \"transport_address\" : \"127.0.0.1:111\",\n" +
-            "      \"attributes\" : { }\n" +
+            "      \"attributes\" : { },\n" +
+            "      \"roles\" : [\n" +
+            "        \"data\",\n" +
+            "        \"data_cold\",\n" +
+            "        \"data_content\",\n" +
+            "        \"data_frozen\",\n" +
+            "        \"data_hot\",\n" +
+            "        \"data_warm\",\n" +
+            "        \"ingest\",\n" +
+            "        \"master\",\n" +
+            "        \"ml\",\n" +
+            "        \"remote_cluster_client\",\n" +
+            "        \"transform\",\n" +
+            "        \"voting_only\"\n" +
+            "      ]\n" +
             "    }\n" +
             "  },\n" +
             "  \"metadata\" : {\n" +

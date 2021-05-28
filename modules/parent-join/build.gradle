@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -17,4 +18,12 @@ restResources {
   restApi {
     include '_common', 'bulk', 'cluster', 'nodes', 'indices', 'index', 'search'
   }
+}
+
+tasks.named("yamlRestCompatTest").configure {
+  systemProperty 'tests.rest.blacklist', [
+    '/20_parent_join/Test parent_id query',
+    '/20_parent_join/Test basic',
+    '/30_inner_hits/Test two sub-queries with only one having inner_hits'
+  ].join(',')
 }

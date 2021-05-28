@@ -10,6 +10,8 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
@@ -187,13 +189,13 @@ import static org.hamcrest.Matchers.sameInstance;
  */
 public class IndexShardTests extends IndexShardTestCase {
 
-    public static ShardStateMetadata load(Logger logger, Path... shardPaths) throws IOException {
-        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPaths);
+    public static ShardStateMetadata load(Logger logger, Path shardPath) throws IOException {
+        return ShardStateMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY, shardPath);
     }
 
     public static void write(ShardStateMetadata shardStateMetadata,
-                             Path... shardPaths) throws IOException {
-        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPaths);
+                             Path shardPath) throws IOException {
+        ShardStateMetadata.FORMAT.writeAndCleanup(shardStateMetadata, shardPath);
     }
 
     public static Engine getEngineFromShard(IndexShard shard) {
@@ -206,18 +208,18 @@ public class IndexShardTests extends IndexShardTestCase {
             boolean primary = randomBoolean();
             AllocationId allocationId = randomBoolean() ? null : randomAllocationId();
             ShardStateMetadata state1 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state1, env.availableShardPaths(id));
-            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state1, env.availableShardPath(id));
+            ShardStateMetadata shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state2 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state2, env.availableShardPaths(id));
-            shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state2, env.availableShardPath(id));
+            shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state1);
 
             ShardStateMetadata state3 = new ShardStateMetadata(primary, "fooUUID", allocationId);
-            write(state3, env.availableShardPaths(id));
-            shardStateMetadata = load(logger, env.availableShardPaths(id));
+            write(state3, env.availableShardPath(id));
+            shardStateMetadata = load(logger, env.availableShardPath(id));
             assertEquals(shardStateMetadata, state3);
             assertEquals("fooUUID", state3.indexUUID);
         }
@@ -3095,11 +3097,14 @@ public class IndexShardTests extends IndexShardTestCase {
         Files.walkFileTree(indexPath, corruptedVisitor);
         assertThat("store has to be marked as corrupted", corruptedMarkerCount.get(), equalTo(1));
 
+        // Close the directory under the shard first because it's probably a MockDirectoryWrapper which throws exceptions when corrupt
         try {
-            closeShards(corruptedShard);
-        } catch (RuntimeException e) {
-            // Ignored because corrupted shard can throw various exceptions on close
+            ((FilterDirectory) corruptedShard.store().directory()).getDelegate().close();
+        } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException | RuntimeException e) {
+            // ignored
         }
+
+        closeShards(corruptedShard);
     }
 
     public void testShardDoesNotStartIfCorruptedMarkerIsPresent() throws Exception {
@@ -3674,7 +3679,7 @@ public class IndexShardTests extends IndexShardTestCase {
     public void testSupplyTombstoneDoc() throws Exception {
         IndexShard shard = newStartedShard();
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
-        ParsedDocument deleteTombstone = shard.getEngine().config().getTombstoneDocSupplier().newDeleteTombstoneDoc(id);
+        ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(id);
         assertThat(deleteTombstone.docs(), hasSize(1));
         ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
         assertThat(deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
@@ -3684,7 +3689,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(deleteDoc.getField(SeqNoFieldMapper.TOMBSTONE_NAME).numericValue().longValue(), equalTo(1L));
 
         final String reason = randomUnicodeOfLength(200);
-        ParsedDocument noopTombstone = shard.getEngine().config().getTombstoneDocSupplier().newNoopTombstoneDoc(reason);
+        ParsedDocument noopTombstone = ParsedDocument.noopTombstone(reason);
         assertThat(noopTombstone.docs(), hasSize(1));
         ParseContext.Document noopDoc = noopTombstone.docs().get(0);
         assertThat(noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
@@ -4061,7 +4066,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getQueryCachingPolicy(), config.getTranslogConfig(), config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
+                config.getPrimaryTermSupplier(), IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
             return new InternalEngine(configWithWarmer);
         });
         Thread recoveryThread = new Thread(() -> expectThrows(AlreadyClosedException.class, () -> recoverShardFromStore(shard)));

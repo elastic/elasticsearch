@@ -87,61 +87,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
-    private final List<Job.Builder> jobs = new ArrayList<>();
-    private final List<DatafeedConfig> datafeeds = new ArrayList<>();
-
-    @Override
-    protected void cleanUpResources() {
-        cleanUpDatafeeds();
-        cleanUpJobs();
-    }
-
-    private void cleanUpDatafeeds() {
-        for (DatafeedConfig datafeed : datafeeds) {
-            try {
-                stopDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    private void cleanUpJobs() {
-        for (Job.Builder job : jobs) {
-            try {
-                closeJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    protected void registerJob(Job.Builder job) {
-        if (jobs.add(job) == false) {
-            throw new IllegalArgumentException("job [" + job.getId() + "] is already registered");
-        }
-    }
-
-    protected void registerDatafeed(DatafeedConfig datafeed) {
-        if (datafeeds.add(datafeed) == false) {
-            throw new IllegalArgumentException("datafeed [" + datafeed.getId() + "] is already registered");
-        }
-    }
-
-    protected List<Job.Builder> getJobs() {
-        return jobs;
-    }
-
     protected PutJobAction.Response putJob(Job.Builder job) {
         PutJobAction.Request request = new PutJobAction.Request(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();

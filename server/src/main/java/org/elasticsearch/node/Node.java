@@ -305,23 +305,25 @@ public class Node implements Closeable {
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
                     Build.CURRENT.getQualifiedVersion());
             }
+            if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
+                // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
+                // cause ES to fail to start since logging is not yet initialized on first read of the setting
+                deprecationLogger.deprecate(
+                    DeprecationCategory.SETTINGS,
+                    "shared-data-path",
+                    "setting [path.shared_data] is deprecated and will be removed in a future release"
+                );
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
-                    initialEnvironment.configFile(), Arrays.toString(initialEnvironment.dataFiles()),
+                    initialEnvironment.configFile(), initialEnvironment.dataFile(),
                     initialEnvironment.logsFile(), initialEnvironment.pluginsFile());
             }
 
             this.pluginsService = new PluginsService(tmpSettings, initialEnvironment.configFile(), initialEnvironment.modulesFile(),
                 initialEnvironment.pluginsFile(), classpathPlugins);
             final Settings settings = pluginsService.updatedSettings();
-
-            final Set<DiscoveryNodeRole> additionalRoles = pluginsService.filterPlugins(Plugin.class)
-                .stream()
-                .map(Plugin::getRoles)
-                .flatMap(Set::stream)
-                .collect(Collectors.toSet());
-            DiscoveryNode.setAdditionalRoles(additionalRoles);
 
             /*
              * Create the environment based on the finalized view of the settings. This is to ensure that components get the same setting
@@ -395,19 +397,34 @@ public class Node implements Closeable {
             final ClusterInfoService clusterInfoService = newClusterInfoService(settings, clusterService, threadPool, client);
             final UsageService usageService = new UsageService();
 
+            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
+            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
+                NetworkModule.getNamedWriteables().stream(),
+                IndicesModule.getNamedWriteables().stream(),
+                searchModule.getNamedWriteables().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedWriteables().stream()),
+                ClusterModule.getNamedWriteables().stream())
+                .flatMap(Function.identity()).collect(Collectors.toList());
+            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
+            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
+                NetworkModule.getNamedXContents().stream(),
+                IndicesModule.getNamedXContents().stream(),
+                searchModule.getNamedXContents().stream(),
+                pluginsService.filterPlugins(Plugin.class).stream()
+                    .flatMap(p -> p.getNamedXContent().stream()),
+                ClusterModule.getNamedXWriteables().stream())
+                .flatMap(Function.identity()).collect(toList()),
+                getCompatibleNamedXContents()
+            );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
                 .peek(plugin -> SystemIndices.validateFeatureName(plugin.getFeatureName(), plugin.getClass().getCanonicalName()))
                 .collect(Collectors.toUnmodifiableMap(
-                    plugin -> plugin.getFeatureName(),
-                    plugin -> new SystemIndices.Feature(
-                        plugin.getFeatureDescription(),
-                        plugin.getSystemIndexDescriptors(settings),
-                        plugin.getAssociatedIndexPatterns(),
-                        plugin::cleanUpFeature
-                    ))
-                );
+                    SystemIndexPlugin::getFeatureName,
+                    plugin -> SystemIndices.pluginToFeature(plugin, settings)
+                ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
 
             ModulesBuilder modules = new ModulesBuilder();
@@ -423,7 +440,6 @@ public class Node implements Closeable {
             IndicesModule indicesModule = new IndicesModule(pluginsService.filterPlugins(MapperPlugin.class));
             modules.add(indicesModule);
 
-            SearchModule searchModule = new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class));
             List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
                 .map(plugin -> plugin.getCircuitBreaker(settings))
@@ -443,25 +459,6 @@ public class Node implements Closeable {
             PageCacheRecycler pageCacheRecycler = createPageCacheRecycler(settings);
             BigArrays bigArrays = createBigArrays(pageCacheRecycler, circuitBreakerService);
             modules.add(settingsModule);
-            List<NamedWriteableRegistry.Entry> namedWriteables = Stream.of(
-                NetworkModule.getNamedWriteables().stream(),
-                IndicesModule.getNamedWriteables().stream(),
-                searchModule.getNamedWriteables().stream(),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedWriteables().stream()),
-                ClusterModule.getNamedWriteables().stream())
-                .flatMap(Function.identity()).collect(Collectors.toList());
-            final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
-            NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(Stream.of(
-                NetworkModule.getNamedXContents().stream(),
-                IndicesModule.getNamedXContents().stream(),
-                searchModule.getNamedXContents().stream(),
-                pluginsService.filterPlugins(Plugin.class).stream()
-                    .flatMap(p -> p.getNamedXContent().stream()),
-                ClusterModule.getNamedXWriteables().stream())
-                .flatMap(Function.identity()).collect(toList()),
-                getCompatibleNamedXContents()
-                );
             final MetaStateService metaStateService = new MetaStateService(nodeEnvironment, xContentRegistry);
             final PersistedClusterStateService lucenePersistedStateFactory
                 = new PersistedClusterStateService(nodeEnvironment, xContentRegistry, bigArrays, clusterService.getClusterSettings(),
@@ -502,8 +499,9 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
-            clusterService.addListener(systemIndexManager);
+            if (DiscoveryNode.isMasterNode(settings)) {
+                clusterService.addListener(new SystemIndexManager(systemIndices, client));
+            }
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -825,7 +823,7 @@ public class Node implements Closeable {
             try {
                 assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(logger, NamedXContentRegistry.EMPTY,
-                    nodeEnvironment.nodeDataPaths());
+                    nodeEnvironment.nodeDataPath());
                 assert nodeMetadata != null;
                 assert nodeMetadata.nodeVersion().equals(Version.CURRENT);
                 assert nodeMetadata.nodeId().equals(localNodeFactory.getNode().getId());

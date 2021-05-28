@@ -56,10 +56,10 @@ public class RejectedExecutionTests extends AbstractWatcherIntegrationTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
 
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), false)
             .put(LicenseService.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
             .put("thread_pool.write.size", 1)

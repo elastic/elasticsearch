@@ -50,9 +50,9 @@ import static org.hamcrest.Matchers.startsWith;
 public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), true)
                 // pki1 does not allow delegation
                 .put("xpack.security.authc.realms.pki.pki1.order", "2")

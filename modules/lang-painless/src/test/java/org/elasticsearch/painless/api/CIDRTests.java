@@ -18,6 +18,7 @@ public class CIDRTests extends ESTestCase {
         assertFalse(cidr.contains("192.168.9.0"));
         assertFalse(cidr.contains("192.168.7.255"));
         assertFalse(cidr.contains(null));
+        assertFalse(cidr.contains(""));
 
         CIDR cidrNoRange = new CIDR("169.254.0.0");
         assertTrue(cidrNoRange.contains("169.254.0.0"));

@@ -32,7 +32,7 @@ PUT /users/_doc/1?refresh=wait_for
 }
 ----
 
-Use the create or update enrich policy API to create an enrich policy with the
+Use the create enrich policy API to create an enrich policy with the
 `match` policy type. This policy must include:
 
 * One or more source indices

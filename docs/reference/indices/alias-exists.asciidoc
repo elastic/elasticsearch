@@ -38,8 +38,8 @@ for the alias. If you specify a target, you must also have the
 
 `<target>`::
 (Optional, string) Comma-separated list of data streams or indices used to limit
-the request. Supports wildcards (`*`). To check aliases for all data streams and
-indices, omit this parameter or use `*` or `_all`.
+the request. Supports wildcards (`*`). To target all data streams and indices,
+omit this parameter or use `*` or `_all`.
 
 [[alias-exists-api-query-params]]
 ==== {api-query-parms-title}

@@ -9,6 +9,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.SimpleFSDirectory;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -27,6 +28,8 @@ import java.util.Base64;
 public class FIPS140SecureSettingsBootstrapCheckTests extends AbstractBootstrapCheckTestCase {
 
     public void testLegacySecureSettingsIsNotAllowed() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/68995",
+            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         assumeFalse("Can't run in a FIPS JVM, PBE is not available", inFipsJvm());
         final Settings.Builder builder = Settings.builder()
             .put("path.home", createTempDir())

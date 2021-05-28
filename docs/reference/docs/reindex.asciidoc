@@ -4,11 +4,11 @@
 <titleabbrev>Reindex</titleabbrev>
 ++++
 
-Copies documents from a _source_ to a _destination_.
+Copies documents from a source to a destination.
 
-The source and destination can be any pre-existing index, index alias, or
-<<data-streams,data stream>>. However, the source and destination must be
-different. For example, you cannot reindex a data stream into itself.
+The source can be any existing index, alias, or data stream. The destination
+must differ from the source. For example, you cannot reindex a data stream into
+itself.
 
 [IMPORTANT]
 =================================================
@@ -75,18 +75,18 @@ POST _reindex
 security privileges:
 
 ** The `read` <<privileges-list-indices,index privilege>> for the source data
-stream, index, or index alias.
+stream, index, or alias.
 
 ** The `write` index privilege for the destination data stream, index, or index
 alias.
 
 ** To automatically create a data stream or index with an reindex API request,
 you must have the `auto_configure`, `create_index`, or `manage` index
-privilege for the destination data stream, index, or index alias.
+privilege for the destination data stream, index, or alias.
 
 ** If reindexing from a remote cluster, the `source.remote.user` must have the
 `monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
-privilege for the source data stream, index, or index alias.
+privilege for the source data stream, index, or alias.
 
 * If reindexing from a remote cluster, you must explicitly allow the remote host
 in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
@@ -304,7 +304,7 @@ POST _reindex?slices=5&refresh
 ----------------------------------------------------------------
 // TEST[setup:my_index_big]
 
-You can also this verify works by:
+You can also verify this works by:
 
 [source,console]
 ----------------------------------------------------------------
@@ -507,8 +507,8 @@ Defaults to `abort`.
 
 `source`::
 `index`:::
-(Required, string) The name of the data stream, index, or index alias you are copying _from_.
-Also accepts a comma-separated list to reindex from multiple sources.
+(Required, string) The name of the data stream, index, or alias you are copying
+_from_. Also accepts a comma-separated list to reindex from multiple sources.
 
 `max_docs`:::
 (Optional, integer) The maximum number of documents to reindex. If <<conflicts, conflicts>> is equal to

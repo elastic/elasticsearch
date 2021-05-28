@@ -39,6 +39,7 @@ public class TermsEnumAction extends ActionType<TermsEnumResponse> {
     static {
         PARSER.declareString(TermsEnumRequest::field, new ParseField("field"));
         PARSER.declareString(TermsEnumRequest::string, new ParseField("string"));
+        PARSER.declareString(TermsEnumRequest::searchAfter, new ParseField("search_after"));
         PARSER.declareInt(TermsEnumRequest::size, new ParseField("size"));
         PARSER.declareBoolean(TermsEnumRequest::caseInsensitive, new ParseField("case_insensitive"));
         PARSER.declareField(TermsEnumRequest::timeout,

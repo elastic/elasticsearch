@@ -98,7 +98,7 @@ public class DeleteServiceAccountTokenRequest extends ActionRequest {
         }
 
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
-            validationException = addValidationError(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE, validationException);
+            validationException = addValidationError(Validation.formatInvalidServiceTokenNameErrorMessage(tokenName), validationException);
         }
         return validationException;
     }

@@ -37,6 +37,6 @@
     <!-- Public methods must have JavaDoc -->
     <module name="JavadocMethod">
         <property name="severity" value="warning"/>
-        <property name="scope" value="public"/>
+        <property name="accessModifiers" value="public"/>
     </module>
 </module>

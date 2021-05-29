@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
 
-import java.io.IOException;
 import java.util.Objects;
 
 /**
@@ -36,7 +33,7 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         boolean present = DataTierAllocationDecider.preferredAvailableTier(tierPreference, clusterState.nodes()).isPresent();
-        Info info = present ? null : new Info("no nodes for tiers [" + tierPreference + "] available");
+        SingleMessageFieldInfo info = present ? null : new SingleMessageFieldInfo("no nodes for tiers [" + tierPreference + "] available");
         return new Result(present, info);
     }
 
@@ -61,41 +58,5 @@ public class WaitForDataTierStep extends ClusterStateWaitStep {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), tierPreference);
-    }
-
-    static final class Info implements ToXContentObject {
-
-        private final String message;
-
-        static final ParseField MESSAGE = new ParseField("message");
-
-        Info(String message) {
-            this.message = message;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(MESSAGE.getPreferredName(), message);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Info info = (Info) o;
-            return Objects.equals(message, info.message);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
     }
 }

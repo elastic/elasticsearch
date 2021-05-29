@@ -104,6 +104,8 @@ public class LifecycleExecutionState {
      */
     public static boolean isFrozenPhase(IndexMetadata indexMetadata) {
         Map<String, String> customData = indexMetadata.getCustomData(ILM_CUSTOM_METADATA_KEY);
+        // deliberately do not parse out the entire `LifeCycleExecutionState` to avoid the extra work involved since this method is
+        // used heavily by autoscaling.
         return customData != null && TimeseriesLifecycleType.FROZEN_PHASE.equals(customData.get(PHASE));
     }
     /**

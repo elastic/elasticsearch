@@ -7,15 +7,12 @@
  */
 
 
-import org.elasticsearch.gradle.internal.conventions.util.Util
-import org.gradle.internal.jvm.Jvm
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
 
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
   id 'groovy'
-  id 'java-test-fixtures'
   id 'elasticsearch.internal-licenseheaders'
   id 'elasticsearch.basic-build-tool-conventions'
 }
@@ -228,21 +225,15 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
-  testFixturesApi "junit:junit:${props.getProperty('junit')}"
-  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-  testFixturesApi gradleApi()
-  testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
-
-  testFixturesApi testFixtures("org.elasticsearch:build-tools:$version")
-
+  integTestImplementation testFixtures("org.elasticsearch:build-tools:$version")
   integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  testFixturesApi("net.bytebuddy:byte-buddy:1.11.0") {
+  integTestImplementation("net.bytebuddy:byte-buddy:1.11.0") {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
   testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {

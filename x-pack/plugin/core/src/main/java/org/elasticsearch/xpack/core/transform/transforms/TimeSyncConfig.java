@@ -77,11 +77,6 @@ public class TimeSyncConfig implements SyncConfig {
     }
 
     @Override
-    public boolean isValid() {
-        return true;
-    }
-
-    @Override
     public void writeTo(final StreamOutput out) throws IOException {
         out.writeString(field);
         out.writeTimeValue(delay);

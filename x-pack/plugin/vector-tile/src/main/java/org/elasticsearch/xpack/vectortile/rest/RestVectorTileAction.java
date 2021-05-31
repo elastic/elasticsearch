@@ -169,10 +169,7 @@ public class RestVectorTileAction extends BaseRestHandler {
     private static SearchRequestBuilder searchRequestBuilder(RestCancellableNodeClient client, VectorTileRequest request)
         throws IOException {
         final SearchRequestBuilder searchRequestBuilder = client.prepareSearch(request.getIndexes());
-        final int size = request.getSize();
-        if (size != -1) {
-            searchRequestBuilder.setSize(size);
-        }
+        searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
         // TODO: I wonder if we can leverage field and format so what we get in the result is already the mvt commands.
         searchRequestBuilder.addFetchField(new FieldAndFormat(request.getField(), null));

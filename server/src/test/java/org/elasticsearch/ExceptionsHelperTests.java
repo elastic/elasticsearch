@@ -199,12 +199,10 @@ public class ExceptionsHelperTests extends ESTestCase {
         assertThat(ExceptionsHelper.unwrapCorruption(withSuppressedException), nullValue());
     }
 
-    public void testUnwrapCancelledTask() {
+    public void testUnwrapCancelledTaskFromTransportException() {
         final Throwable cancelledTaskException = new TaskCancelledException("cancelled");
         final Throwable transportException = new TransportException(cancelledTaskException);
         assertThat(ExceptionsHelper.unwrapCause(transportException), equalTo(cancelledTaskException));
-
-
     }
 
     public void testSuppressedCycle() {

@@ -626,7 +626,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             throw new IllegalArgumentException("alias [" + aliasOrIndex + "] does not have a write index");
         }
         AliasMetadata aliasMd = writeIndex.getAliases().get(result.getName());
-        if (aliasMd.indexRouting() != null) {
+        if (aliasMd != null && aliasMd.indexRouting() != null) {
             if (aliasMd.indexRouting().indexOf(',') != -1) {
                 throw new IllegalArgumentException("index/alias [" + aliasOrIndex + "] provided with routing value ["
                     + aliasMd.getIndexRouting() + "] that resolved to several routing values, rejecting operation");

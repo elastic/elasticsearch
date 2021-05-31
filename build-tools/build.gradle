@@ -78,6 +78,10 @@ sourceSets {
     }
 }
 
+// we do not publish the test fixtures of build-tools
+components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) { skip() }
+components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) { skip() }
+
 publishing.publications.named("elastic").configure {
     suppressPomMetadataWarningsFor("testFixturesApiElements")
     suppressPomMetadataWarningsFor("testFixturesRuntimeElements")

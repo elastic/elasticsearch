@@ -60,6 +60,9 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     public static final Setting<Boolean> USE_REAL_MEMORY_USAGE_SETTING =
         Setting.boolSetting("indices.breaker.total.use_real_memory", true, Property.NodeScope);
 
+    public static final Setting<Boolean> SEARCH_AGGREGATION_MEMORY_LIMIT =
+        Setting.boolSetting("indices.breaker.search.aggregation_memory.limit", true, Property.NodeScope);
+
     public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING =
         Setting.memorySizeSetting("indices.breaker.total.limit", settings -> {
             if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
@@ -155,6 +158,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);
+
+        this.breaker = SEARCH_AGGREGATION_MEMORY_LIMIT.get(settings);
 
         clusterSettings.addSettingsUpdateConsumer(TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING, this::setTotalCircuitBreakerLimit,
             this::validateTotalCircuitBreakerLimit);

@@ -537,7 +537,8 @@ public class RestoreService implements ClusterStateApplier {
 
                                     String writeDataStream = alias.getWriteDataStream();
                                     if (writeDataStream == null) {
-                                        if (current.getWriteDataStream() != null && mergedDataStreams.contains(current.getWriteDataStream())) {
+                                        if (current.getWriteDataStream() != null &&
+                                            mergedDataStreams.contains(current.getWriteDataStream())) {
                                             writeDataStream = current.getWriteDataStream();
                                         }
                                     }

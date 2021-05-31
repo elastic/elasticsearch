@@ -132,7 +132,3 @@ teardown:
   - match:  { _shards.total: 1 }
   - match:  { _shards.failed: 0 }
 
-  - do:
-      indices.delete:
-        index: docs
-

@@ -153,3 +153,8 @@ teardown:
         body:
           id: "$point_in_time_id"
 
+  - do:
+      indices.delete:
+        index: docs-shared-cache
+
+

@@ -71,12 +71,18 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot description from repository.
+     * Reads snapshot descriptions from the repository.
      *
      * @param context get-snapshot-info-context
      */
     void getSnapshotInfo(GetSnapshotInfoContext context);
 
+    /**
+     * Reads a single snapshot description from the repository
+     *
+     * @param snapshotId snapshot id to read description for
+     * @param listener   listener to resolve with snapshot description
+     */
     default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
         getSnapshotInfo(
                 new GetSnapshotInfoContext(

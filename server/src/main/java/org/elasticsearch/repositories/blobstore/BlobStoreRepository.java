@@ -1239,22 +1239,30 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
+            if (context.isDone()) {
+                return;
+            }
             if (context.isCancelled()) {
+                queue.clear();
                 context.onFailure(new TaskCancelledException("task cancelled"));
                 return;
             }
+            Exception failure = null;
             try {
-                try {
-                    context.onResponse(SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry));
-                } catch (NoSuchFileException ex) {
-                    context.onFailure(new SnapshotMissingException(metadata.name(), snapshotId, ex));
-                } catch (IOException | NotXContentException ex) {
-                    context.onFailure(new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex));
-                }
+                context.onResponse(SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry));
+            } catch (NoSuchFileException ex) {
+                failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
+            } catch (IOException | NotXContentException ex) {
+                failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
             } catch (Exception e) {
-                context.onFailure(e instanceof SnapshotException
-                        ? e
-                        : new SnapshotException(metadata.name(), snapshotId, "Snapshot could not be read", e));
+                failure = e instanceof SnapshotException
+                        ? e : new SnapshotException(metadata.name(), snapshotId, "Snapshot could not be read", e);
+            }
+            if (failure != null) {
+                if (context.failFast()) {
+                    queue.clear();
+                }
+                context.onFailure(failure);
             }
             getOneSnapshotInfo(queue, context);
         });

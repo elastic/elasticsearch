@@ -18,10 +18,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
+/**
+ * Describes the context of fetching {@link SnapshotInfo} via {@link Repository#getSnapshotInfo(GetSnapshotInfoContext)}.
+ */
 public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
 
+    /**
+     * Snapshot ids to fetch info for
+     */
     private final List<SnapshotId> snapshotIds;
 
+    /**
+     * Stop fetching additional {@link SnapshotInfo} if an exception is encountered.
+     */
     private final boolean failFast;
 
     private volatile boolean failed = false;
@@ -32,6 +41,8 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     private final Consumer<SnapshotInfo> onSnapshotInfo;
 
+    // TODO: enhance org.elasticsearch.common.util.concurrent.CountDown to allow for an atomic check and try-countdown and use it to
+    //       simplify the logic here
     private final AtomicInteger counter;
 
     private final AtomicReference<Exception> exception = new AtomicReference<>();
@@ -67,8 +78,13 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     @Override
     public void onResponse(SnapshotInfo snapshotInfo) {
+        final int updatedCount = counter.decrementAndGet();
+        if (updatedCount < 0) {
+            assert failFast && failed : "must only get here for fail-fast execution that failed";
+            return;
+        }
         onSnapshotInfo.accept(snapshotInfo);
-        if (counter.decrementAndGet() == 0) {
+        if (updatedCount == 0) {
             try {
                 doneListener.onResponse(null);
             } catch (Exception e) {

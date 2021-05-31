@@ -252,7 +252,7 @@ public final class IndexSettings {
     public static final Setting<TimeValue> INDEX_TRANSLOG_RETENTION_AGE_SETTING =
         Setting.timeSetting("index.translog.retention.age",
             settings -> shouldDisableTranslogRetention(settings) ? TimeValue.MINUS_ONE : TimeValue.timeValueHours(12),
-            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope);
+            TimeValue.MINUS_ONE, Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
     /**
      * Controls how many translog files that are no longer needed for persistence reasons
@@ -263,7 +263,7 @@ public final class IndexSettings {
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_RETENTION_SIZE_SETTING =
         Setting.byteSizeSetting("index.translog.retention.size",
             settings -> shouldDisableTranslogRetention(settings) ? "-1" : "512MB",
-            Property.Dynamic, Property.IndexScope);
+            Property.Dynamic, Property.IndexScope, Property.Deprecated);
 
     /**
      * Controls the number of translog files that are no longer needed for persistence reasons will be kept around before being deleted.

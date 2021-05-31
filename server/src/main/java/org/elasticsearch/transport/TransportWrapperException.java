@@ -19,6 +19,10 @@ public class TransportWrapperException extends TransportException implements Ela
         super(msg, cause);
     }
 
+    public TransportWrapperException(Throwable cause) {
+        super(cause);
+    }
+
     public TransportWrapperException(StreamInput in) throws IOException {
         super(in);
     }

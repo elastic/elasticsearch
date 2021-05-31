@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.index.mapper.TypeFieldMapper.TypeFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -20,6 +19,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -87,9 +87,9 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup("_doc", singletonList(field), emptyList(), emptyList());
 
-        assertEquals(Set.of("field"), lookup.sourcePaths("field"));
-        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield1"));
-        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2"));
+        assertEquals(Collections.singleton("field"), lookup.sourcePaths("field"));
+        assertEquals(Collections.singleton("field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Collections.singleton("field"), lookup.sourcePaths("field.subfield2"));
     }
 
     public void testSourcePathsWithCopyTo() {
@@ -103,8 +103,8 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup("_doc", Arrays.asList(field, otherField), emptyList(), emptyList());
 
-        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
-        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field"));
+        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
     public void testTypeLookup() {
@@ -195,6 +195,24 @@ public class FieldTypeLookupTests extends ESTestCase {
             assertEquals(1, sourcePaths.size());
             assertTrue(sourcePaths.contains("object.subfield"));
         }
+    }
+
+    public void testDynamicRuntimeFields() {
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup("_doc", emptyList(), emptyList(),
+            Collections.singletonList(new TestDynamicRuntimeField("test")));
+
+        assertNull(fieldTypeLookup.get("test"));
+        assertEquals(0, fieldTypeLookup.getMatchingFieldTypes("test").size());
+        assertEquals(0, fieldTypeLookup.getMatchingFieldNames("test").size());
+
+        String fieldName = "test." + randomAlphaOfLengthBetween(3, 6);
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldTypeLookup.get(fieldName).typeName());
+        Collection<MappedFieldType> matchingFieldTypes = fieldTypeLookup.getMatchingFieldTypes(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, matchingFieldTypes.iterator().next().typeName());
+        Set<String> matchingFieldNames = fieldTypeLookup.getMatchingFieldNames(fieldName);
+        assertEquals(1, matchingFieldTypes.size());
+        assertEquals(fieldName, matchingFieldNames.iterator().next());
     }
 
     public void testFlattenedLookup() {

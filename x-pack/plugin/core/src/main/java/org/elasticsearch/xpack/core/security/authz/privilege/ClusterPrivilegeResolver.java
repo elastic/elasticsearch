@@ -155,6 +155,9 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege CANCEL_TASK = new ActionClusterPrivilege("cancel_task",
         Set.of(CancelTasksAction.NAME + "*"));
 
+    public static final NamedClusterPrivilege ENROLL_NODE = new ActionClusterPrivilege("enroll_node",
+        Set.of("cluster:admin/xpack/security/enrollment/enroll/node"));
+
     private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
         ALL,
@@ -196,7 +199,8 @@ public class ClusterPrivilegeResolver {
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
         MANAGE_LOGSTASH_PIPELINES,
-        CANCEL_TASK));
+        CANCEL_TASK,
+        ENROLL_NODE));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.

@@ -101,6 +101,10 @@ public class XPackSettings {
     public static final Setting<Boolean> FIPS_MODE_ENABLED =
         Setting.boolSetting("xpack.security.fips_mode.enabled", false, Property.NodeScope);
 
+    /** Setting for enabling enrollment process; set-up by the es start-up script */
+    public static final Setting<Boolean> ENROLLMENT_ENABLED =
+        Setting.boolSetting("xpack.security.enrollment.enabled", false, Property.NodeScope);
+
     /*
      * SSL settings. These are the settings that are specifically registered for SSL. Many are private as we do not explicitly use them
      * but instead parse based on a prefix (eg *.ssl.*)

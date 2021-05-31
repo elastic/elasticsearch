@@ -48,6 +48,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.TransportWrapperException;
 import org.junit.After;
 
 import java.io.IOException;
@@ -69,7 +70,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class CancellableTasksIT extends ESIntegTestCase {
@@ -259,9 +259,8 @@ public class CancellableTasksIT extends ESIntegTestCase {
         TestRequest subRequest = generateTestRequest(nodes, 0, between(0, 1));
         beforeSendLatches.get(subRequest).countDown();
         mainAction.startSubTask(taskId, subRequest, future);
-        TransportException te = expectThrows(TransportException.class, future::actionGet);
-        assertThat(te.getCause(), instanceOf(TaskCancelledException.class));
-        assertThat(te.getCause().getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
+        TaskCancelledException te = expectThrows(TaskCancelledException.class, future::actionGet);
+        assertThat(te.getMessage(), equalTo("The parent task was cancelled, shouldn't start any child tasks"));
         allowEntireRequest(rootRequest);
         waitForRootTask(rootTaskFuture);
         ensureAllBansRemoved();
@@ -504,7 +503,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                         try {
                             client.executeLocally(TransportTestAction.ACTION, subRequest, latchedListener);
                         } catch (TaskCancelledException e) {
-                            latchedListener.onFailure(new TransportException(e));
+                            latchedListener.onFailure(new TransportWrapperException("fail", e));
                         }
                     } else {
                         transportService.sendRequest(subRequest.node, ACTION.name(), subRequest,

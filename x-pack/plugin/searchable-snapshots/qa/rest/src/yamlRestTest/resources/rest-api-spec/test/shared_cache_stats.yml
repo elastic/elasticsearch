@@ -106,3 +106,8 @@ teardown:
   - match: { nodes.$node_id.shared_cache.region_size: "256kb" }
   - match: { nodes.$node_id.shared_cache.region_size_in_bytes: 262144 }
 
+  - do:
+      indices.delete:
+        index: frozen-docs
+
+

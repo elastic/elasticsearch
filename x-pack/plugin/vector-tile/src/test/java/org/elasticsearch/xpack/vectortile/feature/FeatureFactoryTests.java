@@ -50,16 +50,16 @@ public class FeatureFactoryTests extends ESTestCase {
         int extent = randomIntBetween(1 << 8, 1 << 14);
         SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
         for (int i = 0; i < extent; i++) {
             featureBuilder.clear();
-            Rectangle r = GeoTileUtils.toBoundingBox(2 * x, 2 * y, z + 1);
             builder.box(featureBuilder, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             byte[] b1 = featureBuilder.build().toByteArray();
             List<VectorTile.Tile.Feature> features = factory.getFeatures(r, new UserDataIgnoreConverter());
             assertThat(features.size(), Matchers.equalTo(1));
             byte[] b2 = features.get(0).toByteArray();
-            assertArrayEquals(b1, b2);
+            assertArrayEquals(extent + "", b1, b2);
         }
     }
 }

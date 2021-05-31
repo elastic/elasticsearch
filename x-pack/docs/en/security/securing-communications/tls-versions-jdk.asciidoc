@@ -8,17 +8,17 @@ Different JDK versions support different versions of SSL, and this may affect ho
 
 `SSLv3`::
   SSL v3 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
-  See <<jdk-enable-tls-protocol>>
+  See <<jdk-enable-tls-protocol>>.
 
 `TLSv1`::
   TLS v1.0 is supported on all {es} <<jvm-version,compatible JDKs>>.
-  Some newer JDKs, including the JDK bundled with {es} disable TLS v1.0 by default.
-  See <<jdk-enable-tls-protocol>>
+  Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.0 by default.
+  See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.1`::
   TLS v1.1 is supported on all {es} <<jvm-version,compatible JDKs>>.
-  Some newer JDKs, including the JDK bundled with {es} disable TLS v1.1 by default.
-  See <<jdk-enable-tls-protocol>>
+  Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.1 by default.
+  See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.2`::
   TLS v1.2 is supported on all {es} <<jvm-version,compatible JDKs>>.
@@ -49,41 +49,41 @@ The JDK configuration file lists the SSL/TLS algorithms that are disabled in tha
 Removing a TLS version from that list will allow it to be used on the JDK.
 To do this, you should follow these steps:
 
-1. Locate the configuration file for your JDK
+1. Locate the configuration file for your JDK.
 2. Copy the `jdk.tls.disabledAlgorithms` setting from that file, and add it to a custom
-   configuration file within the {es} configuration directory
-3. Modify the value of the `jdk.tls.disabledAlgorithms` setting so that the TLS version
-   that you wish to use is no longer listed
+   configuration file within the {es} configuration directory.
+3. In the custom configuration file, remove the value for the TLS version you want
+to use from `jdk.tls.disabledAlgorithms`.
 4. Configure {es} to pass a custom system property to the JDK so that your custom
    configuration file is used.
 
 ===== Locate the configuration file for your JDK
 
 For the {es} **bundled JDK**, the configuration file is in a sub directory of
-the {es} home directory (`$ES_HOME`).
+the {es} home directory (`$ES_HOME`):
 
-* On Linux the configuration file is `$ES_HOME/jdk/conf/security/java.security`
-* On Windows the configuration file is `$ES_HOME/jdk/conf/security/java.security`
-* On macOS the configuration file is `$ES_HOME/jdk.app/Contents/Home/conf/security/java.security`
+* Linux: `$ES_HOME/jdk/conf/security/java.security`
+* Windows: `$ES_HOME/jdk/conf/security/java.security`
+* macOS:`$ES_HOME/jdk.app/Contents/Home/conf/security/java.security`
 
 For **JDK8**, the configuration file is within the `jre/lib/security` directory
 of the Java installation.
 If `$JAVA_HOME` points to the home directory of the JDK that you use to run {es},
-then the configuration file will be
+then the configuration file will be in:
 
 * `$JAVA_HOME/jre/lib/security/java.security`
 
 For **JDK11 or later**, the configuration file is within the `conf/security`
 directory of the Java installation.
 If `$JAVA_HOME` points to the home directory of the JDK that you use to run
-{es}, then the configuration file will be
+{es}, then the configuration file will be in:
 
 * `$JAVA_HOME/conf/security/java.security`
 
 ===== Copy the disabledAlgorithms setting
 
-Within the configuration file (see above) there will be a line that starts with
-the text `jdk.tls.disabledAlgorithms=`
+Within the JDK configuration file is a line that starts with
+`jdk.tls.disabledAlgorithms=`.
 This setting controls which protocols and algorithms are _disabled_ in your JDK.
 The value of that setting will typically span multiple lines.
 
@@ -94,8 +94,8 @@ jdk.tls.disabledAlgorithms=SSLv3, TLSv1, TLSv1.1, RC4, DES, MD5withRSA, \
     DH keySize < 1024, EC keySize < 224, 3DES_EDE_CBC, anon, NULL
 --------------------------------------------------
 
-Copy this setting from the JDK's default configuration file, into a new file
-in your {es} configuration directory, named `es.java.security`.
+Create a new file in your in your {es} configuration directory named `es.java.security`.
+Copy the `jdk.tls.disabledAlgorithms` setting from the JDK's default configuration file into `es.java.security`.
 You do not need to copy any other settings.
 
 ===== Enable required TLS versions
@@ -104,9 +104,9 @@ Edit the `es.java.security` file in your {es} configuration directory, and
 modify the `jdk.tls.disabledAlgorithms` setting so that any SSL or TLS versions
 that you wish to use are no longer listed.
 
-For example, if you wished to enabled TLSv1.1 on OpenJDK (which uses the
+For example, if to enable TLSv1.1 on OpenJDK (which uses the
 `jdk.tls.disabledAlgorithms` settings shown above), then the contents of the
-`es.java.security` file would be:
+`es.java.security` file would include supported protocols _except_ `TLSv1.1`:
 
 [source,text]
 --------------------------------------------------
@@ -116,19 +116,17 @@ jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, \
 
 ===== Enable your custom security configuration
 
-Your custom security policy can be enabled by passing a system property to your
-JDK when you run {es}. This is achieved by adding a file into the
-<<set-jvm-options, `jvm.options.d`>> directory within your {es} configuration
-directory.
+To enable your custom security policy, add a file in the <<set-jvm-options, `jvm.options.d`>>
+directory within your {es} configuration directory.
 
-1. Locate the `jvm.options.d` directory for your {es} installation. See <<set-jvm-options>>
-2. Create a file named `java.security.options` within the `jvm.options.d` directory
-3. The contents of that file should be set as per the example below.
+1. Locate the `jvm.options.d` directory for your {es} installation.
+2. Create a file named `java.security.options` within the `jvm.options.d` directory.
+3. Set the path for the `es.java.security` file.
 
 [source,text]
---------------------------------------------------
+----
 -Djava.security.properties=/path/to/your/es.java.security
---------------------------------------------------
+----
 ==== Enabling TLS versions in {es}
 
 SSL/TLS versions can be enabled and disabled within {es} via the
@@ -141,4 +139,3 @@ JDK, then it will be silently ignored.
 
 Similarly, a TLS version that is enabled in your JDK, will not be used unless
 it is configured as one of the `ssl.supported_protocols` in {es}.
-

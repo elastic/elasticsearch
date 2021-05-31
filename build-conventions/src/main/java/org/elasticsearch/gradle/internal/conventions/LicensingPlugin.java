@@ -8,18 +8,14 @@
 
 package org.elasticsearch.gradle.internal.conventions;
 
-import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.initialization.layout.BuildLayout;
 
 import javax.inject.Inject;
-import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
 
@@ -36,7 +32,7 @@ public class LicensingPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        Property<String> revision = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).revision;
+        Provider<String> revision = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getRevision();
         Provider<String> licenseCommitProvider = providerFactory.provider(() ->
              isSnapshotVersion(project) ? revision.get() : "v" + project.getVersion().toString()
         );
@@ -62,29 +58,4 @@ public class LicensingPlugin implements Plugin<Project> {
         return project.getVersion().toString().endsWith("-SNAPSHOT");
     }
 
-    private static class GitInfoPlugin implements Plugin<Project>{
-
-        private BuildLayout buildLayout;
-        private ProviderFactory factory;
-        private ObjectFactory objectFactory;
-
-        private Property<String> revision;
-
-        @Inject
-        public GitInfoPlugin(BuildLayout buildLayout, ProviderFactory factory, ObjectFactory objectFactory){
-            this.buildLayout = buildLayout;
-            this.factory = factory;
-            this.objectFactory = objectFactory;
-        }
-
-        @Override
-        public void apply(Project project) {
-             revision = objectFactory.property(String.class).value(factory.provider(() -> {
-                String revision = GitInfo.gitInfo(buildLayout.getRootDirectory()).getRevision();
-                return revision == null ? revision : "master";
-            }));
-            revision.disallowChanges();
-            revision.finalizeValueOnRead();
-        }
-    }
 }

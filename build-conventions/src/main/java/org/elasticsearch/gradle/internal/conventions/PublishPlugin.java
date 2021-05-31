@@ -23,6 +23,8 @@ import org.gradle.api.plugins.BasePluginConvention;
 import org.gradle.api.plugins.JavaLibraryPlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Property;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.publish.PublishingExtension;
 import org.gradle.api.publish.maven.MavenPublication;
 import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
@@ -44,6 +46,7 @@ public class PublishPlugin implements Plugin<Project> {
         project.getPluginManager().apply(MavenPublishPlugin.class);
         project.getPluginManager().apply(PomValidationPrecommitPlugin.class);
         project.getPluginManager().apply(LicensingPlugin.class);
+
         configureJavadocJar(project);
         configureSourcesJar(project);
         configurePomGeneration(project);
@@ -90,6 +93,8 @@ public class PublishPlugin implements Plugin<Project> {
      * Configuration generation of maven poms.
      */
     private static void configurePomGeneration(Project project) {
+        Property<GitInfo> gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
+
         var generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         project.getTasks()
@@ -110,7 +115,7 @@ public class PublishPlugin implements Plugin<Project> {
 
         mavenPublications.all(publication -> {
             // Add git origin info to generated POM files for internal builds
-            publication.getPom().withXml((xmlProvider) -> addScmInfo(xmlProvider, GitInfo.gitInfo(project.getRootDir())));
+            publication.getPom().withXml((xmlProvider) -> addScmInfo(xmlProvider, gitInfo.get()));
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(getArchivesBaseName(project)));
             generatePomTask.configure(t -> t.dependsOn(project.getTasks().withType(GenerateMavenPom.class)));

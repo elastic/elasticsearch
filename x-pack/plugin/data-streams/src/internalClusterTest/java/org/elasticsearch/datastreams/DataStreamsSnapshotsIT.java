@@ -284,7 +284,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {
-        IndexResponse indexResponse = client.prepareIndex("other-ds").setOpType(DocWriteRequest.OpType.CREATE)
+        IndexResponse indexResponse = client.prepareIndex("other-ds")
+            .setOpType(DocWriteRequest.OpType.CREATE)
             .setSource(DOCUMENT_SOURCE)
             .get();
         assertEquals(DocWriteResponse.Result.CREATED, indexResponse.getResult());
@@ -351,8 +352,15 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), contains(dataStreamToSnapshot));
         assertThat(
             getAliasesResponse.getDataStreamAliases().get(dataStreamToSnapshot),
-            equalTo(List.of(new DataStreamAlias("my-alias", List.of(dataStreamToSnapshot),
-                "other-ds".equals(dataStreamToSnapshot) ? "other-ds" : null)))
+            equalTo(
+                List.of(
+                    new DataStreamAlias(
+                        "my-alias",
+                        List.of(dataStreamToSnapshot),
+                        "other-ds".equals(dataStreamToSnapshot) ? "other-ds" : null
+                    )
+                )
+            )
         );
 
         DeleteDataStreamAction.Request r = new DeleteDataStreamAction.Request(new String[] { dataStreamToSnapshot });
@@ -389,8 +397,10 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
             new GetDataStreamAction.Request(new String[] { "*" })
         ).get();
         assertEquals(2, ds.getDataStreams().size());
-        assertThat(ds.getDataStreams().stream().map(i -> i.getDataStream().getName()).collect(Collectors.toList()),
-            containsInAnyOrder("ds", "other-ds"));
+        assertThat(
+            ds.getDataStreams().stream().map(i -> i.getDataStream().getName()).collect(Collectors.toList()),
+            containsInAnyOrder("ds", "other-ds")
+        );
 
         GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
         assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds"));

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.vectortile;
+package org.elasticsearch.xpack.vectortile.rest;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
@@ -14,16 +14,18 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.geometry.Rectangle;
-import org.locationtech.jts.geom.Envelope;
 
 import java.io.IOException;
 import java.util.Map;
 
 /**
- * Utility methods For vector tiles. Transforms WGS84 into spherical mercator.
+ * Utility methods for vector tiles.
  */
-public class VectorTileUtils {
+class VectorTileUtils {
+
+    private VectorTileUtils() {
+        // no instances
+    }
 
     /**
      * Creates a vector layer builder with the provided name and extent.
@@ -61,6 +63,9 @@ public class VectorTileUtils {
         feature.addTags(layerProps.addValue(value));
     }
 
+    /**
+     * Adds the given properties to the provided layer.
+     */
     public static void addPropertiesToLayer(VectorTile.Tile.Layer.Builder layer, MvtLayerProps layerProps) {
         // Add keys
         layer.addAllKeys(layerProps.getKeys());
@@ -69,48 +74,5 @@ public class VectorTileUtils {
         for (Object value : values) {
             layer.addValues(MvtValue.toValue(value));
         }
-    }
-
-    /**
-     * Gets the JTS envelope for z/x/y/ tile in  spherical mercator projection.
-     */
-    public static Envelope getJTSTileBounds(int z, int x, int y) {
-        return new Envelope(getLong(x, z), getLong(x + 1, z), getLat(y, z), getLat(y + 1, z));
-    }
-
-    /**
-     * Gets the {@link org.elasticsearch.geometry.Geometry} envelope for z/x/y/ tile
-     * in spherical mercator projection.
-     */
-    public static Rectangle getTileBounds(int z, int x, int y) {
-        return new Rectangle(getLong(x, z), getLong(x + 1, z), getLat(y, z), getLat(y + 1, z));
-    }
-
-    private static double getLong(int x, int zoom)
-    {
-        return lonToSphericalMercator( x / Math.pow(2, zoom) * 360 - 180 );
-    }
-
-    private static double getLat(int y, int zoom) {
-        double r2d = 180 / Math.PI;
-        double n = Math.PI - 2 * Math.PI * y / Math.pow(2, zoom);
-        return latToSphericalMercator(r2d * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
-    }
-
-    private static double MERCATOR_FACTOR = 20037508.34 / 180.0;
-
-    /**
-     * Transforms WGS84 longitude to a Spherical mercator longitude
-     */
-    public static double lonToSphericalMercator(double lon) {
-        return lon * MERCATOR_FACTOR;
-    }
-
-    /**
-     * Transforms WGS84 latitude to a Spherical mercator latitude
-     */
-    public static double latToSphericalMercator(double lat) {
-        double y = Math.log(Math.tan((90 + lat) * Math.PI / 360)) / (Math.PI / 180);
-        return y * MERCATOR_FACTOR;
     }
 }

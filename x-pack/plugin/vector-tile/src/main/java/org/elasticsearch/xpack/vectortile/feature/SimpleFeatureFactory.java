@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.vectortile;
+package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
@@ -13,15 +13,19 @@ import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Rectangle;
 
-class VectorTileGeometryBuilder {
+/**
+ * Similar to {@link FeatureFactory} but only supports points and rectangles. It is just
+ * much more efficient for those shapes.
+ */
+public class SimpleFeatureFactory {
 
     private final int extent;
     private final Rectangle rectangle;
     private final double pointXScale, pointYScale;
 
-    VectorTileGeometryBuilder(int z, int x, int y, int extent) {
+    public SimpleFeatureFactory(int z, int x, int y, int extent) {
         this.extent = extent;
-        rectangle = VectorTileUtils.getTileBounds(z, x, y);
+        rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
         pointXScale = 1d / ((rectangle.getMaxLon() - rectangle.getMinLon()) / (double) extent);
         pointYScale = -1d / ((rectangle.getMaxLat() - rectangle.getMinLat()) / (double) extent);
     }
@@ -44,23 +48,23 @@ class VectorTileGeometryBuilder {
         featureBuilder.addGeometry(BitUtil.zigZagEncode(minY));
         featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.LineTo, 3));
         // 1
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxY - minY));
-        // 2
         featureBuilder.addGeometry(BitUtil.zigZagEncode(maxX - minX));
         featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
-        // 3
+        // 2
         featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
-        featureBuilder.addGeometry(BitUtil.zigZagEncode(minY - maxY));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(maxY - minY));
+        // 3
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(minX - maxX));
+        featureBuilder.addGeometry(BitUtil.zigZagEncode(0));
         // close
         featureBuilder.addGeometry(GeomCmdHdr.cmdHdr(GeomCmd.ClosePath, 1));
     }
 
     private int lat(double lat) {
-        return (int) Math.round(pointYScale * (VectorTileUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
+        return (int) Math.round(pointYScale * (FeatureFactoryUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
     }
 
     private int lon(double lon) {
-        return (int) Math.round(pointXScale * (VectorTileUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
+        return (int) Math.round(pointXScale * (FeatureFactoryUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
     }
 }

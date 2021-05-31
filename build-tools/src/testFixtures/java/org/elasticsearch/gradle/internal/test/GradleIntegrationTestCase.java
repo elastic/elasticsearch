@@ -63,15 +63,14 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
         File testkit;
         try {
             testkit = testkitTmpDir.newFolder();
-
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        return GradleRunner.create()
+        return new InternalAwareGradleRunner(GradleRunner.create()
             .withProjectDir(getProjectDir())
             .withPluginClasspath()
             .withTestKitDir(testkit)
-            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0);
+            .withDebug(ManagementFactory.getRuntimeMXBean().getInputArguments().toString().indexOf("-agentlib:jdwp") > 0));
     }
 
     protected File getBuildDir(String name) {
@@ -219,4 +218,5 @@ public abstract class GradleIntegrationTestCase extends GradleUnitTestCase {
             }
         }
     }
+
 }

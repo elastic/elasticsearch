@@ -1,12 +1,10 @@
 [[indices-delete-alias]]
-=== Delete index alias API
+=== Delete alias API
 ++++
-<titleabbrev>Delete index alias</titleabbrev>
+<titleabbrev>Delete alias</titleabbrev>
 ++++
 
-Deletes an existing index alias.
-
-include::{es-repo-dir}/indices/add-alias.asciidoc[tag=index-alias-desc]
+Deletes an <<alias,alias>>.
 
 [source,console]
 ----

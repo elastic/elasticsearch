@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -195,25 +194,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             stepTime = in.readOptionalLong();
             stepInfo = in.readOptionalBytesReference();
             phaseExecutionInfo = in.readOptionalWriteable(PhaseExecutionInfo::new);
-            if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                isAutoRetryableError = in.readOptionalBoolean();
-                failedStepRetryCount = in.readOptionalVInt();
-            } else {
-                isAutoRetryableError = null;
-                failedStepRetryCount = null;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
-               repositoryName = in.readOptionalString();
-               snapshotName = in.readOptionalString();
-            } else {
-                repositoryName = null;
-                snapshotName = null;
-            }
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-                shrinkIndexName = in.readOptionalString();
-            } else {
-                shrinkIndexName = null;
-            }
+            isAutoRetryableError = in.readOptionalBoolean();
+            failedStepRetryCount = in.readOptionalVInt();
+            repositoryName = in.readOptionalString();
+            snapshotName = in.readOptionalString();
+            shrinkIndexName = in.readOptionalString();
         } else {
             policyName = null;
             lifecycleDate = null;
@@ -250,17 +235,11 @@ public class IndexLifecycleExplainResponse implements ToXContentObject, Writeabl
             out.writeOptionalLong(stepTime);
             out.writeOptionalBytesReference(stepInfo);
             out.writeOptionalWriteable(phaseExecutionInfo);
-            if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                out.writeOptionalBoolean(isAutoRetryableError);
-                out.writeOptionalVInt(failedStepRetryCount);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_8_0)) {
-                out.writeOptionalString(repositoryName);
-                out.writeOptionalString(snapshotName);
-            }
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                out.writeOptionalString(shrinkIndexName);
-            }
+            out.writeOptionalBoolean(isAutoRetryableError);
+            out.writeOptionalVInt(failedStepRetryCount);
+            out.writeOptionalString(repositoryName);
+            out.writeOptionalString(snapshotName);
+            out.writeOptionalString(shrinkIndexName);
         }
     }
 

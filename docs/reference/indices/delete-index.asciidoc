@@ -34,10 +34,10 @@ or `manage` <<privileges-list-indices,index privilege>> for the target index.
 delete.
 
 In this parameter, wildcard expressions match only open, concrete indices. You
-cannot delete an index using an <<indices-aliases,alias>>.
+cannot delete an index using an <<alias,alias>>.
 
 By default, you must explicitly name the indices you are deleting.
-To specify indices to delete with `_all`, `*``, or other wildcard
+To specify indices to delete with `_all`, `*`, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file or using the
 <<cluster-update-settings,cluster update settings>> API.

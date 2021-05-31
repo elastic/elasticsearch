@@ -151,20 +151,21 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         final Jvm gradleJvm = Jvm.current();
         JvmInstallationMetadata gradleJvmMetadata = metadataDetector.getMetadata(gradleJvm.getJavaHome());
         final String gradleJvmVendorDetails = gradleJvmMetadata.getVendor().getDisplayName();
+        final String gradleJvmImplementationVersion = gradleJvmMetadata.getImplementationVersion();
         LOGGER.quiet("=======================================");
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
         if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            final String runtimeJvmVendorDetails = metadataDetector.getMetadata(BuildParams.getRuntimeJavaHome())
-                .getVendor()
-                .getDisplayName();
-            LOGGER.quiet("  Runtime JDK Version   : " + BuildParams.getRuntimeJavaVersion() + " (" + runtimeJvmVendorDetails + ")");
+            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(BuildParams.getRuntimeJavaHome());
+            final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
+            final String runtimeJvmImplementationVersion = runtimeJvm.getImplementationVersion();
+            LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeJvmVendorDetails + ")");
             LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
-            LOGGER.quiet("  Gradle JDK Version    : " + gradleJvm.getJavaVersion() + " (" + gradleJvmVendorDetails + ")");
+            LOGGER.quiet("  Gradle JDK Version    : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
         } else {
-            LOGGER.quiet("  JDK Version           : " + gradleJvm.getJavaVersion() + " (" + gradleJvmVendorDetails + ")");
+            LOGGER.quiet("  JDK Version           : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  JAVA_HOME             : " + gradleJvm.getJavaHome());
         }
         LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());

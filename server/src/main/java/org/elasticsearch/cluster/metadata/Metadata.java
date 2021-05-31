@@ -1198,12 +1198,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             } else {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
                 String writeDataStream = alias.getWriteDataStream();
-                if (isWriteDataStream != null) {
-                    if (isWriteDataStream) {
-                        writeDataStream = dataStream;
-                    } else {
+                if (isWriteDataStream == null || isWriteDataStream == false) {
+                    if (dataStream.equals(writeDataStream)) {
                         writeDataStream = null;
                     }
+                } else if (isWriteDataStream) {
+                    writeDataStream = dataStream;
                 }
                 boolean added = dataStreams.add(dataStream);
                 if (added == false && Objects.equals(alias.getWriteDataStream(), writeDataStream)) {

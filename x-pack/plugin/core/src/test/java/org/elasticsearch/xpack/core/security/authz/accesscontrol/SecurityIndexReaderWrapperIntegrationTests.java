@@ -59,7 +59,6 @@ import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -89,7 +88,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(shardId.id(), 0, indexSettings,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -218,7 +217,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         final long nowInMillis = randomNonNegativeLong();
         SearchExecutionContext realSearchExecutionContext = new SearchExecutionContext(shardId.id(), 0, indexSettings,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+                client, null, () -> nowInMillis, null, null, () -> true, null);
         SearchExecutionContext searchExecutionContext = spy(realSearchExecutionContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 

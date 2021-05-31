@@ -47,8 +47,6 @@ import java.time.ZoneOffset;
 import java.util.Collections;
 import java.util.List;
 
-import static java.util.Collections.emptyMap;
-
 public class DateFieldTypeTests extends FieldTypeTestCase {
 
     private static final long nowInMillis = 0;
@@ -156,7 +154,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         SearchExecutionContext context = new SearchExecutionContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 null, null, null, null, null, null,
-                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+                xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
         long instant = DateFormatters.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse(date)).toInstant().toEpochMilli();
@@ -178,7 +176,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         SearchExecutionContext context = new SearchExecutionContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
                 null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-                null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
+                null, null, () -> nowInMillis, null, null, () -> true, null);
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
         String date2 = "2016-04-28T11:33:52";
@@ -222,7 +220,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         SearchExecutionContext context = new SearchExecutionContext(0, 0, indexSettings,
             null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null, emptyMap());
+            null, null, () -> 0L, null, null, () -> true, null);
 
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";

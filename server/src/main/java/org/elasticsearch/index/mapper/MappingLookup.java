@@ -48,8 +48,8 @@ public final class MappingLookup {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
-    private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
-    private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+    private final Map<String, NamedAnalyzer> indexAnalyzersMap;
+    private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
 
     /**
@@ -135,6 +135,8 @@ public final class MappingLookup {
         }
         this.hasNested = hasNested;
 
+        final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
+        final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.name())) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined both as an object and a field");
@@ -147,6 +149,8 @@ public final class MappingLookup {
                 indexTimeScriptMappers.add(mapper);
             }
         }
+        this.indexTimeScriptMappers = Collections.unmodifiableList(indexTimeScriptMappers);
+        this.indexAnalyzersMap = Collections.unmodifiableMap(indexAnalyzersMap);
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
@@ -163,6 +167,26 @@ public final class MappingLookup {
             : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
+    }
+
+    private MappingLookup(MappingLookup mappingLookup, Collection<RuntimeField> runtimeMappings) {
+        this.mapping = mappingLookup.mapping;
+        this.hasNested = mappingLookup.hasNested;
+        this.indexAnalyzersMap = mappingLookup.indexAnalyzersMap;
+        this.indexTimeLookup = mappingLookup.indexTimeLookup;
+        this.indexTimeScriptMappers = mappingLookup.indexTimeScriptMappers;
+        this.fieldMappers = mappingLookup.fieldMappers;
+        this.objectMappers = mappingLookup.objectMappers;
+        this.fieldTypeLookup = new FieldTypeLookup(mappingLookup.fieldTypeLookup, runtimeMappings);
+    }
+
+    /**
+     * Creates a copy of the current mapping lookup and applies the provided runtime mappings on top of it.
+     * @param runtimeMappings the runtime mappings provided with the search request
+     * @return the resulting mapping lookup that can be used to look fields up as part of the search execution
+     */
+    public MappingLookup withRuntimeMappings(Collection<RuntimeField> runtimeMappings) {
+        return runtimeMappings.isEmpty() ? this : new MappingLookup(this, runtimeMappings);
     }
 
     /**
@@ -324,7 +348,7 @@ public final class MappingLookup {
      * Returns the mapped field type for the given field name.
      */
     public MappedFieldType getFieldType(String field) {
-        return fieldTypesLookup().get(field);
+        return fieldTypeLookup.get(field);
     }
 
     /**

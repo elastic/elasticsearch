@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -114,20 +115,42 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
     }
 
-    public void testRuntimeFieldOverrides() {
+    public void testRuntimeFieldsOverrideConcreteFields() {
+        FlattenedFieldMapper flattened = createFlattenedMapper("flattened");
         MockFieldMapper field = new MockFieldMapper("field");
         MockFieldMapper subfield = new MockFieldMapper("object.subfield");
         MockFieldMapper concrete = new MockFieldMapper("concrete");
         TestRuntimeField fieldOverride = new TestRuntimeField("field", "type");
         TestRuntimeField subfieldOverride = new TestRuntimeField("object.subfield", "type");
         TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
+        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("flattened",
+            Collections.singletonMap("sub", new TestRuntimeField("sub", "ip")));
 
-        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field, concrete, subfield), emptyList(),
-            List.of(fieldOverride, runtime, subfieldOverride));
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field, concrete, subfield, flattened), emptyList(),
+            List.of(fieldOverride, runtime, subfieldOverride, dynamicRuntimeField));
         assertThat(fieldTypeLookup.get("field"), instanceOf(TestRuntimeField.class));
         assertThat(fieldTypeLookup.get("object.subfield"), instanceOf(TestRuntimeField.class));
         assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
+        assertThat(fieldTypeLookup.get("flattened.sub").typeName(), equalTo("ip"));
+    }
+
+    public void testOverlayRuntimeMappings() {
+        MockFieldMapper dynamic = new MockFieldMapper("dynamic");
+        MockFieldMapper concrete = new MockFieldMapper("concrete");
+        TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
+        TestDynamicRuntimeField dynamicRuntime = new TestDynamicRuntimeField("dynamic");
+        FieldTypeLookup initialLookup = new FieldTypeLookup(List.of(concrete, dynamic), emptyList(),
+            List.of(runtime, dynamicRuntime));
+
+        TestDynamicRuntimeField dynamicRuntimeSearchRequest = new TestDynamicRuntimeField("dynamic",
+            Collections.singletonMap("test", new TestRuntimeField("test", "long")));
+        TestRuntimeField runtimeSearchRequest = new TestRuntimeField("runtime", "double");
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(initialLookup, List.of(dynamicRuntimeSearchRequest, runtimeSearchRequest));
+
+        assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(fieldTypeLookup.get("runtime").typeName(), equalTo("double"));
+        assertThat(fieldTypeLookup.get("dynamic.test").typeName(), equalTo("long"));
     }
 
     public void testRuntimeFieldsGetMatching() {
@@ -312,7 +335,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         }
     }
 
-    private FlattenedFieldMapper createFlattenedMapper(String fieldName) {
+    private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
         return new FlattenedFieldMapper.Builder(fieldName).build(new ContentPath());
     }
 }

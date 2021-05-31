@@ -138,7 +138,6 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
@@ -275,8 +274,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             null,
             () -> true,
-            valuesSourceRegistry,
-            emptyMap()
+            valuesSourceRegistry
         );
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));

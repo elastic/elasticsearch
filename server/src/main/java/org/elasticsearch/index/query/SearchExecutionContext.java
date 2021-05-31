@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -43,7 +42,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -61,7 +59,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -105,7 +102,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private boolean mapUnmappedFieldAsString;
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -128,8 +124,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         String clusterAlias,
         Predicate<String> indexNameMatcher,
         BooleanSupplier allowExpensiveQueries,
-        ValuesSourceRegistry valuesSourceRegistry,
-        Map<String, Object> runtimeMappings
+        ValuesSourceRegistry valuesSourceRegistry
     ) {
         this(
             shardId,
@@ -152,8 +147,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                 indexSettings.getIndex().getUUID()
             ),
             allowExpensiveQueries,
-            valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            valuesSourceRegistry
         );
     }
 
@@ -175,8 +169,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.indexNameMatcher,
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
-            source.valuesSourceRegistry,
-            source.runtimeMappings
+            source.valuesSourceRegistry
         );
     }
 
@@ -197,8 +190,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
                                    Predicate<String> indexNameMatcher,
                                    Index fullyQualifiedIndex,
                                    BooleanSupplier allowExpensiveQueries,
-                                   ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, MappedFieldType> runtimeMappings) {
+                                   ValuesSourceRegistry valuesSourceRegistry) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -216,7 +208,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.fullyQualifiedIndex = fullyQualifiedIndex;
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
-        this.runtimeMappings = runtimeMappings;
     }
 
     private void reset() {
@@ -309,25 +300,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Set<String> getMatchingFieldNames(String pattern) {
-        if (runtimeMappings.isEmpty()) {
-            return mappingLookup.getMatchingFieldNames(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
-        if ("*".equals(pattern)) {
-            matches.addAll(runtimeMappings.keySet());
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern)) {
-                matches.add(pattern);
-            }
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    matches.add(name);
-                }
-            }
-        }
-        return matches;
+        return mappingLookup.getMatchingFieldNames(pattern);
     }
 
     /**
@@ -347,30 +320,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * @param pattern the field name pattern
      */
     public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
-        if (runtimeMappings.isEmpty()) {
-            return mappedFieldTypes;
-        }
-
-        Map<String, MappedFieldType> mappedByName = new HashMap<>();
-        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
-
-        if ("*".equals(pattern)) {
-            mappedByName.putAll(runtimeMappings);
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern) == false) {
-                return mappedFieldTypes;
-            }
-            mappedByName.put(pattern, runtimeMappings.get(pattern));
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    mappedByName.put(name, runtimeMappings.get(name));
-                }
-            }
-        }
-        return mappedByName.values();
+        return mappingLookup.getMatchingFieldTypes(pattern);
     }
 
     /**
@@ -394,8 +344,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
-        MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
+        return mappingLookup.getFieldType(name);
     }
 
     public ObjectMapper getObjectMapper(String name) {
@@ -658,20 +607,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public Index getFullyQualifiedIndex() {
         return fullyQualifiedIndex;
-    }
-
-    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
-        if (runtimeMappings.isEmpty()) {
-            return Collections.emptyMap();
-        }
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
-            mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
-        }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
     }
 
     /**

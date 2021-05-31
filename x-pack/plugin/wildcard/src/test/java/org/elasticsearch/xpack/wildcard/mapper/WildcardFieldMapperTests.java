@@ -61,6 +61,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
@@ -74,7 +75,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Supplier;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -106,7 +106,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     protected boolean supportsStoredFields() {
         return false;
     }
-    
+
     @Override
     @Before
     public void setUp() throws Exception {
@@ -934,7 +934,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         };
         return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
+                ESTestCase::randomNonNegativeLong, null, null, () -> true, null) {
             @Override
             public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);

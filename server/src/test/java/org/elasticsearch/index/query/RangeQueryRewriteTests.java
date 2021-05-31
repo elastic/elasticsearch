@@ -19,8 +19,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Relation;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static java.util.Collections.emptyMap;
-
 // The purpose of this test case is to test RangeQueryBuilder.getRelation()
 // Whether it should return INTERSECT/DISJOINT/WITHIN is already tested in
 // RangeQueryBuilderTests
@@ -47,8 +45,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             null,
             () -> true,
-            null,
-            emptyMap()
+            null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         assertEquals(Relation.DISJOINT, range.getRelation(context));
@@ -67,7 +64,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new SearchExecutionContext(0, 0, indexService.getIndexSettings(), null, null,
             indexService.mapperService(), indexService.mapperService().mappingLookup(), null, null, xContentRegistry(), writableRegistry(),
-                null, null, null, null, null, () -> true, null, emptyMap());
+                null, null, null, null, null, () -> true, null);
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
         assertEquals(Relation.INTERSECTS, range.getRelation(context));
@@ -103,8 +100,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             null,
             () -> true,
-            null,
-            emptyMap()
+            null
         );
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // no values -> DISJOINT

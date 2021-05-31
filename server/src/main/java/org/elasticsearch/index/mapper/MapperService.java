@@ -41,6 +41,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -364,6 +365,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;
         return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
+    }
+
+    /**
+     * Exposes a snapshot of the mappings for the current index and applies the provided runtime mappings on top of it.
+     */
+    public MappingLookup mappingLookup(Map<String, Object> runtimeMappings) {
+        return mappingLookup().withRuntimeMappings(
+            RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext(), false).values());
     }
 
     /**

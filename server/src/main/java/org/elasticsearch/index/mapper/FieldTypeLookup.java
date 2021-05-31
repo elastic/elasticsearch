@@ -24,8 +24,8 @@ import java.util.Set;
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
 final class FieldTypeLookup {
-    private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
-    private final Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
+    private final Map<String, MappedFieldType> fullNameToFieldType;
+    private final Map<String, DynamicFieldType> dynamicFieldTypes;
 
     /**
      * A map from field name to all fields whose content has been copied into it
@@ -34,7 +34,7 @@ final class FieldTypeLookup {
      *
      * For convenience, the set of copied fields includes the field itself.
      */
-    private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final Map<String, Set<String>> fieldToCopiedFields;
 
     private final int maxParentPathDots;
 
@@ -43,7 +43,9 @@ final class FieldTypeLookup {
         Collection<FieldAliasMapper> fieldAliasMappers,
         Collection<RuntimeField> runtimeFields
     ) {
-
+        Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
+        Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>();
+        Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
         for (FieldMapper fieldMapper : fieldMappers) {
             String fieldName = fieldMapper.name();
             MappedFieldType fieldType = fieldMapper.fieldType();
@@ -78,6 +80,32 @@ final class FieldTypeLookup {
             }
         }
 
+        overlayRuntimeFields(runtimeFields, fullNameToFieldType, dynamicFieldTypes);
+
+        this.fullNameToFieldType = Collections.unmodifiableMap(fullNameToFieldType);
+        this.dynamicFieldTypes = Collections.unmodifiableMap(dynamicFieldTypes);
+        this.fieldToCopiedFields = Collections.unmodifiableMap(fieldToCopiedFields);
+    }
+
+    /**
+     * Creates a copy of the provided {@link FieldTypeLookup} and applies the provided runtime fields on top of it.
+     * This constructor is used to apply runtime mappings provided as part of the search request.
+     * @param fieldTypeLookup the field type lookup instance generated from parsing the mappings.
+     * @param runtimeMappings the runtime fields provided as part of the search request.
+     */
+    FieldTypeLookup(FieldTypeLookup fieldTypeLookup, Collection<RuntimeField> runtimeMappings) {
+        this.fieldToCopiedFields = fieldTypeLookup.fieldToCopiedFields;
+        this.maxParentPathDots = fieldTypeLookup.maxParentPathDots;
+        Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>(fieldTypeLookup.fullNameToFieldType);
+        Map<String, DynamicFieldType> dynamicFieldTypes = new HashMap<>(fieldTypeLookup.dynamicFieldTypes);
+        overlayRuntimeFields(runtimeMappings, fullNameToFieldType, dynamicFieldTypes);
+        this.fullNameToFieldType = Collections.unmodifiableMap(fullNameToFieldType);
+        this.dynamicFieldTypes = Collections.unmodifiableMap(dynamicFieldTypes);
+    }
+
+    private static void overlayRuntimeFields(Collection<RuntimeField> runtimeFields,
+                                             Map<String, MappedFieldType> fullNameToFieldType,
+                                             Map<String, DynamicFieldType> dynamicFieldTypes) {
         for (RuntimeField runtimeField : runtimeFields) {
             if (runtimeField instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(runtimeField.name(), (DynamicFieldType) runtimeField);
@@ -85,7 +113,7 @@ final class FieldTypeLookup {
             MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
             assert runtimeFieldType != null || runtimeField instanceof DynamicFieldType;
             if (runtimeFieldType != null) {
-                //this will override concrete fields with runtime fields that have the same name
+                //this will override existing (runtime or concrete) fields with the provided runtime fields that have the same name
                 fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
             }
         }

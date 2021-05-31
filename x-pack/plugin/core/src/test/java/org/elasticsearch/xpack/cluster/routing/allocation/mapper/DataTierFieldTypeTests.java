@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Predicate;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 
@@ -127,8 +126,7 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
             null,
             indexNameMatcher,
             () -> true,
-            null,
-            emptyMap()
+            null
         );
     }
 
@@ -143,6 +141,6 @@ public class DataTierFieldTypeTests extends MapperServiceTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         return new SearchExecutionContext(0, 0, indexSettings, null, null, null, null, null, null,
             xContentRegistry(), writableRegistry(), null, null, System::currentTimeMillis, null,
-            value -> true, () -> true, null, emptyMap());
+            value -> true, () -> true, null);
     }
 }

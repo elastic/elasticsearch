@@ -50,7 +50,6 @@ import java.util.HashMap;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Matchers.any;
@@ -175,7 +174,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
             SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                    System::currentTimeMillis, null, null, () -> true, null, emptyMap());
+                    System::currentTimeMillis, null, null, () -> true, null);
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
@@ -211,7 +210,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
 
         SearchExecutionContext mockContext = new SearchExecutionContext(0, 0, idxSettings,  null,
             null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
-            System::currentTimeMillis, null, null, () -> true, null, emptyMap());
+            System::currentTimeMillis, null, null, () -> true, null);
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());
         }

@@ -602,7 +602,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),
-            mapperService().mappingLookup(),
+            mapperService().mappingLookup(runtimeMappings),
             similarityService(),
             scriptService,
             xContentRegistry,
@@ -613,8 +613,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterAlias,
             indexNameMatcher,
             allowExpensiveQueries,
-            valuesSourceRegistry,
-            runtimeMappings
+            valuesSourceRegistry
         );
     }
 

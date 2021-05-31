@@ -77,6 +77,32 @@ public class MappingLookupTests extends ESTestCase {
         assertThat(mappingLookup.fieldTypesLookup().get("object.subfield"), instanceOf(TestRuntimeField.class));
     }
 
+    public void testWithRuntimeMappings() {
+        MockFieldMapper fieldMapper = new MockFieldMapper("field");
+        MappingLookup mappingLookup = createMappingLookup(
+            Collections.singletonList(fieldMapper),
+            Collections.emptyList(),
+            Collections.singletonList(new TestRuntimeField("runtime", "type"))
+        );
+        {
+            MappingLookup withRuntimeMappings = mappingLookup.withRuntimeMappings(Collections.emptySet());
+            assertSame(mappingLookup, withRuntimeMappings);
+        }
+        {
+            TestRuntimeField testRuntimeField = new TestRuntimeField("test", "test");
+            MappingLookup withRuntimeMappings = mappingLookup.withRuntimeMappings(Collections.singleton(testRuntimeField));
+            assertSame(mappingLookup.getMapping(), withRuntimeMappings.getMapping());
+            assertSame(mappingLookup.fieldMappers(), withRuntimeMappings.fieldMappers());
+            assertSame(mappingLookup.objectMappers(), withRuntimeMappings.objectMappers());
+            assertSame(mappingLookup.indexTimeLookup(), withRuntimeMappings.indexTimeLookup());
+            assertSame(mappingLookup.indexTimeScriptMappers(), withRuntimeMappings.indexTimeScriptMappers());
+            assertSame(mappingLookup.hasNested(), withRuntimeMappings.hasNested());
+            assertEquals("test", withRuntimeMappings.getFieldType("test").typeName());
+            assertEquals("type", withRuntimeMappings.getFieldType("runtime").typeName());
+            assertEquals("faketype", withRuntimeMappings.getFieldType("field").typeName());
+        }
+    }
+
     public void testAnalyzers() throws IOException {
         FakeFieldType fieldType1 = new FakeFieldType("field1");
         FieldMapper fieldMapper1 = new FakeFieldMapper(fieldType1, "index1");

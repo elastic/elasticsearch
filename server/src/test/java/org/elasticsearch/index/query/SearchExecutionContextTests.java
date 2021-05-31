@@ -217,8 +217,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             null,
             () -> true,
-            null,
-            emptyMap()
+            null
         );
 
         assertTrue(context.indexSortedOnField("sort_field"));
@@ -419,6 +418,8 @@ public class SearchExecutionContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings);
         final long nowInMillis = randomNonNegativeLong();
+        Collection<RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
+            mapperService.parserContext(), false).values();
         return new SearchExecutionContext(
             0,
             0,
@@ -426,7 +427,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             null,
             (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
             mapperService,
-            mappingLookup,
+            mappingLookup.withRuntimeMappings(runtimeFields),
             null,
             null,
             NamedXContentRegistry.EMPTY,
@@ -437,8 +438,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             clusterAlias,
             null,
             () -> true,
-            null,
-            runtimeMappings
+            null
         );
     }
 

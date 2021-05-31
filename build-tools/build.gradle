@@ -108,25 +108,21 @@ dependencies {
     api 'commons-io:commons-io:2.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
 
-    //  for our ide tweaking
-    //  api 'gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.7'
-
     runtimeOnly project(":reaper")
 
     testFixturesApi "junit:junit:${props.getProperty('junit')}"
     testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
-
     testFixturesApi 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-
     testFixturesApi platform("org.spockframework:spock-bom:2.0-M5-groovy-3.0")
     testFixturesApi("org.spockframework:spock-core") {
         exclude module: "groovy"
     }
 
-    // required as we rely on junit4 rules
-    integTestImplementation "org.spockframework:spock-junit4"
+    integTestImplementation("org.spockframework:spock-junit4") {
+        because 'required as we rely on junit4 rules'
+    }
 
     integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
     integTestImplementation("org.junit.jupiter:junit-jupiter") {

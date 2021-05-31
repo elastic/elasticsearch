@@ -20,11 +20,14 @@ import java.io.File;
  */
 public class ReaperPlugin implements Plugin<Project> {
 
+    /**
+     * The unique identifier to register the reaper shared service within a gradle build
+     * */
     public static final String REAPER_SERVICE_NAME = "reaper";
     private final ProjectLayout projectLayout;
 
     @Inject
-    public ReaperPlugin(ProjectLayout projectLayout) {
+    ReaperPlugin(ProjectLayout projectLayout) {
         this.projectLayout = projectLayout;
     }
 

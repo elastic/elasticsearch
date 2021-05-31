@@ -22,10 +22,8 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.TransportException;
 
 import java.io.IOException;
 import java.util.Optional;
@@ -197,12 +195,6 @@ public class ExceptionsHelperTests extends ESTestCase {
         final Throwable withSuppressedException = new RuntimeException();
         withSuppressedException.addSuppressed(new RuntimeException());
         assertThat(ExceptionsHelper.unwrapCorruption(withSuppressedException), nullValue());
-    }
-
-    public void testUnwrapCancelledTaskFromTransportException() {
-        final Throwable cancelledTaskException = new TaskCancelledException("cancelled");
-        final Throwable transportException = new TransportException(cancelledTaskException);
-        assertThat(ExceptionsHelper.unwrapCause(transportException), equalTo(cancelledTaskException));
     }
 
     public void testSuppressedCycle() {

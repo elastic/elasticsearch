@@ -39,6 +39,8 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+
 class NodeDeprecationChecks {
 
     static DeprecationIssue checkPidfile(final Settings settings, final PluginsAndModules pluginsAndModules) {
@@ -417,6 +419,23 @@ class NodeDeprecationChecks {
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
+                                                                                   final PluginsAndModules pluginsAndModules) {
+        if (CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.exists(settings)) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version",
+                CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey()
+            );
+            final String url =
+                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes";
+            final String details =
+                "Found " + CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey() + " configured." +
+                " Accounting for the disk usage of relocating shards is no longer optional.";
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details);
         }
         return null;
     }

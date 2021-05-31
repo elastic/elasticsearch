@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -588,6 +589,24 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found shared data path configured. Discontinue use of this setting."
+            )));
+    }
+
+    public void testClusterRoutingAllocationIncludeRelocationsSetting() {
+        Settings settings = Settings.builder()
+            .put(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false).build();
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(settings, null);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes";
+        final String expectedDetails =
+            "Found cluster.routing.allocation.disk.include_relocations configured." +
+                " Accounting for the disk usage of relocating shards is no longer optional.";
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "setting [cluster.routing.allocation.disk.include_relocations] is deprecated and will be removed in a future version",
+                expectedUrl,
+                expectedDetails
             )));
     }
 }

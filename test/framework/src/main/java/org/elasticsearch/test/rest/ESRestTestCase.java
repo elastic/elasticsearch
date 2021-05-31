@@ -601,7 +601,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (hasXPack() && preserveSearchableSnapshotsUponCompletion() == false) {
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
         }
 
@@ -818,9 +818,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         final Response response = adminClient().performRequest(request);
         @SuppressWarnings("unchecked")
         Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
-        for (String index : indices.keySet()) {
-            assertAcked("Failed to delete searchable snapshot index [" + index + ']',
-                adminClient().performRequest(new Request("DELETE", index)));
+        if (indices != null) {
+            for (String index : indices.keySet()) {
+                assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                    adminClient().performRequest(new Request("DELETE", index)));
+            }
         }
     }
 

@@ -106,9 +106,6 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 if (action.searchRouting() != null) {
                     throw new IllegalArgumentException("aliases that point to data streams don't support search_routing");
                 }
-                if (action.writeIndex() != null) {
-                    throw new IllegalArgumentException("aliases that point to data streams don't support is_write_index");
-                }
                 if (action.isHidden() != null) {
                     throw new IllegalArgumentException("aliases that point to data streams don't support is_hidden");
                 }
@@ -128,7 +125,7 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         for (String dataStreamName : concreteDataStreams) {
-                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName));
+                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName, action.writeIndex()));
                         }
                         break;
                     case REMOVE:

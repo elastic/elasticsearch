@@ -315,11 +315,14 @@ public interface IndexAbstraction {
 
         private final org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias;
         private final List<IndexMetadata> indicesOfAllDataStreams;
+        private final IndexMetadata writeIndexOfWriteDataStream;
 
         public DataStreamAlias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
-                               List<IndexMetadata> indicesOfAllDataStreams) {
+                               List<IndexMetadata> indicesOfAllDataStreams,
+                               IndexMetadata writeIndexOfWriteDataStream) {
             this.dataStreamAlias = dataStreamAlias;
             this.indicesOfAllDataStreams = indicesOfAllDataStreams;
+            this.writeIndexOfWriteDataStream = writeIndexOfWriteDataStream;
         }
 
         @Override
@@ -339,7 +342,7 @@ public interface IndexAbstraction {
 
         @Override
         public IndexMetadata getWriteIndex() {
-            return null;
+            return writeIndexOfWriteDataStream;
         }
 
         @Override

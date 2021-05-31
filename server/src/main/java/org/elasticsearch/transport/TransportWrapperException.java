@@ -9,10 +9,17 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
 
 public class TransportWrapperException extends TransportException implements ElasticsearchWrapperException {
 
     public TransportWrapperException(String msg, Throwable cause) {
         super(msg, cause);
+    }
+
+    public TransportWrapperException(StreamInput in) throws IOException {
+        super(in);
     }
 }

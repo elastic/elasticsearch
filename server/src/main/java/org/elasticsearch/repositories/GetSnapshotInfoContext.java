@@ -78,13 +78,8 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     @Override
     public void onResponse(SnapshotInfo snapshotInfo) {
-        final int updatedCount = counter.decrementAndGet();
-        if (updatedCount < 0) {
-            assert failFast && failed : "must only get here for fail-fast execution that failed";
-            return;
-        }
         onSnapshotInfo.accept(snapshotInfo);
-        if (updatedCount == 0) {
+        if (counter.decrementAndGet() == 0) {
             try {
                 doneListener.onResponse(null);
             } catch (Exception e) {

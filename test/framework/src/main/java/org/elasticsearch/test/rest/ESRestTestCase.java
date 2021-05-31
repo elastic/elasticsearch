@@ -544,7 +544,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * preserving them. Only runs at all if xpack is installed on the cluster
      * being tested.
      */
-    protected boolean preserveSearchableSnapshotsUponCompletion() {
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
         return false;
     }
 
@@ -570,7 +570,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsUponCompletion() == false) {
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
             wipeSearchableSnapshotsIndices();
         }
 

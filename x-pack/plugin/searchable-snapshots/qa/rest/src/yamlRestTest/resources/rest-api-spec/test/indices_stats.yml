@@ -154,3 +154,12 @@ teardown:
   - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.max_size_in_bytes: 0 }
   - gt: { indices.frozen-docs.primaries.segments.file_sizes.si.average_size_in_bytes: 0 }
   - match: { indices.frozen-docs.primaries.segments.file_sizes.si.description: "Segment Info" }
+
+  - do:
+      indices.delete:
+        index: cold-docs
+
+  - do:
+      indices.delete:
+        index: frozen-docs
+

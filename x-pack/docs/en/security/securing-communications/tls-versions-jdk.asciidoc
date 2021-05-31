@@ -6,6 +6,16 @@
 
 Different JDK versions support different versions of SSL, and this may affect how {es} operates.
 
+[NOTE]
+====
+This support applies when running on the default JSSE provider in the JDK.
+JVMs that are configured to use a <<fips-140-compliance, FIPS 140-2>> security
+provider might have a custom TLS implementation, which might support TLS
+protocol versions that differ from this list.
+
+Check your security provider's release notes for information on TLS support.
+====
+
 `SSLv3`::
   SSL v3 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
   See <<jdk-enable-tls-protocol>>.
@@ -29,13 +39,6 @@ Different JDK versions support different versions of SSL, and this may affect ho
   This includes the latest release of Java 8 (any release newer than 8u261)
   as well as all versions of Java 11 or later.
   It is supported and enabled by default on the {es} bundled JDK.
-
-NOTE: The information above applies when running on the default JSSE provider in the JDK.
-      JVMs that are configured to use a <<fips-140-compliance, FIPS 140-2>> security
-      provider may have a custom TLS implementation and the supported TLS protocol versions
-      may differ from the list above.
-      +
-      Please check the release notes for your security provider.
 
 [[jdk-enable-tls-protocol]]
 ==== Enabling additional SSL/TLS versions on your JDK

@@ -15,4 +15,5 @@ class org.elasticsearch.ingest.common.Processors {
   Object json(Object)
   void json(Map, String)
   String urlDecode(String)
+  Map uriParts(String)
 }

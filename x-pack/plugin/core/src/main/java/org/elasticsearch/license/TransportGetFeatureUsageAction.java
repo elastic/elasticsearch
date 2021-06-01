@@ -40,14 +40,13 @@ public class TransportGetFeatureUsageAction extends HandledTransportAction<GetFe
 
     @Override
     protected void doExecute(Task task, GetFeatureUsageRequest request, ActionListener<GetFeatureUsageResponse> listener) {
-        Map<XPackLicenseState.Feature, Long> featureUsage = licenseState.getLastUsed();
+        Map<LicensedFeature, Long> featureUsage = licenseState.getLastUsed();
         List<GetFeatureUsageResponse.FeatureUsageInfo> usageInfos = new ArrayList<>();
         for (var entry : featureUsage.entrySet()) {
-            XPackLicenseState.Feature feature = entry.getKey();
-            String name = feature.name().toLowerCase(Locale.ROOT);
+            LicensedFeature feature = entry.getKey();
             ZonedDateTime lastUsedTime = Instant.ofEpochMilli(entry.getValue()).atZone(ZoneOffset.UTC);
-            String licenseLevel = feature.feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
-            usageInfos.add(new GetFeatureUsageResponse.FeatureUsageInfo(name, lastUsedTime, licenseLevel));
+            String licenseLevel = feature.minimumOperationMode.name().toLowerCase(Locale.ROOT);
+            usageInfos.add(new GetFeatureUsageResponse.FeatureUsageInfo(feature.name, lastUsedTime, licenseLevel));
         }
         listener.onResponse(new GetFeatureUsageResponse(usageInfos));
     }

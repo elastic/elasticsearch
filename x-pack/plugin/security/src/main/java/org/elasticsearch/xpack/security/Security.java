@@ -50,6 +50,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
+import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.plugins.ClusterPlugin;
@@ -333,6 +334,22 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         DiscoveryPlugin, MapperPlugin, ExtensiblePlugin {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
+
+    public static final LicensedFeature IP_FILTERING_FEATURE =
+        new LicensedFeature("security_ip_filtering", License.OperationMode.GOLD, false);
+    public static final LicensedFeature AUDITING_FEATURE =
+        new LicensedFeature("security_auditing", License.OperationMode.GOLD, false);
+    public static final LicensedFeature DLS_FLS_FEATURE =
+        new LicensedFeature("security_dls_fls", License.OperationMode.PLATINUM, false);
+    public static final LicensedFeature ALL_REALMS_FEATURE =
+        new LicensedFeature("security_all_realms", License.OperationMode.PLATINUM, false);
+    public static final LicensedFeature STANDARD_REALMS_FEATURE =
+        new LicensedFeature("security_standard_realms", License.OperationMode.GOLD, false);
+    public static final LicensedFeature CUSTOM_ROLE_FEATURE = LicensedFeature.platinum("security_custom_role_providers");
+    public static final LicensedFeature TOKEN_SERVICE_FEATURE =
+        new LicensedFeature("security_token_service", License.OperationMode.STANDARD, false);
+    public static final LicensedFeature AUTH_REALM_FEATURE = LicensedFeature.platinum("security_authorization_realm");
+    public static final LicensedFeature AUTH_ENGINE_FEATURE = LicensedFeature.platinum("security_authorization_engine");
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 

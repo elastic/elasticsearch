@@ -20,6 +20,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.transport.TransportSettings;
+import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 
@@ -246,7 +247,7 @@ public class IPFilter {
 
     public boolean accept(String profile, InetSocketAddress peerAddress) {
         if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(Feature.SECURITY_IP_FILTERING) == false) {
+            Security.IP_FILTERING_FEATURE.check(licenseState) == false) {
             return true;
         }
 

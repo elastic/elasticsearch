@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 
 import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -96,7 +97,7 @@ public class XPackLicenseState {
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            this.feature = new LicensedFeature(minimumOperationMode, needsActive);
+            this.feature = new LicensedFeature(name().toLowerCase(Locale.ROOT), minimumOperationMode, needsActive);
         }
     }
 
@@ -404,7 +405,7 @@ public class XPackLicenseState {
     private final List<LicenseStateListener> listeners;
     private final boolean isSecurityEnabled;
     private final boolean isSecurityExplicitlyEnabled;
-    private final Map<Feature, LongAccumulator> lastUsed;
+    private final Map<LicensedFeature, LongAccumulator> lastUsed;
     private final LongSupplier epochMillisProvider;
 
     // Since Status is the only field that can be updated, we do not need to synchronize access to
@@ -420,10 +421,10 @@ public class XPackLicenseState {
 
         // prepopulate feature last used map with entries for non basic features, which are the ones we
         // care to actually keep track of
-        Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
+        Map<LicensedFeature, LongAccumulator> lastUsed = new HashMap<>();
         for (Feature feature : Feature.values()) {
             if (NON_TRACKED_FEATURES.contains(feature) == false) {
-                lastUsed.put(feature, new LongAccumulator(Long::max, 0));
+                lastUsed.put(feature.feature, new LongAccumulator(Long::max, 0));
             }
         }
         this.lastUsed = lastUsed;
@@ -431,7 +432,7 @@ public class XPackLicenseState {
     }
 
     private XPackLicenseState(List<LicenseStateListener> listeners, boolean isSecurityEnabled, boolean isSecurityExplicitlyEnabled,
-                              Status status, Map<Feature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
+                              Status status, Map<LicensedFeature, LongAccumulator> lastUsed, LongSupplier epochMillisProvider) {
         this.listeners = listeners;
         this.isSecurityEnabled = isSecurityEnabled;
         this.isSecurityExplicitlyEnabled = isSecurityExplicitlyEnabled;
@@ -538,7 +539,7 @@ public class XPackLicenseState {
      *
      * Note that if a feature has not been used, it will not appear in the map.
      */
-    public Map<Feature, Long> getLastUsed() {
+    public Map<LicensedFeature, Long> getLastUsed() {
         return lastUsed.entrySet().stream()
             .filter(e -> e.getValue().get() != 0) // feature was never used
             .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().get()));

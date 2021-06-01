@@ -145,7 +145,8 @@ public class RestControllerTests extends ESTestCase {
         assertNull(threadContext.getHeader("header.3"));
         List<String> expectedProductResponseHeader = new ArrayList<>();
         expectedProductResponseHeader.add(RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-        assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders().getOrDefault(RestController.ELASTIC_PRODUCT_HTTP_HEADER, null));
+        assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders()
+            .getOrDefault(RestController.ELASTIC_PRODUCT_HTTP_HEADER, null));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {

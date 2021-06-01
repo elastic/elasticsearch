@@ -35,6 +35,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -331,11 +332,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Return all field types that match the provided predicate.
-     * Note that runtime mappings are not included, hence this method should be used only in scenarios where
-     * runtime fields defined in the search request are not applicable.
+     * Returns all the mapped field types matching the provided predicate.
+     * Note that only known sub-fields are exposed from {@link DynamicFieldType} implementations by calling
+     * @link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
+     * is not known in advance will not be returned by this method.
+     * Also, note that runtime mappings are not taken into account and will not be returned by this method, hence this
+     * method should be used only in scenarios where runtime fields defined in the search request are not applicable.
+     *
      * @param predicate the predicate
-     * @return the matching field types
+     * @return the matching mapped field types
      */
     public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
         return mappingLookup.getMatchingFieldTypes(predicate);

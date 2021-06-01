@@ -315,9 +315,13 @@ public final class MappingLookup {
     }
 
     /**
-     * Return all field types that match the provided predicate
+     * Returns all the mapped field types matching the provided predicate.
+     * Note that only known sub-fields are exposed from {@link DynamicFieldType} implementations by calling
+     * @link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
+     * is not known in advance will not be returned by this method.
+     *
      * @param predicate the predicate
-     * @return the matching field types
+     * @return the matching mapped field types
      */
     public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
         return fieldTypeLookup.getMatchingFieldTypes(predicate);

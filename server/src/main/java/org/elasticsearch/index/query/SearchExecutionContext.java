@@ -334,7 +334,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     /**
      * Returns all the mapped field types matching the provided predicate.
      * Note that only known sub-fields are exposed from {@link DynamicFieldType} implementations by calling
-     * @link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
+     * {@link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
      * is not known in advance will not be returned by this method.
      * Also, note that runtime mappings are not taken into account and will not be returned by this method, hence this
      * method should be used only in scenarios where runtime fields defined in the search request are not applicable.

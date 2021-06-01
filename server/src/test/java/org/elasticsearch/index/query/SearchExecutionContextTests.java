@@ -363,6 +363,18 @@ public class SearchExecutionContextTests extends ESTestCase {
         Collection<MappedFieldType> matches = context.getMatchingFieldTypes("ca*");
         assertThat(matches, hasSize(1));
         assertThat(matches.iterator().next(), instanceOf(KeywordScriptFieldType.class));
+
+        {
+            Collection<MappedFieldType> matchingFieldTypes = context.getMatchingFieldTypes(ft -> true);
+            assertThat(matchingFieldTypes, hasSize(2));
+            for (MappedFieldType matchingFieldType : matchingFieldTypes) {
+                assertThat(matchingFieldType, instanceOf(MockFieldMapper.FakeFieldType.class));
+            }
+        }
+        {
+            Collection<MappedFieldType> matchingFieldTypes = context.getMatchingFieldTypes(ft -> ft.name().equals("dog"));
+            assertThat(matchingFieldTypes, hasSize(0));
+        }
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

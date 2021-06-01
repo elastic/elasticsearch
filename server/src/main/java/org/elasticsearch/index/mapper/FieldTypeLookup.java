@@ -153,7 +153,7 @@ final class FieldTypeLookup {
     /**
      * Returns all the mapped field types matching the provided predicate.
      * Note that only known sub-fields are exposed from {@link DynamicFieldType} implementations by calling
-     * @link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
+     * {@link DynamicFieldType#getKnownSubfields()}. Any other field that may be dynamically available but
      * is not known in advance will not be returned by this method.
      *
      * @param predicate the predicate

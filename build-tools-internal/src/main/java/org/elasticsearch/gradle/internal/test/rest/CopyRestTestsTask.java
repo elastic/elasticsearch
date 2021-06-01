@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
+import org.apache.tools.ant.filters.ReplaceTokens;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
@@ -21,6 +22,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
@@ -30,6 +32,7 @@ import org.gradle.internal.Factory;
 
 import javax.inject.Inject;
 import java.io.File;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,6 +49,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
     private final ListProperty<String> includeCore;
     private final ListProperty<String> includeXpack;
+    private Map<String, String> substitutions;
     private final DirectoryProperty outputResourceDir;
 
     private FileCollection coreConfig;
@@ -60,6 +64,7 @@ public class CopyRestTestsTask extends DefaultTask {
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
+
 
     @Inject
     public CopyRestTestsTask(
@@ -87,6 +92,16 @@ public class CopyRestTestsTask extends DefaultTask {
     @Input
     public ListProperty<String> getIncludeXpack() {
         return includeXpack;
+    }
+
+    public void setSubstitutions(Map<String, String> substitutions) {
+        this.substitutions = substitutions;
+    }
+
+    @Input
+    @Optional
+    public Map<String, String> getSubstitutions() {
+        return substitutions;
     }
 
     @SkipWhenEmpty
@@ -137,6 +152,9 @@ public class CopyRestTestsTask extends DefaultTask {
                     c.from(coreConfigToFileTree.apply(coreConfig));
                     c.into(restTestOutputDir);
                     c.include(corePatternSet.getIncludes());
+                    if(substitutions != null) {
+                        c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                    }
                 });
             } else {
                 getLogger().debug(
@@ -150,6 +168,9 @@ public class CopyRestTestsTask extends DefaultTask {
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );
+                    if(substitutions != null) {
+                        c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                    }
                 });
             }
         }
@@ -160,6 +181,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 c.from(xpackConfigToFileTree.apply(xpackConfig));
                 c.into(restTestOutputDir);
                 c.include(xpackPatternSet.getIncludes());
+                if(substitutions != null) {
+                    c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                }
             });
         }
         // copy any additional config
@@ -167,6 +191,9 @@ public class CopyRestTestsTask extends DefaultTask {
             fileSystemOperations.copy(c -> {
                 c.from(additionalConfigToFileTree.apply(additionalConfig));
                 c.into(restTestOutputDir);
+                if(substitutions != null) {
+                    c.filter(Map.of("tokens", substitutions), ReplaceTokens.class);
+                }
             });
         }
     }

@@ -1,7 +1,7 @@
 import java.nio.file.Files
 import java.security.KeyPair
 import java.security.KeyPairGenerator
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.internal.test.rest.YamlRestTestPlugin
@@ -259,7 +259,7 @@ Map<String, Object> expansions = [
 
 tasks.named("processYamlRestTestResources").configure {
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  it.filter("tokens" : expansions, ReplaceTokens.class)
 }
 
 tasks.named("internalClusterTest").configure {

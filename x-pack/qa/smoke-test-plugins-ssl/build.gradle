@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -85,11 +85,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 }
 
 ext.expansions = [
-  'expected.plugins.count': pluginPaths.size()
-]
-
-ext.expansions = [
-  'expected.plugins.count': pluginPaths.size()
+  'expected.plugins.count': pluginPaths.size().toString()
 ]
 
 tasks.named("processTestResources").configure {
@@ -97,6 +93,6 @@ tasks.named("processTestResources").configure {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
     include '**/*.yml'
     inputs.properties(expansions)
-    MavenFilteringHack.filter(it, expansions)
+    it.filter("tokens" : expansions, ReplaceTokens.class)
   }
 }

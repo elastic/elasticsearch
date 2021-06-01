@@ -8,9 +8,9 @@
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoTask
-import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
@@ -215,7 +215,7 @@ void copyLog4jProperties(TaskProvider buildTask, Project module) {
 }
 
 ext.restTestExpansions = [
-  'expected.modules.count': 0,
+  'expected.modules.count': "0", //TODO: is it safe to make this a string ?
 ]
 // we create the buildOssModules task above but fill it here so we can do a single
 // loop over modules to also setup cross task dependencies and increment our modules counter
@@ -382,7 +382,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           // main config files, processed with distribution specific substitutions
           from '../src/config'
           exclude 'log4j2.properties' // this is handled separately below
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          it.filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         if (testDistro) {
           from buildOssLog4jConfigTaskProvider
@@ -401,7 +401,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
           exclude '*.exe'
           exclude '*.bat'
           eachFile { it.setMode(0755) }
-          MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+          it.filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
         }
         // windows files, only for zip
         if (distributionType == 'zip') {
@@ -409,7 +409,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             from '../src/bin'
             include '*.bat'
             filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
-            MavenFilteringHack.filter(it, expansionsForDistribution(distributionType, testDistro, jdk))
+            it.filter("tokens" : expansionsForDistribution(distributionType, testDistro, jdk), ReplaceTokens.class)
           }
           with copySpec {
             from '../src/bin'
@@ -605,7 +605,7 @@ subprojects {
           return
         }
       }
-      result[key] = value
+      result[key] = value.toString()
     }
     return result
   }

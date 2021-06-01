@@ -73,17 +73,17 @@ public class LeafDocLookupTests extends ESTestCase {
         };
 
         LeafDocLookup docLookup = new LeafDocLookup(field -> {
-            if (field.equals("json.key1")) {
+            if (field.equals("flattened.key1")) {
                 return fieldType1;
             }
-            if (field.equals("json.key2")) {
+            if (field.equals("flattened.key2")) {
                 return fieldType2;
             }
             return null;
         }, fieldDataSupplier, null);
 
-        assertEquals(docValues1, docLookup.get("json.key1"));
-        assertEquals(docValues2, docLookup.get("json.key2"));
+        assertEquals(docValues1, docLookup.get("flattened.key1"));
+        assertEquals(docValues2, docLookup.get("flattened.key2"));
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {

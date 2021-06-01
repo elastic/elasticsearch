@@ -7,7 +7,7 @@
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
-          branches: 
+          branches:
             - "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
@@ -20,6 +20,7 @@
           cancel-builds-on-update: true
           white-list-target-branches:
             - %BRANCH%
+            - ^feature/.*
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -34,4 +35,4 @@
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
       - shell: |
           #!/usr/local/bin/runbld --redirect-stderr
-          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed checkPart1
+          $WORKSPACE/.ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true checkPart1

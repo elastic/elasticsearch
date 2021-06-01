@@ -28,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.Task;
@@ -51,6 +52,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
 
     private final NodeClient nodeClient;
+    private final CircuitBreakerService circuitBreakerService;
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
@@ -58,6 +60,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     @Inject
     public TransportSubmitAsyncSearchAction(ClusterService clusterService,
+                                            CircuitBreakerService circuitBreakerService,
                                             TransportService transportService,
                                             ActionFilters actionFilters,
                                             NamedWriteableRegistry registry,
@@ -67,6 +70,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                             TransportSearchAction searchAction) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.nodeClient = nodeClient;
+        this.circuitBreakerService = circuitBreakerService;
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
@@ -92,6 +96,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             // TODO: store intermediate results ?
                             AsyncSearchResponse initialResp = searchResponse.clone(searchResponse.getId());
                             store.createResponse(docId, searchTask.getOriginHeaders(), initialResp,
+                                circuitBreakerService,
                                 new ActionListener<>() {
                                     @Override
                                     public void onResponse(IndexResponse r) {
@@ -175,7 +180,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(), response, circuitBreakerService,
             ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(exc);

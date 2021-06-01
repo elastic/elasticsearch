@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -52,6 +53,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     private final AsyncOperation<Request, Response, T> operation;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final CircuitBreakerService circuitBreakerService;
     private final Class<T> taskClass;
 
     public interface AsyncOperation<Request extends TaskAwareRequest, Response extends ActionResponse,
@@ -107,6 +109,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     public AsyncTaskManagementService(String index, Client client, String origin, NamedWriteableRegistry registry, TaskManager taskManager,
                                       String action, AsyncOperation<Request, Response, T> operation, Class<T> taskClass,
                                       ClusterService clusterService,
+                                      CircuitBreakerService circuitBreakerService,
                                       ThreadPool threadPool) {
         this.taskManager = taskManager;
         this.action = action;
@@ -115,6 +118,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
         this.asyncTaskIndexService = new AsyncTaskIndexService<>(index, clusterService, threadPool.getThreadContext(), client,
             origin, i -> new StoredAsyncResponse<>(operation::readResponse, i), registry);
         this.clusterService = clusterService;
+        this.circuitBreakerService = circuitBreakerService;
         this.threadPool = threadPool;
     }
 
@@ -196,7 +200,7 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     private void storeResults(T searchTask, StoredAsyncResponse<Response> storedResponse, ActionListener<Void> finalListener) {
         try {
             asyncTaskIndexService.createResponse(searchTask.getExecutionId().getDocId(),
-                searchTask.getOriginHeaders(), storedResponse, ActionListener.wrap(
+                searchTask.getOriginHeaders(), storedResponse, circuitBreakerService, ActionListener.wrap(
                     // We should only unregister after the result is saved
                     resp -> {
                         logger.trace(() -> new ParameterizedMessage("stored eql search results for [{}]",

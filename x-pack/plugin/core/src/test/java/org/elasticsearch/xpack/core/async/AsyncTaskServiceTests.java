@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.tasks.TaskId;
@@ -36,6 +37,7 @@ import java.util.List;
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<AsyncSearchResponse> indexService;
+    private CircuitBreakerService circuitBreakerService;
 
     public String index = ".async-search";
 
@@ -43,6 +45,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
+        circuitBreakerService = getInstanceFromNode(CircuitBreakerService.class);
         indexService = new AsyncTaskIndexService<>(index, clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
@@ -138,7 +141,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
             PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
-            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, circuitBreakerService,  future);
             future.get();
             assertSettings();
         }
@@ -157,7 +160,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // So do updates
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, circuitBreakerService, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
         }
@@ -173,7 +176,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // But the index is still auto-created
         {
             PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
-            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, circuitBreakerService, future);
             future.get();
             assertSettings();
         }

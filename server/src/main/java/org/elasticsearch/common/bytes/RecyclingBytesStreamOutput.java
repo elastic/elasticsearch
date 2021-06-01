@@ -64,6 +64,15 @@ public class RecyclingBytesStreamOutput extends BytesStream {
         assert overflow.size() >= overflowSize;
     }
 
+    /**
+     * Returns the current size of the buffer.
+     *
+     * @return the number of bytes in this output stream.
+     */
+    public int size() {
+        return position;
+    }
+
     @Override
     public void writeBytes(byte[] b, int offset, int length) {
         if (position < buffer.length) {

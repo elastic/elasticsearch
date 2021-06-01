@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -39,6 +40,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
+    private CircuitBreakerService circuitBreakerService;
     private TaskManager taskManager;
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
 
@@ -122,6 +124,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
+        circuitBreakerService = getInstanceFromNode(CircuitBreakerService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
         taskManager = transportService.getTaskManager();
         indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
@@ -162,7 +165,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), future);
+                    new TestAsyncResponse(null, task.getExpirationTime()), circuitBreakerService, future);
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
 
@@ -204,7 +207,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), future);
+                    new TestAsyncResponse(null, task.getExpirationTime()), circuitBreakerService, future);
                 future.actionGet(TimeValue.timeValueSeconds(10));
             }
 
@@ -242,17 +245,17 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 // we need to store initial result
                 PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse(null, task.getExpirationTime()), futureCreate);
+                    new TestAsyncResponse(null, task.getExpirationTime()), circuitBreakerService, futureCreate);
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
 
                 PlainActionFuture<UpdateResponse> futureUpdate = new PlainActionFuture<>();
                 indexService.updateResponse(task.getExecutionId().getDocId(), emptyMap(),
-                    new TestAsyncResponse("final_response", task.getExpirationTime()), futureUpdate);
+                    new TestAsyncResponse("final_response", task.getExpirationTime()), circuitBreakerService, futureUpdate);
                 futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
             } else {
                 PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(task.getExecutionId().getDocId(), task.getOriginHeaders(),
-                    new TestAsyncResponse("final_response", task.getExpirationTime()), futureCreate);
+                    new TestAsyncResponse("final_response", task.getExpirationTime()), circuitBreakerService, futureCreate);
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
             }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.async;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
@@ -22,6 +23,7 @@ import static org.hamcrest.Matchers.equalTo;
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskIndexService<TestAsyncResponse> indexService;
+    private CircuitBreakerService circuitBreakerService;
 
     public static class TestAsyncResponse implements AsyncResponse<TestAsyncResponse> {
         public final String test;
@@ -72,6 +74,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
+        circuitBreakerService = getInstanceFromNode(CircuitBreakerService.class);
         indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
             client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry());
     }
@@ -79,9 +82,12 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     public void testEncodeSearchResponse() throws IOException {
         for (int i = 0; i < 10; i++) {
             TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10), randomLong());
-            String encoded = indexService.encodeResponse(response);
-            TestAsyncResponse same = indexService.decodeResponse(encoded);
-            assertThat(same, equalTo(response));
+            try (AsyncTaskIndexService.AsyncResponseUpdateContext updateContext =
+                     new AsyncTaskIndexService.AsyncResponseUpdateContext(circuitBreakerService)) {
+                String encoded = indexService.encodeResponse(response, updateContext);
+                TestAsyncResponse same = indexService.decodeResponse(encoded);
+                assertThat(same, equalTo(response));
+            }
         }
     }
 }

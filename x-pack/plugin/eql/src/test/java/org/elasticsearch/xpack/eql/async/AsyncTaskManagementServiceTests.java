@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private ClusterService clusterService;
     private TransportService transportService;
+    private CircuitBreakerService circuitBreakerService;
     private AsyncResultsService<TestTask, StoredAsyncResponse<TestResponse>> results;
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
@@ -129,6 +131,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
         transportService = getInstanceFromNode(TransportService.class);
+        circuitBreakerService = getInstanceFromNode(CircuitBreakerService.class);
         AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store =
             new AsyncTaskIndexService<>(index, clusterService, transportService.getThreadPool().getThreadContext(), client(), "test",
                 in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry());
@@ -148,7 +151,8 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
         return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
-            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool());
+            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, circuitBreakerService,
+            transportService.getThreadPool());
     }
 
     public void testReturnBeforeTimeout() throws Exception {

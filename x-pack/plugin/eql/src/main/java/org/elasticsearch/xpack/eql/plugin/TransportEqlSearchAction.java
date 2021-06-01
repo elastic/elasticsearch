@@ -21,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -62,11 +63,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
     @Inject
-    public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
+    public TransportEqlSearchAction(Settings settings, ClusterService clusterService, CircuitBreakerService circuitBreakerService,
+                                    TransportService transportService,
                                     ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
                                     NamedWriteableRegistry registry, Client client) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
-
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) : null;
         this.clusterService = clusterService;
@@ -75,7 +76,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
-            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
+            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService,
+            circuitBreakerService, threadPool);
     }
 
     @Override

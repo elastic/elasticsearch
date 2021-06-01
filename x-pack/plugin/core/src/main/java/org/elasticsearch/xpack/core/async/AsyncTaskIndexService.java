@@ -21,19 +21,23 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
@@ -180,16 +184,23 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void createResponse(String docId,
                                Map<String, String> headers,
                                R response,
-                               ActionListener<IndexResponse> listener) throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put(HEADERS_FIELD, headers);
-        source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
-        source.put(RESULT_FIELD, encodeResponse(response));
-        IndexRequest indexRequest = new IndexRequest(index)
-            .create(true)
-            .id(docId)
-            .source(source, XContentType.JSON);
-        clientWithOrigin.index(indexRequest, listener);
+                               CircuitBreakerService circuitBreakerService,
+                               ActionListener<IndexResponse> listener0) throws IOException {
+        AsyncResponseUpdateContext updateContext = new AsyncResponseUpdateContext(circuitBreakerService);
+        ActionListener<IndexResponse> listener = ActionListener.runAfter(listener0, () -> updateContext.close());
+        try {
+            Map<String, Object> source = new HashMap<>();
+            source.put(HEADERS_FIELD, headers);
+            source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
+            source.put(RESULT_FIELD, encodeResponse(response, updateContext));
+            IndexRequest indexRequest = new IndexRequest(index)
+                .create(true)
+                .id(docId)
+                .source(source, XContentType.JSON);
+            clientWithOrigin.index(indexRequest, listener);
+        } catch(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -198,11 +209,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void updateResponse(String docId,
                             Map<String, List<String>> responseHeaders,
                             R response,
-                            ActionListener<UpdateResponse> listener) {
+                            CircuitBreakerService circuitBreakerService,
+                            ActionListener<UpdateResponse> listener0) {
+        AsyncResponseUpdateContext updateContext = new AsyncResponseUpdateContext(circuitBreakerService);
+        ActionListener<UpdateResponse> listener = ActionListener.runAfter(listener0, () -> updateContext.close());
         try {
             Map<String, Object> source = new HashMap<>();
             source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-            source.put(RESULT_FIELD, encodeResponse(response));
+            source.put(RESULT_FIELD, encodeResponse(response, updateContext));
             UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
@@ -453,13 +467,27 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Encode the provided response in a binary form using base64 encoding.
+     * Encodes the provided response in a binary form using base64 encoding.
+     * Needs approximately up to 3.3X extra memory, where X is the original response size:
+     *  - extra X bytes - for RecyclingBytesStreamOutput that encodes the response in an array of bytes,
+     *      this memory allocation will be tracked automatically by BigArrays with circuitBreaker
+     *  - up to X bytes – for converting bytes stream to bytes array
+     *  - up to 1.3X bytes for encoded string, as Base64 adds around 33% overhead
+     *  @throws CircuitBreakingException
      */
-    String encodeResponse(R response) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
+    String encodeResponse(R response, AsyncResponseUpdateContext updateContext) throws IOException {
+        BigArrays bigArrays = new BigArrays(
+            null, updateContext.circuitBreakerService(), CircuitBreaker.REQUEST).withCircuitBreaking();
+        // using RecyclingBytesStreamOutput allows to supply BigArrays with a circuit breaker
+        try (RecyclingBytesStreamOutput out = new RecyclingBytesStreamOutput(new byte[0], bigArrays)) {
             Version.writeVersion(Version.CURRENT, out);
             response.writeTo(out);
-            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+
+            // need to check from circuitBreaker if additional 2.3X size is available
+            long estimatedSize = Math.round(out.size() * 2.3);
+            updateContext.addCircuitBreakerBytes(estimatedSize);
+
+            return Base64.getEncoder().encodeToString(out.toBytesRef().bytes);
         }
     }
 
@@ -483,6 +511,34 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             for (String value : entry.getValue()) {
                 threadContext.addResponseHeader(entry.getKey(), value);
             }
+        }
+    }
+
+    /**
+     * A helper class for updating async search responses to track the memory usage
+     */
+    static class AsyncResponseUpdateContext implements Releasable {
+        private long circuitBreakerBytes = 0L;
+        private CircuitBreakerService circuitBreakerService;
+
+        AsyncResponseUpdateContext(CircuitBreakerService circuitBreakerService) {
+            assert circuitBreakerService != null : "Circuit breaker service must be provided when storing async search response!";
+            this.circuitBreakerService = circuitBreakerService;
+        }
+
+        public CircuitBreakerService circuitBreakerService() {
+            return circuitBreakerService;
+        }
+
+        public void addCircuitBreakerBytes(long estimatedSize) {
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST)
+                .addEstimateBytesAndMaybeBreak(estimatedSize, "<storing_async_search_response>");
+            circuitBreakerBytes += estimatedSize;
+        }
+
+        @Override
+        public void close() {
+            circuitBreakerService.getBreaker(CircuitBreaker.REQUEST).addWithoutBreaking(-circuitBreakerBytes);
         }
     }
 }

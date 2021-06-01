@@ -400,13 +400,13 @@ public class InternalComposite
         if (formatted != null) {
             Object parsed;
             // Type Jank ahead
-            if (obj.getClass() == String.class || obj.getClass() == BytesRef.class) {
+            if (obj.getClass() == BytesRef.class) {
                 parsed = format.parseBytesRef(formatted.toString());
                 if (parsed.equals(obj) == false) {
                     throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
                         + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
                 }
-            } else if (obj.getClass() == Integer.class || obj.getClass() == Long.class) {
+            } else if (obj.getClass() == Long.class) {
                 parsed = format.parseLong(formatted.toString(), false, () -> {
                     throw new UnsupportedOperationException("Using now() is not supported in after keys");
                 });
@@ -414,15 +414,13 @@ public class InternalComposite
                     throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
                         + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
                 }
-            } else if (obj.getClass() == Float.class || obj.getClass() == Double.class) {
+            } else if (obj.getClass() == Double.class) {
                 parsed = format.parseDouble(formatted.toString(), false,
                     () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
                 if (parsed.equals(((Number) obj).doubleValue()) == false) {
                     throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
                         + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
                 }
-            } else {
-                throw new IllegalStateException("Got some weirdo value of type [" + obj.getClass() + "]");
             }
         }
         return formatted;

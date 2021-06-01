@@ -453,7 +453,8 @@ public class Coordinator extends AbstractLifecycleComponent implements Discovery
                 if (stateForJoinValidation.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
                     // we do this in a couple of places including the cluster update thread. This one here is really just best effort
                     // to ensure we fail as fast as possible.
-                    JoinTaskExecutor.ensureMajorVersionBarrier(joinRequest.getSourceNode().getVersion(),
+                    JoinTaskExecutor.ensureVersionBarrier(
+                        joinRequest.getSourceNode().getVersion(),
                         stateForJoinValidation.getNodes().getMinNodeVersion());
                 }
                 sendValidateJoinRequest(stateForJoinValidation, joinRequest, joinCallback);

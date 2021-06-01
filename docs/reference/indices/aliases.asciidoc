@@ -8,20 +8,25 @@ Performs one or more <<alias,alias>> actions in a single atomic operation.
 
 [source,console]
 ----
-POST /_aliases
+POST _aliases
 {
-  "actions" : [
-    { "add" : { "index" : "my-index-000001", "alias" : "alias1" } }
+  "actions": [
+    {
+      "add": {
+        "index": "my-data-stream",
+        "alias": "my-alias"
+      }
+    }
   ]
 }
 ----
-// TEST[setup:my_index]
-
+// TEST[setup:my_data_stream]
+// TEST[teardown:data_stream_cleanup]
 
 [[indices-aliases-api-request]]
 ==== {api-request-title}
 
-`POST /_aliases`
+`POST _aliases`
 
 [[indices-aliases-api-prereqs]]
 ==== {api-prereq-title}
@@ -30,138 +35,124 @@ POST /_aliases
 <<privileges-list-indices,index privileges>>:
 
 ** To use the `add` or `remove` action, you must have the `manage` index
-privilege for both the index and index alias.
+privilege for the alias and its data streams or indices.
 
 ** To use the `remove_index` action, you must have the `manage` index privilege
 for the index.
-
-[[indices-aliases-api-desc]]
-==== {api-description-title}
-
-APIs in Elasticsearch accept an index name when working against a
-specific index, and several indices when applicable. The index aliases
-API allows aliasing an index with a name, with all APIs automatically
-converting the alias name to the actual index name. An alias can also be
-mapped to more than one index, and when specifying it, the alias will
-automatically expand to the aliased indices. An alias can also be
-associated with a filter that will automatically be applied when
-searching, and routing values. An alias cannot have the same name as an index.
-
 
 [[indices-aliases-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[indices-aliases-api-request-body]]
 ==== {api-request-body-title}
 
 `actions`::
+(Required, array of objects) Actions to perform.
 +
---
-(Required, array of actions)
-Set of actions to perform.
-Valid actions include:
-
+.Properties of `actions` objects
+[%collapsible%open]
+====
+`<action>`::
+(Required, object) The key is the action type. At least one action is required.
++
+.Valid `<action>` keys
+[%collapsible%open]
+=====
 `add`::
-Adds an alias to an index.
+Adds a data stream or index to an alias. If the alias doesn't exist, the `add`
+action creates it.
 
 `remove`::
-Removes an alias from an index.
+Removes a data stream or index from an alias.
 
 `remove_index`::
-Deletes a concrete index, similar to the <<indices-delete-index, delete index
-API>>. Attempts to remove an index alias will fail.
-
-You can perform these actions on alias objects.
-Valid parameters for alias objects include:
-
-`index`::
-(String)
-Wildcard expression of index names
-used to perform the action.
+Deletes an index. You cannot use this action on aliases or data streams.
+=====
 +
-If the `indices` parameter is not specified,
-this parameter is required.
+The object body contains options for the alias. Supports an empty object.
 +
-NOTE: You cannot add <<data-streams,data streams>> to an index alias.
-
-`indices`::
-(Array)
-Array of index names
-used to perform the action.
-+
-If the `index` parameter is not specified,
-this parameter is required.
-+
-NOTE: You cannot add <<data-streams,data streams>> to an index alias.
-
+.Properties of `<action>`
+[%collapsible%open]
+=====
 `alias`::
-(String)
-Comma-separated list or wildcard expression of index alias names to add, remove,
-or delete. Supports <<date-math-index-names,date math>>.
-+
-If the `aliases` parameter is not specified,
-this parameter is required for the `add` or `remove` action.
+(Required*, string) Alias for the action. Index alias names support
+<<date-math-index-names,date math>>. If `aliases` is not specified, the `add`
+and `remove` actions require this parameter. The `remove_index` action doesn't
+support this parameter.
 
 `aliases`::
-(Array of strings)
-Array of index alias names to add, remove, or delete. Supports
-<<date-math-index-names,date math>>.
-+
-If the `alias` parameter is not specified, this parameter is required for the
-`add` or `remove` action.
+(Required*, array of strings) Aliases for the action. Index alias names support
+<<date-math-index-names,date math>>. If `alias` is not specified, the `add` and
+`remove` actions require this parameter. The `remove_index` action doesn't
+support this parameter.
 
+// tag::alias-options[]
 `filter`::
-(Optional, query object)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-alias-filter]
+(Optional, <<query-dsl,Query DSL object>> Query used to limit documents the
+alias can access. Data stream aliases don't support this parameter.
+// end::alias-options[]
 +
-See <<filter-alias>> for an example.
+Only the `add` action supports this parameter.
 
+`index`::
+(Required*, string) Data stream or index for the action. Supports wildcards
+(`*`). Wildcard patterns that match both data streams and indices return an
+error. If `indices` is not specified, this parameter is required.
+
+`indices`::
+(Required*, array of strings) Data streams or indices for the action. Supports
+wildcards (`*`). Wildcard patterns that match both data streams and indices
+return an error. If `index` is not specified, this parameter is required.
+
+// tag::alias-options[]
+`index_routing`::
+(Optional, string) Value used to route indexing operations to a specific shard.
+If specified, this overwrites the `routing` value for indexing operations. Data
+stream aliases don't support this parameter.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
+
+// tag::alias-options[]
 `is_hidden`::
-(Optional, Boolean)
-If `true`, the alias will be excluded from wildcard expressions by default,
-unless overridden in the request using the `expand_wildcards` parameter,
-similar to <<index-hidden,hidden indices>>. This property must be set to the
-same value on all indices that share an alias. Defaults to `false`.
+(Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
+`false`. All data streams or indices for the alias must have the same
+`is_hidden` value.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
+
+// tag::alias-options[]
+`is_write_index`::
+(Optional, Boolean) If `true`, sets the <<write-index,write index or data
+stream>> for the alias. Defaults to `false`.
+// end::alias-options[]
++
+Only the `add` action supports this parameter.
 
 `must_exist`::
 (Optional, Boolean)
-If `true`, the alias to remove must exist. Defaults to `false`.
+If `true`, the alias must exist to perform the action. Defaults to `false`. Only
+the `remove` action supports this parameter. 
 
-`is_write_index`::
-(Optional, Boolean)
-If `true`, assigns the index as an alias's write index.
-Defaults to `false`.
+// tag::alias-options[]
+`routing`::
+(Optional, string) Value used to route indexing and search operations to a
+specific shard. Data stream aliases don't support this parameter.
+// end::alias-options[]
 +
-An alias can have one write index at a time.
-+
-See <<write-index>> for an example.
-+
-[IMPORTANT]
-====
-Aliases that do not explicitly set `is_write_index: true` for an index, and
-only reference one index, will have that referenced index behave as if it is the write index
-until an additional index is referenced. At that point, there will be no write index and
-writes will be rejected.
-====
+Only the `add` action supports this parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
-+
-See <<alias-routing>> for an example.
-
-`index_routing`::
-(Optional, string)
-Custom <<mapping-routing-field, routing value>> used
-for the alias's indexing operations.
-+
-See <<alias-routing>> for an example.
-
+// tag::alias-options[]
 `search_routing`::
-(Optional, string)
-Custom <<mapping-routing-field, routing value>> used
-for the alias's search operations.
+(Optional, string) Value used to route search operations to a specific shard. If
+specified, this overwrites the `routing` value for search operations. Data
+stream aliases don't support this parameter.
+// end::alias-options[]
 +
-See <<alias-routing>> for an example.
---
+Only the `add` action supports this parameter.
+=====
+====

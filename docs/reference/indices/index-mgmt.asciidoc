@@ -125,14 +125,14 @@ with that index pattern.
 
 . Leave *Data Stream*, *Priority*, *Version*, and *_meta field* blank or as-is.
 
-*Step 2. Add settings, mappings, and index aliases*
+*Step 2. Add settings, mappings, and aliases*
 
 . Add <<indices-component-template,component templates>> to your index template.
 +
 Component templates are pre-configured sets of mappings, index settings, and
-index aliases you can reuse across multiple index templates. Badges indicate
+aliases you can reuse across multiple index templates. Badges indicate
 whether a component template contains mappings (*M*), index settings (*S*),
-index aliases (*A*), or a combination of the three.
+aliases (*A*), or a combination of the three.
 +
 Component templates are optional. For this tutorial, do not add any component
 templates.
@@ -171,7 +171,7 @@ You can create additional mapping configurations in the *Dynamic templates* and
 *Advanced options* tabs. For this tutorial, do not create any additional
 mappings.
 
-. Define an index alias named `my-index`:
+. Define an alias named `my-index`:
 +
 [source,js]
 ----

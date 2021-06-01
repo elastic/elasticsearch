@@ -14,7 +14,7 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses = ['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
 artifacts {

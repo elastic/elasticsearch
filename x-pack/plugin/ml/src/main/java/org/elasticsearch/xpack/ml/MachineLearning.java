@@ -45,6 +45,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -237,6 +238,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider;
@@ -256,7 +258,6 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -264,6 +265,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizer;
@@ -658,8 +661,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         );
         AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(resultsPersisterService);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
-        JobResultsPersister jobResultsPersister =
-            new JobResultsPersister(originSettingClient, resultsPersisterService, anomalyDetectionAuditor);
+        JobResultsPersister jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         JobDataCountsPersister jobDataCountsPersister = new JobDataCountsPersister(client,
             resultsPersisterService,
             anomalyDetectionAuditor);
@@ -1075,6 +1077,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             1, MAX_MAX_OPEN_JOBS_PER_NODE, TimeValue.timeValueMinutes(1), "xpack.ml.datafeed_thread_pool");
 
         return Arrays.asList(jobComms, utility, datafeed);
+    }
+
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return Collections.singletonMap(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new);
     }
 
     @Override

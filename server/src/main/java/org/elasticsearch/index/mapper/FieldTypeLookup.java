@@ -155,39 +155,12 @@ final class FieldTypeLookup {
      * twice.
      */
     Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        if (Regex.isMatchAllPattern(pattern)) {
-            if (dynamicFieldTypes.isEmpty()) {
-                return fullNameToFieldType.values();
-            }
-            List<MappedFieldType> fieldTypes = new ArrayList<>(fullNameToFieldType.values());
-            for (DynamicFieldType dynamicFieldType : dynamicFieldTypes.values()) {
-                for (String subfield : dynamicFieldType.getKnownSubfields()) {
-                    fieldTypes.add(dynamicFieldType.getChildFieldType(subfield));
-                }
-            }
-            return fieldTypes;
+        Set<String> matchingFieldNames = getMatchingFieldNames(pattern);
+        List<MappedFieldType> fieldTypes = new ArrayList<>();
+        for (String matchingFieldName : matchingFieldNames) {
+            fieldTypes.add(get(matchingFieldName));
         }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            MappedFieldType ft = get(pattern);
-            return ft == null ? Collections.emptySet() : Collections.singleton(ft);
-        }
-        List<MappedFieldType> matchingFields = new ArrayList<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(fullNameToFieldType.get(field));
-            }
-        }
-        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
-            String parentName = dynamicFieldTypeEntry.getKey();
-            DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
-            for (String subfield : dynamicFieldType.getKnownSubfields()) {
-                if (Regex.simpleMatch(pattern, parentName + "." + subfield)) {
-                    matchingFields.add(dynamicFieldType.getChildFieldType(subfield));
-                }
-            }
-        }
-        return matchingFields;
+        return Collections.unmodifiableList(fieldTypes);
     }
 
     /**

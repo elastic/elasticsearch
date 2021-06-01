@@ -486,7 +486,8 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
     }
 
-    //  ./gradlew ':qa:mixed-cluster:v7.14.0#mixedClusterTest' --tests "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT.test" -Dtests.method="test {p0=search.aggregation/280_rare_terms/*}"
+    //  ./gradlew ':qa:mixed-cluster:v7.14.0#mixedClusterTest' --tests "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT.test"
+    //  -Dtests.method="test {p0=search.aggregation/280_rare_terms/*}"
     private static class Mutable {
         static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
         static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
@@ -508,13 +509,7 @@ public class CuckooFilter implements Writeable {
         private final int bitsPerValue;
         private final int valueCount;
 
-        /**
-         * Creates an array with the internal structures adjusted for the given
-         * limits and initialized to 0.
-         * @param valueCount   the number of elements.
-         * @param bitsPerValue the number of bits available for any given value.
-         */
-        public Mutable(int valueCount, int bitsPerValue) {
+        Mutable(int valueCount, int bitsPerValue) {
             this.bitsPerValue = bitsPerValue;
             this.valueCount = valueCount;
             final PackedInts.Format format = PackedInts.Format.PACKED;
@@ -524,13 +519,7 @@ public class CuckooFilter implements Writeable {
             bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
         }
 
-        /**
-         * Creates an array with content retrieved from the given DataInput.
-         * @param in       a DataInput, positioned at the start of Packed64-content.
-         * @throws java.io.IOException if the values for the backing array could not
-         *                             be retrieved.
-         */
-        public Mutable(StreamInput in)
+        Mutable(StreamInput in)
             throws IOException {
             this.bitsPerValue = in.readVInt();
             this.valueCount = in.readVInt();
@@ -556,10 +545,6 @@ public class CuckooFilter implements Writeable {
             return valueCount;
         }
 
-        /**
-         * @param index the position of the value.
-         * @return the value at the given index.
-         */
         public long get(final int index) {
             // The abstract index in a bit stream
             final long majorBitPos = (long)index * bitsPerValue;

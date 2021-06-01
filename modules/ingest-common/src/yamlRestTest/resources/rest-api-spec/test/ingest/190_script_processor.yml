@@ -227,14 +227,13 @@ teardown:
         index: test
         id: 1
         pipeline: "my_pipeline"
-        body: {source_field: "http://www.example.com"}
+        body: {source_field: "http://www.example.com/index.html"}
 
   - do:
       get:
         index: test
         id: 1
-  - match: { _source.source_field: "http://www.example.com" }
+  - match: { _source.source_field: "http://www.example.com/index.html" }
   - match: { _source.target_field.scheme: "http" }
   - match: { _source.target_field.domain: "www.example.com" }
-  - match: { _source.target_field.original: "http://www.example.com" }
-  - match: { _source.target_field.path: "" }
+  - match: { _source.target_field.path: "/index.html" }

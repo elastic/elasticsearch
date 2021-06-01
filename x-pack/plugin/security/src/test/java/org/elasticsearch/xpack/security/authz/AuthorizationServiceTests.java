@@ -1830,7 +1830,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
             @Override
             public void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                                              Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener) {
+                                              Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
 

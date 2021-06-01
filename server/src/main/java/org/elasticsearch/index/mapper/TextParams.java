@@ -45,9 +45,11 @@ public final class TextParams {
             this.searchAnalyzer
                 = Parameter.analyzerParam("search_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchAnalyzer(), () -> {
-                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
-                    if (defaultAnalyzer != null) {
-                        return defaultAnalyzer;
+                    if (indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
                     }
                     return indexAnalyzer.get();
                 })
@@ -56,9 +58,11 @@ public final class TextParams {
             this.searchQuoteAnalyzer
                 = Parameter.analyzerParam("search_quote_analyzer", true,
                 m -> m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer(), () -> {
-                    NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
-                    if (defaultAnalyzer != null) {
-                        return defaultAnalyzer;
+                    if (searchAnalyzer.isConfigured() == false && indexAnalyzer.isConfigured() == false) {
+                        NamedAnalyzer defaultAnalyzer = indexAnalyzers.get(AnalysisRegistry.DEFAULT_SEARCH_QUOTED_ANALYZER_NAME);
+                        if (defaultAnalyzer != null) {
+                            return defaultAnalyzer;
+                        }
                     }
                     return searchAnalyzer.get();
                 })

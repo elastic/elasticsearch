@@ -260,15 +260,25 @@ POST _aliases
   "actions": [
     {
       "add": {
-        "index": "my-index-2099.05.07-000002",
+        "index": "my-index-2099.05.06-000001",
         "alias": "my-alias",
-        "is_write_index": true,
         "filter": {
-          "range": {
-            "@timestamp": {
-              "gte": "now-1d/d",
-              "lt": "now/d"
-            }
+          "bool": {
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-1d/d",
+                    "lt": "now/d"
+                  }
+                }
+              },
+              {
+                "term": {
+                  "user.id": "kimchy"
+                }
+              }
+            ]
           }
         }
       }
@@ -276,7 +286,7 @@ POST _aliases
   ]
 }
 ----
-// TEST[s/^/PUT my-index-2099.05.07-000002\n/]
+// TEST[s/^/PUT my-index-2099.05.06-000001\n/]
 
 [discrete]
 [[alias-routing]]

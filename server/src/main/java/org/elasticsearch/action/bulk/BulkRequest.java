@@ -228,7 +228,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.V_8);
+        return add(data, defaultIndex, null, null, null, null, true, xContentType, RestApiVersion.current());
     }
 
     /**
@@ -236,7 +236,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
      */
     public BulkRequest add(BytesReference data, @Nullable String defaultIndex, boolean allowExplicitIndex,
                            XContentType xContentType) throws IOException {
-        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.V_8);
+        return add(data, defaultIndex, null, null, null, null, allowExplicitIndex, xContentType, RestApiVersion.current());
 
     }
 

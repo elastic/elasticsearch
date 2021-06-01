@@ -399,7 +399,7 @@ public class BulkProcessor implements Closeable {
         try {
             ensureOpen();
             bulkRequest.add(data, defaultIndex, null, null, defaultPipeline, null,
-                true, xContentType, RestApiVersion.current()); //TOASKONREVIEWis this only used in server, not from Rest?
+                true, xContentType, RestApiVersion.current());
             bulkRequestToExecute = newBulkRequestIfNeeded();
         } finally {
             lock.unlock();

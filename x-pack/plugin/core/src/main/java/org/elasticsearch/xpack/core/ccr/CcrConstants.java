@@ -7,8 +7,9 @@
 
 package org.elasticsearch.xpack.core.ccr;
 
-public class CCR {
+public class CcrConstants {
     public static final String CCR_CUSTOM_METADATA_KEY = "ccr";
+    public static final String CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY = "leader_index_uuid";
 
-    private CCR() {}
+    private CcrConstants() {}
 }

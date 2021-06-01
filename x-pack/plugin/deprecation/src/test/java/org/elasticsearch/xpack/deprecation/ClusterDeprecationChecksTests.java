@@ -23,12 +23,14 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -316,32 +318,40 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
     }
 
     public void testSystemIndicesFollowed() {
+        final Map<String, List<String>> followed =
+            Collections.singletonMap("pattern1", org.elasticsearch.common.collect.List.of("leader_uuid1", "leader_uuid2"));
+        AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(), followed, Collections.emptyMap());
+
         IndexMetadata systemIndexFollower = IndexMetadata.builder(".system_index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap("ccr-data", "data"))
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY,
+                Collections.singletonMap(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "leader_uuid1"))
             .system(true)
             .build();
 
         Metadata invalid = Metadata.builder()
             .put(systemIndexFollower, true)
+            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
             .build();
         ClusterState invalidState = ClusterState.builder(new ClusterName("test")).metadata(invalid).build();
         List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(invalidState));
         assertThat(issues, hasSize(1));
-        assertThat(issues.get(0).getDetails(),
-            equalTo("Follower indices [.system_index] follow remote system indices and this will not work in the next major version."));
+        assertThat(issues.get(0).getDetails(), equalTo("Auto followed indices [.system_index] follow remote system indices " +
+            "and this behaviour will change in the next major version."));
 
         IndexMetadata regularIndexFollower = IndexMetadata.builder("regular_index")
             .settings(settings(Version.CURRENT))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap("ccr-data", "data"))
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY,
+                Collections.singletonMap(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "leader_uuid2"))
             .build();
 
         Metadata validMetadata = Metadata.builder()
             .put(regularIndexFollower, true)
+            .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata)
             .build();
 
         ClusterState validState = ClusterState.builder(new ClusterName("test")).metadata(validMetadata).build();

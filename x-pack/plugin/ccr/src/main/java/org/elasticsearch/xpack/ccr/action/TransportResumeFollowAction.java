@@ -48,7 +48,7 @@ import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
@@ -122,7 +122,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(CCR.CCR_CUSTOM_METADATA_KEY);
+        final Map<String, String> ccrMetadata = followerIndexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
         if (ccrMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
@@ -184,12 +184,12 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         final MapperService followerMapperService) {
         FollowParameters parameters = request.getParameters();
 
-        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(CCR.CCR_CUSTOM_METADATA_KEY);
+        Map<String, String> ccrIndexMetadata = followIndex.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
         if (ccrIndexMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ followIndex.getIndex().getName() + "] does not have ccr metadata");
         }
         String leaderIndexUUID = leaderIndex.getIndex().getUUID();
-        String recordedLeaderIndexUUID = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+        String recordedLeaderIndexUUID = ccrIndexMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
         if (leaderIndexUUID.equals(recordedLeaderIndexUUID) == false) {
             throw new IllegalArgumentException("follow index [" + request.getFollowerIndex() + "] should reference [" +
                 leaderIndexUUID + "] as leader index but instead reference [" + recordedLeaderIndexUUID + "] as leader index");

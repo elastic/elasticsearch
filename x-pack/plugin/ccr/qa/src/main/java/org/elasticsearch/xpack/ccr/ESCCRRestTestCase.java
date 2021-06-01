@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.ccr;
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -329,6 +331,11 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster) throws IOException {
+        createAutoFollowPattern(client, name, pattern, remoteCluster, WarningsHandler.PERMISSIVE);
+    }
+
+    protected static void createAutoFollowPattern(RestClient client, String name, String pattern, String remoteCluster,
+                                                  WarningsHandler warningsHandler) throws IOException {
         Request request = new Request("PUT", "/_ccr/auto_follow/" + name);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
@@ -343,6 +350,8 @@ public class ESCCRRestTestCase extends ESRestTestCase {
             bodyBuilder.endObject();
             request.setJsonEntity(Strings.toString(bodyBuilder));
         }
+
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warningsHandler));
         assertOK(client.performRequest(request));
     }
 

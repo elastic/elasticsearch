@@ -20,7 +20,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.CcrSettings;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.Collections;
@@ -39,7 +39,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(Metadata.builder()
@@ -50,7 +50,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
 
         IndexMetadata resultIMD = result.metadata().index("follow_index");
         assertThat(resultIMD.getSettings().get(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey()), nullValue());
-        assertThat(resultIMD.getCustomData(CCR.CCR_CUSTOM_METADATA_KEY), nullValue());
+        assertThat(resultIMD.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY), nullValue());
         assertThat(resultIMD.getSettingsVersion(), equalTo(settingsVersion + 1));
     }
 
@@ -59,7 +59,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .settings(settings(Version.CURRENT).put(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey(), true))
             .numberOfShards(1)
             .numberOfReplicas(0)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(Metadata.builder()
@@ -77,7 +77,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
 
         ShardFollowTask params = new ShardFollowTask(
@@ -116,7 +116,7 @@ public class TransportUnfollowActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .state(IndexMetadata.State.CLOSE)
-            .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+            .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
 
         ClusterState current = ClusterState.builder(new ClusterName("cluster_name"))
             .metadata(Metadata.builder()

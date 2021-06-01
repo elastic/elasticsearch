@@ -88,7 +88,7 @@ import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkAct
 import org.elasticsearch.xpack.ccr.action.repositories.GetCcrRestoreFileChunkRequest;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionAction;
 import org.elasticsearch.xpack.ccr.action.repositories.PutCcrRestoreSessionRequest;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -220,10 +220,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // Adding the leader index uuid for each shard as custom metadata:
         Map<String, String> metadata = new HashMap<>();
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetadata.getIndexUUID());
+        metadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetadata.getIndexUUID());
         metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetadata.getIndex().getName());
         metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
-        imdBuilder.putCustom(CCR.CCR_CUSTOM_METADATA_KEY, metadata);
+        imdBuilder.putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, metadata);
 
         imdBuilder.settings(leaderIndexMetadata.getSettings());
 
@@ -344,9 +344,11 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             // TODO: Add timeouts to network calls / the restore process.
             createEmptyStore(store);
 
-            final Map<String, String> ccrMetadata = store.indexSettings().getIndexMetadata().getCustomData(CCR.CCR_CUSTOM_METADATA_KEY);
+            final Map<String, String> ccrMetadata = store.indexSettings()
+                .getIndexMetadata()
+                .getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
             final String leaderIndexName = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-            final String leaderUUID = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+            final String leaderUUID = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
             final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
             final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());
 

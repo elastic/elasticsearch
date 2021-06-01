@@ -11,9 +11,12 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.WarningFailureException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -23,6 +26,7 @@ import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskResultsService;
 
 import java.io.IOException;
 import java.text.SimpleDateFormat;
@@ -36,6 +40,7 @@ import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.ObjectPath.eval;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
@@ -791,6 +796,38 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         });
 
         deleteAutoFollowPattern(client(), autoFollowPattern);
+    }
+
+    public void testFollowSystemIndexTriggersDeprecationWarnings() throws Exception {
+        if ("leader".equals(targetCluster)) {
+            final Request request = new Request("POST", "/" + TaskResultsService.TASK_INDEX + "/_doc/123");
+            XContentBuilder document = jsonBuilder();
+            document.startObject();
+            document.field("completed", true);
+            document.endObject();
+
+            // Avoid throwing a warning exception since we're writing into a system index
+            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false));
+            request.setJsonEntity(Strings.toString(document));
+            assertOK(adminClient().performRequest(request));
+            ensureGreen(TaskResultsService.TASK_INDEX);
+        } else {
+            final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
+
+            final WarningFailureException exception = expectThrows(WarningFailureException.class,
+                () -> createAutoFollowPattern(client(), testPrefix, ".*", "leader_cluster", WarningsHandler.STRICT));
+
+            final List<String> warnings = exception.getResponse().getWarnings();
+            boolean expectedWarningMessageFound = warnings.stream()
+                .anyMatch(warning ->
+                    warning.startsWith("Auto following a system index [" + TaskResultsService.TASK_INDEX) &&
+                        warning.endsWith("will not work in the next major version"));
+            assertThat(
+                "Expected to find a warning about auto following system indices but the warnings are: " + warnings,
+                expectedWarningMessageFound,
+                equalTo(true)
+            );
+        }
     }
 
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {

@@ -26,7 +26,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -118,8 +118,8 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
             Metadata metadata = getFollowerCluster().clusterService().state().metadata();
             String leaderIndexUUID = metadata.index("copy-logs-201901")
-                .getCustomData(CCR.CCR_CUSTOM_METADATA_KEY)
-                .get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+                .getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY)
+                .get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
             AutoFollowMetadata autoFollowMetadata = metadata.custom(AutoFollowMetadata.TYPE);
             assertThat(autoFollowMetadata, notNullValue());
             List<String> followedLeaderIndixUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs().get("my-pattern");

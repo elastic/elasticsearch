@@ -22,10 +22,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -194,15 +196,23 @@ public class ClusterDeprecationChecks {
     }
 
     static DeprecationIssue checkFollowedSystemIndices(ClusterState state) {
+        AutoFollowMetadata autoFollowMetadata = state.metadata().custom(AutoFollowMetadata.TYPE);
+        final List<String> followedLeaderIndexUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs()
+            .values()
+            .stream()
+            .flatMap(Collection::stream)
+            .collect(Collectors.toList());
+
         Set<String> systemIndexFollowers = new HashSet<>();
         for (ObjectObjectCursor<String, IndexMetadata> indexEntry : state.metadata().getIndices()) {
             final IndexMetadata indexMetadata = indexEntry.value;
-            final Map<String, String> ccrMetadata = indexMetadata.getCustomData(CCR.CCR_CUSTOM_METADATA_KEY);
+            final Map<String, String> ccrMetadata = indexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
             if (ccrMetadata == null) {
                 continue;
             }
-            if (indexMetadata.isSystem()) {
-                systemIndexFollowers.add(indexEntry.key);
+            final String leaderIndexUUID = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+            if (indexMetadata.isSystem() && followedLeaderIndexUUIDs.contains(leaderIndexUUID)) {
+                systemIndexFollowers.add(indexMetadata.getIndex().getName());
             }
         }
 
@@ -211,10 +221,10 @@ public class ClusterDeprecationChecks {
         }
 
         return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Some follower indices follow remote system indices",
+            "Some auto followed indices follow remote system indices",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
-            "Follower indices " + systemIndexFollowers
-                + " follow remote system indices and this will not work in the next major version."
+            "Auto followed indices " + systemIndexFollowers
+                + " follow remote system indices and this behaviour will change in the next major version."
         );
     }
 }

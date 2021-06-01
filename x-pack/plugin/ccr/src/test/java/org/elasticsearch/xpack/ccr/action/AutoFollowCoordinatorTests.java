@@ -34,14 +34,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.CCR;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -1783,8 +1782,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .metadata(Metadata.builder()
                 .put(IndexMetadata.builder("logs-20190101")
                     .settings(settings(Version.CURRENT))
-                    .putCustom(CCR.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
-                        remoteState.metadata().index("logs-20190101").getIndexUUID()))
+                    .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY,
+                        Collections.singletonMap(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
+                                                 remoteState.metadata().index("logs-20190101").getIndexUUID()))
                     .numberOfShards(1)
                     .numberOfReplicas(0))
                 .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))

@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -43,6 +45,8 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMasterNodeAction<PutAutoFollowPatternAction.Request> {
+
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutAutoFollowPatternAction.class);
 
     private final Client client;
     private final CcrLicenseChecker ccrLicenseChecker;
@@ -196,6 +200,12 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         for (final IndexMetadata indexMetadata : leaderMetadata) {
             IndexAbstraction indexAbstraction = leaderMetadata.getIndicesLookup().get(indexMetadata.getIndex().getName());
             if (AutoFollowPattern.match(patterns, indexAbstraction)) {
+                if (indexAbstraction.isSystem()) {
+                    deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                        "ccr_auto_follow_system_indices",
+                        "Auto following a system index " + indexMetadata.getIndex() + " will not work in the next major version"
+                    );
+                }
                 followedIndexUUIDS.add(indexMetadata.getIndexUUID());
             }
         }

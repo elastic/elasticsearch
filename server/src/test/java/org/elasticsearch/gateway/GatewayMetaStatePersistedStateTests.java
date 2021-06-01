@@ -49,12 +49,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -296,6 +298,8 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
         final ClusterState state = createClusterState(randomNonNegativeLong(),
             Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
+
+        //noinspection EmptyTryBlock
         try (GatewayMetaState.LucenePersistedState ignored = new GatewayMetaState.LucenePersistedState(
             persistedClusterStateService, 42L, state)) {
 
@@ -519,10 +523,76 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
+    public void testStatePersistenceWithFatalError() throws IOException {
+        final AtomicBoolean throwError = new AtomicBoolean();
+        final BigArrays realBigArrays = getBigArrays();
+        final BigArrays mockBigArrays = mock(BigArrays.class);
+        when(mockBigArrays.newByteArray(anyLong())).thenAnswer(invocationOnMock ->
+        {
+            if (throwError.get()) {
+                throw new TestError();
+            }
+            return realBigArrays.newByteArray((Long) invocationOnMock.getArguments()[0]);
+        });
+
+        final PersistedClusterStateService persistedClusterStateService =
+            new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), mockBigArrays,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+        ClusterState state = createClusterState(randomNonNegativeLong(),
+            Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
+        long currentTerm = 42L;
+        try (GatewayMetaState.LucenePersistedState persistedState = new GatewayMetaState.LucenePersistedState(
+            persistedClusterStateService, currentTerm, state)) {
+
+            throwError.set(true);
+
+            final ClusterState newState = createClusterState(
+                randomNonNegativeLong(),
+                Metadata.builder()
+                    .clusterUUID(randomAlphaOfLength(10))
+                    .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
+                    .build());
+            expectThrows(TestError.class, () -> persistedState.setLastAcceptedState(newState));
+
+            throwError.set(false);
+
+            currentTerm += 1;
+            persistedState.setCurrentTerm(currentTerm);
+
+            assertEquals(state, persistedState.getLastAcceptedState());
+            assertEquals(currentTerm, persistedState.getCurrentTerm());
+        }
+
+        nodeEnvironment.close();
+
+        Path path = nodeEnvironment.nodeDataPath();
+        Settings settings = Settings.builder()
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
+            .put(Environment.PATH_DATA_SETTING.getKey(), path.toString()).build();
+        try (NodeEnvironment nodeEnvironment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings))) {
+            final PersistedClusterStateService newPersistedClusterStateService =
+                new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
+                    new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L);
+            final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadOnDiskState();
+            assertFalse(onDiskState.empty());
+            assertThat(onDiskState.currentTerm, equalTo(currentTerm));
+            assertClusterStateEqual(state,
+                ClusterState.builder(ClusterName.DEFAULT)
+                    .version(onDiskState.lastAcceptedVersion)
+                    .metadata(onDiskState.metadata).build());
+        }
+    }
+
     private static BigArrays getBigArrays() {
         return usually()
                 ? BigArrays.NON_RECYCLING_INSTANCE
                 : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    private static final class TestError extends Error {
+        TestError() {
+            super("test error");
+        }
     }
 
 }

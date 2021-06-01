@@ -50,9 +50,7 @@ This is a possible response:
     "anomaly_detectors" : {
       "categorization_analyzer" : {
         "char_filter" : [
-          {
-            "first_non_blank_line"
-          }
+          "first_non_blank_line"
         ],
         "tokenizer" : "ml_standard",
         "filter" : [

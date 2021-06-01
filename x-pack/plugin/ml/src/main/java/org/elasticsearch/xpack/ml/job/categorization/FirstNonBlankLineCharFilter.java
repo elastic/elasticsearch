@@ -80,29 +80,19 @@ public class FirstNonBlankLineCharFilter extends BaseCharFilter {
         }
 
         if (seenNonWhitespaceChar == false) {
-            addOffCorrectMap(0, input.length());
             return "";
         }
-
-        int indexAfterPrevNewline = prevNewlineIndex + 1;
 
         if (endIndex == -1) {
             if (prevNewlineIndex == -1) {
                 // This is pretty likely, as most log messages _aren't_ multiline, so worth optimising
-                // for even though the next return would be functionally identical
+                // for even though the return at the end of the method would be functionally identical
                 return input;
             }
-            addOffCorrectMap(0, indexAfterPrevNewline);
-            return input.subSequence(indexAfterPrevNewline, input.length());
+            endIndex = input.length();
         }
 
-        addOffCorrectMap(0, indexAfterPrevNewline);
-        addOffCorrectMap(endIndex - indexAfterPrevNewline, input.length() - endIndex + indexAfterPrevNewline);
-        return input.subSequence(indexAfterPrevNewline, endIndex);
-    }
-
-    @Override
-    protected int correct(int currentOff) {
-        return Math.max(0, super.correct(currentOff));
+        addOffCorrectMap(0, prevNewlineIndex + 1);
+        return input.subSequence(prevNewlineIndex + 1, endIndex);
     }
 }

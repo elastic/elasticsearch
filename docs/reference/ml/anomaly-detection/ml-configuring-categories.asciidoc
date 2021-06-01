@@ -157,9 +157,9 @@ POST _ml/anomaly_detectors/_validate
 {
   "analysis_config" : {
     "categorization_analyzer" : {
-      "char_filter" : [{
+      "char_filter" : [
         "first_non_blank_line"
-      }],
+      ],
       "tokenizer" : "ml_standard",
       "filter" : [
         { "type" : "stop", "stopwords": [
@@ -204,9 +204,9 @@ PUT _ml/anomaly_detectors/it_ops_new_logs3
       "detector_description": "Unusual message counts"
     }],
     "categorization_analyzer":{
-      "char_filter" : [{
-        "first_non_blank_line"
-      }],
+      "char_filter" : [
+        "first_non_blank_line" <1>
+      ],
       "tokenizer": {
         "type" : "simple_pattern_split",
         "pattern" : "[^-0-9A-Za-z_./]+" <2>

@@ -110,6 +110,6 @@
   - match: { tokens.0.end_offset: 9 }
   - match: { tokens.0.position: 0 }
   - match: { tokens.1.token: "line" }
-  - match: { tokens.1.start_offset: 11 }
-  - match: { tokens.1.end_offset: 18 }
+  - match: { tokens.1.start_offset: 10 }
+  - match: { tokens.1.end_offset: 14 }
   - match: { tokens.1.position: 1 }

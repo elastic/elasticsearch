@@ -107,4 +107,22 @@ public class FirstNonBlankLineCharFilterTests extends ESTestCase {
         assertThat(filter.read(), equalTo(-1));
         assertThat(new String(output), equalTo(lineToKeep));
     }
+
+    public void testCorrect() throws IOException {
+
+        String input = "   \nfirst line\nsecond line";
+        FirstNonBlankLineCharFilter filter = new FirstNonBlankLineCharFilter(new StringReader(input));
+
+        String expectedOutput = "first line";
+
+        char[] output = new char[expectedOutput.length()];
+        assertThat(filter.read(output, 0, output.length), equalTo(expectedOutput.length()));
+        assertThat(filter.read(), equalTo(-1));
+        assertThat(new String(output), equalTo(expectedOutput));
+
+        int expectedOutputIndex = input.indexOf(expectedOutput);
+        for (int i = 0; i <= expectedOutput.length(); ++i) {
+            assertThat(filter.correctOffset(i), equalTo(expectedOutputIndex + i));
+        }
+    }
 }

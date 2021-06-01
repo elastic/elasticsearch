@@ -224,12 +224,13 @@ public class JobManager {
 
     /**
      * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
-     * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
-     * appropriate analysis modules/plugins.
-     * The overall structure can be validated at parse time, but the exact names need to be checked separately,
-     * as plugins that provide the functionality can be installed/uninstalled.
      * If the user has not provided a categorization analyzer then set the standard one if categorization is
-     * being used at all and all the nodes in the cluster are running a version that will understand it.
+     * being used at all and all the nodes in the cluster are running a version that will understand it.  This
+     * method must only be called when a job is first created - since it applies a default if it were to be
+     * called after that it could change the meaning of a job that has already run.  The validation in this
+     * method has to be done server-side; it cannot be done in a client as that won't have loaded the appropriate
+     * analysis modules/plugins. (The overall structure can be validated at parse time, but the exact names need
+     * to be checked separately, as plugins that provide the functionality can be installed/uninstalled.)
      */
     static void validateCategorizationAnalyzerOrSetDefault(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry,
                                                            Version minNodeVersion) throws IOException {

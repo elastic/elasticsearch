@@ -196,7 +196,7 @@ public class ClusterDeprecationChecks {
             );
     }
 
-    static DeprecationIssue checkFollowedSystemIndices(ClusterState state) {
+    static DeprecationIssue checkAutoFollowedSystemIndices(ClusterState state) {
         AutoFollowMetadata autoFollowMetadata = state.metadata().custom(AutoFollowMetadata.TYPE);
         final List<String> followedLeaderIndexUUIDs;
         if (autoFollowMetadata == null) {

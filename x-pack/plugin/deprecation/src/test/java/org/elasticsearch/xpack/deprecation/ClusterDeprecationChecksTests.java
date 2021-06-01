@@ -317,7 +317,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         );
     }
 
-    public void testSystemIndicesFollowed() {
+    public void testAutoFollowedSystemIndices() {
         final Map<String, List<String>> followed =
             Collections.singletonMap("pattern1", org.elasticsearch.common.collect.List.of("leader_uuid1", "leader_uuid2"));
         AutoFollowMetadata autoFollowMetadata = new AutoFollowMetadata(Collections.emptyMap(), followed, Collections.emptyMap());

@@ -465,7 +465,7 @@ public class XPackLicenseState {
      *                               May be {@code null} if they have never generated a trial license on this cluster, or the most recent
      *                               trial was prior to this metadata being tracked (6.1)
      */
-    void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
+    protected void update(OperationMode mode, boolean active, long expirationDate, @Nullable Version mostRecentTrialVersion) {
         status = new Status(mode, active, expirationDate);
         listeners.forEach(LicenseStateListener::licenseStateChanged);
     }
@@ -499,11 +499,16 @@ public class XPackLicenseState {
         return checkAgainstStatus(status -> status.active);
     }
 
+    @Deprecated
+    public boolean checkFeature(Feature feature) {
+        return checkFeature(feature.feature);
+    }
+
     /**
      * Checks whether the given feature is allowed, tracking the last usage time.
      */
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
-    public boolean checkFeature(Feature feature) {
+    protected boolean checkFeature(LicensedFeature feature) {
         boolean allowed = isAllowed(feature);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
         final long licenseExpiryDate = getLicenseExpiryDate();
@@ -512,7 +517,7 @@ public class XPackLicenseState {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
-        if (feature.feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
+        if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
             final String expiryMessage = (days == 0 && diff > 0)? "expires today":
@@ -525,13 +530,18 @@ public class XPackLicenseState {
         return allowed;
     }
 
+    @Deprecated
+    public boolean isAllowed(Feature feature) {
+        return isAllowed(feature.feature);
+    }
+
     /**
      * Checks whether the given feature is allowed by the current license.
      * <p>
      * This method should only be used when serializing whether a feature is allowed for telemetry.
      */
-    public boolean isAllowed(Feature feature) {
-        return isAllowedByLicense(feature.feature.minimumOperationMode, feature.feature.needsActive);
+    protected boolean isAllowed(LicensedFeature feature) {
+        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
     }
 
     /**
@@ -624,6 +634,7 @@ public class XPackLicenseState {
      *
      * @return true if feature is allowed, otherwise false
      */
+    @Deprecated
     public boolean isAllowedByLicense(OperationMode minimumMode, boolean needActive) {
         return checkAgainstStatus(status -> {
             if (needActive && false == status.active) {

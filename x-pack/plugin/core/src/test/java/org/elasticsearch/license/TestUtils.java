@@ -46,6 +46,7 @@ import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.junit.Assert.assertThat;
+import static org.mockito.Mockito.mock;
 
 public class TestUtils {
 
@@ -368,7 +369,7 @@ public class TestUtils {
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+        protected void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
             expirationDateUpdates.add(expirationDate);
@@ -401,5 +402,9 @@ public class TestUtils {
 
     public static void putLicense(Metadata.Builder builder, License license) {
         builder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(license, null));
+    }
+
+    public static MockLicenseState newMockLicenceState() {
+        return mock(MockLicenseState.class);
     }
 }

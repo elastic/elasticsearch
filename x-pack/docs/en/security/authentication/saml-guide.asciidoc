@@ -1037,3 +1037,6 @@ POST /_security/saml/invalidate
 The custom web application will then need to also handle the response, which will include a `redirect`
 parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
 there to complete the logout.
+
+For SP-initiated Single Logout, the IdP may send back a logout response which can be verified by {es}
+using the <<security-api-saml-complete-logout,SAML complete logout API>>.

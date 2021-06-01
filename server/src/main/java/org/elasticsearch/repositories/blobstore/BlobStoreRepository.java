@@ -1589,11 +1589,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         final RepositoryData toCache;
-        if (version.onOrBefore(SnapshotsService.OLD_SNAPSHOT_FORMAT)) {
+        if (SnapshotsService.useShardGenerations(version)) {
+            toCache = repositoryData;
+        } else {
             // don't cache shard generations here as they may be unreliable
             toCache = repositoryData.withoutShardGenerations();
-        } else {
-            toCache = repositoryData;
+            assert repositoryData.indexMetaDataGenerations().equals(IndexMetaDataGenerations.EMPTY) :
+                    "repository data should not contain index generations at version [" + version + "] but saw ["
+                            + repositoryData.indexMetaDataGenerations() + "]";
         }
         assert toCache.getGenId() >= 0 : "No need to cache abstract generations but attempted to cache [" + toCache.getGenId() + "]";
         latestKnownRepositoryData.updateAndGet(known -> {

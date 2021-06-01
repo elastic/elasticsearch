@@ -107,9 +107,10 @@ Edit the `es.java.security` file in your {es} configuration directory, and
 modify the `jdk.tls.disabledAlgorithms` setting so that any SSL or TLS versions
 that you wish to use are no longer listed.
 
-For example, if to enable TLSv1.1 on OpenJDK (which uses the
+For example, to enable TLSv1.1 on OpenJDK 16 (which uses the
 `jdk.tls.disabledAlgorithms` settings shown above), then the contents of the
-`es.java.security` file would include supported protocols _except_ `TLSv1.1`:
+`es.java.security` file would contain the previously disabled TLS algorithms
+_except_ `TLSv1.1`:
 
 [source,text]
 --------------------------------------------------

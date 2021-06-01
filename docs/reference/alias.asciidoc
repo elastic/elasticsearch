@@ -233,7 +233,7 @@ POST _aliases
   ]
 }
 ----
-// TEST[s/^/PUT my-index-2099.05.06-000001\nPUT my-index-2099.05.07-000002\n/]
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
 
 If an alias points to multiple indices or data streams and `is_write_index`
 isn't set, the alias rejects write requests. If an index alias points to one

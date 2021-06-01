@@ -38,7 +38,7 @@ public class PyTorchResultProcessor {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {
                 PyTorchResult result = iterator.next();
-                logger.debug(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
+                logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
                 PendingResult pendingResult = pendingResults.get(result.getRequestId());
                 if (pendingResult == null) {
                     logger.warn(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));

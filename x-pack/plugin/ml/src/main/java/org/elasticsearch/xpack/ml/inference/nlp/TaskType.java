@@ -23,6 +23,11 @@ public enum TaskType {
         public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new FillMaskProcessor(tokenizer);
         }
+    },
+    BERT_PASS_THROUGH {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+            return new PassThroughProcessor(tokenizer);
+        }
     };
 
     public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {

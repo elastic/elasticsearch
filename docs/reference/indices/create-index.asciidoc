@@ -71,6 +71,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 `aliases`::
 (Optional, object of objects) Aliases for the index.
 +
+--
 // tag::aliases-props[]
 [%collapsible%open]
 .Properties of `aliases` objects
@@ -110,6 +111,7 @@ specified, this overwrites the `routing` value for search operations.
 ======
 =======
 // end::aliases-props[]
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 

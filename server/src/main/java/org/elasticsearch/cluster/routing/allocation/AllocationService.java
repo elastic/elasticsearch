@@ -246,7 +246,7 @@ public class AllocationService {
         disassociateDeadNodes(allocation);
 
         if (allocation.routingNodesChanged()) {
-            clusterState = buildResult(clusterState, allocation);
+            clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
             return reroute(clusterState, reason);

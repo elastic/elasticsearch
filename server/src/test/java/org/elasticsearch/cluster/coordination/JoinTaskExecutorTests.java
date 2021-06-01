@@ -101,10 +101,9 @@ public class JoinTaskExecutorTests extends ESTestCase {
             });
         }
 
-        if (minNodeVersion.onOrAfter(Version.V_7_0_0)) {
-            Version oldMajor = Version.V_6_4_0.minimumCompatibilityVersion();
-            expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureMajorVersionBarrier(oldMajor, minNodeVersion));
-        }
+        final Version oldVersion = randomValueOtherThanMany(v -> v.onOrAfter(minNodeVersion),
+            () -> rarely() ? Version.fromId(minNodeVersion.id - 1) : randomVersion(random()));
+        expectThrows(IllegalStateException.class, () -> JoinTaskExecutor.ensureVersionBarrier(oldVersion, minNodeVersion));
 
         final Version minGoodVersion = maxNodeVersion.major == minNodeVersion.major ?
             // we have to stick with the same major

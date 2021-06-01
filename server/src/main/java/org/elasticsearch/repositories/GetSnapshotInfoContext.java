@@ -33,12 +33,22 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      */
     private final boolean failFast;
 
-    private volatile boolean failed = false;
-
+    /**
+     * If this supplier returns true, indicates that the task that initiated this context has been cancelled and that not further fetching
+     * of {@link SnapshotInfo} should be started.
+     */
     private final BooleanSupplier isCancelled;
 
+    /**
+     * Listener resolved when fetching {@link SnapshotInfo} has completed. If resolved successfully, no more calls to
+     * {@link #onSnapshotInfo} will be made. If resolved with an exception, one or more {@link SnapshotInfo} failed to be fetched.
+     */
     private final ActionListener<Void> doneListener;
 
+    /**
+     * {@link BiConsumer} invoked for each {@link SnapshotInfo} that is fetched with this instance and the {@code SnapshotInfo} as
+     * arguments.
+     */
     private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo;
 
     // TODO: enhance org.elasticsearch.common.util.concurrent.CountDown to allow for an atomic check and try-countdown and use it to
@@ -79,10 +89,10 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     }
 
     /**
-     * @return true if fetching {@link SnapshotInfo} has been stopped
+     * @return true if fetching {@link SnapshotInfo} is either complete or should be stopped because of an error
      */
-    public boolean stopped() {
-        return failed;
+    public boolean done() {
+        return counter.get() <= 0;
     }
 
     @Override
@@ -99,7 +109,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
                 doneListener.onResponse(null);
             } catch (Exception e) {
                 assert false : e;
-                doneListener.onFailure(e);
+                failDoneListener(e);
             }
         }
     }
@@ -107,7 +117,6 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     @Override
     public void onFailure(Exception e) {
         if (failFast) {
-            failed = true;
             if (counter.getAndSet(0) > 0) {
                 failDoneListener(e);
             }

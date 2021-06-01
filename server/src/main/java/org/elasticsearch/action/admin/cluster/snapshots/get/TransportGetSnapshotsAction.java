@@ -293,7 +293,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("failed to fetch some snapshot infos", e);
+                        logger.debug("failed to fetch snapshot info for some snapshots", e);
                         allDoneListener.onResponse(null);
                     }
                 } : allDoneListener

@@ -1239,7 +1239,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
-            if (context.stopped()) {
+            if (context.done()) {
                 return;
             }
             if (context.isCancelled()) {

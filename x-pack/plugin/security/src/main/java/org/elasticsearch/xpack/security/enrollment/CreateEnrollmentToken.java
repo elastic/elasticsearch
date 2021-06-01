@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
-import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;

@@ -267,7 +267,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             try {
                                 shardStatuses = snapshotShards(repositoryName, repositoryData, snapshotInfo);
                             } catch (Exception e) {
-                                // TODO: refactor, this is not ok if we run into an exception and resolve the listener twice
+                                // TODO: enhance logic to abort other requests as soon as we fail here
                                 listener.onFailure(e);
                                 return;
                             }

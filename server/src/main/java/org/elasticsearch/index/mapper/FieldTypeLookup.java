@@ -79,9 +79,15 @@ final class FieldTypeLookup {
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
+            if (runtimeField instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(runtimeField.name(), (DynamicFieldType) runtimeField);
+            }
             MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
-            //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            assert runtimeFieldType != null || runtimeField instanceof DynamicFieldType;
+            if (runtimeFieldType != null) {
+                //this will override concrete fields with runtime fields that have the same name
+                fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            }
         }
     }
 
@@ -149,8 +155,17 @@ final class FieldTypeLookup {
      * twice.
      */
     Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.values();
+        if (Regex.isMatchAllPattern(pattern)) {
+            if (dynamicFieldTypes.isEmpty()) {
+                return fullNameToFieldType.values();
+            }
+            List<MappedFieldType> fieldTypes = new ArrayList<>(fullNameToFieldType.values());
+            for (DynamicFieldType dynamicFieldType : dynamicFieldTypes.values()) {
+                for (String subfield : dynamicFieldType.getKnownSubfields()) {
+                    fieldTypes.add(dynamicFieldType.getChildFieldType(subfield));
+                }
+            }
+            return fieldTypes;
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
@@ -163,6 +178,15 @@ final class FieldTypeLookup {
                 matchingFields.add(fullNameToFieldType.get(field));
             }
         }
+        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+            String parentName = dynamicFieldTypeEntry.getKey();
+            DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
+            for (String subfield : dynamicFieldType.getKnownSubfields()) {
+                if (Regex.simpleMatch(pattern, parentName + "." + subfield)) {
+                    matchingFields.add(dynamicFieldType.getChildFieldType(subfield));
+                }
+            }
+        }
         return matchingFields;
     }
 
@@ -172,8 +196,19 @@ final class FieldTypeLookup {
      * All field names in the returned set are guaranteed to resolve to a field
      */
     Set<String> getMatchingFieldNames(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.keySet();
+        if (Regex.isMatchAllPattern(pattern)) {
+            if (dynamicFieldTypes.isEmpty()) {
+                return fullNameToFieldType.keySet();
+            }
+            Set<String> fieldNames = new HashSet<>(fullNameToFieldType.keySet());
+            for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+                String parentName = dynamicFieldTypeEntry.getKey();
+                DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
+                for (String subfield : dynamicFieldType.getKnownSubfields()) {
+                    fieldNames.add(parentName + "." + subfield);
+                }
+            }
+            return Collections.unmodifiableSet(fieldNames);
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
@@ -183,6 +218,15 @@ final class FieldTypeLookup {
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
                 matchingFields.add(field);
+            }
+        }
+        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+            String parentName = dynamicFieldTypeEntry.getKey();
+            for (String subfield : dynamicFieldTypeEntry.getValue().getKnownSubfields()) {
+                String fullPath = parentName + "." + subfield;
+                if (Regex.simpleMatch(pattern, fullPath)) {
+                    matchingFields.add(fullPath);
+                }
             }
         }
         return matchingFields;

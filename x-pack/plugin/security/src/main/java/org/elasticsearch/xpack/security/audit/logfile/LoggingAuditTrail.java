@@ -59,6 +59,10 @@ import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappin
 import org.elasticsearch.xpack.core.security.action.rolemapping.DeleteRoleMappingRequest;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingAction;
 import org.elasticsearch.xpack.core.security.action.rolemapping.PutRoleMappingRequest;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
+import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
@@ -203,7 +207,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public static final Set<String> SECURITY_CHANGE_ACTIONS = Set.of(PutUserAction.NAME, PutRoleAction.NAME, PutRoleMappingAction.NAME,
             SetEnabledAction.NAME, ChangePasswordAction.NAME, CreateApiKeyAction.NAME, GrantApiKeyAction.NAME, PutPrivilegesAction.NAME,
             DeleteUserAction.NAME, DeleteRoleAction.NAME, DeleteRoleMappingAction.NAME, InvalidateApiKeyAction.NAME,
-            DeletePrivilegesAction.NAME);
+            DeletePrivilegesAction.NAME, CreateServiceAccountTokenAction.NAME, DeleteServiceAccountTokenAction.NAME);
     private static final String FILTER_POLICY_PREFIX = setting("audit.logfile.events.ignore_filters.");
     // because of the default wildcard value (*) for the field filter, a policy with
     // an unspecified filter field will match events that have any value for that
@@ -594,6 +598,12 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof DeletePrivilegesRequest) {
                     assert DeletePrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((DeletePrivilegesRequest) msg).build();
+                } else if (msg instanceof CreateServiceAccountTokenRequest) {
+                    assert CreateServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((CreateServiceAccountTokenRequest) msg).build();
+                } else if (msg instanceof DeleteServiceAccountTokenRequest) {
+                    assert DeleteServiceAccountTokenAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody((DeleteServiceAccountTokenRequest) msg).build();
                 } else {
                     throw new IllegalStateException("Unknown message class type [" + msg.getClass().getSimpleName() +
                             "] for the \"security change\" action [" + action + "]");
@@ -1162,6 +1172,34 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                         .array("privileges", deletePrivilegesRequest.privileges())
                     .endObject() // privileges
                     .endObject();
+            logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(CreateServiceAccountTokenRequest createServiceAccountTokenRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_service_token");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("service_token")
+                .field("namespace", createServiceAccountTokenRequest.getNamespace())
+                .field("service", createServiceAccountTokenRequest.getServiceName())
+                .field("name", createServiceAccountTokenRequest.getTokenName())
+                .endObject() // service_token
+                .endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
+        LogEntryBuilder withRequestBody(DeleteServiceAccountTokenRequest deleteServiceAccountTokenRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "delete_service_token");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject()
+                .startObject("service_token")
+                .field("namespace", deleteServiceAccountTokenRequest.getNamespace())
+                .field("service", deleteServiceAccountTokenRequest.getServiceName())
+                .field("name", deleteServiceAccountTokenRequest.getTokenName())
+                .endObject() // service_token
+                .endObject();
             logEntry.with(DELETE_CONFIG_FIELD_NAME, Strings.toString(builder));
             return this;
         }

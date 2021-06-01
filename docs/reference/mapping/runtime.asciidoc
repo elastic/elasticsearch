@@ -810,8 +810,9 @@ POST /my-index-000001/_bulk?refresh
 
 Because `labels` is a `flattened` field type, the entire object is mapped as a
 single field. To retrieve values from this sub-field in a Painless script, use
-the `doc['<field_name>'].value` format. The `release_label` runtime field
-includes a script that retrieves values from the `labels.release` field:
+the `doc['<field_name>.<sub-field_name>'].value` format. The `release_label`
+runtime field includes a script that retrieves values from the `labels.release`
+field:
 
 [source,console]
 ----

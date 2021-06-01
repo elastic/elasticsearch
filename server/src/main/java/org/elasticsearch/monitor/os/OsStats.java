@@ -10,6 +10,7 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -184,10 +185,18 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Swap(StreamInput in) throws IOException {
-            this.total = in.readLong();
-            assert total >= 0 : "expected total swap to be positive, got: " + total;
-            this.free = in.readLong();
-            assert free >= 0 : "expected free swap to be positive, got: " + total;
+            // TODO: version-lenient - on or after 7.7.2 / 6.8.14
+            if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
+                this.total = in.readLong();
+                assert this.total >= 0 : "expected total swap to be positive, got: " + total;
+                this.free = in.readLong();
+                assert this.free >= 0 : "expected free swap to be positive, got: " + total;
+            } else {
+                // If we have a node in the cluster without the bug fix for
+                // negative memory values, we need to coerce negative values to 0 here.
+                this.total = Math.max(0, in.readLong());
+                this.free = Math.max(0, in.readLong());
+            }
         }
 
         @Override
@@ -247,10 +256,18 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Mem(StreamInput in) throws IOException {
-            this.total = in.readLong();
-            assert total >= 0 : "expected total memory to be positive, got: " + total;
-            this.free = in.readLong();
-            assert free >= 0 : "expected free memory to be positive, got: " + total;
+            // TODO: version-lenient - version 7.1.2 / 6.8.2
+            if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
+                this.total = in.readLong();
+                assert total >= 0 : "expected total memory to be positive, got: " + total;
+                this.free = in.readLong();
+                assert free >= 0 : "expected free memory to be positive, got: " + total;
+            } else {
+                // If we have a node in the cluster without the bug fix for
+                // negative memory values, we need to coerce negative values to 0 here.
+                this.total = Math.max(0, in.readLong());
+                this.free = Math.max(0, in.readLong());
+            }
         }
 
         @Override

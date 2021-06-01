@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -314,10 +315,12 @@ public final class MappingLookup {
     }
 
     /**
-     * @return all mapped field types
+     * Return all field types that match the provided predicate
+     * @param predicate the predicate
+     * @return the matching field types
      */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return fieldTypeLookup.getMatchingFieldTypes("*");
+    public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
+        return fieldTypeLookup.getMatchingFieldTypes(predicate);
     }
 
     /**

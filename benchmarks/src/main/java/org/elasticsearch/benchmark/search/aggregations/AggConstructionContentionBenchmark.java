@@ -72,6 +72,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Benchmarks the overhead of constructing {@link Aggregator}s in many
@@ -213,7 +214,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
             throw new UnsupportedOperationException();
         }
 

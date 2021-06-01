@@ -19,6 +19,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -145,6 +148,19 @@ final class FieldTypeLookup {
                 return dft.getChildFieldType(key);
             }
         }
+    }
+
+    Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
+        if (dynamicFieldTypes.isEmpty()) {
+            return fullNameToFieldType.values().stream().filter(predicate).collect(Collectors.toList());
+        }
+        return Stream.concat(dynamicFieldTypes.values().stream().flatMap(dft -> {
+            List<MappedFieldType> childFieldTypes = new ArrayList<>();
+            for (String knownSubfield : dft.getKnownSubfields()) {
+                childFieldTypes.add(dft.getChildFieldType(knownSubfield));
+            }
+            return childFieldTypes.stream();
+        }), fullNameToFieldType.values().stream()).filter(predicate).collect(Collectors.toList());
     }
 
     /**

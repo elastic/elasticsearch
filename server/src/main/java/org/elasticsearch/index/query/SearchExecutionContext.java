@@ -331,10 +331,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * @return all mapped field types, including runtime fields defined in the request
+     * Return all field types that match the provided predicate.
+     * Note that runtime mappings are not included, hence this method should be used only in scenarios where
+     * runtime fields defined in the search request are not applicable.
+     * @param predicate the predicate
+     * @return the matching field types
      */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return getMatchingFieldTypes("*");
+    public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
+        return mappingLookup.getMatchingFieldTypes(predicate);
     }
 
     /**

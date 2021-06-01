@@ -71,6 +71,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -377,7 +378,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+            public Collection<MappedFieldType> getMatchingFieldTypes(Predicate<MappedFieldType> predicate) {
                 throw new UnsupportedOperationException();
             }
 
@@ -521,7 +522,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
             inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
         );
-        when(searchExecutionContext.getMatchingFieldTypes(anyObject())).thenAnswer(
+        when(searchExecutionContext.getMatchingFieldTypes(anyString())).thenAnswer(
             inv -> mapperService.mappingLookup().getMatchingFieldTypes(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);

@@ -11,11 +11,8 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -72,7 +69,6 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.ExpensiveQueriesToPrepare;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
@@ -168,34 +164,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
-    public static final Setting<List<Class<? extends Query>>> EXPENSIVE_QUERIES_TO_PREPARE = Setting.listSetting(
-        "search.expensive_to_prepare",
-        List.of(AutomatonQuery.class.getName(), TermInSetQuery.class.getName()),
-        s -> {
-            try {
-                /*
-                 * If the query isn't on the *server's* classpath we'll fail here. This
-                 * ain't great, but its ok for this because:
-                 * 1. Overriding this setting should be rare and temporary and *hopefully*
-                 *    folks will only do it after filing an issue. We'll fix the issue and
-                 *    they can remove their override.
-                 * 2. Server has Lucene on the classpath so it should be able to see most
-                 *    queries.
-                 *
-                 * If Elasticsearch of Lucene drops a query and you list it in this setting
-                 * then it won't start. This ain't great. We aren't going to not delete a
-                 * class for BWC on this setting. But we think that's ok because this is
-                 * should be a temporary setting, set after filing a bug. It's not great
-                 * behavior, but it seems like the right amount of effort for something so
-                 * rarely used.
-                 */
-                return Class.forName(s).asSubclass(Query.class);
-            } catch (ClassNotFoundException e) {
-                throw new IllegalArgumentException("Unknown query [" + s + "]", e);
-            } catch (ClassCastException e) {
-                throw new IllegalArgumentException("Not a query [" + s + "]", e);
-            }
-        },
+    public static final Setting<Boolean> ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER = Setting.boolSetting(
+        "search.aggs.rewrite_to_filter_by_filter",
+        true,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -233,7 +204,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenScrollContext;
 
-    private volatile ExpensiveQueriesToPrepare expensiveQueriesToPrepare;
+    private volatile boolean enableRewriteAggsToFilterByFilter;
 
     private final Cancellable keepAliveReaper;
 
@@ -282,8 +253,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
 
-        setExpensiveQueriesToPrepare(EXPENSIVE_QUERIES_TO_PREPARE.get(settings));
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(EXPENSIVE_QUERIES_TO_PREPARE, this::setExpensiveQueriesToPrepare);
+        enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -320,8 +292,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.lowLevelCancellation = lowLevelCancellation;
     }
 
-    private void setExpensiveQueriesToPrepare(List<Class<? extends Query>> expensiveQueriesToPrepare) {
-        this.expensiveQueriesToPrepare = new ExpensiveQueriesToPrepare(expensiveQueriesToPrepare);
+    private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
+        this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
     }
 
     @Override
@@ -1014,7 +986,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
                 context::buildFilteredQuery,
-                expensiveQueriesToPrepare
+                enableRewriteAggsToFilterByFilter
             );
             context.addReleasable(aggContext);
             try {

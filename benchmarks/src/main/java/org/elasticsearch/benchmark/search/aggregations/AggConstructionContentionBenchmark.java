@@ -333,8 +333,8 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public boolean topLevelIsExpensiveToPrepare() {
-            return false;
+        public boolean enableRewriteToFilterByFilter() {
+            return true;
         }
 
         @Override

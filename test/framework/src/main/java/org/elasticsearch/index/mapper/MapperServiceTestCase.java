@@ -477,7 +477,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public boolean topLevelIsExpensiveToPrepare() {
+            public boolean enableRewriteToFilterByFilter() {
                 throw new UnsupportedOperationException();
             }
 

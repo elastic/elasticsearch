@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
+import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
@@ -38,6 +39,7 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
     private static final int NUM_ITERATIONS = 20;
     // 23 is chosen as that is ~ half of the typical number of CDF points (55)
     private static final int MINIMUM_NUMBER_OF_DOCS = 23;
+    private static final KolmogorovSmirnovTest KOLMOGOROV_SMIRNOV_TEST = new KolmogorovSmirnovTest();
 
     private final double[] fractions;
     private final EnumSet<Alternative> alternatives;
@@ -130,23 +132,29 @@ public class BucketCountKSTestAggregator extends SiblingPipelineAggregator {
         Arrays.sort(y);
 
         Map<String, Double> results = new HashMap<>();
-        // The following approximation is the same as eq 5.3 from:
+        // The following sided approximation is the same as eq 5.3 from:
         // J. L. Hodges
         // "The significance probability of the smirnov two-sample test," Arkiv för Matematik, Ark. Mat. 3(5), 469-486, (10 Jan. 1958)
         //
-        // The other option here for an approximation would be Donald Knuths provided through:
-        // Dₙ,ₘ>c(α)*√((n+m)/(n*m)).
-        // And c(α)=√(−ln(α * 0.5) * 0.5)
-        // Where Dₙ,ₘ is our statistic
-        // Then solve for α
-        // But I am not 100% sure which to choose in this case.
+        // If calculating `two-sided`, simply use the built in ks-test in apache math.
         final double zConstant = (((double) x.length * y.length) / (x.length + y.length));
         final double continuityConstant = (x.length + 2 * y.length) / Math.sqrt(x.length * y.length * (x.length + y.length));
         for (Alternative alternative : alternatives) {
             double statistic = sidedStatistic(x, y, alternative);
-            double z = Math.sqrt(zConstant) * statistic;
-            double unBounded = Math.exp(-2 * Math.pow(z, 2) - 2 * z * continuityConstant / 3.0);
-            results.put(alternative.toString(), Math.min(1.0, Math.max(unBounded, 0.0)));
+            switch (alternative) {
+                case GREATER:
+                case LESS:
+                    double z = Math.sqrt(zConstant) * statistic;
+                    double unBounded = Math.exp(-2 * Math.pow(z, 2) - 2 * z * continuityConstant / 3.0);
+                    results.put(alternative.toString(), Math.min(1.0, Math.max(unBounded, 0.0)));
+                    break;
+                case TWO_SIDED:
+                    results.put(alternative.toString(), KOLMOGOROV_SMIRNOV_TEST.exactP(statistic, x.length, y.length, false));
+                    break;
+                default:
+                    throw new AggregationExecutionException("unexpected alternative [" + alternative + "]");
+            }
+
         }
         return results;
     }

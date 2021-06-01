@@ -176,6 +176,7 @@ public class DeploymentManager {
             protected void doRun() {
                 try {
                     NlpTask.Processor processor = processContext.nlpTask.get().createProcessor();
+                    processor.validateInputs(input);
                     BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
                     logger.trace("Inference Request "+ request.utf8ToString());
                     processContext.process.get().writeInferenceRequest(request);
@@ -199,12 +200,19 @@ public class DeploymentManager {
             if (pyTorchResult == null) {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));
-            } else {
-                logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
-                InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
-                logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
-                listener.onResponse(results);
+                return;
             }
+
+            if (pyTorchResult.isError()) {
+                listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(),
+                    RestStatus.INTERNAL_SERVER_ERROR));
+                return;
+            }
+
+            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
+            InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
+            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
+            listener.onResponse(results);
         } catch (InterruptedException e) {
             listener.onFailure(e);
         }

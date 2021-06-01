@@ -64,6 +64,10 @@ public class NerProcessor implements NlpTask.Processor {
         this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
     }
 
+    @Override
+    public void validateInputs(String inputs) {
+        // No validation
+    }
 
     @Override
     public NlpTask.RequestBuilder getRequestBuilder() {

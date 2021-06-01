@@ -81,6 +81,14 @@ public class PyTorchResult implements ToXContentObject, Writeable {
         return requestId;
     }
 
+    public boolean isError() {
+        return error != null;
+    }
+
+    public String getError() {
+        return error;
+    }
+
     public double[][] getInferenceResult() {
         return inference;
     }

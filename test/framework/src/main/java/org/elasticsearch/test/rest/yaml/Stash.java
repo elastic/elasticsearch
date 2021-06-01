@@ -102,10 +102,6 @@ public class Stash implements ToXContentFragment {
     }
 
     private Object unstash(String key) throws IOException {
-        // Allow $$xyz to escape $xyz in case we need to match a literal dollar sign
-        if (key.startsWith("$")) {
-            return key;
-        }
         Object stashedValue = stashObjectPath.evaluate(key);
         if (stashedValue == null) {
             throw new IllegalArgumentException("stashed value not found for key [" + key + "]");

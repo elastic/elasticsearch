@@ -51,10 +51,7 @@ This is a possible response:
       "categorization_analyzer" : {
         "char_filter" : [
           {
-            "type" : "pattern_replace",
-            "pattern" : "^(\\r?.[^\\n]*)\\n.*",
-            "replacement" : "$$1",
-            "flags" : "DOTALL"
+            "first_non_blank_line"
           }
         ],
         "tokenizer" : "ml_standard",

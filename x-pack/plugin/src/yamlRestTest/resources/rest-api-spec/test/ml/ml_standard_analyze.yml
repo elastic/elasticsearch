@@ -5,10 +5,7 @@
         body:  >
           {
             "char_filter" : [
-              { "type" : "pattern_replace",
-                "pattern" : "^(\\r?.[^\\n]*)\\n.*",
-                "replacement" : "$$1",
-                "flags" : "DOTALL" }
+              "first_non_blank_line"
             ],
             "tokenizer" : "ml_standard",
             "filter" : [
@@ -87,3 +84,32 @@
   - match: { tokens.15.end_offset: 225 }
   - match: { tokens.15.position: 22 }
 
+---
+"Test 7.14 analyzer with blank lines":
+  - do:
+      indices.analyze:
+        body:  >
+          {
+            "char_filter" : [
+              "first_non_blank_line"
+            ],
+            "tokenizer" : "ml_standard",
+            "filter" : [
+              { "type" : "stop", "stopwords": [
+                "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday",
+                "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun",
+                "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December",
+                "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+                "GMT", "UTC"
+              ] }
+            ],
+            "text" : "   \nfirst line\nsecond line"
+          }
+  - match: { tokens.0.token: "first" }
+  - match: { tokens.0.start_offset: 4 }
+  - match: { tokens.0.end_offset: 9 }
+  - match: { tokens.0.position: 0 }
+  - match: { tokens.1.token: "line" }
+  - match: { tokens.1.start_offset: 11 }
+  - match: { tokens.1.end_offset: 18 }
+  - match: { tokens.1.position: 1 }

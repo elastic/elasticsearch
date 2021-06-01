@@ -24,6 +24,7 @@ import org.elasticsearch.rest.action.admin.indices.RestAnalyzeAction;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -163,22 +164,17 @@ public class CategorizationAnalyzerConfig implements ToXContentFragment, Writeab
     /**
      * Create a <code>categorization_analyzer</code> that will be used for newly created jobs where no categorization
      * analyzer is explicitly provided.  This analyzer differs from the default one in that it uses the <code>ml_standard</code>
-     * tokenizer instead of the <code>ml_classic</code> tokenizer.  This analyzer is <em>not</em> used for jobs that specify
-     * no categorization analyzer, as that would break jobs that were originally run in older versions.  Instead, this analyzer
-     * is explicity added to newly created jobs once the entire cluster is upgraded to version 7.14 or above.
+     * tokenizer instead of the <code>ml_classic</code> tokenizer, and it only considers the first non-blank line of each message.
+     * This analyzer is <em>not</em> used for jobs that specify no categorization analyzer, as that would break jobs that were
+     * originally run in older versions.  Instead, this analyzer is explicitly added to newly created jobs once the entire cluster
+     * is upgraded to version 7.14 or above.
      * @param categorizationFilters Categorization filters (if any) from the <code>analysis_config</code>.
      * @return The standard categorization analyzer.
      */
     public static CategorizationAnalyzerConfig buildStandardCategorizationAnalyzer(List<String> categorizationFilters) {
 
-        Map<String, Object> firstLineOnlyCharFilter = new HashMap<>();
-        firstLineOnlyCharFilter.put("type", "pattern_replace");
-        firstLineOnlyCharFilter.put("pattern", "^(\\r?.[^\\n]*)\\n.*");
-        firstLineOnlyCharFilter.put("replacement", "$1");
-        firstLineOnlyCharFilter.put("flags", "DOTALL");
-
         return new CategorizationAnalyzerConfig.Builder()
-            .addCharFilter(firstLineOnlyCharFilter)
+            .addCharFilter("first_non_blank_line")
             .addCategorizationFilters(categorizationFilters)
             .setTokenizer("ml_standard")
             .addDateWordsTokenFilter()

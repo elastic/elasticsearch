@@ -1,0 +1,14 @@
+<<<<<<< HEAD:buildSrc/reaper/build.gradle
+apply plugin: 'java'
+=======
+plugins {
+  id 'java'
+}
+>>>>>>> b2a183baf00 (Move public build api into included build (#72861)):build-tools/reaper/build.gradle
+
+tasks.named("jar").configure {
+  archiveFileName = "${project.name}.jar"
+  manifest {
+    attributes 'Main-Class': 'org.elasticsearch.gradle.reaper.Reaper'
+  }
+}

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.cli;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 import org.bouncycastle.asn1.DLTaggedObject;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.bouncycastle.asn1.ASN1ObjectIdentifier;
 import org.bouncycastle.asn1.ASN1Sequence;
@@ -263,6 +264,8 @@ public class CertificateGenerateToolTests extends ESTestCase {
     }
 
     public void testGeneratingSignedCertificates() throws Exception {
+        assumeFalse("JDK bug JDK-8266279, https://github.com/elastic/elasticsearch/issues/72639",
+            JavaVersion.current().compareTo(JavaVersion.parse("8")) == 0);
         Path tempDir = initTempDir();
         Path outputFile = tempDir.resolve("out.zip");
         Path instanceFile = writeInstancesTo(tempDir.resolve("instances.yml"));

@@ -171,6 +171,12 @@ public class SerialDiffIT extends ESIntegTestCase {
                     metricValue = 0.0;
                 } else {
                     metricValue = PipelineAggregationHelperTests.calculateMetric(docValues, metric);
+                    if (gapPolicy.equals(BucketHelpers.GapPolicy.KEEP_VALUES)) {
+                        if (Double.isInfinite(metricValue) || Double.isNaN(metricValue)) {
+                            // serial diff ignores these values and replaces them with null
+                            metricValue = Double.NaN;
+                        }
+                    }
                 }
 
             } else {
@@ -204,12 +210,7 @@ public class SerialDiffIT extends ESIntegTestCase {
             }
 
             lagWindow.add(metricValue);
-
-
-
-
         }
-
 
         testValues.put(target.toString(), values);
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -197,11 +198,16 @@ public class ClusterDeprecationChecks {
 
     static DeprecationIssue checkFollowedSystemIndices(ClusterState state) {
         AutoFollowMetadata autoFollowMetadata = state.metadata().custom(AutoFollowMetadata.TYPE);
-        final List<String> followedLeaderIndexUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs()
-            .values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toList());
+        final List<String> followedLeaderIndexUUIDs;
+        if (autoFollowMetadata == null) {
+            followedLeaderIndexUUIDs = Collections.emptyList();
+        } else {
+            followedLeaderIndexUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs()
+                .values()
+                .stream()
+                .flatMap(Collection::stream)
+                .collect(Collectors.toList());
+        }
 
         Set<String> systemIndexFollowers = new HashSet<>();
         for (ObjectObjectCursor<String, IndexMetadata> indexEntry : state.metadata().getIndices()) {

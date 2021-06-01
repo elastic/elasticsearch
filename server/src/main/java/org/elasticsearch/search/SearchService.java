@@ -173,7 +173,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         List.of(AutomatonQuery.class.getName(), TermInSetQuery.class.getName()),
         s -> {
             try {
-                // TODO should we skip when the class isn't found an warn? without that upgrades might be tricky.
+                /*
+                 * If the query isn't on the *server's* classpath we'll fail here. This
+                 * ain't great, but its ok for this because:
+                 * 1. Overriding this setting should be rare and temporary and *hopefully*
+                 *    folks will only do it after filing an issue. We'll fix the issue and
+                 *    they can remove their override.
+                 * 2. Server has Lucene on the classpath so it should be able to see most
+                 *    queries.
+                 *
+                 * If Elasticsearch of Lucene drops a query and you list it in this setting
+                 * then it won't start. This ain't great. We aren't going to not delete a
+                 * class for BWC on this setting. But we think that's ok because this is
+                 * should be a temporary setting, set after filing a bug. It's not great
+                 * behavior, but it seems like the right amount of effort for something so
+                 * rarely used.
+                 */
                 return Class.forName(s).asSubclass(Query.class);
             } catch (ClassNotFoundException e) {
                 throw new IllegalArgumentException("Unknown query [" + s + "]", e);

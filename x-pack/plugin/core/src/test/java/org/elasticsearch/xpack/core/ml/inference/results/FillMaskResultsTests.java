@@ -26,9 +26,9 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
     @Override
     protected FillMaskResults createTestInstance() {
         int numResults = randomIntBetween(0, 3);
-        List<FillMaskResults.Result> resultList = new ArrayList<>();
+        List<FillMaskResults.Prediction> resultList = new ArrayList<>();
         for (int i=0; i<numResults; i++) {
-            resultList.add(new FillMaskResults.Result(randomAlphaOfLength(4), randomDouble(), randomAlphaOfLength(4)));
+            resultList.add(new FillMaskResults.Prediction(randomAlphaOfLength(4), randomDouble(), randomAlphaOfLength(4)));
         }
         return new FillMaskResults(resultList);
     }
@@ -38,9 +38,9 @@ public class FillMaskResultsTests extends AbstractWireSerializingTestCase<FillMa
         FillMaskResults testInstance = createTestInstance();
         Map<String, Object> asMap = testInstance.asMap();
         List<Map<String, Object>> resultList = (List<Map<String, Object>>)asMap.get("results");
-        assertThat(resultList, hasSize(testInstance.getResults().size()));
-        for (int i=0; i<testInstance.getResults().size(); i++) {
-            FillMaskResults.Result result = testInstance.getResults().get(i);
+        assertThat(resultList, hasSize(testInstance.getPredictions().size()));
+        for (int i = 0; i<testInstance.getPredictions().size(); i++) {
+            FillMaskResults.Prediction result = testInstance.getPredictions().get(i);
             Map<String, Object> map = resultList.get(i);
             assertThat(map.get("score"), equalTo(result.getScore()));
             assertThat(map.get("token"), equalTo(result.getToken()));

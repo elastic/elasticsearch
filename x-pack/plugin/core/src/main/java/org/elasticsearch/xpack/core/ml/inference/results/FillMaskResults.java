@@ -26,25 +26,25 @@ public class FillMaskResults implements InferenceResults {
     public static final String NAME = "fill_mask_result";
     public static final String DEFAULT_RESULTS_FIELD = "results";
 
-    private final List<Result> results;
+    private final List<Prediction> predictions;
 
-    public FillMaskResults(List<Result> results) {
-        this.results = results;
+    public FillMaskResults(List<Prediction> predictions) {
+        this.predictions = predictions;
     }
 
     public FillMaskResults(StreamInput in) throws IOException {
-        this.results = in.readList(Result::new);
+        this.predictions = in.readList(Prediction::new);
     }
 
-    public List<Result> getResults() {
-        return results;
+    public List<Prediction> getPredictions() {
+        return predictions;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray();
-        for (Result result : results) {
-            result.toXContent(builder, params);
+        for (Prediction prediction : predictions) {
+            prediction.toXContent(builder, params);
         }
         builder.endArray();
         return builder;
@@ -57,22 +57,22 @@ public class FillMaskResults implements InferenceResults {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(results);
+        out.writeList(predictions);
     }
 
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(DEFAULT_RESULTS_FIELD, results.stream().map(Result::toMap).collect(Collectors.toList()));
+        map.put(DEFAULT_RESULTS_FIELD, predictions.stream().map(Prediction::toMap).collect(Collectors.toList()));
         return map;
     }
 
     @Override
     public Object predictedValue() {
-        if (results.isEmpty()) {
+        if (predictions.isEmpty()) {
             return null;
         }
-        return results.get(0).token;
+        return predictions.get(0).token;
     }
 
     @Override
@@ -80,15 +80,15 @@ public class FillMaskResults implements InferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FillMaskResults that = (FillMaskResults) o;
-        return Objects.equals(results, that.results);
+        return Objects.equals(predictions, that.predictions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(results);
+        return Objects.hash(predictions);
     }
 
-    public static class Result implements ToXContentObject, Writeable {
+    public static class Prediction implements ToXContentObject, Writeable {
 
         private static final ParseField TOKEN = new ParseField("token");
         private static final ParseField SCORE = new ParseField("score");
@@ -98,13 +98,13 @@ public class FillMaskResults implements InferenceResults {
         private final double score;
         private final String sequence;
 
-        public Result(String token, double score, String sequence) {
+        public Prediction(String token, double score, String sequence) {
             this.token = Objects.requireNonNull(token);
             this.score = score;
             this.sequence = Objects.requireNonNull(sequence);
         }
 
-        public Result(StreamInput in) throws IOException {
+        public Prediction(StreamInput in) throws IOException {
             token = in.readString();
             score = in.readDouble();
             sequence = in.readString();
@@ -151,7 +151,7 @@ public class FillMaskResults implements InferenceResults {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Result result = (Result) o;
+            Prediction result = (Prediction) o;
             return Double.compare(result.score, score) == 0 &&
                 Objects.equals(token, result.token) &&
                 Objects.equals(sequence, result.sequence);

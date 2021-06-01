@@ -19,6 +19,10 @@ public class NlpTask {
     private final TaskType taskType;
     private final BertTokenizer tokenizer;
 
+    public static NlpTask fromConfig(NlpTaskConfig config) {
+        return new NlpTask(config.getTaskType(), config.buildTokenizer());
+    }
+
     private NlpTask(TaskType taskType, BertTokenizer tokenizer) {
         this.taskType = taskType;
         this.tokenizer = tokenizer;
@@ -26,10 +30,6 @@ public class NlpTask {
 
     public Processor createProcessor() throws IOException {
         return taskType.createProcessor(tokenizer);
-    }
-
-    public static NlpTask fromConfig(NlpTaskConfig config) {
-        return new NlpTask(config.getTaskType(), config.buildTokenizer());
     }
 
     public interface RequestBuilder {
@@ -41,6 +41,14 @@ public class NlpTask {
     }
 
     public interface Processor {
+        /**
+         * Validate the task input.
+         * Throws an exception if the inputs fail validation
+         *
+         * @param inputs Text to validate
+         */
+        void validateInputs(String inputs);
+
         RequestBuilder getRequestBuilder();
         ResultProcessor getResultProcessor();
     }

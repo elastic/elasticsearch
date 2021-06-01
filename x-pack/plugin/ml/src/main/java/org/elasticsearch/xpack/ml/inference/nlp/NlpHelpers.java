@@ -69,15 +69,21 @@ public final class NlpHelpers {
     /**
      * Find the top K highest values in {@code arr} and their
      * index positions. Similar to {@link #argmax(double[])}
-     * but generalised to k instead of just 1.
+     * but generalised to k instead of just 1. If {@code arr.length < k}
+     * then {@code arr.length} items are returned.
      *
      * The function uses a PriorityQueue of size {@code k} to
      * track the highest values
+     *
      * @param k Number of values to track
      * @param arr Array to search
      * @return Index positions and values of the top k elements.
      */
     static ScoreAndIndex[] topK(int k, double[] arr) {
+        if (k > arr.length) {
+            k = arr.length;
+        }
+
         PriorityQueue<ScoreAndIndex> minHeap = new PriorityQueue<>(k, Comparator.comparingDouble(o -> o.score));
         // initialise with the first k values
         for (int i=0; i<k; i++) {

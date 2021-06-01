@@ -111,4 +111,16 @@ public class NlpHelpersTests extends ESTestCase {
             assertEquals(sortedByValue.get(i), scoreAndIndices[i]);
         }
     }
+
+    public void testTopK_KGreaterThanArrayLength() {
+        int k = 6;
+        double[] data = new double[]{1.0, 0.0, 2.0, 8.0};
+
+        NlpHelpers.ScoreAndIndex[] scoreAndIndices = NlpHelpers.topK(k, data);
+        assertEquals(4, scoreAndIndices.length);
+        assertEquals(3, scoreAndIndices[0].index);
+        assertEquals(2, scoreAndIndices[1].index);
+        assertEquals(0, scoreAndIndices[2].index);
+        assertEquals(1, scoreAndIndices[3].index);
+    }
 }

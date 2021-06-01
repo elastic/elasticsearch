@@ -30,7 +30,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -152,14 +151,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
                 previousPattern,
                 followedIndexUUIDs
             );
-
-            warnIfFollowedIndicesExcludedWithNewPatterns(request.getName(),
-                request.getLeaderIndexPatterns(),
-                request.getLeaderIndexExclusionPatterns(),
-                remoteClusterState.metadata(),
-                localState.metadata(),
-                previousPattern,
-                followedIndexUUIDs);
         } else {
             markExistingIndicesAsAutoFollowed(request.getLeaderIndexPatterns(),
                 request.getLeaderIndexExclusionPatterns(),
@@ -209,41 +200,6 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
             .filter(p -> previousPattern.getLeaderIndexPatterns().contains(p) == false)
             .collect(Collectors.toList());
         markExistingIndicesAsAutoFollowed(newPatterns, leaderIndexExclusionPatterns, leaderMetadata, followedIndexUUIDS);
-    }
-
-    private static void warnIfFollowedIndicesExcludedWithNewPatterns(String autoFollowName,
-                                                                     List<String> newLeaderPatterns,
-                                                                     List<String> newLeaderIndexExclusionPatterns,
-                                                                     Metadata remoteMetadata,
-                                                                     Metadata localMetadata,
-                                                                     AutoFollowPattern previousPattern,
-                                                                     List<String> followedIndexUUIDS) {
-        final boolean hasNewExclusionPatterns = newLeaderIndexExclusionPatterns
-            .stream()
-            .anyMatch(p -> previousPattern.getLeaderIndexExclusionPatterns().contains(p) == false);
-
-        if (hasNewExclusionPatterns == false) {
-            return;
-        }
-
-        for (IndexMetadata localIndexMetadata : localMetadata) {
-            final Map<String, String> ccrMetadata = localIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-            if (ccrMetadata != null && followedIndexUUIDS.contains(ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY))) {
-                final String leaderIndexName = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-                IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(leaderIndexName);
-                final IndexMetadata leaderIndexMetadata = remoteMetadata.index(leaderIndexName);
-
-                if (AutoFollowPattern.match(newLeaderPatterns, newLeaderIndexExclusionPatterns, indexAbstraction) == false) {
-                    logger.warn("The follower index {} for leader index {} does not match against the updated auto follow " +
-                            "pattern with name {}, follow patterns {} and exclusion patterns {}",
-                        localIndexMetadata.getIndex(),
-                        leaderIndexMetadata.getIndex(),
-                        autoFollowName,
-                        newLeaderPatterns,
-                        newLeaderIndexExclusionPatterns);
-                }
-            }
-        }
     }
 
     private static void markExistingIndicesAsAutoFollowed(

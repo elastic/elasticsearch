@@ -209,8 +209,8 @@ GET _alias/logs
 === Write index
 
 If an alias points to multiple indices, you can use `is_write_index` to specify
-a write index or data stream. {es} routes any write requests for the alias to this
-index or data stream.
+a write index or data stream. {es} routes any write requests for the alias to
+this index or data stream.
 
 [source,console]
 ----
@@ -235,11 +235,11 @@ POST _aliases
 ----
 // TEST[s/^/PUT my-index-2099.05.06-000001\nPUT my-index-2099.05.07-000002\n/]
 
-If an alias points to multiple data streams or indices and `is_write_index`
+If an alias points to multiple indices or data streams and `is_write_index`
 isn't set, the alias rejects write requests. If an index alias points to one
 index and `is_write_index` isn't set, the index automatically acts as the write
-index. Data stream aliases don't automatically set a write stream, even if the
-alias points to one data stream.
+index. Data stream aliases don't automatically set a write data stream, even if
+the alias points to one data stream.
 
 TIP: We recommend using data streams to store append-only time series data. If
 you frequently update or delete existing time series data, use an index alias

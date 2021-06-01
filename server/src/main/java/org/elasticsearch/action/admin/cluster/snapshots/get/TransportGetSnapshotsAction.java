@@ -283,7 +283,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 snapshotIdsToIterate,
                 ignoreUnavailable == false,
                 task::isCancelled,
-                snapshotInfos::add,
+                (context, snapshotInfo) -> snapshotInfos.add(snapshotInfo),
                 ignoreUnavailable ? new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {

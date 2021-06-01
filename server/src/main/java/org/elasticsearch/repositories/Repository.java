@@ -89,7 +89,7 @@ public interface Repository extends LifecycleComponent {
                         List.of(snapshotId),
                         true,
                         () -> false,
-                        listener::onResponse,
+                        (context, snapshotInfo) -> listener.onResponse(snapshotInfo),
                         new ActionListener<>() {
                             @Override
                             public void onResponse(Void o) {

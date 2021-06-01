@@ -15,8 +15,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
-import java.util.function.Consumer;
 
 /**
  * Describes the context of fetching {@link SnapshotInfo} via {@link Repository#getSnapshotInfo(GetSnapshotInfoContext)}.
@@ -39,7 +39,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     private final ActionListener<Void> doneListener;
 
-    private final Consumer<SnapshotInfo> onSnapshotInfo;
+    private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo;
 
     // TODO: enhance org.elasticsearch.common.util.concurrent.CountDown to allow for an atomic check and try-countdown and use it to
     //       simplify the logic here
@@ -50,7 +50,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     public GetSnapshotInfoContext(Collection<SnapshotId> snapshotIds,
                                   boolean failFast,
                                   BooleanSupplier isCancelled,
-                                  Consumer<SnapshotInfo> onSnapshotInfo,
+                                  BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
                                   ActionListener<Void> doneListener) {
         this.snapshotIds = List.copyOf(snapshotIds);
         this.counter = new AtomicInteger(snapshotIds.size());
@@ -64,21 +64,36 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         return snapshotIds;
     }
 
+    /**
+     * @return true if fetching {@link SnapshotInfo} should be stopped after encountering any exception
+     */
     public boolean failFast() {
         return failFast;
     }
 
+    /**
+     * @return true if fetching {@link SnapshotInfo} has been cancelled
+     */
     public boolean isCancelled() {
         return isCancelled.getAsBoolean();
     }
 
-    public boolean isDone() {
+    /**
+     * @return true if fetching {@link SnapshotInfo} has been stopped
+     */
+    public boolean stopped() {
         return failed;
     }
 
     @Override
     public void onResponse(SnapshotInfo snapshotInfo) {
-        onSnapshotInfo.accept(snapshotInfo);
+        try {
+            onSnapshotInfo.accept(this, snapshotInfo);
+        } catch (Exception e) {
+            assert false : e;
+            onFailure(e);
+            return;
+        }
         if (counter.decrementAndGet() == 0) {
             try {
                 doneListener.onResponse(null);
@@ -94,12 +109,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         if (failFast) {
             failed = true;
             if (counter.getAndSet(0) > 0) {
-                try {
-                    doneListener.onFailure(e);
-                } catch (Exception ex) {
-                    assert false : ex;
-                    throw ex;
-                }
+                failDoneListener(e);
             }
         } else {
             final Exception failure = exception.updateAndGet(ex -> {
@@ -110,13 +120,17 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
                 return ex;
             });
             if (counter.decrementAndGet() == 0) {
-                try {
-                    doneListener.onFailure(failure);
-                } catch (Exception ex) {
-                    assert false : ex;
-                    throw ex;
-                }
+                failDoneListener(failure);
             }
+        }
+    }
+
+    private void failDoneListener(Exception failure) {
+        try {
+            doneListener.onFailure(failure);
+        } catch (Exception ex) {
+            assert false : ex;
+            throw ex;
         }
     }
 }

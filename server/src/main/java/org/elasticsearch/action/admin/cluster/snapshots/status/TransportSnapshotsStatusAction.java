@@ -261,14 +261,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 final List<SnapshotStatus> threadSafeBuilder = Collections.synchronizedList(builder);
                 repositoriesService.repository(repositoryName)
                     .getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsToLoad, true, () -> false,
-                        snapshotInfo -> {
+                        (context, snapshotInfo) -> {
                             List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                             final Map<ShardId, IndexShardSnapshotStatus> shardStatuses;
                             try {
                                 shardStatuses = snapshotShards(repositoryName, repositoryData, snapshotInfo);
                             } catch (Exception e) {
-                                // TODO: enhance logic to abort other requests as soon as we fail here
-                                listener.onFailure(e);
+                                // stops all further fetches of snapshotInfo since context is fail-fast
+                                context.onFailure(e);
                                 return;
                             }
                             for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatuses.entrySet()) {
@@ -299,17 +299,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                     // Use current time to calculate overall runtime for in-progress snapshots that have endTime == 0
                                     (endTime == 0 ? threadPool.absoluteTimeInMillis() : endTime) - startTime));
                         },
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void unused) {
-                                listener.onResponse(new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder)));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(e);
-                            }
-                        }
+                        listener.map(v -> new SnapshotsStatusResponse(List.copyOf(threadSafeBuilder)))
                 ));
             }
         }, listener::onFailure);

@@ -1239,7 +1239,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
-            if (context.isDone()) {
+            if (context.stopped()) {
                 return;
             }
             if (context.isCancelled()) {
@@ -1248,8 +1248,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 return;
             }
             Exception failure = null;
+            SnapshotInfo snapshotInfo = null;
             try {
-                context.onResponse(SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry));
+                snapshotInfo = SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
             } catch (NoSuchFileException ex) {
                 failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
             } catch (IOException | NotXContentException ex) {
@@ -1263,6 +1264,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     queue.clear();
                 }
                 context.onFailure(failure);
+            } else {
+                assert snapshotInfo != null;
+                context.onResponse(snapshotInfo);
             }
             getOneSnapshotInfo(queue, context);
         });
@@ -1902,7 +1906,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         snapshotIdsWithMissingDetails,
                         false,
                         () -> false,
-                        snapshotInfo -> extraDetailsMap.put(snapshotInfo.snapshotId(),
+                        (context, snapshotInfo) -> extraDetailsMap.put(snapshotInfo.snapshotId(),
                             new SnapshotDetails(
                                 snapshotInfo.state(),
                                 snapshotInfo.version(),

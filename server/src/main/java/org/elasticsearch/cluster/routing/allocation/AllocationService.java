@@ -121,19 +121,7 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        ClusterState newState = buildResult(oldState, allocation);
-
-        logClusterHealthStateChange(
-            new ClusterStateHealth(oldState),
-            new ClusterStateHealth(newState),
-            reason
-        );
-
-        return newState;
-    }
-
-    private ClusterState buildResult(ClusterState oldState, RoutingAllocation allocation) {
+    private ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
@@ -152,7 +140,15 @@ public class AllocationService {
                 newStateBuilder.customs(customsBuilder.build());
             }
         }
-        return newStateBuilder.build();
+        final ClusterState newState = newStateBuilder.build();
+
+        logClusterHealthStateChange(
+            new ClusterStateHealth(oldState),
+            new ClusterStateHealth(newState),
+            reason
+        );
+
+        return newState;
     }
 
     // Used for testing

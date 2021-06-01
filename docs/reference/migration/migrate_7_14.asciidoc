@@ -56,3 +56,35 @@ the cluster again.
 ====
 
 // end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-7.14]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.14
+and will be removed in 8.0.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.14.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_714_ccr_changes]]
+==== CCR deprecations
+
+[[system-indices-auto-follow-deprecation]]
+.Auto-follow remote system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Currently, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+are configured as a follower index automatically, this behavior is deprecated.
+
+*Impact* +
+In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+won't be configured as a follower index automatically.
+====

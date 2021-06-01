@@ -228,7 +228,7 @@ public class ClusterDeprecationChecks {
 
         return new DeprecationIssue(DeprecationIssue.Level.WARNING,
             "Some auto followed indices follow remote system indices",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html",
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
             "Auto followed indices " + systemIndexFollowers
                 + " follow remote system indices and this behaviour will change in the next major version."
         );

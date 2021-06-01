@@ -185,7 +185,6 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Swap(StreamInput in) throws IOException {
-            // TODO: version-lenient - on or after 7.7.2 / 6.8.14
             if (in.getVersion().onOrAfter(Version.V_7_8_0)) {
                 this.total = in.readLong();
                 assert this.total >= 0 : "expected total swap to be positive, got: " + total;
@@ -256,7 +255,6 @@ public class OsStats implements Writeable, ToXContentFragment {
         }
 
         public Mem(StreamInput in) throws IOException {
-            // TODO: version-lenient - version 7.1.2 / 6.8.2
             if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
                 this.total = in.readLong();
                 assert total >= 0 : "expected total memory to be positive, got: " + total;

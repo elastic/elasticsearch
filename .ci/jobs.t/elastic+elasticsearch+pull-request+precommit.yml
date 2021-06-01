@@ -7,7 +7,7 @@
     scm:
       - git:
           refspec: "+refs/pull/${ghprbPullId}/*:refs/remotes/origin/pr/${ghprbPullId}/*"
-          branches: 
+          branches:
             - "${ghprbActualCommit}"
     triggers:
       - github-pull-request:
@@ -20,6 +20,7 @@
           cancel-builds-on-update: true
           white-list-target-branches:
             - %BRANCH%
+            - ^feature/.*
           included-regions:
             - ^docs/.*
           black-list-labels:

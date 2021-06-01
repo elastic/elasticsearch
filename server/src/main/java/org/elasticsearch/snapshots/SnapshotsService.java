@@ -2782,8 +2782,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         updatedAssignmentsBuilder.put(shardId, updated);
                                     }
                                 }
-                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                                snapshotEntries.add(updatedEntry);
                                 changed = true;
+                                if (updatedEntry.state().completed()) {
+                                    newFinalizations.add(entry);
+                                }
                             }
                         }
                     } else {
@@ -2997,7 +3001,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> intersectingDataStreams = alias.getDataStreams().stream()
                     .filter(dataStreams::containsKey)
                     .collect(Collectors.toList());
-                return new DataStreamAlias(alias.getName(), intersectingDataStreams);
+                String writeDataStream = alias.getWriteDataStream();
+                if (intersectingDataStreams.contains(writeDataStream) == false) {
+                    writeDataStream = null;
+                }
+                return new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDataStream);
             }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 

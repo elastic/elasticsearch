@@ -124,7 +124,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 //new ImplicitCasting()
                 );
         Batch finish = new Batch("Finish Analysis",
-                new PruneSubqueryAliases(),
+                new ReplaceSubQueryAliases(), // Should be run before pruning SubqueryAliases
+                new PruneSubQueryAliases(),
                 new AddMissingEqualsToBoolField(),
                 CleanAliases.INSTANCE
                 );
@@ -1216,7 +1217,33 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    public static class PruneSubqueryAliases extends AnalyzerRule<SubQueryAlias> {
+    public static class ReplaceSubQueryAliases extends AnalyzerRule<UnaryPlan> {
+
+        @Override
+        protected LogicalPlan rule(UnaryPlan plan) {
+            if (plan.child() instanceof SubQueryAlias) {
+                SubQueryAlias a = (SubQueryAlias) plan.child();
+                return plan.transformExpressionsDown(FieldAttribute.class, f -> {
+                   if (f.qualifier() != null && f.qualifier().equals(a.alias())) {
+                       // Find the underlying concrete relation (EsIndex) and its name as the new qualifier
+                       List<LogicalPlan> children = a.collectFirstChildren(p -> p instanceof EsRelation);
+                       if (children.isEmpty() == false) {
+                           return f.withQualifier(((EsRelation) children.get(0)).index().name());
+                       }
+                   }
+                   return f;
+                });
+            }
+            return plan;
+        }
+
+        @Override
+        protected boolean skipResolved() {
+            return false;
+        }
+    }
+
+    public static class PruneSubQueryAliases extends AnalyzerRule<SubQueryAlias> {
 
         @Override
         protected LogicalPlan rule(SubQueryAlias alias) {

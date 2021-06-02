@@ -8,12 +8,12 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
@@ -51,9 +51,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      */
     private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo;
 
-    // TODO: enhance org.elasticsearch.common.util.concurrent.CountDown to allow for an atomic check and try-countdown and use it to
-    //       simplify the logic here
-    private final AtomicInteger counter;
+    private final CountDown counter;
 
     private final AtomicReference<Exception> exception = new AtomicReference<>();
 
@@ -63,7 +61,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
                                   BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
                                   ActionListener<Void> doneListener) {
         this.snapshotIds = List.copyOf(snapshotIds);
-        this.counter = new AtomicInteger(snapshotIds.size());
+        this.counter = new CountDown(snapshotIds.size());
         this.failFast = failFast;
         this.isCancelled = isCancelled;
         this.onSnapshotInfo = onSnapshotInfo;
@@ -92,7 +90,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      * @return true if fetching {@link SnapshotInfo} is either complete or should be stopped because of an error
      */
     public boolean done() {
-        return counter.get() <= 0;
+        return counter.isCountedDown();
     }
 
     @Override
@@ -104,7 +102,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
             onFailure(e);
             return;
         }
-        if (counter.decrementAndGet() == 0) {
+        if (counter.countDown()) {
             try {
                 doneListener.onResponse(null);
             } catch (Exception e) {
@@ -117,7 +115,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     @Override
     public void onFailure(Exception e) {
         if (failFast) {
-            if (counter.getAndSet(0) > 0) {
+            if (counter.fastForward()) {
                 failDoneListener(e);
             }
         } else {
@@ -128,7 +126,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
                 ex.addSuppressed(e);
                 return ex;
             });
-            if (counter.decrementAndGet() == 0) {
+            if (counter.countDown()) {
                 failDoneListener(failure);
             }
         }

@@ -58,18 +58,7 @@ public class UriPartsProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
         String value = ingestDocument.getFieldValue(field, String.class);
 
-        URI uri = null;
-        URL url = null;
-        try {
-            uri = new URI(value);
-        } catch (URISyntaxException e) {
-            try {
-                url = new URL(value);
-            } catch (MalformedURLException e2) {
-                throw new IllegalArgumentException("unable to parse URI [" + value + "]");
-            }
-        }
-        var uriParts = getUriParts(uri, url);
+        var uriParts = apply(value);
         if (keepOriginal) {
             uriParts.put("original", value);
         }
@@ -79,6 +68,21 @@ public class UriPartsProcessor extends AbstractProcessor {
         }
         ingestDocument.setFieldValue(targetField, uriParts);
         return ingestDocument;
+    }
+
+    public static Map<String, Object> apply(String urlString) {
+        URI uri = null;
+        URL url = null;
+        try {
+            uri = new URI(urlString);
+        } catch (URISyntaxException e) {
+            try {
+                url = new URL(urlString);
+            } catch (MalformedURLException e2) {
+                throw new IllegalArgumentException("unable to parse URI [" + urlString + "]");
+            }
+        }
+        return getUriParts(uri, url);
     }
 
     @SuppressForbidden(reason = "URL.getPath is used only if URI.getPath is unavailable")

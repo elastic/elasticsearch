@@ -112,7 +112,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
                 }
             }, () -> boxToGeo(randomBBox())));
 
-            GeoBoundingBox geoBoundingBox = randomBBox();
+            GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180,() -> randomBBox());
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues cellValues =
                 new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(geoBoundingBox, precision), NOOP_BREAKER);

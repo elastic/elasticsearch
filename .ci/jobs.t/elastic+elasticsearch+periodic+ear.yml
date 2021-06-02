@@ -11,6 +11,7 @@
           properties-content: |
             JAVA_HOME=$HOME/.java/$ES_BUILD_JAVA
             RUNTIME_JAVA_HOME=$HOME/.java/$ES_RUNTIME_JAVA
+            JAVA15_HOME=$HOME/.java/openjdk15
       - shell: |
           #!/bin/bash
           # Configure a dm-crypt volume backed by a file

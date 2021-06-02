@@ -53,7 +53,7 @@ public class ReadonlyActionIT extends ESRestTestCase {
         createIndexWithSettings(client(), index, alias, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String phaseName = randomFrom("warm", "cold", "frozen");
+        String phaseName = randomFrom("warm", "cold");
         createNewSingletonPolicy(client(), policy, phaseName, new ReadOnlyAction());
         updatePolicy(client(), index, policy);
         assertBusy(() -> {

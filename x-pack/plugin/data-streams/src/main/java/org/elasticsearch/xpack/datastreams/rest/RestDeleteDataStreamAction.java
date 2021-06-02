@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
@@ -25,7 +27,7 @@ public class RestDeleteDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_data_stream/{name}"));
+        return List.of(new Route(DELETE, "/_data_stream/{name}"));
     }
 
     @Override

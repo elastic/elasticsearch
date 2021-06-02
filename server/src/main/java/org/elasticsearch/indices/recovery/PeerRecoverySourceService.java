@@ -84,7 +84,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStart() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             clusterService.addListener(this);
         }
     }
@@ -92,7 +92,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     @Override
     protected void doStop() {
         final ClusterService clusterService = indicesService.clusterService();
-        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+        if (DiscoveryNode.canContainData(clusterService.getSettings())) {
             ongoingRecoveries.awaitEmpty();
             indicesService.clusterService().removeListener(this);
         }

@@ -17,6 +17,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapsho
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
+import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.junit.Before;
 
 import java.util.concurrent.ExecutionException;
@@ -55,7 +57,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
-public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshotsIntegTestCase {
+public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
     private static final String repoName = "test-repo";
     private static final String indexName = "test-index";
@@ -87,6 +89,9 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
 
         assertAcked(client().execute(DeleteLicenseAction.INSTANCE, new DeleteLicenseRequest()).get());
         assertAcked(client().execute(PostStartBasicAction.INSTANCE, new PostStartBasicRequest()).get());
+
+        ensureClusterSizeConsistency();
+        ensureClusterStateConsistency();
     }
 
     public void testMountRequiresLicense() {
@@ -148,6 +153,10 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
                 client().admin().cluster().prepareHealth(indexName).get().getIndices().get(indexName).getStatus()
             )
         );
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
         // add a valid license again
         // This is a bit of a hack in tests, as we can't readd a trial license
         // We force this by clearing the existing basic license first
@@ -156,11 +165,33 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseSearchableSnapshot
                 .metadata(Metadata.builder(currentState.metadata()).removeCustom(LicensesMetadata.TYPE).build())
                 .build()
         );
+
+        waitNoPendingTasksOnAll();
+        ensureClusterStateConsistency();
+
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
             .acknowledge(true);
         PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();
         assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
         // check if cluster goes green again after valid license has been put in place
         ensureGreen(indexName);
+    }
+
+    public void testCachesStatsRequiresLicense() throws Exception {
+        final ActionFuture<TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse> future = client().execute(
+            TransportSearchableSnapshotsNodeCachesStatsAction.TYPE,
+            new TransportSearchableSnapshotsNodeCachesStatsAction.NodesRequest(Strings.EMPTY_ARRAY)
+        );
+
+        final TransportSearchableSnapshotsNodeCachesStatsAction.NodesCachesStatsResponse response = future.get();
+        assertThat(response.failures().size(), equalTo(internalCluster().numDataNodes()));
+        assertTrue(response.hasFailures());
+
+        for (FailedNodeException nodeException : response.failures()) {
+            final Throwable cause = ExceptionsHelper.unwrap(nodeException.getCause(), ElasticsearchSecurityException.class);
+            assertThat(cause, notNullValue());
+            assertThat(cause, instanceOf(ElasticsearchSecurityException.class));
+            assertThat(cause.getMessage(), containsString("current license is non-compliant for [searchable-snapshots]"));
+        }
     }
 }

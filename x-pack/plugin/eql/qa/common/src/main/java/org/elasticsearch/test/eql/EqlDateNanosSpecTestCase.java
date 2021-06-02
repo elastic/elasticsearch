@@ -18,7 +18,7 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_queries_date_nanos.toml", true, new HashSet<>()));
+        return asArray(EqlSpecLoader.load("/test_queries_date_nanos.toml", new HashSet<>()));
     }
 
     public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds) {

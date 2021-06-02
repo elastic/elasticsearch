@@ -62,7 +62,7 @@ public class FsRepository extends BlobStoreRepository {
      */
     public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
                         ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
-        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
+        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
@@ -102,5 +102,12 @@ public class FsRepository extends BlobStoreRepository {
     @Override
     protected ByteSizeValue chunkSize() {
         return chunkSize;
+    }
+
+    @Override
+    public boolean hasAtomicOverwrites() {
+        // We overwrite a file by deleting the old file and then renaming the new file into place, which is not atomic.
+        // Also on Windows the overwrite may fail if the file is opened for reading at the time.
+        return false;
     }
 }

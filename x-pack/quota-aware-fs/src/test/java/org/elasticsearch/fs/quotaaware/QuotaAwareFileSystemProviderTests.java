@@ -86,6 +86,7 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70680")
     public void testRepeatedUpdate() throws Exception {
         Path quotaFile = createTempDir().resolve("quota.properties");
         FileSystemProvider systemProvider = quotaFile.getFileSystem().provider();

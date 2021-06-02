@@ -323,7 +323,7 @@ GET /my-index-000001/_termvectors/1
 ===== Artificial documents
 
 Term vectors can also be generated for artificial documents,
-that is for documents not present in the index.  For example, the following request would
+that is for documents not present in the index. For example, the following request would
 return the same results as in example 1. The mapping used is determined by the `index`.
 
 *If dynamic mapping is turned on (default), the document fields not in the original

@@ -43,9 +43,9 @@ import static org.hamcrest.Matchers.empty;
 public class ExecuteWatchQueuedStatsTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         // we use a small thread pool to force executions to be queued
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("xpack.watcher.thread_pool.size", 1).build();
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("xpack.watcher.thread_pool.size", 1).build();
     }
 
     @Override

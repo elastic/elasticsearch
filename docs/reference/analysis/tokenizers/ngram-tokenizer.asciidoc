@@ -175,14 +175,14 @@ The `ngram` tokenizer accepts the following parameters:
 
 [horizontal]
 `min_gram`::
-    Minimum length of characters in a gram.  Defaults to `1`.
+    Minimum length of characters in a gram. Defaults to `1`.
 
 `max_gram`::
-    Maximum length of characters in a gram.  Defaults to `2`.
+    Maximum length of characters in a gram. Defaults to `2`.
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token. Elasticsearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +
@@ -200,12 +200,12 @@ Character classes may be any of the following:
 
     Custom characters that should be treated as part of a token. For example,
     setting this to `+-_` will make the tokenizer treat the plus, minus and
-    underscore sign  as part of a token.
+    underscore sign as part of a token.
 
 TIP:  It usually makes sense to set `min_gram` and `max_gram` to the same
-value.  The smaller the length, the more documents will match but the lower
-the quality of the matches.  The longer the length, the more specific the
-matches.  A tri-gram (length `3`) is a good place to start.
+value. The smaller the length, the more documents will match but the lower
+the quality of the matches. The longer the length, the more specific the
+matches. A tri-gram (length `3`) is a good place to start.
 
 The index level setting `index.max_ngram_diff` controls the maximum allowed
 difference between `max_gram` and `min_gram`.

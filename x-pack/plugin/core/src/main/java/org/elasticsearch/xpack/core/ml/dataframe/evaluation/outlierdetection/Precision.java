@@ -26,6 +26,7 @@ public class Precision extends AbstractConfusionMatrixMetric {
 
     public static final ParseField NAME = new ParseField("precision");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Precision, Void> PARSER = new ConstructingObjectParser<>(NAME.getPreferredName(),
         a -> new Precision((List<Double>) a[0]));
 

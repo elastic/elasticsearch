@@ -30,7 +30,7 @@ public class LegacyReaderContext extends ReaderContext {
         assert shardSearchRequest.readerId() == null;
         assert shardSearchRequest.keepAlive() == null;
         assert id.getSearcherId() == null : "Legacy reader context must not have searcher id";
-        this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest);
+        this.shardSearchRequest = Objects.requireNonNull(shardSearchRequest, "ShardSearchRequest must be provided");
         if (shardSearchRequest.scroll() != null) {
             // Search scroll requests are special, they don't hold indices names so we have
             // to reuse the searcher created on the request that initialized the scroll.

@@ -16,20 +16,20 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetJobStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_stats"),
-            new Route(GET, MachineLearning.BASE_PATH + "anomaly_detectors/_stats")
+            new Route(GET, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_stats"),
+            new Route(GET, BASE_PATH + "anomaly_detectors/_stats")
         );
     }
 
@@ -46,7 +46,7 @@ public class RestGetJobStatsAction extends BaseRestHandler {
         }
         Request request = new Request(jobId);
         if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
-            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
+            LoggingDeprecationHandler.INSTANCE.logRenamedField(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
         }
         request.setAllowNoMatch(
             restRequest.paramAsBoolean(

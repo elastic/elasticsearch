@@ -164,7 +164,7 @@ and restrict the results to documents added within the last five minutes:
 
 ==== Accessing the HTTP response
 
-If the response body is formatted in  JSON or YAML, it is parsed and loaded into
+If the response body is formatted in JSON or YAML, it is parsed and loaded into
 the execution context. If the response body is not formatted in JSON or YAML, it 
 is loaded into the payload's `_value` field. 
 

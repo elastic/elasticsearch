@@ -30,14 +30,14 @@ import static org.hamcrest.Matchers.equalTo;
 public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         switch(nodeOrdinal % 2) {
         case 1:
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "B").build();
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "B").build();
         case 0:
-            return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put("node.attr.tag", "A").build();
+            return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put("node.attr.tag", "A").build();
         }
-        return super.nodeSettings(nodeOrdinal);
+        return super.nodeSettings(nodeOrdinal, otherSettings);
     }
 
     public void testSingleShardAllocation() throws Exception {

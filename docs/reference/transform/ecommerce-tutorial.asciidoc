@@ -267,7 +267,6 @@ image::images/ecommerce-results.png["Exploring the new index in {kib}"]
 . Optional: Create another {transform}, this time using the `latest` method.
 +
 --
-beta::[]
 
 This method populates the destination index with the latest documents for each
 unique key value. For example, you might want to find the latest orders (sorted

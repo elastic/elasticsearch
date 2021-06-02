@@ -34,9 +34,9 @@ public class SystemIndicesTests extends ESTestCase {
         String broadPatternSource = "AAA" + randomAlphaOfLength(5);
         String otherSource = "ZZZ" + randomAlphaOfLength(6);
         Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(broadPatternSource, new SystemIndices.Feature("test feature", List.of(broadPattern)));
+        descriptors.put(broadPatternSource, new SystemIndices.Feature(broadPatternSource, "test feature", List.of(broadPattern)));
         descriptors.put(otherSource,
-            new SystemIndices.Feature("test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3)));
+            new SystemIndices.Feature(otherSource, "test 2", List.of(notOverlapping, overlapping1, overlapping2, overlapping3)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
@@ -62,8 +62,8 @@ public class SystemIndicesTests extends ESTestCase {
         String source1 = "AAA" + randomAlphaOfLength(5);
         String source2 = "ZZZ" + randomAlphaOfLength(6);
         Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(source1, new SystemIndices.Feature("test", List.of(pattern1)));
-        descriptors.put(source2, new SystemIndices.Feature("test", List.of(pattern2)));
+        descriptors.put(source1, new SystemIndices.Feature(source1, "test", List.of(pattern1)));
+        descriptors.put(source2, new SystemIndices.Feature(source2, "test", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));
@@ -84,7 +84,8 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPluginCannotOverrideBuiltInSystemIndex() {
         Map<String, SystemIndices.Feature> pluginMap = Map.of(
-            TASKS_FEATURE_NAME, new SystemIndices.Feature("test", List.of(new SystemIndexDescriptor(TASK_INDEX, "Task Result Index")))
+            TASKS_FEATURE_NAME, new SystemIndices.Feature(TASKS_FEATURE_NAME, "test", List.of(new SystemIndexDescriptor(TASK_INDEX, "Task" +
+                " Result Index")))
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SystemIndices(pluginMap));
         assertThat(e.getMessage(), containsString("plugin or module attempted to define the same source"));
@@ -93,7 +94,7 @@ public class SystemIndicesTests extends ESTestCase {
     public void testPatternWithSimpleRange() {
 
         final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(".test-[abc]", "")))
+            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[abc]", "")))
         ));
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
@@ -108,7 +109,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithSimpleRangeAndRepeatOperator() {
         final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(".test-[a]+", "")))
+            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[a]+", "")))
         ));
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
@@ -120,7 +121,7 @@ public class SystemIndicesTests extends ESTestCase {
 
     public void testPatternWithComplexRange() {
         final SystemIndices systemIndices = new SystemIndices(Map.of(
-            "test", new SystemIndices.Feature("test feature", List.of(new SystemIndexDescriptor(".test-[a-c]", "")))
+            "test", new SystemIndices.Feature("test", "test feature", List.of(new SystemIndexDescriptor(".test-[a-c]", "")))
         ));
 
         assertThat(systemIndices.isSystemIndex(".test-a"), equalTo(true));
@@ -141,8 +142,8 @@ public class SystemIndicesTests extends ESTestCase {
         SystemIndexDescriptor pattern2 = new SystemIndexDescriptor(".test-a*", "");
 
         Map<String, SystemIndices.Feature> descriptors = new HashMap<>();
-        descriptors.put(source1, new SystemIndices.Feature("source 1", List.of(pattern1)));
-        descriptors.put(source2, new SystemIndices.Feature("source 2", List.of(pattern2)));
+        descriptors.put(source1, new SystemIndices.Feature(source1, "source 1", List.of(pattern1)));
+        descriptors.put(source2, new SystemIndices.Feature(source2, "source 2", List.of(pattern2)));
 
         IllegalStateException exception = expectThrows(IllegalStateException.class,
             () -> SystemIndices.checkForOverlappingPatterns(descriptors));

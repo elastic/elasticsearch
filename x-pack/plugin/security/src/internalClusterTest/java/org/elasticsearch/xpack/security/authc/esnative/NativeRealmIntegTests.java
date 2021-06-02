@@ -57,10 +57,13 @@ import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -104,8 +107,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
     }
 
     @Override
-    public Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("xpack.security.authc.password_hashing.algorithm", hasher.name());
         if (anonymousEnabled) {
             builder.put(AnonymousUser.ROLES_SETTING.getKey(), "native_anonymous");
@@ -617,18 +620,19 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar-password", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
+        final String internalUser = randomFrom(SystemUser.NAME, XPackUser.NAME, XPackSecurityUser.NAME, AsyncSearchUser.NAME);
         exception = expectThrows(IllegalArgumentException.class,
-            () -> preparePutUser(SystemUser.NAME, "foobar-password", hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+            () -> preparePutUser(internalUser, "foobar-password", hasher).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> new ChangePasswordRequestBuilder(client()).username(SystemUser.NAME)
+            () -> new ChangePasswordRequestBuilder(client()).username(internalUser)
                 .password("foobar-password".toCharArray(), hasher).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
-                () -> new DeleteUserRequestBuilder(client()).username(SystemUser.NAME).get());
-        assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
+                () -> new DeleteUserRequestBuilder(client()).username(internalUser).get());
+        assertThat(exception.getMessage(), containsString("user [" + internalUser + "] is internal"));
 
         // get should work
         GetUsersResponse response = new GetUsersRequestBuilder(client()).usernames(username).get();

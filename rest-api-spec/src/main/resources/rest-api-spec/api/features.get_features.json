@@ -1,8 +1,8 @@
 {
   "features.get_features":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Returns a list of features which can be snapshotted in this cluster."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/get-features-api.html",
+      "description":"Gets a list of features which can be included in snapshots using the feature_states field when creating a snapshot"
     },
     "stability":"stable",
     "visibility":"public",

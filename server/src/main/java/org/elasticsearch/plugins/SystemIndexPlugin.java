@@ -8,8 +8,14 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -27,6 +33,10 @@ public interface SystemIndexPlugin extends ActionPlugin {
      * @return Descriptions of the system indices managed by this plugin.
      */
     default Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return Collections.emptyList();
+    }
+
+    default Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
         return Collections.emptyList();
     }
 
@@ -48,5 +58,26 @@ public interface SystemIndexPlugin extends ActionPlugin {
      */
     default Collection<String> getAssociatedIndexPatterns() {
         return Collections.emptyList();
+    }
+
+    /**
+     * Cleans up the state of the feature by deleting system indices and associated indices.
+     * Override to do more for cleanup (e.g. cancelling tasks).
+     * @param clusterService Cluster service to provide cluster state
+     * @param client A client, for executing actions
+     * @param listener Listener for post-cleanup result
+     */
+    default void cleanUpFeature(
+        ClusterService clusterService, Client client,
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+
+        SystemIndices.Feature.cleanUpFeature(
+            getSystemIndexDescriptors(clusterService.getSettings()),
+            getAssociatedIndexPatterns(),
+            getFeatureName(),
+            clusterService,
+            client,
+            listener
+        );
     }
 }

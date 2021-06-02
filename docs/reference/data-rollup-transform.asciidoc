@@ -6,9 +6,23 @@
 
 {es} offers the following methods for manipulating your data:
 
+ifdef::permanently-unreleased-branch[]
+
+* <<xpack-rollup>>
++
+A rollup aggregates an index's time series data and stores the results in new
+read-only index. For example, you can roll up hourly data into daily or weekly
+summaries.
+
+endif::[]
+ifndef::permanently-unreleased-branch[]
+
 * <<xpack-rollup,Rolling up your historical data>>
 +
 include::rollup/index.asciidoc[tag=rollup-intro]
+
+endif::[]
+
 * <<transforms,Transforming your data>>
 +
 include::transform/transforms.asciidoc[tag=transform-intro]

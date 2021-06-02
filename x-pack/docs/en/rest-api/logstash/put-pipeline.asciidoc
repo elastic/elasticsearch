@@ -1,9 +1,9 @@
 [role="xpack"]
 [testenv="basic"]
 [[logstash-api-put-pipeline]]
-=== Put {ls} pipeline API
+=== Create or update {ls} pipeline API
 ++++
-<titleabbrev>Put {ls} pipeline</titleabbrev>
+<titleabbrev>Create or update {ls} pipeline</titleabbrev>
 ++++
 
 This API creates or updates a {ls} pipeline used for

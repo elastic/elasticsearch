@@ -93,8 +93,8 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder settings = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
         settings.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), false);
         settings.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
@@ -471,6 +471,11 @@ public class IndexLifecycleInitialisationTests extends ESIntegTestCase {
 
         public ObservableClusterStateWaitStep(StepKey current, StepKey next) {
             super(current, next);
+        }
+
+        @Override
+        public boolean isRetryable() {
+            return false;
         }
 
         public ObservableClusterStateWaitStep(StreamInput in) throws IOException {

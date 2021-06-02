@@ -18,19 +18,16 @@ Returns defaults and limits used by machine learning.
 [[get-ml-info-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml`,
-`monitor`, `manage_ml`, or `manage` cluster privileges to use this API. The
-`machine_learning_admin` and `machine_learning_user` roles provide these
-privileges. See <<security-privileges>>, <<built-in-roles>> and
-{ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 [[get-ml-info-desc]]
 == {api-description-title}
 
 This endpoint is designed to be used by a user interface that needs to fully
 understand machine learning configurations where some options are not specified,
-meaning that the defaults should be used.  This endpoint may be used to find out
-what those defaults are.  It also provides information about the maximum size
+meaning that the defaults should be used. This endpoint may be used to find out
+what those defaults are. It also provides information about the maximum size
 of {ml} jobs that could run in the current cluster configuration.
 
 [[get-ml-info-example]]
@@ -52,7 +49,10 @@ This is a possible response:
   "defaults" : {
     "anomaly_detectors" : {
       "categorization_analyzer" : {
-        "tokenizer" : "ml_classic",
+        "char_filter" : [
+          "first_non_blank_line"
+        ],
+        "tokenizer" : "ml_standard",
         "filter" : [
           {
             "type" : "stop",

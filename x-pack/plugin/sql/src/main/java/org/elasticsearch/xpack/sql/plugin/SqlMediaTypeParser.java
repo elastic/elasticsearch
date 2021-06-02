@@ -51,7 +51,7 @@ public class SqlMediaTypeParser {
     }
 
     private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
-        if(requestIsColumnar && fromMediaType instanceof TextFormat){
+        if (requestIsColumnar && fromMediaType instanceof TextFormat) {
             throw new IllegalArgumentException("Invalid use of [columnar] argument: cannot be used in combination with "
                 + "txt, csv or tsv formats");
         }

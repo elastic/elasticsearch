@@ -70,12 +70,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
      */
     GeoIpProcessor(
         final String tag,
-        String description, final String field,
+        final String description,
+        final String field,
         final CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier,
         final String targetField,
         final Set<Property> properties,
         final boolean ignoreMissing,
-        boolean firstOnly) {
+        final boolean firstOnly) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
@@ -340,14 +341,14 @@ public final class GeoIpProcessor extends AbstractProcessor {
             Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK
         ));
 
-        private final LocalDatabases localDatabases;
+        private final DatabaseRegistry databaseRegistry;
 
         List<DatabaseReaderLazyLoader> getAllDatabases() {
-            return localDatabases.getAllDatabases();
+            return databaseRegistry.getAllDatabases();
         }
 
-        public Factory(LocalDatabases localDatabases) {
-            this.localDatabases = localDatabases;
+        public Factory(DatabaseRegistry databaseRegistry) {
+            this.databaseRegistry = databaseRegistry;
         }
 
         @Override
@@ -361,8 +362,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             boolean firstOnly = readBooleanProperty(TYPE, processorTag, config, "first_only", true);
+            boolean fallbackUsingDefaultDatabases = readBooleanProperty(TYPE, processorTag, config, "fallback_to_default_databases", true);
 
-            DatabaseReaderLazyLoader lazyLoader = localDatabases.getDatabase(databaseFile);
+            DatabaseReaderLazyLoader lazyLoader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
             if (lazyLoader == null) {
                 throw newConfigurationException(TYPE, processorTag,
                     "database_file", "database file [" + databaseFile + "] doesn't exist");
@@ -398,11 +400,10 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
             }
             CheckedSupplier<DatabaseReaderLazyLoader, IOException> supplier = () -> {
-                DatabaseReaderLazyLoader loader = localDatabases.getDatabase(databaseFile);
+                DatabaseReaderLazyLoader loader = databaseRegistry.getDatabase(databaseFile, fallbackUsingDefaultDatabases);
                 if (loader == null) {
-                    throw new ResourceNotFoundException("database_file", "database file [" + databaseFile + "] doesn't exist");
+                    throw new ResourceNotFoundException("database file [" + databaseFile + "] doesn't exist");
                 }
-
                 // Only check whether the suffix has changed and not the entire database type.
                 // To sanity check whether a city db isn't overwriting with a country or asn db.
                 // For example overwriting a geoip lite city db with geoip city db is a valid change, but the db type is slightly different,

@@ -74,7 +74,7 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (encryptSensitiveData == null) {
             encryptSensitiveData = randomBoolean();
         }
@@ -82,12 +82,12 @@ public class HttpSecretsIntegrationTests extends AbstractWatcherIntegrationTestC
             MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setFile(WatcherField.ENCRYPTION_KEY_SETTING.getKey(), encryptionKey);
             return Settings.builder()
-                    .put(super.nodeSettings(nodeOrdinal))
+                    .put(super.nodeSettings(nodeOrdinal, otherSettings))
                     .put("xpack.watcher.encrypt_sensitive_data", encryptSensitiveData)
                     .setSecureSettings(secureSettings)
                     .build();
         }
-        return super.nodeSettings(nodeOrdinal);
+        return super.nodeSettings(nodeOrdinal, otherSettings);
     }
 
     public void testHttpInput() throws Exception {

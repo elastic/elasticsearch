@@ -104,24 +104,27 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return stopTimeout;
         }
 
-        public void setStopTimeout(TimeValue stopTimeout) {
+        public Request setStopTimeout(TimeValue stopTimeout) {
             this.stopTimeout = ExceptionsHelper.requireNonNull(stopTimeout, TIMEOUT.getPreferredName());
+            return this;
         }
 
         public boolean isForce() {
             return force;
         }
 
-        public void setForce(boolean force) {
+        public Request setForce(boolean force) {
             this.force = force;
+            return this;
         }
 
         public boolean allowNoMatch() {
             return allowNoMatch;
         }
 
-        public void setAllowNoMatch(boolean allowNoMatch) {
+        public Request setAllowNoMatch(boolean allowNoMatch) {
             this.allowNoMatch = allowNoMatch;
+            return this;
         }
 
         @Override

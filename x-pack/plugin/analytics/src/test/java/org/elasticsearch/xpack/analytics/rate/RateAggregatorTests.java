@@ -767,6 +767,7 @@ public class RateAggregatorTests extends AggregatorTestCase {
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             DateFieldMapper.Resolution.MILLISECONDS,
             null,
+            null,
             Collections.emptyMap()
         );
     }

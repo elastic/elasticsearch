@@ -28,12 +28,6 @@ Block write operations to the index.
 Remove the index as the write index for the rollover alias and
 start indexing to a new index.
 
-ifdef::permanently-unreleased-branch[]
-<<ilm-rollup,Rollup>>::
-Aggregates an index's time series data and stores the results in a new read-only
-index. For example, you can roll up hourly data into daily or weekly summaries.
-endif::[]
-
 <<ilm-searchable-snapshot, Searchable snapshot>>::
 Take a snapshot of the managed index in the configured repository
 and mount it as a searchable snapshot.
@@ -59,9 +53,6 @@ include::actions/ilm-freeze.asciidoc[]
 include::actions/ilm-migrate.asciidoc[]
 include::actions/ilm-readonly.asciidoc[]
 include::actions/ilm-rollover.asciidoc[]
-ifdef::permanently-unreleased-branch[]
-include::actions/ilm-rollup.asciidoc[]
-endif::[]
 include::actions/ilm-searchable-snapshot.asciidoc[]
 include::actions/ilm-set-priority.asciidoc[]
 include::actions/ilm-shrink.asciidoc[]

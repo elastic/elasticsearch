@@ -28,6 +28,7 @@ import org.elasticsearch.client.security.ClearRolesCacheRequest;
 import org.elasticsearch.client.security.ClearRolesCacheResponse;
 import org.elasticsearch.client.security.ClearSecurityCacheResponse;
 import org.elasticsearch.client.security.CreateApiKeyRequest;
+import org.elasticsearch.client.security.CreateApiKeyRequestTests;
 import org.elasticsearch.client.security.CreateApiKeyResponse;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
@@ -64,6 +65,7 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -689,8 +691,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 29 system roles plus the three we created
-            assertThat(roles.size(), equalTo(29 + 3));
+            // 31 system roles plus the three we created
+            assertThat(roles.size(), equalTo(31 + 3));
         }
 
         {
@@ -1957,10 +1959,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
         {
             final String name = randomAlphaOfLength(5);
             // tag::create-api-key-request
-            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
             // end::create-api-key-request
 
             // tag::create-api-key-execute
@@ -1978,7 +1981,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
             final String name = randomAlphaOfLength(5);
-            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
 
             ActionListener<CreateApiKeyResponse> listener;
             // tag::create-api-key-execute-listener
@@ -2027,6 +2030,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
 
         final Instant start = Instant.now();
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
         CheckedConsumer<CreateApiKeyResponse, IOException> apiKeyVerifier = (created) -> {
             final GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(created.getId(), false);
             final GetApiKeyResponse getApiKeyResponse = client.security().getApiKey(getApiKeyRequest, RequestOptions.DEFAULT);
@@ -2039,6 +2043,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(apiKeyInfo.isInvalidated(), equalTo(false));
             assertThat(apiKeyInfo.getCreation(), greaterThanOrEqualTo(start));
             assertThat(apiKeyInfo.getCreation(), lessThanOrEqualTo(Instant.now()));
+            if (metadata == null) {
+                assertThat(apiKeyInfo.getMetadata(), equalTo(Map.of()));
+            } else {
+                assertThat(apiKeyInfo.getMetadata(), equalTo(metadata));
+            }
         };
 
         final TimeValue expiration = TimeValue.timeValueHours(24);
@@ -2046,7 +2055,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             final String name = randomAlphaOfLength(5);
             // tag::grant-api-key-request
-            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
             GrantApiKeyRequest.Grant grant = GrantApiKeyRequest.Grant.passwordGrant(username, password);
             GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(grant, createApiKeyRequest);
             // end::grant-api-key-request
@@ -2071,7 +2080,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final CreateTokenRequest tokenRequest = CreateTokenRequest.passwordGrant(username, password);
             final CreateTokenResponse token = client.security().createToken(tokenRequest, RequestOptions.DEFAULT);
 
-            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy);
+            CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(name, roles, expiration, refreshPolicy, metadata);
             GrantApiKeyRequest.Grant grant = GrantApiKeyRequest.Grant.accessTokenGrant(token.getAccessToken());
             GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(grant, createApiKeyRequest);
 
@@ -2117,14 +2126,15 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
         // Create API Keys
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy, metadata);
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
 
         final ApiKey expectedApiKeyInfo = new ApiKey(createApiKeyResponse1.getName(), createApiKeyResponse1.getId(), Instant.now(),
-            Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file");
+            Instant.now().plusMillis(expiration.getMillis()), false, "test_user", "default_file", metadata);
         {
             // tag::get-api-key-id-request
             GetApiKeyRequest getApiKeyRequest = GetApiKeyRequest.usingApiKeyId(createApiKeyResponse1.getId(), false);
@@ -2258,6 +2268,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(actual.getRealm(), is(expected.getRealm()));
         assertThat(actual.isInvalidated(), is(expected.isInvalidated()));
         assertThat(actual.getExpiration(), is(greaterThan(Instant.now())));
+        if (expected.getMetadata() == null) {
+            assertThat(actual.getMetadata(), equalTo(Map.of()));
+        } else {
+            assertThat(actual.getMetadata(), equalTo(expected.getMetadata()));
+        }
     }
 
     public void testInvalidateApiKey() throws Exception {
@@ -2267,8 +2282,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             .indicesPrivileges(IndicesPrivileges.builder().indices("ind-x").privileges(IndexPrivilegeName.ALL).build()).build());
         final TimeValue expiration = TimeValue.timeValueHours(24);
         final RefreshPolicy refreshPolicy = randomFrom(RefreshPolicy.values());
+        final Map<String, Object> metadata = CreateApiKeyRequestTests.randomMetadata();
         // Create API Keys
-        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy);
+        CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("k1", roles, expiration, refreshPolicy, metadata);
         CreateApiKeyResponse createApiKeyResponse1 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
         assertThat(createApiKeyResponse1.getName(), equalTo("k1"));
         assertNotNull(createApiKeyResponse1.getKey());
@@ -2312,7 +2328,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k2", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k2", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse2.getName(), equalTo("k2"));
             assertNotNull(createApiKeyResponse2.getKey());
@@ -2336,7 +2352,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k3", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k3", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse3 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse3.getName(), equalTo("k3"));
             assertNotNull(createApiKeyResponse3.getKey());
@@ -2359,7 +2375,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k4", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k4", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse4 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse4.getName(), equalTo("k4"));
             assertNotNull(createApiKeyResponse4.getKey());
@@ -2382,7 +2398,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k5", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k5", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse5 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse5.getName(), equalTo("k5"));
             assertNotNull(createApiKeyResponse5.getKey());
@@ -2407,7 +2423,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k6", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k6", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse6 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse6.getName(), equalTo("k6"));
             assertNotNull(createApiKeyResponse6.getKey());
@@ -2450,7 +2466,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
-            createApiKeyRequest = new CreateApiKeyRequest("k7", roles, expiration, refreshPolicy);
+            createApiKeyRequest = new CreateApiKeyRequest("k7", roles, expiration, refreshPolicy, metadata);
             CreateApiKeyResponse createApiKeyResponse7 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse7.getName(), equalTo("k7"));
             assertNotNull(createApiKeyResponse7.getKey());
@@ -2545,6 +2561,51 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(authnRealm.getName(), is("pki1"));
             assertThat(authnRealm.getType(), is("pki"));
             assertThat(resp.getAuthenticationType(), is("token"));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testNodeEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::node-enrollment-execute
+            NodeEnrollmentResponse response = client.security().enrollNode(RequestOptions.DEFAULT);
+            // end::node-enrollment-execute
+
+            // tag::node-enrollment-response
+            String httpCaKey = response.getHttpCaKey(); // <1>
+            String httpCaCert = response.getHttpCaCert(); // <2>
+            String transportKey = response.getTransportKey(); // <3>
+            String transportCert = response.getTransportCert(); // <4>
+            String clusterName = response.getClusterName(); // <5>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            // end::node-enrollment-response
+        }
+
+        {
+            // tag::node-enrollment-execute-listener
+            ActionListener<NodeEnrollmentResponse> listener =
+                new ActionListener<NodeEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(NodeEnrollmentResponse response) {
+                        // <1>
+                    }
+
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::node-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::node-enrollment-execute-async
+            client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
+            // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }
 

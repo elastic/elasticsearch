@@ -86,7 +86,7 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     }
 
     protected SqlQueryRequest createTestInstance(boolean binaryCommunication, Mode mode, boolean columnar) {
-        return new SqlQueryRequest(randomAlphaOfLength(10), Collections.emptyList(), null,
+        return new SqlQueryRequest(randomAlphaOfLength(10), Collections.emptyList(), null, null,
             randomZone(), between(1, Integer.MAX_VALUE), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
             TimeValue.parseTimeValue(randomTimeValue(), null, "test"), columnar, randomAlphaOfLength(10),
             new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),

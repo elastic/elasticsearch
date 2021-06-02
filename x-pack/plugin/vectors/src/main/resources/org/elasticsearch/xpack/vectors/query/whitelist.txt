@@ -5,6 +5,8 @@
 # 2.0.
 #
 class org.elasticsearch.xpack.vectors.query.DenseVectorScriptDocValues {
+    float[] getVectorValue()
+    float getMagnitude()
 }
 class org.elasticsearch.script.ScoreScript @no_import {
 }

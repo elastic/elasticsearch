@@ -145,8 +145,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return builder;
         }
         builder.startObject(simpleName());
-        boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
-        getMergeBuilder().toXContent(builder, includeDefaults);
+        getMergeBuilder().toXContent(builder, params);
         return builder.endObject();
     }
 

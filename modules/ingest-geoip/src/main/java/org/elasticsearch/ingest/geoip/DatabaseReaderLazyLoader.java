@@ -24,6 +24,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -35,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -49,23 +51,27 @@ class DatabaseReaderLazyLoader implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
+    private final String md5;
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
+    private volatile long lastUpdate;
     final SetOnce<DatabaseReader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
+    private volatile boolean deleteDatabaseFileOnClose;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
-        this(cache, databasePath, createDatabaseLoader(databasePath));
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
+        this(cache, databasePath, md5, createDatabaseLoader(databasePath));
     }
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5, CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
+        this.md5 = md5;
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
@@ -191,6 +197,16 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     DatabaseReader get() throws IOException {
+        //only downloaded databases will have lastUpdate != 0, we never update it for default databases or databases from config dir
+        if (lastUpdate != 0) {
+            Path fileName = databasePath.getFileName();
+            if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(30).toMillis()) {
+                throw new IllegalStateException("database [" + fileName + "] was not updated for 30 days and is disabled");
+            } else if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(25).toMillis()) {
+                HeaderWarning.addWarning(
+                    "database [{}] was not updated for over 25 days, ingestion will fail if there is no update for 30 days", fileName);
+            }
+        }
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -200,6 +216,15 @@ class DatabaseReaderLazyLoader implements Closeable {
             }
         }
         return databaseReader.get();
+    }
+
+    String getMd5() {
+        return md5;
+    }
+
+    public void close(boolean deleteDatabaseFileOnClose) throws IOException {
+        this.deleteDatabaseFileOnClose = deleteDatabaseFileOnClose;
+        close();
     }
 
     @Override
@@ -213,6 +238,10 @@ class DatabaseReaderLazyLoader implements Closeable {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+        if (deleteDatabaseFileOnClose) {
+            LOGGER.info("deleting [{}]", databasePath);
+            Files.delete(databasePath);
+        }
     }
 
     private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {
@@ -232,4 +261,7 @@ class DatabaseReaderLazyLoader implements Closeable {
         return new DatabaseReader.Builder(databasePath.toFile());
     }
 
+    void setLastUpdate(long lastUpdate) {
+        this.lastUpdate = lastUpdate;
+    }
 }

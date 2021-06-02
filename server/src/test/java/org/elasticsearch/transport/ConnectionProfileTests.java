@@ -220,7 +220,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(
-            removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
+            removeRoles(nonDataNode(), Set.of(DiscoveryNodeRole.MASTER_ROLE))
         );
         assertEquals(10, profile.getNumConnections());
         assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.PING));

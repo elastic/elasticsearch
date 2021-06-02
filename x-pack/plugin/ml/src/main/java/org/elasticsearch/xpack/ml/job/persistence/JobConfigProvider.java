@@ -195,23 +195,16 @@ public class JobConfigProvider {
         DeleteRequest request = new DeleteRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
         request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, new ActionListener<DeleteResponse>() {
-            @Override
-            public void onResponse(DeleteResponse deleteResponse) {
-                if (errorIfMissing) {
-                    if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
-                        actionListener.onFailure(ExceptionsHelper.missingJobException(jobId));
-                        return;
-                    }
-                    assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
+        executeAsyncWithOrigin(client, ML_ORIGIN, DeleteAction.INSTANCE, request, actionListener.delegateFailure((l, deleteResponse) -> {
+            if (errorIfMissing) {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    l.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    return;
                 }
-                actionListener.onResponse(deleteResponse);
+                assert deleteResponse.getResult() == DocWriteResponse.Result.DELETED;
             }
-            @Override
-            public void onFailure(Exception e) {
-                actionListener.onFailure(e);
-            }
-        });
+            l.onResponse(deleteResponse);
+        }));
     }
 
     /**
@@ -226,15 +219,14 @@ public class JobConfigProvider {
      *                            are not changed.
      * @param updatedJobListener Updated job listener
      */
-    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit,
-                          ActionListener<Job> updatedJobListener) {
+    public void updateJob(String jobId, JobUpdate update, ByteSizeValue maxModelMemoryLimit, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    delegate.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
 
@@ -245,8 +237,7 @@ public class JobConfigProvider {
                 try {
                      jobBuilder = parseJobLenientlyFromSource(source);
                 } catch (IOException e) {
-                    updatedJobListener.onFailure(
-                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -255,16 +246,11 @@ public class JobConfigProvider {
                     // Applying the update may result in a validation error
                     updatedJob = update.mergeWithJob(jobBuilder.build(), maxModelMemoryLimit);
                 } catch (Exception e) {
-                    updatedJobListener.onFailure(e);
+                    delegate.onFailure(e);
                     return;
                 }
 
-                indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
+                indexUpdatedJob(updatedJob, seqNo, primaryTerm, delegate);
             }
         });
     }
@@ -293,11 +279,11 @@ public class JobConfigProvider {
                                         UpdateValidator validator, ActionListener<Job> updatedJobListener) {
         GetRequest getRequest = new GetRequest(MlConfigIndex.indexName(), Job.documentId(jobId));
 
-        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener<GetResponse>() {
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetAction.INSTANCE, getRequest, new ActionListener.Delegating<>(updatedJobListener) {
             @Override
             public void onResponse(GetResponse getResponse) {
                 if (getResponse.isExists() == false) {
-                    updatedJobListener.onFailure(ExceptionsHelper.missingJobException(jobId));
+                    delegate.onFailure(ExceptionsHelper.missingJobException(jobId));
                     return;
                 }
 
@@ -308,8 +294,7 @@ public class JobConfigProvider {
                 try {
                     originalJob = parseJobLenientlyFromSource(source).build();
                 } catch (Exception e) {
-                    updatedJobListener.onFailure(
-                            new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
+                    delegate.onFailure(new ElasticsearchParseException("Failed to parse job configuration [" + jobId + "]", e));
                     return;
                 }
 
@@ -320,19 +305,14 @@ public class JobConfigProvider {
                                 // Applying the update may result in a validation error
                                 updatedJob = update.mergeWithJob(originalJob, maxModelMemoryLimit);
                             } catch (Exception e) {
-                                updatedJobListener.onFailure(e);
+                                delegate.onFailure(e);
                                 return;
                             }
 
-                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, updatedJobListener);
+                            indexUpdatedJob(updatedJob, seqNo, primaryTerm, delegate);
                         },
-                        updatedJobListener::onFailure
+                        delegate::onFailure
                 ));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                updatedJobListener.onFailure(e);
             }
         });
     }

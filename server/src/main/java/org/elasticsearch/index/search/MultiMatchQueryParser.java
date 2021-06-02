@@ -78,7 +78,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
 
     private Query combineGrouped(List<Query> groupQuery, float tieBreaker) {
         if (groupQuery.isEmpty()) {
-            return zeroTermsQuery();
+            return zeroTermsQuery.asQuery();
         }
         if (groupQuery.size() == 1) {
             return groupQuery.get(0);
@@ -144,7 +144,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
             String representativeField = group.getValue().get(0).fieldType.name();
             Query query = builder.createBooleanQuery(representativeField, value.toString(), occur);
             if (query == null) {
-                query = zeroTermsQuery();
+                query = zeroTermsQuery.asQuery();
             }
 
             query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -212,7 +212,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }
@@ -225,7 +225,7 @@ public class MultiMatchQueryParser extends MatchQueryParser {
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             List<Query> disjunctions = new ArrayList<>();
             for (FieldAndBoost fieldType : blendedFields) {
-                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldType.fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldType.boost != 1f) {
                     query = new BoostQuery(query, fieldType.boost);
                 }

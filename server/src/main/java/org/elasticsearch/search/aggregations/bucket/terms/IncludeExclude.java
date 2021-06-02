@@ -153,7 +153,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
 
         @Override
         public boolean accept(long value) {
-            return ((valids == null) || (valids.contains(value))) && ((invalids == null) || (!invalids.contains(value)));
+            return (valids == null || valids.contains(value)) && (invalids == null || invalids.contains(value) == false);
         }
 
         private void addAccept(long val) {

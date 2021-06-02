@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
@@ -83,8 +84,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         logger.debug("Received request to revert to snapshot id '{}' for job '{}', deleting intervening results: {}",
                 request.getSnapshotId(), jobId, request.getDeleteInterveningResults());
 
-        // 4. Revert the state
-        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+        // 5. Revert the state
+        ActionListener<Boolean> annotationsIndexUpdateListener = ActionListener.wrap(
             r -> {
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(jobId, tasks);
@@ -116,10 +117,17 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             listener::onFailure
         );
 
+        // 4. Ensure the annotations index mappings are up to date
+        ActionListener<Boolean> configMappingUpdateListener = ActionListener.wrap(
+            r -> AnnotationIndex.createAnnotationsIndexIfNecessaryAndWaitForYellow(client, state, request.masterNodeTimeout(),
+                annotationsIndexUpdateListener),
+            listener::onFailure
+        );
+
         // 3. Ensure the config index mappings are up to date
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(MlConfigIndex.indexName(), MlConfigIndex::mapping,
-                client, state, configMappingUpdateListener),
+                client, state, request.masterNodeTimeout(), configMappingUpdateListener),
             listener::onFailure
         );
 
@@ -130,7 +138,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
         );
 
         // 1. Verify/Create the state index and its alias exists
-        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, createStateIndexListener);
+        AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(client, state, indexNameExpressionResolver, request.masterNodeTimeout(),
+            createStateIndexListener);
     }
 
     private void getModelSnapshot(RevertModelSnapshotAction.Request request, JobResultsProvider provider, Consumer<ModelSnapshot> handler,
@@ -172,17 +181,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                     Annotation.Event.DELAYED_DATA.toString(),
                     // Because the model that changed is no longer in use as it has been rolled back to a time before those changes occurred
                     Annotation.Event.MODEL_CHANGE.toString());
-            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean success) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            dataDeleter.deleteAnnotationsFromTime(deleteAfter.getTime() + 1, eventsToDelete,
+                    listener.delegateFailure((l, r) -> l.onResponse(response)));
         }, listener::onFailure);
     }
 
@@ -199,17 +199,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             logger.info("[{}] Removing intervening records after reverting model: deleting results after [{}]", jobId, deleteAfter);
 
             JobDataDeleter dataDeleter = new JobDataDeleter(client, jobId);
-            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, new ActionListener<Boolean>() {
-                @Override
-                public void onResponse(Boolean success) {
-                    listener.onResponse(response);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            });
+            dataDeleter.deleteResultsFromTime(deleteAfter.getTime() + 1, listener.delegateFailure((l, r) -> l.onResponse(response)));
         }, listener::onFailure);
     }
 
@@ -218,22 +208,10 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
             ModelSnapshot modelSnapshot,
             String jobId) {
 
-        return ActionListener.wrap(response -> {
-            jobResultsProvider.dataCounts(jobId, counts -> {
-                counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
-                jobDataCountsPersister.persistDataCountsAsync(jobId, counts, new ActionListener<Boolean>() {
-                    @Override
-                    public void onResponse(Boolean aBoolean) {
-                        listener.onResponse(response);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
-                });
-            }, listener::onFailure);
-        }, listener::onFailure);
+        return ActionListener.wrap(response -> jobResultsProvider.dataCounts(jobId, counts -> {
+            counts.setLatestRecordTimeStamp(modelSnapshot.getLatestRecordTimeStamp());
+            jobDataCountsPersister.persistDataCountsAsync(jobId, counts, listener.delegateFailure((l, r) -> l.onResponse(response)));
+        }, listener::onFailure), listener::onFailure);
     }
 
     @Override

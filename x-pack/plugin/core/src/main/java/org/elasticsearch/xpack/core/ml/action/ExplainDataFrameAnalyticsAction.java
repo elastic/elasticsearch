@@ -37,6 +37,7 @@ public class ExplainDataFrameAnalyticsAction extends ActionType<ExplainDataFrame
         public static final ParseField FIELD_SELECTION = new ParseField("field_selection");
         public static final ParseField MEMORY_ESTIMATION = new ParseField("memory_estimation");
 
+        @SuppressWarnings({ "unchecked"})
         static final ConstructingObjectParser<Response, Void> PARSER =
             new ConstructingObjectParser<>(
                 TYPE.getPreferredName(),

@@ -15,23 +15,23 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarsAction;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetCalendarsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(GET, MachineLearning.BASE_PATH + "calendars/"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/{" + Calendar.ID.getPreferredName() + "}"),
-            new Route(POST, MachineLearning.BASE_PATH + "calendars/")
+            new Route(GET, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
+            new Route(GET, BASE_PATH + "calendars/"),
+            new Route(POST, BASE_PATH + "calendars/{" + Calendar.ID + "}"),
+            new Route(POST, BASE_PATH + "calendars/")
         );
     }
 

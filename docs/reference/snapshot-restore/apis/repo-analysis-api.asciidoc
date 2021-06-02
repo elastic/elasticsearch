@@ -32,6 +32,16 @@ POST /_snapshot/my_repository/_analyze?blob_count=10&max_blob_size=1mb&timeout=1
 
 `POST /_snapshot/<repository>/_analyze`
 
+[[repo-analysis-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API. For more
+information, see <<security-privileges>>.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
 [[repo-analysis-api-desc]]
 ==== {api-description-title}
 
@@ -141,6 +151,11 @@ uploads. Similarly, the reading nodes will use a variety of different methods
 to read the data back again. For instance they may read the entire blob from
 start to end, or may read only a subset of the data.
 
+For some blob-level tasks, the executing node will abort the write before it is
+complete. In this case it still instructs some of the other nodes in the
+cluster to attempt to read the blob, but all of these reads must fail to find
+the blob.
+
 [[repo-analysis-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -182,7 +197,7 @@ Defaults to `10`.
 
 `read_node_count`::
 (Optional, integer) The number of nodes on which to perform a read operation
-after writing each blob.  Defaults to `10`.
+after writing each blob. Defaults to `10`.
 
 `early_read_node_count`::
 (Optional, integer) The number of nodes on which to perform an early read
@@ -190,8 +205,8 @@ operation while writing each blob. Defaults to `2`. Early read operations are
 only rarely performed.
 
 `rare_action_probability`::
-(Optional, double) The probability of performing a rare action (an early read
-or an overwrite) on each blob. Defaults to `0.02`.
+(Optional, double) The probability of performing a rare action (an early read,
+an overwrite, or an aborted write) on each blob. Defaults to `0.02`.
 
 `seed`::
 (Optional, integer) The seed for the pseudo-random number generator used to
@@ -204,6 +219,10 @@ always happen in the same order on each run.
 (Optional, boolean) Whether to return detailed results, including timing
 information for every operation performed during the analysis. Defaults to
 `false`, meaning to return only a summary of the analysis.
+
+`rarely_abort_writes`::
+(Optional, boolean) Whether to rarely abort some write requests. Defaults to
+`true`.
 
 [role="child_attributes"]
 [[repo-analysis-api-response-body]]
@@ -519,7 +538,8 @@ complete. Omitted if `false`.
 `found`::
 (boolean)
 Whether the blob was found by this read operation or not. May be `false` if the
-read was started before the write completed.
+read was started before the write completed, or the write was aborted before
+completion.
 
 `first_byte_time`::
 (string)

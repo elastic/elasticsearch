@@ -58,7 +58,7 @@ stream enabled. See <<set-up-a-data-stream>>.
 (Required, string) Name of the data stream or index to target.
 +
 If the target doesn't exist and matches the name or wildcard (`*`) pattern of an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, this request creates the data stream. See
 <<set-up-a-data-stream>>.
 +
@@ -195,7 +195,7 @@ exist. To update an existing document, you must use the `_doc` resource.
 ===== Automatically create data streams and indices
 
 If request's target doesn't exist and matches an
-<<create-a-data-stream-template,index template with a `data_stream`
+<<create-index-template,index template with a `data_stream`
 definition>>, the index operation automatically creates the data stream. See
 <<set-up-a-data-stream>>.
 
@@ -203,12 +203,13 @@ If the target doesn't exist and doesn't match a data stream template,
 the operation automatically creates the index and applies any matching
 <<index-templates,index templates>>.
 
-include::{es-repo-dir}/indices/index-templates.asciidoc[tag=built-in-index-templates]
+NOTE: {es} includes several built-in index templates. To avoid naming collisions
+with these templates, see <<avoid-index-pattern-collisions>>.
 
 If no mapping exists, the index operation
 creates a dynamic mapping. By default, new fields and objects are
 automatically added to the mapping if needed. For more information about field
-mapping, see <<mapping,mapping>> and the <<indices-put-mapping,put mapping>> API.
+mapping, see <<mapping,mapping>> and the <<indices-put-mapping,update mapping>> API.
 
 Automatic index creation is controlled by the `action.auto_create_index`
 setting. This setting defaults to `true`, which allows any index to be created
@@ -216,7 +217,7 @@ automatically. You can modify this setting to explicitly allow or block
 automatic creation of indices that match specified patterns, or set it to
 `false` to disable automatic index creation entirely. Specify a
 comma-separated list of patterns you want to allow, or prefix each pattern with
-`+` or `-` to indicate whether it should be allowed or blocked.  When a list is
+`+` or `-` to indicate whether it should be allowed or blocked. When a list is
 specified, the default behaviour is to disallow.
 
 IMPORTANT: The `action.auto_create_index` setting only affects the automatic
@@ -518,9 +519,6 @@ In addition to the `external` version type, Elasticsearch
 also supports other types for specific use cases:
 
 [[_version_types]]
-`internal`:: Only index the document if the given version is identical to the version
-of the stored document.
-
 `external` or `external_gt`:: Only index the document if the given version is strictly higher
 than the version of the stored document *or* if there is no existing document. The given
 version will be used as the new version and will be stored with the new document. The supplied

@@ -56,7 +56,14 @@ final class SystemJvmOptions {
              * Due to internationalization enhancements in JDK 9 Elasticsearch need to set the provider to COMPAT otherwise time/date
              * parsing will break in an incompatible way for some date patterns and locales.
              */
-            "-Djava.locale.providers=SPI,COMPAT"
+            "-Djava.locale.providers=SPI,COMPAT",
+            /*
+             * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary while we
+             * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
+             *
+             * TODO: either modularlize Elasticsearch so that we can limit the opening of this module, or find an alternative
+             */
+            "--add-opens=java.base/java.io=ALL-UNNAMED"
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 

@@ -177,4 +177,20 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
         return mapper.parse(request)
             .docs().stream().findFirst().orElseThrow(() -> new IllegalStateException("Test object not parsed"));
     }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        int words = between(1, 1000);
+        StringBuilder b = new StringBuilder(words * 5);
+        b.append(randomAlphaOfLength(4));
+        for (int w = 1; w < words; w++) {
+            b.append(' ').append(randomAlphaOfLength(4));
+        }
+        return b.toString();
+    }
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", "token_count").field("analyzer", "standard");
+    }
 }

@@ -89,7 +89,7 @@ Directory servers.
 + 
 --
 The `load_balance.type` setting can be used at the realm level. Two modes of
-operation are supported: failover and load balancing.  See <<ref-ad-settings>>. 
+operation are supported: failover and load balancing. See <<ref-ad-settings>>. 
 --
 
 . (Optional) To protect passwords, 

@@ -52,33 +52,21 @@ public class TransportXPackUsageAction extends TransportMasterNodeAction<XPackUs
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state, ActionListener<XPackUsageResponse> listener) {
-        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener = new ActionListener<>() {
-            @Override
-            public void onResponse(List<Usage> usages) {
-                listener.onResponse(new XPackUsageResponse(usages));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        };
+        final ActionListener<List<XPackFeatureSet.Usage>> usageActionListener =
+                listener.delegateFailure((l, usages) -> l.onResponse(new XPackUsageResponse(usages)));
         final AtomicReferenceArray<Usage> featureSetUsages = new AtomicReferenceArray<>(usageActions.size());
         final AtomicInteger position = new AtomicInteger(0);
         final BiConsumer<XPackUsageFeatureAction, ActionListener<List<Usage>>> consumer = (featureUsageAction, iteratingListener) -> {
-            client.executeLocally(featureUsageAction, request, new ActionListener<>() {
-                @Override
-                public void onResponse(XPackUsageFeatureResponse usageResponse) {
-                    featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
-                    // the value sent back doesn't matter since our predicate keeps iterating
-                    iteratingListener.onResponse(Collections.emptyList());
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    iteratingListener.onFailure(e);
-                }
-            });
+            // Since we're executing the actions locally we should create a new request
+            // to avoid mutating the original request and setting the wrong parent task,
+            // since it is possible that the parent task gets cancelled and new child tasks are banned.
+            final XPackUsageRequest childRequest = new XPackUsageRequest();
+            childRequest.setParentTask(request.getParentTask());
+            client.executeLocally(featureUsageAction, childRequest, iteratingListener.delegateFailure((l, usageResponse) -> {
+                featureSetUsages.set(position.getAndIncrement(), usageResponse.getUsage());
+                // the value sent back doesn't matter since our predicate keeps iterating
+                l.onResponse(Collections.emptyList());
+            }));
         };
         IteratingActionListener<List<XPackFeatureSet.Usage>, XPackUsageFeatureAction> iteratingActionListener =
                 new IteratingActionListener<>(usageActionListener, consumer, usageActions,

@@ -232,7 +232,7 @@ class RollupShardIndexer {
                 numSent.addAndGet(-items);
             }
         };
-        return BulkProcessor.builder(client::bulk, listener)
+        return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
             .setBulkActions(10000)
             .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.MB))
             // execute the bulk request on the same thread

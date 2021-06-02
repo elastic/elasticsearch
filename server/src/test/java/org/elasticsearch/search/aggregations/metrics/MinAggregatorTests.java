@@ -83,8 +83,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
-    private final long SCRIPT_VALUE = 19L;
+    private static final String SCRIPT_NAME = "script_name";
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     private static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";

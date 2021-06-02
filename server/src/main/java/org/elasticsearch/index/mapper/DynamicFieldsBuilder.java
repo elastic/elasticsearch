@@ -15,11 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
-import org.elasticsearch.runtimefields.mapper.BooleanScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DateScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.DoubleScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.KeywordScriptFieldType;
-import org.elasticsearch.runtimefields.mapper.LongScriptFieldType;
+import org.elasticsearch.script.ScriptCompiler;
 
 import java.io.IOException;
 import java.time.format.DateTimeParseException;
@@ -188,7 +184,7 @@ final class DynamicFieldsBuilder {
                                                  String name,
                                                  DynamicTemplate.XContentFieldType matchType,
                                                  DateFormatter dateFormatter) throws IOException {
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return false;
         }
@@ -198,13 +194,13 @@ final class DynamicFieldsBuilder {
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
             Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-            RuntimeFieldType.Parser parser = parserContext.runtimeFieldTypeParser(mappingType);
+            RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
                 throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + fullName + "]");
             }
-            RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
-            Runtime.createDynamicField(runtimeFieldType, context);
+            RuntimeField runtimeField = parser.parse(fullName, mapping, parserContext);
+            Runtime.createDynamicField(runtimeField, context);
         } else {
             Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
@@ -214,7 +210,7 @@ final class DynamicFieldsBuilder {
 
     private static Mapper.Builder findTemplateBuilderForObject(ParseContext context, String name) {
         DynamicTemplate.XContentFieldType matchType = DynamicTemplate.XContentFieldType.OBJECT;
-        DynamicTemplate dynamicTemplate = context.root().findTemplate(context.path(), name, matchType);
+        DynamicTemplate dynamicTemplate = context.findDynamicTemplate(name, matchType);
         if (dynamicTemplate == null) {
             return null;
         }
@@ -276,7 +272,12 @@ final class DynamicFieldsBuilder {
         @Override
         public void newDynamicLongField(ParseContext context, String name) throws IOException {
             createDynamicField(
-                new NumberFieldMapper.Builder(name, NumberFieldMapper.NumberType.LONG, context.indexSettings().getSettings()), context);
+                new NumberFieldMapper.Builder(
+                    name,
+                    NumberFieldMapper.NumberType.LONG,
+                    ScriptCompiler.NONE,
+                    context.indexSettings().getSettings()
+                ), context);
         }
 
         @Override
@@ -284,13 +285,16 @@ final class DynamicFieldsBuilder {
             // no templates are defined, we use float by default instead of double
             // since this is much more space-efficient and should be enough most of
             // the time
-            createDynamicField(new NumberFieldMapper.Builder(name,
-                NumberFieldMapper.NumberType.FLOAT, context.indexSettings().getSettings()), context);
+            createDynamicField(new NumberFieldMapper.Builder(
+                name,
+                NumberFieldMapper.NumberType.FLOAT,
+                ScriptCompiler.NONE,
+                context.indexSettings().getSettings()), context);
         }
 
         @Override
         public void newDynamicBooleanField(ParseContext context, String name) throws IOException {
-            createDynamicField(new BooleanFieldMapper.Builder(name), context);
+            createDynamicField(new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE), context);
         }
 
         @Override
@@ -298,7 +302,7 @@ final class DynamicFieldsBuilder {
             Settings settings = context.indexSettings().getSettings();
             boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
-                dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
+                dateTimeFormatter, ScriptCompiler.NONE, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
         }
 
         void newDynamicBinaryField(ParseContext context, String name) throws IOException {
@@ -312,8 +316,8 @@ final class DynamicFieldsBuilder {
      * @see Dynamic
      */
     private static final class Runtime implements Strategy {
-        static void createDynamicField(RuntimeFieldType runtimeFieldType, ParseContext context) {
-            context.addDynamicRuntimeField(runtimeFieldType);
+        static void createDynamicField(RuntimeField runtimeField, ParseContext context) {
+            context.addDynamicRuntimeField(runtimeField);
         }
 
         @Override

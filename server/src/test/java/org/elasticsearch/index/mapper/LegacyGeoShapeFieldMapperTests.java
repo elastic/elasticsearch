@@ -13,6 +13,8 @@ import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -24,10 +26,13 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -49,6 +54,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "geo_shape").field("strategy", "recursive");
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     @Override
@@ -93,6 +103,51 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsMeta() {
         return false;
+    }
+
+    @Override
+    protected MapperService createMapperService(XContentBuilder mappings) throws IOException {
+        Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
+        return createMapperService(version, mappings);
+    }
+
+    @Override
+    protected MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
+        assumeFalse("LegacyGeoShapeFieldMapper can't be created in version " + version, version.onOrAfter(Version.V_8_0_0));
+        return super.createMapperService(version, mapping);
+    }
+
+    public void testInvalidCurrentVersion() {
+        MapperParsingException e =
+            expectThrows(MapperParsingException.class,
+                () -> super.createMapperService(Version.CURRENT, fieldMapping((b) -> {
+                    b.field("type", "geo_shape").field("strategy", "recursive");
+                })));
+        assertThat(e.getMessage(),
+            containsString("using deprecated parameters [strategy] " +
+                "in mapper [field] of type [geo_shape] is no longer allowed"));
+    }
+
+    public void testLegacySwitches() throws IOException {
+        // if one of the legacy parameters is added to a 'type':'geo_shape' config then
+        // that will select the legacy field mapper
+        testLegacySwitch("strategy", b -> b.field("strategy", "term"));
+        testLegacySwitch("tree", b -> b.field("tree", "geohash"));
+        testLegacySwitch("tree_levels", b -> b.field("tree_levels", 5));
+        testLegacySwitch("precision", b -> b.field("precision", 10));
+        testLegacySwitch("points_only", b -> b.field("points_only", true));
+        testLegacySwitch("distance_error_pct", b -> b.field("distance_error_pct", 0.8));
+    }
+
+    private void testLegacySwitch(String field, CheckedConsumer<XContentBuilder, IOException> config) throws IOException {
+        createDocumentMapper(fieldMapping(b -> {
+            b.field("type", "geo_shape");
+            config.accept(b);
+        }));
+        Set<String> warnings = new HashSet<>();
+        warnings.add(field);
+        warnings.add("strategy");
+        assertFieldWarnings(warnings.toArray(String[]::new));
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -608,5 +663,11 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     protected void assertSearchable(MappedFieldType fieldType) {
         //always searchable even if it uses TextSearchInfo.NONE
         assertTrue(fieldType.isSearchable());
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
     }
 }

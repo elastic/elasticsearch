@@ -16,7 +16,9 @@ import org.apache.lucene.document.Field.Store;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermsEnum;
@@ -443,6 +445,35 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             previous = cmpValue;
         }
         searcher.getIndexReader().close();
+    }
+
+    public void testSingleValuedGlobalOrdinals() throws Exception {
+        Document d = new Document();
+        addField(d, "_id", "1");
+        addField(d, "value", "2");
+        writer.addDocument(d);
+
+        d = new Document();
+        addField(d, "_id", "2");
+        addField(d, "value", "1");
+        writer.addDocument(d);
+
+        // Force a second segment
+        writer.commit();
+
+        d = new Document();
+        addField(d, "_id", "3");
+        addField(d, "value", "3");
+        writer.addDocument(d);
+        refreshReader();
+        IndexOrdinalsFieldData ifd = getForField("string", "value", hasDocValues());
+        IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
+        assertNotNull(globalOrdinals.getOrdinalMap());
+        assertThat(topLevelReader.leaves().size(), equalTo(2));
+        for (int l = 0; l < 2; l++) {
+            SortedSetDocValues ords = globalOrdinals.load(topLevelReader.leaves().get(l)).getOrdinalsValues();
+            assertThat(DocValues.unwrapSingleton(ords), instanceOf(SortedDocValues.class));
+        }
     }
 
     public void testGlobalOrdinals() throws Exception {

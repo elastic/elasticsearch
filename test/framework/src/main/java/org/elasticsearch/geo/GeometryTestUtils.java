@@ -46,11 +46,12 @@ public class GeometryTestUtils {
     }
 
     public static Circle randomCircle(boolean hasAlt) {
+        org.apache.lucene.geo.Circle luceneCircle = GeoTestUtil.nextCircle();
         if (hasAlt) {
-            return new Circle(randomLon(), randomLat(), ESTestCase.randomDouble(),
-                ESTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(luceneCircle.getLon(), luceneCircle.getLat(), ESTestCase.randomDouble(),
+                luceneCircle.getRadius());
         } else {
-            return new Circle(randomLon(), randomLat(), ESTestCase.randomDoubleBetween(0, 100, false));
+            return new Circle(luceneCircle.getLon(), luceneCircle.getLat(), luceneCircle.getRadius());
         }
     }
 

@@ -50,7 +50,13 @@ public class SourceLookup implements Map<String, Object> {
 
     /**
      * Return the source as a map that will be unchanged when the lookup
-     * moves to a different document
+     * moves to a different document.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
      */
     public Map<String, Object> source() {
         if (source != null) {
@@ -84,6 +90,15 @@ public class SourceLookup implements Map<String, Object> {
         return XContentHelper.convertToMap(source, false);
     }
 
+    /**
+     * Get the source as a {@link Map} of java objects.
+     * <p>
+     * Important: This can lose precision on numbers with a decimal point. It
+     * converts numbers like {@code "n": 1234.567} to a {@code double} which
+     * only has 52 bits of precision in the mantissa. This will come up most
+     * frequently when folks write nanosecond precision dates as a decimal
+     * number.
+     */
     public static Map<String, Object> sourceAsMap(BytesReference source) throws ElasticsearchParseException {
         return sourceAsMapAndType(source).v2();
     }

@@ -87,61 +87,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
-    private List<Job.Builder> jobs = new ArrayList<>();
-    private List<DatafeedConfig> datafeeds = new ArrayList<>();
-
-    @Override
-    protected void cleanUpResources() {
-        cleanUpDatafeeds();
-        cleanUpJobs();
-    }
-
-    private void cleanUpDatafeeds() {
-        for (DatafeedConfig datafeed : datafeeds) {
-            try {
-                stopDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    private void cleanUpJobs() {
-        for (Job.Builder job : jobs) {
-            try {
-                closeJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    protected void registerJob(Job.Builder job) {
-        if (jobs.add(job) == false) {
-            throw new IllegalArgumentException("job [" + job.getId() + "] is already registered");
-        }
-    }
-
-    protected void registerDatafeed(DatafeedConfig datafeed) {
-        if (datafeeds.add(datafeed) == false) {
-            throw new IllegalArgumentException("datafeed [" + datafeed.getId() + "] is already registered");
-        }
-    }
-
-    protected List<Job.Builder> getJobs() {
-        return jobs;
-    }
-
     protected PutJobAction.Response putJob(Job.Builder job) {
         PutJobAction.Request request = new PutJobAction.Request(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
@@ -290,17 +235,25 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     }
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
-        waitForecastStatus(jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        // Forecasts can take an eternity to complete in the FIPS JVM
+        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId,
+                                      String forecastId,
+                                      ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
+        waitForecastStatus(30, jobId, forecastId, status);
+    }
+
+    protected void waitForecastStatus(int maxWaitTimeSeconds,
+                                      String jobId,
                                       String forecastId,
                                       ForecastRequestStats.ForecastRequestStatus... status) throws Exception {
         assertBusy(() -> {
             ForecastRequestStats forecastRequestStats = getForecastStats(jobId, forecastId);
             assertThat(forecastRequestStats, is(notNullValue()));
             assertThat(forecastRequestStats.getStatus(), in(status));
-        }, 60, TimeUnit.SECONDS);
+        }, maxWaitTimeSeconds, TimeUnit.SECONDS);
     }
 
     protected void assertThatNumberOfAnnotationsIsEqualTo(int expectedNumberOfAnnotations) throws IOException {

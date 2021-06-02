@@ -452,7 +452,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             this.bufferedBytes = 0;
             return new ReleasableBytesReference(toWrite.bytes(), toWrite);
         } else {
-            return ReleasableBytesReference.wrap(BytesArray.EMPTY);
+            return ReleasableBytesReference.empty();
         }
     }
 

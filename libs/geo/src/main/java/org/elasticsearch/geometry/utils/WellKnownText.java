@@ -423,7 +423,7 @@ public class WellKnownText {
         if (coerce && lats.isEmpty() == false && lons.isEmpty() == false) {
             int last = lats.size() - 1;
             if (lats.get(0).equals(lats.get(last)) == false || lons.get(0).equals(lons.get(last)) == false ||
-                (alts.isEmpty() == false && !alts.get(0).equals(alts.get(last)))) {
+                (alts.isEmpty() == false && alts.get(0).equals(alts.get(last)) == false)) {
                 lons.add(lons.get(0));
                 lats.add(lats.get(0));
                 if (alts.isEmpty() == false) {

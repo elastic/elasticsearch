@@ -174,4 +174,25 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
+
+    /**
+     * @return {@code true} if this instance is backed by a byte array
+     */
+    default boolean hasArray() {
+        return false;
+    }
+
+    /**
+     * @return backing byte array for this instance
+     */
+    default byte[] array() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return offset of the first byte of this instance in the backing byte array
+     */
+    default int arrayOffset() {
+        throw new UnsupportedOperationException();
+    }
 }

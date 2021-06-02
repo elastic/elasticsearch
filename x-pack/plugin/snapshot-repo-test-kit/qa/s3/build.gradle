@@ -5,7 +5,7 @@
  * 2.0.
  */
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
@@ -21,8 +21,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'snapshot_repo_test_kit'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
   }
 }
 
@@ -73,6 +72,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   } else {
     println "Using an external service to test " + project.name
   }
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.register("s3ThirdPartyTest") {

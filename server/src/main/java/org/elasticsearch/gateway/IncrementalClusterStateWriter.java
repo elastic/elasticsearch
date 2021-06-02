@@ -187,7 +187,7 @@ public class IncrementalClusterStateWriter {
 
     // exposed for tests
     static Set<Index> getRelevantIndices(ClusterState state) {
-        assert state.nodes().getLocalNode().isDataNode();
+        assert state.nodes().getLocalNode().canContainData();
         final RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().getLocalNodeId());
         if (newRoutingNode == null) {
             throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");

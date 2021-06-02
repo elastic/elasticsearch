@@ -11,6 +11,10 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
 /**
  * Operator is a specialized binary predicate where both sides have the compatible types
  * (it's up to the analyzer to do any conversion if needed).
@@ -38,8 +42,56 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         return resolveInputType(right(), ParamOrdinal.SECOND);
     }
 
+    protected boolean isCommutative() {
+        return false;
+    }
+
     @Override
     protected Expression canonicalize() {
-        return left().semanticHash() > right().semanticHash() ? swapLeftAndRight() : this;
+        // fast check
+        if (isCommutative() == false) {
+            Expression exp = left().semanticHash() > right().semanticHash() ? swapLeftAndRight() : this;
+            // swap is not guaranteed to return a different expression, in which case simply delegate to super to avoid a cycle
+            return exp != this ? exp.canonical() : super.canonicalize();
+        }
+        // break down all connected commutative operators
+        // in order to sort all their children at once
+        // then reassemble/reduce back the expression
+        List<Expression> commutativeChildren = new ArrayList<>(2);
+        collectCommutative(commutativeChildren, this);
+        // sort
+        commutativeChildren.sort((l, r) -> Integer.compare(l.semanticHash(), r.semanticHash()));
+
+        // reduce all children using the current operator - this method creates a balanced tree
+        while (commutativeChildren.size() > 1) {
+            // combine (in place) expressions in pairs
+            // NB: this loop modifies the list (just like an array)
+            for (int i = 0; i < commutativeChildren.size() - 1; i++) {
+                // reduce two children into one and moves to the next pair
+                Expression current = commutativeChildren.get(i);
+                Expression next = commutativeChildren.remove(i + 1);
+                // do the update in place to minimize the amount of array modifications
+                commutativeChildren.set(i, replaceChildren(current, next));
+
+            }
+        }
+        Iterator<Expression> iterator = commutativeChildren.iterator();
+        Expression last = iterator.next();
+        while (iterator.hasNext()) {
+            last = replaceChildren(last, iterator.next());
+        }
+        return last;
+    }
+
+    protected void collectCommutative(List<Expression> commutative, Expression expression) {
+        // keep digging for same binary operator
+        if (getClass() == expression.getClass()) {
+            BinaryOperator<?, ?, ?, ?> bi = (BinaryOperator<?, ?, ?, ?>) expression;
+            collectCommutative(commutative, bi.left());
+            collectCommutative(commutative, bi.right());
+        } else {
+            // not same operation - no ordering possible
+            commutative.add(expression.canonical());
+        }
     }
 }

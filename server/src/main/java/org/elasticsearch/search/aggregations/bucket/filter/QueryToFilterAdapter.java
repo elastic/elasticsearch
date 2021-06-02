@@ -8,15 +8,19 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
@@ -48,8 +52,20 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
         query = searcher.rewrite(query);
+        if (query instanceof ConstantScoreQuery) {
+            /*
+             * Unwrap constant score because it gets in the way of us
+             * understanding what the queries are trying to do and we
+             * don't use the score at all anyway. Effectively we always
+             * run in constant score mode.
+             */
+            query = ((ConstantScoreQuery) query).getQuery();
+        }
         if (query instanceof TermQuery) {
             return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
+        }
+        if (query instanceof DocValuesFieldExistsQuery) {
+            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
         }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
@@ -216,12 +232,31 @@ public class QueryToFilterAdapter<Q extends Query> {
      * Estimate the cost of calling {@code #count} in a leaf.
      */
     long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
+        return estimateCollectCost(ctx);
+    }
+
+    /**
+     * Collect all documents that match this filter in this leaf.
+     */
+    void collect(LeafReaderContext ctx, LeafCollector collector, Bits live) throws IOException {
+        BulkScorer scorer = bulkScorer(ctx, () -> {});
+        if (scorer == null) {
+            // No hits in this segment.
+            return;
+        }
+        scorer.score(collector, live);
+    }
+
+    /**
+     * Estimate the cost of calling {@code #count} in a leaf.
+     */
+    long estimateCollectCost(LeafReaderContext ctx) throws IOException {
         BulkScorer scorer = bulkScorer(ctx, () -> scorersPreparedWhileEstimatingCost++);
         if (scorer == null) {
             // There aren't any matches for this filter in this leaf
             return 0;
         }
-        return scorer.cost();   // TODO in another PR (please) change this to ScorerSupplier.cost
+        return scorer.cost(); // TODO change this to ScorerSupplier.cost
     }
 
     /**
@@ -363,6 +398,52 @@ public class QueryToFilterAdapter<Q extends Query> {
         void collectDebugInfo(BiConsumer<String, Object> add) {
             super.collectDebugInfo(add);
             add.accept("specialized_for", "term");
+            add.accept("results_from_metadata", resultsFromMetadata);
+        }
+    }
+
+    private static class DocValuesFieldExistsAdapter extends QueryToFilterAdapter<DocValuesFieldExistsQuery> {
+        private int resultsFromMetadata;
+
+        private DocValuesFieldExistsAdapter(IndexSearcher searcher, String key, DocValuesFieldExistsQuery query) {
+            super(searcher, key, query);
+        }
+
+        @Override
+        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
+            if (countCanUseMetadata(counter, live) && canCountFromMetadata(ctx)) {
+                resultsFromMetadata++;
+                PointValues points = ctx.reader().getPointValues(query().getField());
+                if (points == null) {
+                    return 0;
+                }
+                return points.getDocCount();
+
+            }
+            return super.count(ctx, counter, live);
+        }
+
+        @Override
+        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
+            if (canUseMetadata.get() && canCountFromMetadata(ctx)) {
+                return 0;
+            }
+            return super.estimateCountCost(ctx, canUseMetadata);
+        }
+
+        private boolean canCountFromMetadata(LeafReaderContext ctx) throws IOException {
+            FieldInfo info = ctx.reader().getFieldInfos().fieldInfo(query().getField());
+            if (info == null) {
+                // If we don't have any info then there aren't any values anyway.
+                return true;
+            }
+            return info.getPointDimensionCount() > 0;
+        }
+
+        @Override
+        void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            add.accept("specialized_for", "docvalues_field_exists");
             add.accept("results_from_metadata", resultsFromMetadata);
         }
     }

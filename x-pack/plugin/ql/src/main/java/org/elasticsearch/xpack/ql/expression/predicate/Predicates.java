@@ -76,9 +76,11 @@ public abstract class Predicates {
             // combine (in place) expressions in pairs
             // NB: this loop modifies the list (just like an array)
             for (int i = 0; i < result.size() - 1; i++) {
-                Expression l = result.remove(i);
-                Expression r = result.remove(i);
-                result.add(i, combiner.apply(l, r));
+                // keep the current element to update it in place
+                Expression l = result.get(i);
+                // remove the next element due to combining
+                Expression r = result.remove(i + 1);
+                result.set(i, combiner.apply(l, r));
             }
         }
 

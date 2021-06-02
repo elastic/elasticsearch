@@ -99,7 +99,7 @@ public class VersionStatsTests extends AbstractWireSerializingTestCase<VersionSt
         Path path = createTempDir().resolve("indices").resolve(shardRouting.shardId().getIndex().getUUID())
             .resolve(String.valueOf(shardRouting.shardId().id()));
         IndexShard indexShard = mock(IndexShard.class);
-        StoreStats storeStats = new StoreStats(100, 200);
+        StoreStats storeStats = new StoreStats(100, 150, 200);
         when(indexShard.storeStats()).thenReturn(storeStats);
         ShardStats shardStats = new ShardStats(shardRouting, new ShardPath(false, path, path, shardRouting.shardId()),
             new CommonStats(null, indexShard, new CommonStatsFlags(CommonStatsFlags.Flag.Store)),

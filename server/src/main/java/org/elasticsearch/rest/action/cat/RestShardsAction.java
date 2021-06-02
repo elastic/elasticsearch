@@ -52,8 +52,10 @@ public class RestShardsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_cat/shards"),
-            new Route(GET, "/_cat/shards/{index}"));
+        return List.of(
+            new Route(GET, "/_cat/shards"),
+            new Route(GET, "/_cat/shards/{index}")
+        );
     }
 
     @Override

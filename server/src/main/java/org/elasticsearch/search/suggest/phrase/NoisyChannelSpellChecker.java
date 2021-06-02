@@ -77,7 +77,7 @@ final class NoisyChannelSpellChecker {
                 if (currentSet != null) {
                     candidateSetsList.add(currentSet);
                 }
-                if (requireUnigram && !anyUnigram && anyTokens) {
+                if (requireUnigram && anyUnigram == false && anyTokens) {
                     throw new IllegalStateException("At least one unigram is required but all tokens were ngrams");
                 }
             }

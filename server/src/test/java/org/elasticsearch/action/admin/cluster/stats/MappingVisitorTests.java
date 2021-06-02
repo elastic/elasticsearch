@@ -104,4 +104,36 @@ public class MappingVisitorTests extends ESTestCase {
         collectTypes(mapping, fields);
         assertEquals(new HashSet<>(Arrays.asList("keyword", "object")), fields);
     }
+
+    public void testCountRuntimeFields() {
+        Map<String, Object> mapping = new HashMap<>();
+        Set<String> fields = new HashSet<>();
+        collectRuntimeTypes(mapping, fields);
+        assertEquals(Collections.emptySet(), fields);
+
+        Map<String, Object> properties = new HashMap<>();
+        mapping.put("runtime", properties);
+
+        Map<String, Object> keywordField = new HashMap<>();
+        keywordField.put("type", "keyword");
+        properties.put("foo", keywordField);
+        collectRuntimeTypes(mapping, fields);
+        assertEquals(Collections.singleton("keyword"), fields);
+
+        Map<String, Object> runtimeField = new HashMap<>();
+        runtimeField.put("type", "long");
+        properties.put("bar", runtimeField);
+        fields = new HashSet<>();
+        collectRuntimeTypes(mapping, fields);
+        assertEquals(new HashSet<>(Arrays.asList("keyword", "long")), fields);
+
+        properties.put("baz", runtimeField);
+        fields = new HashSet<>();
+        collectRuntimeTypes(mapping, fields);
+        assertEquals(new HashSet<>(Arrays.asList("keyword", "long")), fields);
+    }
+
+    private static void collectRuntimeTypes(Map<String, ?> mapping, Set<String> types) {
+        MappingVisitor.visitRuntimeMapping(mapping, (f, m) -> types.add(m.get("type").toString()));
+    }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
@@ -28,6 +27,8 @@ import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.test.rest.ESRestTestCase.expectWarnings;
 
 public class DataLoader {
 
@@ -149,6 +150,20 @@ public class DataLoader {
                     createIndex.endObject();
                     createIndex.endObject();
                 }
+            }
+            createIndex.endObject();
+            // define the runtime field
+            createIndex.startObject("runtime");
+            {
+                createIndex.startObject("name").field("type", "keyword");
+                createIndex.startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['first_name.keyword'].size()==0) emit(' '.concat(doc['last_name.keyword'].value));"
+                            + " else emit(doc['first_name.keyword'].value.concat(' ').concat(doc['last_name.keyword'].value))"
+                    );
+                createIndex.endObject();
+                createIndex.endObject();
             }
             createIndex.endObject();
         }
@@ -369,7 +384,7 @@ public class DataLoader {
             bulk.append("}\n");
         });
         request.setJsonEntity(bulk.toString());
-        Response response = client.performRequest(request);
+        client.performRequest(request);
     }
 
     public static void makeAlias(RestClient client, String aliasName, String... indices) throws Exception {
@@ -380,7 +395,14 @@ public class DataLoader {
 
     protected static void freeze(RestClient client, String... indices) throws Exception {
         for (String index : indices) {
-            client.performRequest(new Request("POST", "/" + index + "/_freeze"));
+            Request freezeRequest = new Request("POST", "/" + index + "/_freeze");
+            freezeRequest.setOptions(
+                expectWarnings(
+                    "Frozen indices are deprecated because they provide no benefit given improvements in "
+                        + "heap memory utilization. They will be removed in a future release."
+                )
+            );
+            client.performRequest(freezeRequest);
         }
     }
 

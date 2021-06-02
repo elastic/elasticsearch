@@ -240,7 +240,7 @@ public class KoelnerPhonetik implements StringEncoder {
                     }
                     break;
                 case 'X':
-                    sb.append(i < 1 || !ckq.contains(prev) ? "48" : '8');
+                    sb.append(i < 1 || ckq.contains(prev) == false ? "48" : '8');
                     break;
                 case 'L':
                     sb.append('5');

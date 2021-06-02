@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -60,7 +61,13 @@ public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            return null;
+            ActionRequestValidationException err = null;
+            String phaseTimingErr = TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings(this.policy.getPhases().values());
+            if (Strings.hasText(phaseTimingErr)) {
+                err = new ActionRequestValidationException();
+                err.addValidationError(phaseTimingErr);
+            }
+            return err;
         }
 
         public static Request parseRequest(String name, XContentParser parser) {

@@ -8,14 +8,17 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -31,55 +34,53 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
 
     public static class Request extends MasterNodeRequest<Request> {
 
-        private String name;
+        private final String[] names;
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            name = in.readString();
+            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
+                names = in.readStringArray();
+            } else {
+                names = new String[] {in.readString()};
+            }
         }
-
-        public Request() { }
 
         /**
          * Constructs a new delete template request for the specified name.
          */
-        public Request(String name) {
-            this.name = name;
-        }
-
-        /**
-         * Set the index template name to delete.
-         */
-        public Request name(String name) {
-            this.name = name;
-            return this;
+        public Request(String... names) {
+            this.names = Objects.requireNonNull(names, "templates to delete must not be null");
         }
 
         @Override
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = null;
-            if (name == null) {
-                validationException = addValidationError("name is missing", validationException);
+            if (Arrays.stream(names).anyMatch(Strings::hasLength) == false) {
+                validationException = addValidationError("no template names specified", validationException);
             }
             return validationException;
         }
 
         /**
-         * The index template name to delete.
+         * The index template names to delete.
          */
-        public String name() {
-            return name;
+        public String[] names() {
+            return names;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(name);
+            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
+                out.writeStringArray(names);
+            } else {
+                out.writeString(names[0]);
+            }
         }
 
         @Override
         public int hashCode() {
-            return name.hashCode();
+            return Arrays.hashCode(names);
         }
 
         @Override
@@ -91,7 +92,7 @@ public class DeleteComposableIndexTemplateAction extends ActionType<Acknowledged
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(other.name, this.name);
+            return Arrays.equals(other.names, this.names);
         }
     }
 }

@@ -13,14 +13,12 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 /**
@@ -29,16 +27,14 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, ActionResponse.Empty> {
 
     private final Settings settings;
-    private final ThreadPool threadPool;
     private final SecurityContext securityContext;
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportSetEnabledAction(Settings settings, ThreadPool threadPool, TransportService transportService,
+    public TransportSetEnabledAction(Settings settings, TransportService transportService,
                                      ActionFilters actionFilters, SecurityContext securityContext, NativeUsersStore usersStore) {
         super(SetEnabledAction.NAME, transportService, actionFilters, SetEnabledRequest::new);
         this.settings = settings;
-        this.threadPool = threadPool;
         this.securityContext = securityContext;
         this.usersStore = usersStore;
     }
@@ -50,7 +46,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         if (securityContext.getUser().principal().equals(request.username())) {
             listener.onFailure(new IllegalArgumentException("users may not update the enabled status of their own account"));
             return;
-        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
+        } else if (User.isInternalUsername(username)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
             return;
         } else if (AnonymousUser.isAnonymousUsername(username, settings)) {
@@ -58,16 +54,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
             return;
         }
 
-        usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(), new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void v) {
-                listener.onResponse(ActionResponse.Empty.INSTANCE);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(),
+                listener.delegateFailure((l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
     }
 }

@@ -46,10 +46,10 @@ final class LocalDatabases implements Closeable {
     private static final Logger LOGGER = LogManager.getLogger(LocalDatabases.class);
 
     private final GeoIpCache cache;
-    final Path geoipConfigDir;
+    private final Path geoipConfigDir;
 
     private final Map<String, DatabaseReaderLazyLoader> defaultDatabases;
-    final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
+    private final ConcurrentMap<String, DatabaseReaderLazyLoader> configDatabases;
 
     LocalDatabases(Environment environment, GeoIpCache cache) {
         this(
@@ -83,20 +83,8 @@ final class LocalDatabases implements Closeable {
             defaultDatabases.keySet(), configDatabases.keySet(), geoipConfigDir);
     }
 
-    // There is a need for reference counting in order to avoid using an instance
-    // that gets closed while using it. (this can happen during a database update)
-    DatabaseReaderLazyLoader getDatabase(String name) {
-        while (true) {
-            DatabaseReaderLazyLoader instance = configDatabases.getOrDefault(name, defaultDatabases.get(name));
-            if (instance == null) {
-                return null;
-            }
-            if (instance.preLookup()) {
-                return instance;
-            }
-            // instance is closed after incrementing its usage,
-            // drop this instance and fetch another one.
-        }
+    DatabaseReaderLazyLoader getDatabase(String name, boolean fallbackUsingDefaultDatabases) {
+        return configDatabases.getOrDefault(name, fallbackUsingDefaultDatabases ? defaultDatabases.get(name) : null);
     }
 
     List<DatabaseReaderLazyLoader> getAllDatabases() {
@@ -118,7 +106,7 @@ final class LocalDatabases implements Closeable {
         try {
             if (update) {
                 LOGGER.info("database file changed [{}], reload database...", file);
-                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file);
+                DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, null);
                 DatabaseReaderLazyLoader existing = configDatabases.put(databaseFileName, loader);
                 if (existing != null) {
                     existing.close();
@@ -141,7 +129,7 @@ final class LocalDatabases implements Closeable {
             Path source = geoipModuleDir.resolve(filename);
             assert Files.exists(source);
             String databaseFileName = source.getFileName().toString();
-            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, source);
+            DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, source, null);
             databases.put(databaseFileName, loader);
         }
 
@@ -161,7 +149,7 @@ final class LocalDatabases implements Closeable {
                     if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         assert Files.exists(databasePath);
                         String databaseFileName = databasePath.getFileName().toString();
-                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath);
+                        DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, databasePath, null);
                         databases.put(databaseFileName, loader);
                     }
                 }

@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put Follow API
+=== Create follower API
 
 
 [id="{upid}-{api}-request"]
 ==== Request
 
-The Put Follow API allows creates a follower index and make that index follow a leader index.
+Creates a follower index and makes that index follow a leader index.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -19,15 +19,14 @@ include-tagged::{doc-tests-file}[{api}-request]
 --------------------------------------------------
 <1> The name of the remote cluster alias.
 <2> The name of the leader in the remote cluster.
-<3> The name of the follower index that gets created as part of the put follow API call.
-<4> The number of active shard copies to wait for before the put follow API returns a
-response, as an `ActiveShardCount`
+<3> The name of the follower index to create.
+<4> The number of shard copies that must be active before the call returns.
 <5> The settings overrides for the follower index.
 
 [id="{upid}-{api}-response"]
 ==== Response
 
-The returned +{response}+ indicates if the put follow request was received.
+The +{response}+ indicates if the request was received.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -38,5 +37,3 @@ include-tagged::{doc-tests-file}[{api}-response]
 <3> Whether the follower index started following the leader index.
 
 include::../execution.asciidoc[]
-
-

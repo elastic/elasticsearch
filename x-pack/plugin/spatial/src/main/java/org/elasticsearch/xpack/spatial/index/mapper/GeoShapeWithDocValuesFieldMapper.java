@@ -19,11 +19,14 @@ import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -37,9 +40,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -64,8 +69,10 @@ import java.util.function.Supplier;
  * <p>
  * "field" : "POLYGON ((100.0 0.0, 101.0 0.0, 101.0 1.0, 100.0 1.0, 100.0 0.0))
  */
-public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry, Geometry> {
+public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry> {
     public static final String CONTENT_TYPE = "geo_shape";
+
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     private static Builder builder(FieldMapper in) {
         return ((GeoShapeWithDocValuesFieldMapper)in).builder;
@@ -101,6 +108,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         @Override
         public GeoShapeWithDocValuesFieldMapper build(ContentPath contentPath) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.deprecate(
+                    DeprecationCategory.MAPPINGS,
+                    "geo_shape_multifields",
+                    "Adding multifields to [geo_shape] mappers has no effect and will be forbidden in future"
+                );
+            }
             GeometryParser geometryParser = new GeometryParser(
                 orientation.get().value().getAsBoolean(),
                 coerce.get().value(),
@@ -118,17 +132,6 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 new GeoShapeIndexer(orientation.get().value().getAsBoolean(), ft.name()), parser, this);
         }
 
-    }
-
-    @Override
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    protected void addDocValuesFields(String name, Geometry shape, List<IndexableField> fields, ParseContext context) {
-        BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
-        if (docValuesField == null) {
-            docValuesField = new BinaryGeoShapeDocValuesField(name);
-            context.doc().addWithKey(name, docValuesField);
-        }
-        docValuesField.add(fields, shape);
     }
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
@@ -174,6 +177,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
+                throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(deprecatedParams.toArray())
+                    + " in mapper [" + name + "] of type [geo_shape] is no longer allowed");
+            }
             builder = new LegacyGeoShapeFieldMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
@@ -191,14 +199,38 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
     };
 
     private final Builder builder;
+    private final GeoShapeIndexer indexer;
 
     public GeoShapeWithDocValuesFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                             MultiFields multiFields, CopyTo copyTo,
                                             GeoShapeIndexer indexer, GeoShapeParser parser, Builder builder) {
         super(simpleName, mappedFieldType, builder.ignoreMalformed.get(), builder.coerce.get(),
             builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, indexer, parser);
+            multiFields, copyTo, parser);
         this.builder = builder;
+        this.indexer = indexer;
+    }
+
+    @Override
+    protected void index(ParseContext context, Geometry geometry) throws IOException {
+        if (geometry == null) {
+            return;
+        }
+        List<IndexableField> fields = indexer.indexShape(geometry);
+        if (fieldType().isSearchable()) {
+            context.doc().addAll(fields);
+        }
+        if (fieldType().hasDocValues()) {
+            String name = fieldType().name();
+            BinaryGeoShapeDocValuesField docValuesField = (BinaryGeoShapeDocValuesField) context.doc().getByKey(name);
+            if (docValuesField == null) {
+                docValuesField = new BinaryGeoShapeDocValuesField(name);
+                context.doc().addWithKey(name, docValuesField);
+            }
+            docValuesField.add(fields, geometry);
+        } else if (fieldType().isSearchable()) {
+            context.addToFieldNames(fieldType().name());
+        }
     }
 
     @Override
@@ -221,13 +253,4 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         return (GeoShapeWithDocValuesFieldType) super.fieldType();
     }
 
-    @Override
-    protected void addStoredFields(ParseContext context, Geometry geometry) {
-        // noop (stored fields not available for geo_shape fields)
-    }
-
-    @Override
-    protected void addMultiFields(ParseContext context, Geometry geometry) {
-        // noop (completion suggester currently not compatible with geo_shape)
-    }
 }

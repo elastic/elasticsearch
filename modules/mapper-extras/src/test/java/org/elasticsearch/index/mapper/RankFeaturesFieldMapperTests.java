@@ -21,6 +21,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -45,8 +47,13 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void registerParameters(ParameterChecker checker) {
-        // no parameters to configure
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("positive_score_impact", b -> b.field("positive_score_impact", false));
     }
 
     @Override
@@ -80,6 +87,33 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         assertTrue(freq1 < freq2);
     }
 
+    public void testNegativeScoreImpact() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            fieldMapping(b -> b.field("type", "rank_features").field("positive_score_impact", false))
+        );
+
+        ParsedDocument doc1 = mapper.parse(source(this::writeField));
+
+        IndexableField[] fields = doc1.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        assertThat(fields[0], Matchers.instanceOf(FeatureField.class));
+        FeatureField featureField1 = null;
+        FeatureField featureField2 = null;
+        for (IndexableField field : fields) {
+            if (field.stringValue().equals("ten")) {
+                featureField1 = (FeatureField)field;
+            } else if (field.stringValue().equals("twenty")) {
+                featureField2 = (FeatureField)field;
+            } else {
+                throw new UnsupportedOperationException();
+            }
+        }
+
+        int freq1 = RankFeatureFieldMapperTests.getFrequency(featureField1.tokenStream(null, null));
+        int freq2 = RankFeatureFieldMapperTests.getFrequency(featureField2.tokenStream(null, null));
+        assertTrue(freq1 > freq2);
+    }
+
     public void testRejectMultiValuedFields() throws MapperParsingException, IOException {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("field").field("type", "rank_features").endObject();
@@ -107,5 +141,28 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
         })));
         assertEquals("[rank_features] fields do not support indexing multiple values for the same rank feature [foo.field.bar] in " +
                 "the same document", e.getCause().getMessage());
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("feature");
+            b.field("type", "rank_features");
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [feature] of type [rank_features] can't be used in multifields"));
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;       // TODO should this allow null values?
     }
 }

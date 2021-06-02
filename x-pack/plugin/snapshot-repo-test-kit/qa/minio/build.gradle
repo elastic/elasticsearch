@@ -22,8 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common'
-    includeXpack 'snapshot_repo_test_kit'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'snapshot_repo_test_kit'
   }
 }
 
@@ -47,5 +46,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   keystore 's3.client.repository_test_kit.secret_key', 's3_test_secret_key'
   setting 's3.client.repository_test_kit.protocol', 'http'
   setting 's3.client.repository_test_kit.endpoint', { "${-> fixtureAddress()}" }, IGNORE_VALUE
+
+  setting 'xpack.security.enabled', 'false'
 }
 

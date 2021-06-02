@@ -25,6 +25,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.MultiValueAggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.MultiValue;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.search.aggregations.metrics.Percentiles;
@@ -63,6 +65,8 @@ public final class AggregationResultUtils {
         tempMap.put(SingleBucketAggregation.class.getName(), new SingleBucketAggExtractor());
         tempMap.put(MultiBucketsAggregation.class.getName(), new MultiBucketsAggExtractor());
         tempMap.put(GeoShapeMetricAggregation.class.getName(), new GeoShapeMetricAggExtractor());
+        tempMap.put(MultiValue.class.getName(), new NumericMultiValueAggExtractor());
+        tempMap.put(MultiValueAggregation.class.getName(), new MultiValueAggExtractor());
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
@@ -151,8 +155,14 @@ public final class AggregationResultUtils {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoCentroid.class.getName());
         } else if (aggregation instanceof GeoBounds) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(GeoBounds.class.getName());
+            // note: percentiles is also a multi value agg, therefore check percentiles first
+            // TODO: can the Percentiles extractor be removed?
         } else if (aggregation instanceof Percentiles) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(Percentiles.class.getName());
+        } else if (aggregation instanceof MultiValue) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValue.class.getName());
+        } else if (aggregation instanceof MultiValueAggregation) {
+            return TYPE_VALUE_EXTRACTOR_MAP.get(MultiValueAggregation.class.getName());
         } else if (aggregation instanceof SingleBucketAggregation) {
             return TYPE_VALUE_EXTRACTOR_MAP.get(SingleBucketAggregation.class.getName());
         } else if (aggregation instanceof MultiBucketsAggregation) {
@@ -256,6 +266,44 @@ public final class AggregationResultUtils {
             } else {
                 return aggregation.getValueAsString();
             }
+        }
+    }
+
+    static class MultiValueAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiValueAggregation aggregation = (MultiValueAggregation) agg;
+            Map<String, Object> extracted = new HashMap<>();
+            for (String valueName : aggregation.valueNames()) {
+                List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
+
+                // todo: size > 1 is not supported, requires a refactoring so that `size()` is exposed in the agg builder
+                if (valueAsStrings.size() > 0) {
+                    extracted.put(valueName, valueAsStrings.get(0));
+                }
+            }
+
+            return extracted;
+        }
+    }
+
+    static class NumericMultiValueAggExtractor implements AggValueExtractor {
+        @Override
+        public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
+            MultiValue aggregation = (MultiValue) agg;
+            Map<String, Object> extracted = new HashMap<>();
+
+            String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
+            for (String valueName : aggregation.valueNames()) {
+                double value = aggregation.value(valueName);
+
+                String fieldType = fieldTypeMap.get(fieldLookupPrefix + valueName);
+                if (Numbers.isValidDouble(value)) {
+                    extracted.put(valueName, dropFloatingPointComponentIfTypeRequiresIt(fieldType, value));
+                }
+            }
+
+            return extracted;
         }
     }
 
@@ -402,12 +450,11 @@ public final class AggregationResultUtils {
 
         @Override
         public Object value(Aggregation aggregation, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
-            assert aggregation instanceof GeoShapeMetricAggregation
-                 : "Unexpected type ["
-                        + aggregation.getClass().getName()
-                        + "] for aggregation ["
-                        + aggregation.getName()
-                        + "]";
+            assert aggregation instanceof GeoShapeMetricAggregation : "Unexpected type ["
+                + aggregation.getClass().getName()
+                + "] for aggregation ["
+                + aggregation.getName()
+                + "]";
             return ((GeoShapeMetricAggregation) aggregation).geoJSONGeometry();
         }
     }

@@ -31,9 +31,9 @@ import java.util.Collection;
 public abstract class AbstractAwsTestCase extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
                 Settings.Builder settings = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
+                .put(super.nodeSettings(nodeOrdinal, otherSettings))
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir());
 
         // if explicit, just load it and don't load from env

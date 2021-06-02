@@ -131,8 +131,9 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .size(request.size())
             .fetchSize(request.fetchSize());
 
-        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter, fetchFields, timeout,
-                request.indicesOptions(), request.fetchSize(), clientId, new TaskId(nodeId, task.getId()), task);
+        EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter,
+                request.runtimeMappings(), fetchFields, timeout, request.indicesOptions(), request.fetchSize(),
+                clientId, new TaskId(nodeId, task.getId()), task);
         executeRequestWithRetryAttempt(clusterService, listener::onFailure,
             onFailure -> planExecutor.eql(cfg, request.query(), params,
                 wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),

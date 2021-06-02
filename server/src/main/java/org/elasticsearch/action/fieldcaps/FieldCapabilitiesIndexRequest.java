@@ -33,7 +33,7 @@ public class FieldCapabilitiesIndexRequest extends ActionRequest implements Indi
     private final OriginalIndices originalIndices;
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
-    private Map<String, Object> runtimeFields;
+    private final Map<String, Object> runtimeFields;
 
     private ShardId shardId;
 

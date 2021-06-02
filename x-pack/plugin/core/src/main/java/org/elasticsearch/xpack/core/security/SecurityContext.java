@@ -167,6 +167,7 @@ public class SecurityContext {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private Map<String, Object> rewriteMetadataForApiKeyRoleDescriptors(Version streamVersion, Authentication authentication) {
         Map<String, Object> metadata = authentication.getMetadata();
         if (authentication.getAuthenticationType() == AuthenticationType.API_KEY) {

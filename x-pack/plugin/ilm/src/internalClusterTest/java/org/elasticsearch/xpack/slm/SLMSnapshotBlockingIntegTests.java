@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -73,8 +74,8 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
     List<String> dataNodeNames = null;
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false)
             .build();
     }
@@ -265,6 +266,24 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
     public void testBasicPartialRetention() throws Exception {
         testUnsuccessfulSnapshotRetention(true);
+    }
+
+    public void testRetentionWithMultipleRepositories() throws Exception {
+        disableRepoConsistencyCheck("test leaves behind an empty repository");
+        final String secondRepo = "other-repo";
+        createRepository(secondRepo, "fs");
+        final String policyId = "some-policy-id";
+        createSnapshotPolicy(policyId, "snap", NEVER_EXECUTE_CRON_SCHEDULE, secondRepo,
+                "*", true,
+                true, new SnapshotRetentionConfiguration(null, 1, 2));
+        logger.info("-->  start snapshot");
+        client().execute(ExecuteSnapshotLifecycleAction.INSTANCE, new ExecuteSnapshotLifecycleAction.Request(policyId)).get();
+        // make sure the SLM history data stream is green and won't not be green for long because of delayed allocation when data nodes
+        // are stopped
+        ensureGreen(SLM_HISTORY_DATA_STREAM);
+        client().admin().indices().prepareUpdateSettings(SLM_HISTORY_DATA_STREAM).setSettings(
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)).get();
+        testUnsuccessfulSnapshotRetention(randomBoolean());
     }
 
     private void testUnsuccessfulSnapshotRetention(boolean partialSuccess) throws Exception {

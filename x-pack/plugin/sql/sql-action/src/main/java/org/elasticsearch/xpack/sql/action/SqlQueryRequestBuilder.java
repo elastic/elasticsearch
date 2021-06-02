@@ -16,8 +16,11 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
 import java.time.ZoneId;
-import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * The builder to build sql request
@@ -25,17 +28,17 @@ import java.util.List;
 public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest, SqlQueryResponse> {
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action) {
-        this(client, action, "", Collections.emptyList(), null, Protocol.TIME_ZONE, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
+        this(client, action, "", emptyList(), null, emptyMap(), Protocol.TIME_ZONE, Protocol.FETCH_SIZE,
+            Protocol.REQUEST_TIMEOUT, Protocol.PAGE_TIMEOUT, false, "", new RequestInfo(Mode.PLAIN), Protocol.FIELD_MULTI_VALUE_LENIENCY,
             Protocol.INDEX_INCLUDE_FROZEN);
     }
 
     public SqlQueryRequestBuilder(ElasticsearchClient client, SqlQueryAction action, String query, List<SqlTypedParamValue> params,
-            QueryBuilder filter, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
+            QueryBuilder filter, Map<String, Object> runtimeMappings, ZoneId zoneId, int fetchSize, TimeValue requestTimeout,
             TimeValue pageTimeout, boolean columnar, String nextPageInfo, RequestInfo requestInfo,
             boolean multiValueFieldLeniency, boolean indexIncludeFrozen) {
-        super(client, action, new SqlQueryRequest(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, columnar,
-                nextPageInfo, requestInfo, multiValueFieldLeniency, indexIncludeFrozen));
+        super(client, action, new SqlQueryRequest(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout,
+                columnar, nextPageInfo, requestInfo, multiValueFieldLeniency, indexIncludeFrozen));
     }
 
     public SqlQueryRequestBuilder query(String query) {
@@ -65,6 +68,11 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder filter(QueryBuilder filter) {
         request.filter(filter);
+        return this;
+    }
+
+    public SqlQueryRequestBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
+        request.runtimeMappings(runtimeMappings);
         return this;
     }
 

@@ -52,7 +52,7 @@ modifications to the document data and metadata during reindexing.
 . Reset the `refresh_interval` and `number_of_replicas` to the values
   used in the old index.
 . Wait for the index status to change to `green`.
-. In a single <<indices-aliases,update aliases>> request:
+. In a single <<indices-aliases,aliases API>> request:
 .. Delete the old index.
 .. Add an alias with the old index name to the new index.
 .. Add any aliases that existed on the old index to the new index.
@@ -82,7 +82,7 @@ bin/elasticsearch-users useradd <user_name> \
 --
 
 . Use these credentials when you reindex the `.security*` index. That is to say,
-use them to log into {kib} and run the Upgrade Assistant or to call the
+use them to log in to {kib} and run the Upgrade Assistant or to call the
 reindex API. You can use your regular administration credentials to
 reindex the other internal indices.
 

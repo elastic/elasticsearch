@@ -6,7 +6,7 @@ The following pages have moved or been deleted.
 [role="exclude",id="discovery-multicast"]
 === Multicast Discovery Plugin
 
-The `multicast-discovery` plugin has been removed.  Instead, configure networking
+The `multicast-discovery` plugin has been removed. Instead, configure networking
 using unicast (see {ref}/modules-network.html[Network settings]) or using
 one of the <<discovery,cloud discovery plugins>>.
 

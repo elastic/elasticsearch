@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestRequest.Method;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
@@ -24,6 +23,9 @@ import org.elasticsearch.xpack.idp.action.PutSamlServiceProviderResponse;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
 
@@ -39,8 +41,8 @@ public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(Method.PUT, "/_idp/saml/sp/{sp_entity_id}"),
-            new Route(Method.POST, "/_idp/saml/sp/{sp_entity_id}")
+            new Route(PUT, "/_idp/saml/sp/{sp_entity_id}"),
+            new Route(POST, "/_idp/saml/sp/{sp_entity_id}")
         );
     }
 

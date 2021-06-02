@@ -1,0 +1,308 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "mixed_role"
+        body:  >
+            {
+              "indices": [
+                { "names": ["only_read"], "privileges": ["read"] },
+                { "names": ["only_index"], "privileges": ["index"] },
+                { "names": ["only_delete"], "privileges": ["delete"] },
+                { "names": ["read_write"], "privileges": ["read", "write"] },
+                { "names": ["everything"], "privileges": ["all"] }
+              ]
+            }
+
+  - do:
+      security.put_user:
+        username: "test_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "mixed_role" ],
+            "full_name" : "user with mixed privileges to multiple indices"
+          }
+
+  - do:
+      indices.create:
+        index: only_read
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              tag:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: only_index
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              tag:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: only_delete
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              tag:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: read_write
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              tag:
+                type: "keyword"
+  - do:
+      indices.create:
+        index: everything
+        body:
+          settings:
+            index:
+              number_of_shards:   1
+              number_of_replicas: 0
+          mappings:
+            properties:
+              name:
+                type: "keyword"
+              tag:
+                type: "keyword"
+  - do:
+      bulk:
+        refresh: true
+        body:
+            - '{"index": {"_index": "only_read", "_id": "1"}}'
+            - '{"name": "doc1", "tag": [ "can-read", "tag-a" ] }'
+            - '{"index": {"_index": "only_read", "_id": "2"}}'
+            - '{"name": "doc2", "tag": [ "can-read", "tag-b"] }'
+            - '{"index": {"_index": "only_index", "_id": "3"}}'
+            - '{"name": "doc3", "tag": [ "no-read", "tag-a"] }'
+            - '{"index": {"_index": "only_index", "_id": "4"}}'
+            - '{"name": "doc4", "tag": [ "no-read", "tag-b"] }'
+            - '{"index": {"_index": "only_delete", "_id": "5"}}'
+            - '{"name": "doc5", "tag": [ "no-read", "tag-a"] }'
+            - '{"index": {"_index": "only_delete", "_id": "6"}}'
+            - '{"name": "doc6", "tag": [ "no-read", "tag-b"] }'
+            - '{"index": {"_index": "read_write", "_id": "7"}}'
+            - '{"name": "doc7", "tag": [ "can-read", "tag-a" ] }'
+            - '{"index": {"_index": "read_write", "_id": "8"}}'
+            - '{"name": "doc8", "tag": [ "can-read", "tag-b"] }'
+            - '{"index": {"_index": "everything", "_id": "9"}}'
+            - '{"name": "doc9", "tag": [ "can-read", "tag-a" ] }'
+            - '{"index": {"_index": "everything", "_id": "10"}}'
+            - '{"name": "doc10", "tag": [ "can-read", "tag-b"] }'
+
+---
+teardown:
+  - do:
+      security.delete_user:
+        username: "test_user"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "mixed_role"
+        ignore: 404
+
+---
+"Test search for document when authorized":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: only_read
+        body:
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: only_read }
+  - match: { hits.hits.1._index: only_read }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: read_write
+        body:
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: read_write }
+  - match: { hits.hits.1._index: read_write }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: everything
+        body:
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._index: everything }
+  - match: { hits.hits.1._index: everything }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        body: { "query": { "term": { "tag":  "can-read" } } }
+  - match: { hits.total: 6 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - { }
+          - { "query": { "term": { "tag":  "can-read" } } }
+          - { "index": "only_read" }
+          - { "query": { "term": { "tag":  "tag-a" } } }
+          - { "index": "read_write" }
+          - { }
+  - match: { responses.0.hits.total: 6 }
+  - match: { responses.1.hits.total: 1 }
+  - match: { responses.2.hits.total: 2 }
+
+---
+"Test search for documents when not allowed":
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: only_index
+        body:
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        index: only_delete
+        body:
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        body: { "query": { "term": { "tag":  "no-read" } } }
+  - match: { hits.total: 0 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        body: { "query": { "term": { "_index":  "only_index" } } }
+  - match: { hits.total: 0 }
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - { }
+          - { "query": { "term": { "tag":  "no-read" } } }
+          - { }
+          - { "query": { "term": { "_index":  "only_index" } } }
+          - { "index": "only_delete" }
+          - { }
+  - match: { responses.0.hits.total: 0 }
+  - match: { responses.1.hits.total: 0 }
+  - match: { responses.2.error.type: "security_exception" }
+
+---
+"Test search documents when only some are allowed":
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        body: { "query": { "term": { "tag":  "tag-a" } } }
+  - match: { hits.total: 3 } # can-read, read_write, everything
+
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      msearch:
+        rest_total_hits_as_int: true
+        body:
+          - { }
+          - { "query": { "term": { "tag":  "tag-a" } } }
+          - { }
+          - { "query": { "term": { "tag":  "can-read" } } }
+          - { }
+          - { "query": { "term": { "tag":  "no-read" } } }
+          - { "index": "only_read" }
+          - { "query": { "term": { "tag":  "tag-a" } } }
+          - { "index": "only_delete" }
+          - { "query": { "term": { "tag":  "tag-a" } } }
+  - match: { responses.0.hits.total: 3 } # tag-a (in readable indices)
+  - match: { responses.1.hits.total: 6 } # can-read
+  - match: { responses.2.hits.total: 0 } # no-read
+  - match: { responses.3.hits.total: 1 } # only_read + tag-a
+  - match: { responses.4.error.type: "security_exception" } # only_delete + tag-a
+
+---
+"filters agg match_all doesn't count invisible docs: match_all":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        body:
+          aggs:
+            f:
+              filters:
+                filters:
+                  - match_all: {}
+
+  - match: { hits.total: 6 } # can-read, read_write, everything
+  - match: { aggregations.f.buckets.0.doc_count: 6 }
+
+---
+"filters agg exists doesn't count invisible docs: exists":
+  - do:
+      headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
+      search:
+        rest_total_hits_as_int: true
+        size: 0
+        body:
+          aggs:
+            f:
+              filters:
+                filters:
+                  - exists:
+                      field: name
+
+  - match: { hits.total: 6 } # can-read, read_write, everything
+  - match: { aggregations.f.buckets.0.doc_count: 6 }

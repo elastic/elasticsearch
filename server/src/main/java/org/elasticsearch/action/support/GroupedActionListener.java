@@ -37,6 +37,7 @@ public final class GroupedActionListener<T> extends ActionListener.Delegating<T,
     public GroupedActionListener(ActionListener<Collection<T>> delegate, int groupSize) {
         super(delegate);
         if (groupSize <= 0) {
+            assert false : "illegal group size [" + groupSize + "]";
             throw new IllegalArgumentException("groupSize must be greater than 0 but was " + groupSize);
         }
         results = new AtomicArray<>(groupSize);

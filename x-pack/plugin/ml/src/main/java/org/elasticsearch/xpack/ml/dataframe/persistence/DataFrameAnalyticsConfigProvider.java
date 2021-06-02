@@ -254,7 +254,7 @@ public class DataFrameAnalyticsConfigProvider {
         executeAsyncWithOrigin(client.threadPool().getThreadContext(),
             ML_ORIGIN,
             searchRequest,
-            new ActionListener<SearchResponse>() {
+            new ActionListener.Delegating<SearchResponse, List<DataFrameAnalyticsConfig>>(listener) {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
                     SearchHit[] hits = searchResponse.getHits().getHits();
@@ -266,7 +266,7 @@ public class DataFrameAnalyticsConfigProvider {
                                  xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
                             configs.add(DataFrameAnalyticsConfig.LENIENT_PARSER.apply(parser, null).build());
                         } catch (IOException e) {
-                            listener.onFailure(e);
+                            delegate.onFailure(e);
                         }
                     }
 
@@ -276,14 +276,8 @@ public class DataFrameAnalyticsConfigProvider {
                     if (tasksWithoutConfigs.isEmpty() == false) {
                         logger.warn("Data frame analytics tasks {} have no configs", tasksWithoutConfigs);
                     }
-                    listener.onResponse(configs);
+                    delegate.onResponse(configs);
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            },
-            client::search);
+            }, client::search);
     }
 }

@@ -12,6 +12,8 @@ import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.index.query.QueryBuilder;
 
+import java.util.Map;
+
 public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldCapabilitiesRequest, FieldCapabilitiesResponse> {
     public FieldCapabilitiesRequestBuilder(ElasticsearchClient client,
                                            FieldCapabilitiesAction action,
@@ -34,6 +36,11 @@ public class FieldCapabilitiesRequestBuilder extends ActionRequestBuilder<FieldC
 
     public FieldCapabilitiesRequestBuilder setIndexFilter(QueryBuilder indexFilter) {
         request().indexFilter(indexFilter);
+        return this;
+    }
+
+    public FieldCapabilitiesRequestBuilder setRuntimeFields(Map<String, Object> runtimeFieldSection) {
+        request().runtimeFields(runtimeFieldSection);
         return this;
     }
 }

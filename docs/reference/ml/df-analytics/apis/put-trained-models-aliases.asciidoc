@@ -7,7 +7,6 @@
 <titleabbrev>Create or update trained model aliases</titleabbrev>
 ++++
 
-beta::[]
 
 Creates or updates a trained model alias.
 
@@ -22,13 +21,9 @@ A trained model alias is a logical name used to reference a single trained model
 [[ml-put-trained-models-aliases-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in role:
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
-* `machine_learning_admin`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
 
 [[ml-put-trained-models-aliases-desc]]
 == {api-description-title}

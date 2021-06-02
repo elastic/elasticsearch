@@ -23,15 +23,16 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 public class GetPipelineResponse extends ActionResponse implements StatusToXContentObject {
 
     private List<PipelineConfiguration> pipelines;
+    private final boolean summary;
 
     public GetPipelineResponse(StreamInput in) throws IOException {
         super(in);
@@ -40,10 +41,16 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (int i = 0; i < size; i++) {
             pipelines.add(PipelineConfiguration.readFrom(in));
         }
+        summary = in.readBoolean();
+    }
+
+    public GetPipelineResponse(List<PipelineConfiguration> pipelines, boolean summary) {
+        this.pipelines = pipelines;
+        this.summary = summary;
     }
 
     public GetPipelineResponse(List<PipelineConfiguration> pipelines) {
-        this.pipelines = pipelines;
+        this(pipelines, false);
     }
 
     /**
@@ -61,10 +68,15 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
         for (PipelineConfiguration pipeline : pipelines) {
             pipeline.writeTo(out);
         }
+        out.writeBoolean(summary);
     }
 
     public boolean isFound() {
         return pipelines.isEmpty() == false;
+    }
+
+    public boolean isSummary() {
+        return summary;
     }
 
     @Override
@@ -76,7 +88,7 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         for (PipelineConfiguration pipeline : pipelines) {
-            builder.field(pipeline.getId(), pipeline.getConfigAsMap());
+            builder.field(pipeline.getId(), summary ? Map.of() : pipeline.getConfigAsMap());
         }
         builder.endObject();
         return builder;

@@ -122,7 +122,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         // The log message doesn't say "crashed", as the process could have been killed
         // by a user or other process (e.g. the Linux OOM killer)
         String errors = cppLogHandler().getErrors();
-        String fullError = String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly: %s", jobId, getName(), errors);
+        long pid = cppLogHandler().tryGetPid();
+
+        String fullError = pid > 0 ?
+            String.format(Locale.ROOT, "[%s] %s/%d process stopped unexpectedly: %s", jobId, getName(), pid, errors)
+            : String.format(Locale.ROOT, "[%s] %s process stopped unexpectedly before logging started: %s", jobId, getName(), errors);
+
         LOGGER.error(fullError);
         onProcessCrash.accept(fullError);
     }
@@ -314,6 +319,10 @@ public abstract class AbstractNativeProcess implements NativeProcess {
     }
 
     public void consumeAndCloseOutputStream() {
+        if (processOutStream.get() == null) {
+            return;
+        }
+
         try (InputStream outStream = processOutStream()) {
             byte[] buff = new byte[512];
             while (outStream.read(buff) >= 0) {

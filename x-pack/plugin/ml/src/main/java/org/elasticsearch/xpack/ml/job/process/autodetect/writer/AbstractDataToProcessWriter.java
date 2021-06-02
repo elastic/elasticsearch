@@ -33,6 +33,8 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.xpack.core.ml.utils.Intervals.alignToFloor;
+
 public abstract class AbstractDataToProcessWriter implements DataToProcessWriter {
 
     private static final int TIME_FIELD_OUT_INDEX = 0;
@@ -48,7 +50,8 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     private final Logger logger;
     private final DateTransformer dateTransformer;
-    private long latencySeconds;
+    private final long bucketSpanMs;
+    private final long latencySeconds;
 
     protected Map<String, Integer> inFieldIndexes;
     protected List<InputOutputMap> inputOutputMap;
@@ -68,6 +71,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         this.dataCountsReporter = Objects.requireNonNull(dataCountsReporter);
         this.logger = Objects.requireNonNull(logger);
         this.latencySeconds = analysisConfig.getLatency() == null ? 0 : analysisConfig.getLatency().seconds();
+        this.bucketSpanMs = analysisConfig.getBucketSpan().getMillis();
 
         Date date = dataCountsReporter.getLatestRecordTime();
         latestEpochMsThisUpload = 0;
@@ -178,9 +182,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         }
 
         record[TIME_FIELD_OUT_INDEX] = Long.toString(epochMs / MS_IN_SECOND);
+        final long latestBucketFloor = alignToFloor(latestEpochMs, bucketSpanMs);
 
-        // Records have epoch seconds timestamp so compare for out of order in seconds
-        if (epochMs / MS_IN_SECOND < latestEpochMs / MS_IN_SECOND - latencySeconds) {
+        // We care only about records that are older than the current bucket according to our latest timestamp
+        // The native side handles random order within the same bucket without issue
+        if (epochMs / MS_IN_SECOND < latestBucketFloor / MS_IN_SECOND - latencySeconds) {
             // out of order
             dataCountsReporter.reportOutOfOrderRecord(numberOfFieldsRead);
 
@@ -196,7 +202,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         latestEpochMsThisUpload = latestEpochMs;
 
         autodetectProcess.writeRecord(record);
-        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs);
+        dataCountsReporter.reportRecordWritten(numberOfFieldsRead, epochMs, latestEpochMs);
 
         return true;
     }
@@ -325,7 +331,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     /**
      * Input and output array indexes map
      */
-    protected class InputOutputMap {
+    protected static class InputOutputMap {
         int inputIndex;
         int outputIndex;
 

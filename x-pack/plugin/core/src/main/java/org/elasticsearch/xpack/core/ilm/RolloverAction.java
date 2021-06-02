@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -84,7 +83,7 @@ public class RolloverAction implements LifecycleAction {
         } else {
             maxSize = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_7_13_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             maxPrimaryShardSize = new ByteSizeValue(in);
         } else {
             maxPrimaryShardSize = null;
@@ -100,12 +99,10 @@ public class RolloverAction implements LifecycleAction {
         if (hasMaxSize) {
             maxSize.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-            boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
-            out.writeBoolean(hasMaxPrimaryShardSize);
-            if (hasMaxPrimaryShardSize) {
-                maxPrimaryShardSize.writeTo(out);
-            }
+        boolean hasMaxPrimaryShardSize = maxPrimaryShardSize != null;
+        out.writeBoolean(hasMaxPrimaryShardSize);
+        if (hasMaxPrimaryShardSize) {
+            maxPrimaryShardSize.writeTo(out);
         }
         out.writeOptionalTimeValue(maxAge);
         out.writeOptionalVLong(maxDocs);

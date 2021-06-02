@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action.compat;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.transport.TransportService;
@@ -18,9 +19,14 @@ import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
 public class TransportGetTransformActionDeprecated extends TransportGetTransformAction {
 
     @Inject
-    public TransportGetTransformActionDeprecated(TransportService transportService, ActionFilters actionFilters, Client client,
-            NamedXContentRegistry xContentRegistry) {
-        super(GetTransformActionDeprecated.NAME, transportService, actionFilters, client, xContentRegistry);
+    public TransportGetTransformActionDeprecated(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        Client client,
+        NamedXContentRegistry xContentRegistry
+    ) {
+        super(GetTransformActionDeprecated.NAME, transportService, actionFilters, clusterService, client, xContentRegistry);
     }
 
 }

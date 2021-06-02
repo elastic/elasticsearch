@@ -1,0 +1,54 @@
+[[reset-features-api]]
+=== Reset features API
+++++
+<titleabbrev>Reset features</titleabbrev>
+++++
+
+experimental::[]
+
+Clears all of the the state information stored in system indices by {es} features, including the security and machine learning indices.
+
+WARNING: Intended for development and testing use only. Do not reset features on a production cluster.
+
+[source,console]
+-----------------------------------
+POST /_features/_reset
+-----------------------------------
+
+[[reset-features-api-request]]
+==== {api-request-title}
+
+`POST /_features/_reset`
+
+
+[[reset-features-api-desc]]
+==== {api-description-title}
+
+Return a cluster to the same state as a new installation by resetting the feature state for all {es} features. This deletes all state information stored in system indices.
+
+The response code is `HTTP 200` if state is successfully reset for all features, `HTTP 207` if there is a mixture of successes and failures, and `HTTP 500` if the reset operation fails for all features.
+
+Note that select features might provide a way to reset particular system indices. Using this API resets _all_ features, both those that are built-in and implemented as plugins.
+
+To list the features that will be affected, use the <<get-features-api,get features API>>.
+
+IMPORTANT: The features installed on the node you submit this request to are the features that will be reset. Run on the master node if you have any doubts about which plugins are installed on individual nodes.
+
+==== {api-examples-title}
+Example response:
+[source,console-result]
+----
+{
+  "features" : [
+    {
+      "feature_name" : "security",
+      "status" : "SUCCESS"
+    },
+    {
+      "feature_name" : "tasks",
+      "status" : "SUCCESS"
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/"features" : \[[^\]]*\]/"features": $body.$_path/]

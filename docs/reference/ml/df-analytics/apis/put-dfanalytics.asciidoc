@@ -9,7 +9,6 @@
 
 Instantiates a {dfanalytics-job}.
 
-beta::[]
 
 [[ml-put-dfanalytics-request]]
 == {api-request-title}
@@ -20,16 +19,13 @@ beta::[]
 [[ml-put-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-built-in roles and privileges:
 
-* `machine_learning_admin`
+Requires the following privileges:
+
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-
-For more information, see <<built-in-roles>>, <<security-privileges>>, and
-{ml-docs-setup-privileges}.
-
 
 NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
 the time of creation. When you start the job, it performs the analysis using
@@ -462,8 +458,8 @@ may contain documents that don't have an {olscore}.
 * {regression-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
 supported are included in the analysis, other fields are ignored. Documents
-where included fields contain  an array with two or more values are also
-ignored. Documents in the `dest` index  that don’t contain a results field are
+where included fields contain an array with two or more values are also
+ignored. Documents in the `dest` index that don’t contain a results field are
 not included in the {reganalysis}.
 * {classification-cap} supports fields that are numeric, `boolean`, `text`,
 `keyword`, and `ip`. It is also tolerant of missing values. Fields that are
@@ -471,7 +467,7 @@ supported are included in the analysis, other fields are ignored. Documents
 where included fields contain an array with two or more values are also ignored.
 Documents in the `dest` index that don’t contain a results field are not
 included in the {classanalysis}. {classanalysis-cap} can be improved by mapping
-ordinal variable values to a  single number. For example, in case of age ranges,
+ordinal variable values to a single number. For example, in case of age ranges,
 you can model the values as "0-14" = 0, "15-24" = 1, "25-34" = 2, and so on.
 
 If `analyzed_fields` is not set, only the relevant fields will be included. For
@@ -513,12 +509,7 @@ functionality other than the analysis itself.
 
 `model_memory_limit`::
 (Optional, string)
-The approximate maximum amount of memory resources that are permitted for
-analytical processing. The default value for {dfanalytics-jobs} is `1gb`. If
-your `elasticsearch.yml` file contains an `xpack.ml.max_model_memory_limit`
-setting, an error occurs when you try to create {dfanalytics-jobs} that have
-`model_memory_limit` values greater than that setting. For more information, see
-<<ml-settings>>.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-dfa]
 
 `source`::
 (object)

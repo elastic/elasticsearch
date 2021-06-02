@@ -360,8 +360,11 @@ public class ValuesSourceConfig {
         return valuesSource.roundingPreparer();
     }
 
-    public boolean hasGlobalOrdinals() {
-        return valuesSource.hasGlobalOrdinals();
+    /**
+     * Check if this values source supports using global and segment ordinals.
+     */
+    public boolean hasOrdinals() {
+        return valuesSource.hasOrdinals();
     }
 
     /**

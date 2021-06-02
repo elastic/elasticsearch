@@ -40,7 +40,6 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.InternalSettingsPreparer;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.snapshots.SnapshotsService;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -90,8 +89,15 @@ final class Bootstrap {
         });
     }
 
-    /** initialize native resources */
-    public static void initializeNatives(Path tmpFile, boolean mlockAll, boolean systemCallFilter, boolean ctrlHandler) {
+    /**
+     * Initialize native resources.
+     *
+     * @param tmpFile          the temp directory
+     * @param mlockAll         whether or not to lock memory
+     * @param systemCallFilter whether or not to install system call filters
+     * @param ctrlHandler      whether or not to install the ctrl-c handler (applies to Windows only)
+     */
+    static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Bootstrap.class);
 
         // check if the user is running as root, and bail
@@ -99,8 +105,12 @@ final class Bootstrap {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
-        // enable system call filter
         if (systemCallFilter) {
+            /*
+             * Try to install system call filters; if they fail to install; a bootstrap check will fail startup in production mode.
+             *
+             * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
+             */
             Natives.tryInstallSystemCallFilter(tmpFile);
         }
 
@@ -166,20 +176,8 @@ final class Bootstrap {
         initializeNatives(
                 environment.tmpFile(),
                 BootstrapSettings.MEMORY_LOCK_SETTING.get(settings),
-                BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.get(settings),
+                true, // always install system call filters, not user-configurable since 8.0.0
                 BootstrapSettings.CTRLHANDLER_SETTING.get(settings));
-
-        final long cacheSize = SnapshotsService.SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
-        final long regionSize = SnapshotsService.SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
-        final int numRegions = Math.toIntExact(cacheSize / regionSize);
-        final long fileSize = numRegions * regionSize;
-        if (fileSize > 0) {
-            try {
-                Natives.tryCreateCacheFile(environment, fileSize);
-            } catch (Exception e) {
-                throw new BootstrapException(e);
-            }
-        }
 
         // initialize probes before the security manager is installed
         initializeProbes();

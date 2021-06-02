@@ -126,7 +126,7 @@ public class UsernamePasswordToken implements AuthenticationToken {
     /**
      * Like String.indexOf for for an array of chars
      */
-    private static int indexOfColon(char[] array) {
+    public static int indexOfColon(char[] array) {
         for (int i = 0; (i < array.length); i++) {
             if (array[i] == ':') {
                 return i;

@@ -25,7 +25,7 @@ import java.nio.file.NoSuchFileException;
 import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
-import java.util.List;
+import java.util.Iterator;
 import java.util.Map;
 
 /**
@@ -93,7 +93,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+    public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
         throw new UnsupportedOperationException("URL repository is read only");
     }
 
@@ -107,13 +107,13 @@ public class URLBlobContainer extends AbstractBlobContainer {
         try {
             return new BufferedInputStream(getInputStream(new URL(path, name)), blobStore.bufferSizeInBytes());
         } catch (FileNotFoundException fnfe) {
-            throw new NoSuchFileException("[" + name + "] blob not found");
+            throw new NoSuchFileException("blob object [" + name + "] not found");
         }
     }
 
     @Override
     public InputStream readBlob(String blobName, long position, long length) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     @Override

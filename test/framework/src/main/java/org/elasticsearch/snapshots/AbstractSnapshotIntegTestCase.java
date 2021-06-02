@@ -96,8 +96,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             .put("thread_pool.snapshot.core", 5).put("thread_pool.snapshot.max", 5).build();
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal))
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
             // Rebalancing is causing some checks after restore to randomly fail
             // due to https://github.com/elastic/elasticsearch/issues/9421
             .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
@@ -190,6 +190,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
+    protected static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+    }
+
     public void waitForBlock(String node, String repository) throws Exception {
         logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
         MockRepository mockRepository = getRepositoryOnNode(repository, node);
@@ -213,7 +217,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+    public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
     }
 
@@ -277,10 +281,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, node).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
-            .setType(type).setSettings(settings));
+                .setVerify(verify)
+                .setType(type)
+                .setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        createRepository(repoName, type, settings, true);
     }
 
     protected void createRepository(String repoName, String type, Path location) {
@@ -292,11 +302,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName)
-                .setVerify(false)
-                .setType(type)
-                .setSettings(randomRepositorySettings()));
+        createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
     protected Settings.Builder randomRepositorySettings() {
@@ -435,10 +441,22 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final Repository repo = getRepositoryOnMaster(repoName);
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
-        final SnapshotInfo snapshotInfo = new SnapshotInfo(snapshotId,
-                Collections.emptyList(), Collections.emptyList(),
-                Collections.emptyList(), "failed on purpose", SnapshotsService.OLD_SNAPSHOT_FORMAT, 0L, 0L, 0, 0, Collections.emptyList(),
-                randomBoolean(), metadata, SnapshotState.FAILED
+        final SnapshotInfo snapshotInfo = new SnapshotInfo(
+            snapshotId,
+            Collections.emptyList(),
+            Collections.emptyList(),
+            Collections.emptyList(),
+            "failed on purpose",
+            SnapshotsService.OLD_SNAPSHOT_FORMAT,
+            0L,
+            0L,
+            0,
+            0,
+            Collections.emptyList(),
+            randomBoolean(),
+            metadata,
+            SnapshotState.FAILED,
+            Collections.emptyMap()
         );
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,

@@ -36,7 +36,7 @@ public class MappingParserTests extends MapperServiceTestCase {
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier =
             () -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
-                mapperRegistry.getRuntimeFieldTypeParsers()::get, indexSettings.getIndexVersionCreated(),
+                mapperRegistry.getRuntimeFieldParsers()::get, indexSettings.getIndexVersionCreated(),
                 () -> { throw new UnsupportedOperationException(); }, null,
                 scriptService, indexAnalyzers, indexSettings, () -> false);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
@@ -76,7 +76,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             b.endObject();
         });
         Mapping mapping = createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)));
-        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping, null, null, null);
+        MappingLookup mappingLookup = MappingLookup.fromMapping(mapping);
         assertNotNull(mappingLookup.getMapper("foo.bar"));
         assertNotNull(mappingLookup.getMapper("foo.baz.deep.field"));
         assertNotNull(mappingLookup.objectMappers().get("foo"));

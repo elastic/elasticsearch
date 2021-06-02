@@ -415,7 +415,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> s.contains(k)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {

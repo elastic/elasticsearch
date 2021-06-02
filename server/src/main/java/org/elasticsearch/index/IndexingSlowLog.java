@@ -49,7 +49,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         Setting.boolSetting(INDEX_INDEXING_SLOWLOG_PREFIX +".reformat", true, Property.Dynamic, Property.IndexScope);
     public static final Setting<SlowLogLevel> INDEX_INDEXING_SLOWLOG_LEVEL_SETTING =
         new Setting<>(INDEX_INDEXING_SLOWLOG_PREFIX +".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
-            Property.IndexScope);
+            Property.IndexScope, Property.Deprecated);
 
     private final Logger indexLogger;
     private final Index index;

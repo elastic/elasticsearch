@@ -73,7 +73,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             TimeValue.timeValueMillis(-1), Property.Dynamic, Property.IndexScope);
     public static final Setting<SlowLogLevel> INDEX_SEARCH_SLOWLOG_LEVEL =
         new Setting<>(INDEX_SEARCH_SLOWLOG_PREFIX + ".level", SlowLogLevel.TRACE.name(), SlowLogLevel::parse, Property.Dynamic,
-            Property.IndexScope);
+            Property.IndexScope, Property.Deprecated);
 
     private static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
     private SlowLogLevel level;

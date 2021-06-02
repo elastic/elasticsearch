@@ -34,7 +34,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         return Collections.singletonList(
             new Route(
                 POST,
-                BASE_PATH + "trained_models/deployment/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_infer")
+                BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
         );
     }
 

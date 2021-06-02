@@ -32,7 +32,7 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
     public List<Route> routes() {
         return Collections.singletonList(
             new Route(POST,
-                MachineLearning.BASE_PATH + "trained_models/deployment/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_start"));
+                MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_start"));
     }
 
     @Override

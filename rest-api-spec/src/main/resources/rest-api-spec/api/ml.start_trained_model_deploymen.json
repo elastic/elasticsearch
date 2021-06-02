@@ -1,8 +1,8 @@
 {
-  "ml.stop_deployment":{
+  "ml.start_trained_model_deployment":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-stop-deployment.html",
-      "description":"Stpo a trained model deployment."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-start-trained-model-deployment.html",
+      "description":"Start a trained model deployment."
     },
     "stability":"experimental",
     "visibility":"public",
@@ -13,14 +13,14 @@
     "url":{
       "paths":[
         {
-          "path":"/_ml/trained_models/deployment/{model_id}/_stop",
+          "path":"/_ml/trained_models/{model_id}/deployment/_start",
           "methods":[
             "POST"
           ],
           "parts":{
             "model_id":{
               "type":"string",
-              "description":"The ID of the model to undeploy"
+              "description":"The ID of the model to deploy"
             }
           }
         }

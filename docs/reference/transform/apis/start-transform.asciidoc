@@ -40,7 +40,8 @@ fields in the destination index are derived from scripts (as in the case of
 If it is a latest {transform}, it does not deduce mapping definitions; it uses
 dynamic mappings.
 
-TIP: To use explicit mappings, create the destination index before you start the {transform}.
+TIP: To use explicit mappings, create the destination index before you start the {transform}. Alternatively, you can create an index template, though it does not affect the
+deduced mappings in a pivot {transform}.
 
 When the {transform} starts, a series of validations occur to ensure
 its success. If you deferred validation when you created the

@@ -24,13 +24,14 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.FilterByFilter;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.aggregation.AggregationProfiler;
@@ -245,6 +246,16 @@ public abstract class AggregationContext implements Releasable {
     public abstract boolean isCacheable();
 
     /**
+     * Are aggregations allowed to try to rewrite themselves into
+     * {@link FilterByFilter} aggregations? <strong>Often</strong>
+     * {@linkplain FilterByFilter} is faster to execute, but it isn't
+     * always. For now this just hooks into a cluster level setting
+     * so users can disable the behavior when the existing heuristics
+     * don't detect cases where its slower.
+     */
+    public abstract boolean enableRewriteToFilterByFilter();
+
+    /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
@@ -264,6 +275,7 @@ public abstract class AggregationContext implements Releasable {
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
+        private final boolean enableRewriteToFilterByFilter;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
@@ -279,7 +291,8 @@ public abstract class AggregationContext implements Releasable {
             int randomSeed,
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
-            Function<Query, Query> filterQuery
+            Function<Query, Query> filterQuery,
+            boolean enableRewriteToFilterByFilter
         ) {
             this.context = context;
             if (bytesToPreallocate == 0) {
@@ -310,6 +323,7 @@ public abstract class AggregationContext implements Releasable {
             this.relativeTimeInMillis = relativeTimeInMillis;
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
+            this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
         }
 
         @Override
@@ -464,6 +478,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean isCacheable() {
             return context.isCacheable();
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return enableRewriteToFilterByFilter;
         }
 
         @Override

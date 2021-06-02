@@ -18,12 +18,6 @@ the response only includes ongoing shard recoveries.
 Defaults to `false`.
 end::active-only[]
 
-tag::aliases[]
-`aliases`::
-(Optional, <<alias,alias object>>) Index aliases which include the index. Index
-alias names support <<date-math-index-names,date math>>.
-end::aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)

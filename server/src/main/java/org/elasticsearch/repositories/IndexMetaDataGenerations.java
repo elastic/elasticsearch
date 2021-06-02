@@ -97,18 +97,19 @@ public final class IndexMetaDataGenerations {
         final Map<SnapshotId, Map<IndexId, String>> updatedIndexMetaLookup = new HashMap<>(this.lookup);
         final Map<String, String> updatedIndexMetaIdentifiers = new HashMap<>(identifiers);
         updatedIndexMetaIdentifiers.putAll(newIdentifiers);
-        updatedIndexMetaLookup.compute(snapshotId, (snId, lookup) -> {
-            if (lookup == null) {
-                if (newLookup.isEmpty()) {
-                    return null;
-                }
-                return Map.copyOf(newLookup);
-            } else {
-                final Map<IndexId, String> updated = new HashMap<>(lookup);
-                updated.putAll(newLookup);
-                return Map.copyOf(updated);
+        if (newLookup.isEmpty() == false) {
+            final Map<String, String> identifierDeduplicator = new HashMap<>(this.identifiers.size());
+            for (String identifier : identifiers.keySet()) {
+                identifierDeduplicator.put(identifier, identifier);
             }
-        });
+            final Map<IndexId, String> fixedLookup = new HashMap<>(newLookup.size());
+            for (Map.Entry<IndexId, String> entry : newLookup.entrySet()) {
+                final String generation = entry.getValue();
+                fixedLookup.put(entry.getKey(), identifierDeduplicator.getOrDefault(generation, generation));
+            }
+            final Map<IndexId, String> existing = updatedIndexMetaLookup.put(snapshotId, Map.copyOf(fixedLookup));
+            assert existing == null : "unexpected existing index generation mappings " + existing;
+        }
         return new IndexMetaDataGenerations(updatedIndexMetaLookup, updatedIndexMetaIdentifiers);
     }
 

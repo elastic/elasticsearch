@@ -287,7 +287,7 @@ public class AuthorizationService {
                     authzIndicesListener));
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>((resolvedIndicesListener) -> {
                 authorizedIndicesSupplier.getAsync(ActionListener.wrap(authorizedIndices -> {
-                    resolveIndexNames(request, metadata, authorizedIndices, resolvedIndicesListener);
+                    resolveIndexNames(action, request, metadata, authorizedIndices, resolvedIndicesListener);
                 }, e -> {
                     auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
                     if (e instanceof IndexNotFoundException) {
@@ -494,9 +494,10 @@ public class AuthorizationService {
             resolvedIndicesAsyncSupplier.getAsync(ActionListener.wrap(overallResolvedIndices -> {
                 final Set<String> localIndices = new HashSet<>(overallResolvedIndices.getLocal());
                 for (BulkItemRequest item : request.items()) {
+                    final String itemAction = getAction(item);
                     String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
                         final ResolvedIndices resolvedIndices =
-                            indicesAndAliasesResolver.resolveIndicesAndAliases(item.request(), metadata, authorizedIndices);
+                            indicesAndAliasesResolver.resolveIndicesAndAliases(itemAction, item.request(), metadata, authorizedIndices);
                         if (resolvedIndices.getRemote().size() != 0) {
                             throw illegalArgument("Bulk item should not write to remote indices, but request writes to "
                                 + String.join(",", resolvedIndices.getRemote()));
@@ -513,7 +514,6 @@ public class AuthorizationService {
                         return resolved;
                     });
 
-                    final String itemAction = getAction(item);
                     actionToIndicesMap.compute(itemAction, (key, resolvedIndicesSet) -> {
                         final Set<String> localSet = resolvedIndicesSet != null ? resolvedIndicesSet : new HashSet<>();
                         localSet.add(resolvedIndex);
@@ -594,9 +594,9 @@ public class AuthorizationService {
         throw new IllegalArgumentException("No equivalent action for opType [" + docWriteRequest.opType() + "]");
     }
 
-    private void resolveIndexNames(TransportRequest request, Metadata metadata, Set<String> authorizedIndices,
+    private void resolveIndexNames(String action, TransportRequest request, Metadata metadata, Set<String> authorizedIndices,
                                    ActionListener<ResolvedIndices> listener) {
-        listener.onResponse(indicesAndAliasesResolver.resolve(request, metadata, authorizedIndices));
+        listener.onResponse(indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices));
     }
 
     private void putTransientIfNonExisting(String key, Object value) {

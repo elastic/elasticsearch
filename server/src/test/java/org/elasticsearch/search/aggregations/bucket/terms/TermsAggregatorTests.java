@@ -22,11 +22,14 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermInSetQuery;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
@@ -835,7 +838,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                             .size(numTerms)
                             .collectMode(randomFrom(Aggregator.SubAggCollectionMode.values()))
                             .field("field"));
-                        context = createAggregationContext(indexSearcher, null, fieldType, filterFieldType);
+                        context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType, filterFieldType);
                         aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1020,7 +1023,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
                             .userValueTypeHint(valueTypes[i])
                             .field(fieldNames[i]).missing(missingValues[i]);
-                        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType1);
+                        AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType1);
                         Aggregator aggregator = createAggregator(aggregationBuilder, context);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -1764,7 +1767,10 @@ public class TermsAggregatorTests extends AggregatorTestCase {
          * would trigger that bug.
          */
         builder.size(2).order(BucketOrder.key(true));
-        Query topLevel = new TermInSetQuery("k", new BytesRef[] {new BytesRef("b"), new BytesRef("c")});
+        Query topLevel = new BooleanQuery.Builder()
+            .add(new TermQuery(new Term("k", "b")), Occur.SHOULD)
+            .add(new TermQuery(new Term("k", "c")), Occur.SHOULD)
+            .build();
         testCase(builder, topLevel, buildIndex, (StringTerms terms) -> {
             assertThat(terms.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(List.of("b", "c")));
         }, kft);

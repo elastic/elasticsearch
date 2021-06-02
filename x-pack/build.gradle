@@ -1,5 +1,5 @@
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
-import org.elasticsearch.gradle.internal.precommit.LicenseHeadersTask
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
 
 Project xpackRootProject = project
 
@@ -36,7 +36,9 @@ subprojects {
     additionalLicense 'ELAST', 'Elastic License 2.0', '2.0; you may not use this file except in compliance with the Elastic License'
   }
 
-  ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+  project.getPluginManager().withPlugin("elasticsearch.licensing") {
+    ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
+  }
 
   project.ext.licenseFile = rootProject.file('licenses/ELASTIC-LICENSE-2.0.txt')
   project.ext.noticeFile = xpackRootProject.file('NOTICE.txt')

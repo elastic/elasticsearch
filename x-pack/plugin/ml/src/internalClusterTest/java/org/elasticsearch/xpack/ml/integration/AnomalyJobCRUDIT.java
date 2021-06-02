@@ -68,7 +68,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
             Settings.EMPTY
         );
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), clusterService);
-        jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService, auditor);
+        jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
         waitForMlTemplates();
     }
 

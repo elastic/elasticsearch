@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.lucene.index.IndexWriter;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;

@@ -195,30 +195,30 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         var tuples = List.of(new Tuple<>("logs-foo", 1), new Tuple<>("logs-bar", 1), new Tuple<>("logs-baz", 1));
         var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(tuples, List.of());
         var builder = Metadata.builder(clusterState.metadata());
-        builder.put("logs", "logs-foo");
-        builder.put("logs", "logs-bar");
-        builder.put("secret", "logs-bar");
+        builder.put("logs", "logs-foo", null);
+        builder.put("logs", "logs-bar", null);
+        builder.put("secret", "logs-bar", null);
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
         // return all all data streams with aliases
         var getAliasesRequest = new GetAliasesRequest();
         var result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo", "logs-bar"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"))));
-        assertThat(result.get("logs-bar"), containsInAnyOrder(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo")),
-            new DataStreamAlias("secret", List.of("logs-bar"))));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
+        assertThat(result.get("logs-bar"), containsInAnyOrder(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null),
+            new DataStreamAlias("secret", List.of("logs-bar"), null)));
 
         // filter by alias name
         getAliasesRequest = new GetAliasesRequest("secret");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-bar"));
-        assertThat(result.get("logs-bar"), contains(new DataStreamAlias("secret", List.of("logs-bar"))));
+        assertThat(result.get("logs-bar"), contains(new DataStreamAlias("secret", List.of("logs-bar"), null)));
 
         // filter by data stream:
         getAliasesRequest = new GetAliasesRequest().indices("logs-foo");
         result = TransportGetAliasesAction.postProcess(resolver, getAliasesRequest, clusterState);
         assertThat(result.keySet(), containsInAnyOrder("logs-foo"));
-        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"))));
+        assertThat(result.get("logs-foo"), contains(new DataStreamAlias("logs", List.of("logs-bar", "logs-foo"), null)));
     }
 
     public ClusterState systemIndexTestClusterState() {

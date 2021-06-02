@@ -35,14 +35,13 @@ include-tagged::{doc-tests-file}[{api}-options]
 <2> Updated description.
 <3> Updated analysis limits. 
 <4> Updated background persistence interval.
-<5> Updated analysis config's categorization filters.
-<6> Updated detectors through the `JobUpdate.DetectorUpdate` object.
-<7> Updated group membership.
-<8> Updated result retention.
-<9> Updated model plot configuration.
-<10> Updated model snapshot retention setting.
-<11> Updated custom settings.
-<12> Updated renormalization window.
+<5> Updated detectors through the `JobUpdate.DetectorUpdate` object.
+<6> Updated group membership.
+<7> Updated result retention.
+<8> Updated model plot configuration.
+<9> Updated model snapshot retention setting.
+<10> Updated custom settings.
+<11> Updated renormalization window.
 
 Included with these options are specific optional `JobUpdate.DetectorUpdate` updates.
 ["source","java",subs="attributes,callouts,macros"]

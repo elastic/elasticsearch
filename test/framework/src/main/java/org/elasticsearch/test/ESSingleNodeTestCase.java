@@ -193,7 +193,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(super.filteredWarnings().stream(),
-            List.of("setting [path.shared_data] is deprecated and will be removed in a future release").stream())
+            List.of("[index.data_path] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.",
+                "setting [path.shared_data] is deprecated and will be removed in a future release").stream())
             .collect(Collectors.toList());
     }
 

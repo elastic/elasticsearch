@@ -25,13 +25,6 @@ Comma-separated list or wildcard expression of index alias names
 used to limit the request.
 end::index-alias[]
 
-tag::aliases[]
-`aliases`::
-(Optional, <<indices-aliases,alias object>>) <<indices-aliases,Index aliases>>
-which include the index. Index alias names support <<date-math-index-names,date
-math>>.
-end::aliases[]
-
 tag::allow-no-indices[]
 `allow_no_indices`::
 (Optional, Boolean)

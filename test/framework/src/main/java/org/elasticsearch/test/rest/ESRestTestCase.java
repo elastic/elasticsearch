@@ -570,10 +570,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         // Clean up searchable snapshots indices before deleting snapshots and repositories
-        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0)) {
-            if (preserveSearchableSnapshotsIndicesUponCompletion() == false) {
-                wipeSearchableSnapshotsIndices();
-            }
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+            wipeSearchableSnapshotsIndices();
         }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();

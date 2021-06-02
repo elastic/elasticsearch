@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authc.support.ApiKeySearchQueryBuilder;
 
 public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest,GetApiKeyResponse> {
 
@@ -37,15 +38,21 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
 
     @Override
     protected void doExecute(Task task, GetApiKeyRequest request, ActionListener<GetApiKeyResponse> listener) {
+        final Authentication authentication = securityContext.getAuthentication();
+        if (authentication == null) {
+            listener.onFailure(new IllegalStateException("authentication is required"));
+        }
+
+        if (request.getQuery() != null) {
+            apiKeyService.getApiKeys(ApiKeySearchQueryBuilder.build(request, authentication), listener);
+            return;
+        }
+
         String apiKeyId = request.getApiKeyId();
         String apiKeyName = request.getApiKeyName();
         String username = request.getUserName();
         String realm = request.getRealmName();
 
-        final Authentication authentication = securityContext.getAuthentication();
-        if (authentication == null) {
-            listener.onFailure(new IllegalStateException("authentication is required"));
-        }
         if (request.ownedByAuthenticatedUser()) {
             assert username == null;
             assert realm == null;

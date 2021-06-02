@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -25,6 +26,7 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -205,6 +207,47 @@ public class RestGetApiKeyActionTests extends ESTestCase {
             }
         }
 
+    }
+
+    public void testQueryParsing() throws Exception {
+        final String query_00 = "{\"username\":\"elastic\",\"query\":{\"bool\":{\"must\":[{\"terms\":{\"name\":[\"k1\",\"k2\"]}}]}}}";
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry())
+            .withContent(new BytesArray(query_00), XContentType.JSON)
+            .build();
+
+        final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+            @Override
+            public void sendResponse(RestResponse restResponse) {
+                responseSetOnce.set(restResponse);
+            }
+        };
+
+        try (NodeClient client = new NodeClient(Settings.EMPTY, threadPool) {
+            @SuppressWarnings("unchecked")
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse>
+            void doExecute(ActionType<Response> action, Request request, ActionListener<Response> listener) {
+                GetApiKeyRequest getApiKeyRequest = (GetApiKeyRequest) request;
+                ActionRequestValidationException validationException = getApiKeyRequest.validate();
+                if (validationException != null) {
+                    listener.onFailure(validationException);
+                    return;
+                }
+                assertNotNull(getApiKeyRequest.getQuery());
+                assertEquals("elastic", getApiKeyRequest.getUserName());
+                listener.onResponse((Response) new GetApiKeyResponse(List.of()));
+            }
+        }) {
+            final RestGetApiKeyAction restGetApiKeyAction = new RestGetApiKeyAction(Settings.EMPTY, mockLicenseState);
+            restGetApiKeyAction.handleRequest(restRequest, restChannel, client);
+        }
+    }
+
+    @Override
+    protected NamedXContentRegistry xContentRegistry() {
+        final SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
+        return new NamedXContentRegistry(searchModule.getNamedXContents());
     }
 
     private static MapBuilder<String, String> mapBuilder() {

@@ -7,7 +7,8 @@
     "stability":"stable",
     "visibility":"public",
     "headers":{
-      "accept": [ "application/json"]
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
     },
     "url":{
       "paths":[
@@ -41,6 +42,10 @@
         "default":false,
         "description":"flag to query API keys owned by the currently authenticated user"
       }
+    },
+    "body":{
+      "description":"The api key request to get API key(s)",
+      "required":false
     }
   }
 }

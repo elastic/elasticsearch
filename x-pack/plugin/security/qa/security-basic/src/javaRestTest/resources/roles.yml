@@ -6,3 +6,11 @@ security_test_role:
   indices:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "create_index" ]
+
+api_key_admin_role:
+  cluster:
+    - manage_api_key
+
+api_key_user_role:
+  cluster:
+    - manage_own_api_key

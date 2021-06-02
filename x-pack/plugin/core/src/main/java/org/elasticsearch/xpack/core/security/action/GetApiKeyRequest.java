@@ -14,6 +14,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -31,8 +32,10 @@ public final class GetApiKeyRequest extends ActionRequest {
     private final String apiKeyName;
     private final boolean ownedByAuthenticatedUser;
 
+    private final QueryBuilder query;
+
     public GetApiKeyRequest() {
-        this(null, null, null, null, false);
+        this(null, null, null, null, false, null);
     }
 
     public GetApiKeyRequest(StreamInput in) throws IOException {
@@ -46,15 +49,27 @@ public final class GetApiKeyRequest extends ActionRequest {
         } else {
             ownedByAuthenticatedUser = false;
         }
+        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+            query = in.readOptionalNamedWriteable(QueryBuilder.class);
+        } else {
+            query = null;
+        }
     }
 
     public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
+        this(realmName, userName, apiKeyId, apiKeyName, ownedByAuthenticatedUser, null);
+    }
+
+    public GetApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
+                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser,
+                            @Nullable QueryBuilder query) {
         this.realmName = textOrNull(realmName);
         this.userName = textOrNull(userName);
         this.apiKeyId = textOrNull(apiKeyId);
         this.apiKeyName = textOrNull(apiKeyName);
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+        this.query = query;
     }
 
     private static String textOrNull(@Nullable String arg) {
@@ -79,6 +94,14 @@ public final class GetApiKeyRequest extends ActionRequest {
 
     public boolean ownedByAuthenticatedUser() {
         return ownedByAuthenticatedUser;
+    }
+
+    public QueryBuilder getQuery() {
+        return query;
+    }
+
+    public String queryUsername() {
+        return null;
     }
 
     /**

@@ -68,6 +68,7 @@ import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -1087,6 +1088,26 @@ public class ApiKeyService {
                     listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
                 }
             }, listener::onFailure));
+    }
+
+    public void getApiKeys(BoolQueryBuilder query, ActionListener<GetApiKeyResponse> listener) {
+        final ActionListener<Collection<ApiKey>> wrappedListener = ActionListener.wrap(apiKeyInfos -> {
+            if (apiKeyInfos.isEmpty()) {
+                logger.debug("No active api keys found for query [{}]", query);
+                listener.onResponse(GetApiKeyResponse.emptyResponse());
+            } else {
+                listener.onResponse(new GetApiKeyResponse(apiKeyInfos));
+            }
+        }, listener::onFailure);
+
+        final SecurityIndexManager frozenSecurityIndex = securityIndex.freeze();
+        if (frozenSecurityIndex.indexExists() == false) {
+            wrappedListener.onResponse(Collections.emptyList());
+        } else if (frozenSecurityIndex.isAvailable() == false) {
+            wrappedListener.onFailure(frozenSecurityIndex.getUnavailableReason());
+        } else {
+            findApiKeys(query, true, true, wrappedListener);
+        }
     }
 
     /**

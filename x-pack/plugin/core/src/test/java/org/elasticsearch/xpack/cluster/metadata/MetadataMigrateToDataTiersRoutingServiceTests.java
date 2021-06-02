@@ -212,8 +212,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             // since the index has a _tier_preference configuration the migrated index should still contain it and have the `data`
             // attribute routing removed
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
-                IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_REQUIRE_SETTING,
-                    "cold").put(INDEX_ROUTING_PREFER, "data_warm,data_hot"));
+                IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_REQUIRE_SETTING, "cold")
+                    .put(INDEX_ROUTING_PREFER, "data_warm,data_hot")
+                );
             ClusterState state =
                 ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
 

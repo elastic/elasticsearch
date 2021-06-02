@@ -1583,6 +1583,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
+            case "data-streams-mappings":
                 return true;
             default:
                 return false;

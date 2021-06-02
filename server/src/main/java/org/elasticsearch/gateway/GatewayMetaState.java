@@ -462,7 +462,7 @@ public class GatewayMetaState implements Closeable {
 
         // As the close method can be concurrently called to the other PersistedState methods, this class has extra protection in place.
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
-        boolean writeNextStateFully;
+        private boolean writeNextStateFully;
 
         LucenePersistedState(PersistedClusterStateService persistedClusterStateService, long currentTerm, ClusterState lastAcceptedState)
             throws IOException {
@@ -505,13 +505,15 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
-                    writeNextStateFully = false;
                 } else {
+                    writeNextStateFully = true; // in case of failure; this flag is cleared on success
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(currentTerm, lastAcceptedState.version());
                 }
-            } catch (Exception e) {
-                handleExceptionOnWrite(e);
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
             }
+
+            writeNextStateFully = false;
             this.currentTerm = currentTerm;
         }
 
@@ -520,8 +522,8 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
-                    writeNextStateFully = false;
                 } else {
+                    writeNextStateFully = true; // in case of failure; this flag is cleared on success
                     if (clusterState.term() != lastAcceptedState.term()) {
                         assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
                         // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state,
@@ -532,10 +534,11 @@ public class GatewayMetaState implements Closeable {
                         getWriterSafe().writeIncrementalStateAndCommit(currentTerm, lastAcceptedState, clusterState);
                     }
                 }
-            } catch (Exception e) {
-                handleExceptionOnWrite(e);
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
             }
 
+            writeNextStateFully = false;
             lastAcceptedState = clusterState;
         }
 
@@ -560,11 +563,6 @@ public class GatewayMetaState implements Closeable {
                     throw ExceptionsHelper.convertToRuntime(e);
                 }
             }
-        }
-
-        private void handleExceptionOnWrite(Exception e) {
-            writeNextStateFully = true;
-            throw ExceptionsHelper.convertToRuntime(e);
         }
 
         @Override

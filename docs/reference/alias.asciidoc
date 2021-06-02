@@ -45,9 +45,8 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
 
-The API's `index` and `indices` parameters support wildcards (`*`). If a
-wildcard pattern matches both data streams and indices, the action only uses
-matching data streams.
+The API's `index` and `indices` parameters support wildcards (`*`). Wildcard
+patterns that match both data streams and indices return an error.
 
 [source,console]
 ----
@@ -210,7 +209,8 @@ GET _alias/logs
 === Write index
 
 If an alias points to multiple indices, you can use `is_write_index` to specify
-a write index. {es} routes any write requests for the alias to this index.
+a write index or data stream. {es} routes any write requests for the alias to this
+index or data stream.
 
 [source,console]
 ----
@@ -242,8 +242,7 @@ with a write index instead. See
 
 If an alias points to multiple indices with no write index, the alias rejects
 write requests. If an alias points to one index and `is_write_index` is not set,
-the index automatically acts as the write index. Data stream aliases do not
-support `is_write_index`.
+the index automatically acts as the write index.
 
 [discrete]
 [[filter-alias]]

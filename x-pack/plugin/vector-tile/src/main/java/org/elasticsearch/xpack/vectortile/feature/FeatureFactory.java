@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.spatial.vectortile;
+package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IGeometryFilter;
@@ -33,6 +33,9 @@ import org.locationtech.jts.geom.LineString;
 
 import java.util.List;
 
+/**
+ * Transforms {@link Geometry} object in WGS84 into mvt features.
+ */
 public class FeatureFactory {
 
     private final IGeometryFilter acceptAllGeomFilter = geometry -> true;
@@ -45,18 +48,23 @@ public class FeatureFactory {
     private final Envelope clipEnvelope;
 
     public FeatureFactory(int z, int x, int y, int extent) {
-        this.tileEnvelope = VectorTileUtils.getJTSTileBounds(z, x, y);
-        this.clipEnvelope = VectorTileUtils.getJTSTileBounds(z, x, y);
+        this.tileEnvelope = FeatureFactoryUtils.getJTSTileBounds(z, x, y);
+        this.clipEnvelope = FeatureFactoryUtils.getJTSTileBounds(z, x, y);
         this.clipEnvelope.expandBy(tileEnvelope.getWidth() * 0.1d, tileEnvelope.getHeight() * 0.1d);
         this.builder = new JTSGeometryBuilder(geomFactory);
         // TODO: Not sure what is the difference between extent and tile size?
-        this.layerParams  = new MvtLayerParams(extent, extent);
+        this.layerParams = new MvtLayerParams(extent, extent);
     }
 
     public List<VectorTile.Tile.Feature> getFeatures(Geometry geometry, IUserDataConverter userData) {
-        TileGeomResult tileGeom =
-            JtsAdapter.createTileGeom(JtsAdapter.flatFeatureList(geometry.visit(builder)),
-                tileEnvelope, clipEnvelope, geomFactory, layerParams, acceptAllGeomFilter);
+        TileGeomResult tileGeom = JtsAdapter.createTileGeom(
+            JtsAdapter.flatFeatureList(geometry.visit(builder)),
+            tileEnvelope,
+            clipEnvelope,
+            geomFactory,
+            layerParams,
+            acceptAllGeomFilter
+        );
         // MVT tile geometry to MVT features
         return JtsAdapter.toFeatures(tileGeom.mvtGeoms, layerProps, userData);
     }
@@ -103,8 +111,8 @@ public class FeatureFactory {
         }
 
         private org.locationtech.jts.geom.Point buildPoint(Point point) {
-            final double x = VectorTileUtils.lonToSphericalMercator(point.getX());
-            final double y = VectorTileUtils.latToSphericalMercator(point.getY());
+            final double x = FeatureFactoryUtils.lonToSphericalMercator(point.getX());
+            final double y = FeatureFactoryUtils.latToSphericalMercator(point.getY());
             return geomFactory.createPoint(new Coordinate(x, y));
         }
 
@@ -125,8 +133,8 @@ public class FeatureFactory {
         private LineString buildLine(Line line) {
             final Coordinate[] coordinates = new Coordinate[line.length()];
             for (int i = 0; i < line.length(); i++) {
-                final double x = VectorTileUtils.lonToSphericalMercator(line.getX(i));
-                final double y = VectorTileUtils.latToSphericalMercator(line.getY(i));
+                final double x = FeatureFactoryUtils.lonToSphericalMercator(line.getX(i));
+                final double y = FeatureFactoryUtils.latToSphericalMercator(line.getY(i));
                 coordinates[i] = new Coordinate(x, y);
             }
             return geomFactory.createLineString(coordinates);
@@ -161,8 +169,8 @@ public class FeatureFactory {
         private org.locationtech.jts.geom.LinearRing buildLinearRing(LinearRing ring) throws RuntimeException {
             final Coordinate[] coordinates = new Coordinate[ring.length()];
             for (int i = 0; i < ring.length(); i++) {
-                final double x = VectorTileUtils.lonToSphericalMercator(ring.getX(i));
-                final double y = VectorTileUtils.latToSphericalMercator(ring.getY(i));
+                final double x = FeatureFactoryUtils.lonToSphericalMercator(ring.getX(i));
+                final double y = FeatureFactoryUtils.latToSphericalMercator(ring.getY(i));
                 coordinates[i] = new Coordinate(x, y);
             }
             return geomFactory.createLinearRing(coordinates);
@@ -171,10 +179,10 @@ public class FeatureFactory {
         @Override
         public org.locationtech.jts.geom.Geometry visit(Rectangle rectangle) throws RuntimeException {
             // TODO: handle degenerated rectangles?
-            final double xMin = VectorTileUtils.lonToSphericalMercator(rectangle.getMinX());
-            final double yMin = VectorTileUtils.latToSphericalMercator(rectangle.getMinY());
-            final double xMax = VectorTileUtils.lonToSphericalMercator(rectangle.getMaxX());
-            final double yMax = VectorTileUtils.latToSphericalMercator(rectangle.getMaxY());
+            final double xMin = FeatureFactoryUtils.lonToSphericalMercator(rectangle.getMinX());
+            final double yMin = FeatureFactoryUtils.latToSphericalMercator(rectangle.getMinY());
+            final double xMax = FeatureFactoryUtils.lonToSphericalMercator(rectangle.getMaxX());
+            final double yMax = FeatureFactoryUtils.latToSphericalMercator(rectangle.getMaxY());
             final Coordinate[] coordinates = new Coordinate[5];
             coordinates[0] = new Coordinate(xMin, yMin);
             coordinates[1] = new Coordinate(xMax, yMin);

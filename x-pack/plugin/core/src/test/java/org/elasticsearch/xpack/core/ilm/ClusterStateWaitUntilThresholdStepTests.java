@@ -22,7 +22,6 @@ import java.time.ZoneId;
 import java.util.Collections;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xpack.core.ilm.ClusterStateWaitUntilThresholdStep.waitedMoreThanThresholdLevel;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;

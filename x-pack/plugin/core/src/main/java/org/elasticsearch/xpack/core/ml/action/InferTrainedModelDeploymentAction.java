@@ -10,14 +10,17 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -36,53 +39,57 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {
 
-        public static final String REQUEST_ID = "request_id";
         public static final String DEPLOYMENT_ID = "deployment_id";
-        public static final String JSON_REQUEST = "json_request";
+        public static final ParseField INPUT = new ParseField("input");
+
+        private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
+        static {
+            PARSER.declareString((request, inputs) -> request.input = inputs, INPUT);
+        }
+
+        public static Request parseRequest(String deploymentId, XContentParser parser) {
+            Request r = PARSER.apply(parser, null);
+            r.deploymentId = deploymentId;
+            return r;
+        }
 
         private String deploymentId;
-        private String requestId;
-        private String jsonDoc;
+        private String input;
 
-        public Request(String deploymentId, String requestId, String jsonDoc) {
+        private Request() {
+        }
+
+        public Request(String deploymentId, String input) {
             this.deploymentId = Objects.requireNonNull(deploymentId);
-            this.requestId = requestId;
-            this.jsonDoc = Objects.requireNonNull(jsonDoc);
+            this.input = Objects.requireNonNull(input);
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             deploymentId = in.readString();
-            requestId = in.readOptionalString();
-            jsonDoc = in.readString();
+            input = in.readString();
         }
 
         public String getDeploymentId() {
             return deploymentId;
         }
 
-        public String getRequestId() {
-            return requestId;
-        }
-
-        public String getJsonDoc() {
-            return jsonDoc;
+        public String getInput() {
+            return input;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(deploymentId);
-            out.writeOptionalString(requestId);
-            out.writeString(jsonDoc);
+            out.writeString(input);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(DEPLOYMENT_ID, deploymentId);
-            builder.field(REQUEST_ID, requestId);
-            builder.field(JSON_REQUEST, jsonDoc);
+            builder.field(INPUT.getPreferredName(), input);
             builder.endObject();
             return builder;
         }
@@ -98,40 +105,39 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             if (o == null || getClass() != o.getClass()) return false;
             InferTrainedModelDeploymentAction.Request that = (InferTrainedModelDeploymentAction.Request) o;
             return Objects.equals(deploymentId, that.deploymentId)
-                && Objects.equals(requestId, that.requestId)
-                && Objects.equals(jsonDoc, that.jsonDoc);
+                && Objects.equals(input, that.input);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(deploymentId, requestId, jsonDoc);
+            return Objects.hash(deploymentId, input);
         }
     }
 
     public static class Response extends BaseTasksResponse implements Writeable, ToXContentObject {
 
-        private final PyTorchResult result;
+        private final InferenceResults results;
 
-        public Response(PyTorchResult result) {
+        public Response(InferenceResults result) {
             super(Collections.emptyList(), Collections.emptyList());
-            this.result = Objects.requireNonNull(result);
+            this.results = Objects.requireNonNull(result);
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            result = new PyTorchResult(in);
+            results = in.readNamedWriteable(InferenceResults.class);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            result.toXContent(builder, params);
+            results.toXContent(builder, params);
             return builder;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            result.writeTo(out);
+            out.writeNamedWriteable(results);
         }
     }
 }

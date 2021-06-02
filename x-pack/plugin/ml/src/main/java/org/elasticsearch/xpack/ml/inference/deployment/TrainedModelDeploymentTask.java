@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.ml.inference.deployment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction.TaskParams;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 
 import java.util.Map;
 
@@ -24,7 +25,6 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
     private final TaskParams params;
-    private volatile boolean isStopping;
     private volatile DeploymentManager manager;
 
     public TrainedModelDeploymentTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
@@ -42,7 +42,6 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
     }
 
     public void stop(String reason) {
-        isStopping = true;
         logger.debug("[{}] Stopping due to reason [{}]", getModelId(), reason);
 
         assert manager != null : "manager should not be unset when stop is called";
@@ -60,7 +59,7 @@ public class TrainedModelDeploymentTask extends AllocatedPersistentTask implemen
         stop(reason);
     }
 
-    public void infer(String requestId, String jsonDoc, ActionListener<PyTorchResult> listener) {
-        manager.infer(this, requestId, jsonDoc, listener);
+    public void infer(String input, TimeValue timeout, ActionListener<InferenceResults> listener) {
+        manager.infer(this, input, timeout, listener);
     }
 }

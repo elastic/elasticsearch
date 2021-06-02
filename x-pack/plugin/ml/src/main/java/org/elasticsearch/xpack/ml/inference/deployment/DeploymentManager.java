@@ -12,30 +12,49 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
+import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
+import org.elasticsearch.xpack.ml.inference.nlp.NlpTaskConfig;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class DeploymentManager {
 
@@ -85,8 +104,46 @@ public class DeploymentManager {
             e -> failTask(task, e)
         );
 
-        processContext.startProcess();
-        processContext.loadModel(modelLoadedListener);
+        ActionListener<SearchResponse> configListener = ActionListener.wrap(
+            searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    failTask(task, new ResourceNotFoundException(
+                        Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId())));
+                    return;
+                }
+
+                NlpTaskConfig config = parseConfigDocLeniently(searchResponse.getHits().getAt(0));
+                NlpTask nlpTask = NlpTask.fromConfig(config);
+                processContext.nlpTask.set(nlpTask);
+                processContext.startProcess();
+                processContext.loadModel(modelLoadedListener);
+            },
+            e -> failTask(task, e)
+        );
+
+        SearchRequest searchRequest = taskConfigSearchRequest(task.getModelId(), task.getIndex());
+        executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configListener);
+    }
+
+    private SearchRequest taskConfigSearchRequest(String modelId, String index) {
+        return client.prepareSearch(index)
+            .setQuery(new IdsQueryBuilder().addIds(NlpTaskConfig.documentId(modelId)))
+            .setSize(1)
+            .setTrackTotalHits(false)
+            .request();
+    }
+
+
+    public NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
+
+        try (InputStream stream = hit.getSourceRef().streamInput();
+             XContentParser parser = XContentFactory.xContent(XContentType.JSON)
+                 .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)) {
+            return NlpTaskConfig.fromXContent(parser, true);
+        } catch (IOException e) {
+            logger.error(new ParameterizedMessage("failed to parse NLP task config [{}]", hit.getId()), e);
+            throw e;
+        }
     }
 
     public void stopDeployment(TrainedModelDeploymentTask task) {
@@ -95,17 +152,19 @@ public class DeploymentManager {
             processContext = processContextByAllocation.get(task.getAllocationId());
         }
         if (processContext != null) {
-            logger.debug("[{}] Stopping deployment", task.getModelId());
+            logger.info("[{}] Stopping deployment", task.getModelId());
             processContext.stopProcess();
         } else {
-            logger.debug("[{}] No process context to stop", task.getModelId());
+            logger.info("[{}] No process context to stop", task.getModelId());
         }
     }
 
-    public void infer(TrainedModelDeploymentTask task, String requestId, String jsonDoc, ActionListener<PyTorchResult> listener) {
+    public void infer(TrainedModelDeploymentTask task,
+                      String input, TimeValue timeout,
+                      ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
-        final String resolvedId = requestId == null ? String.valueOf(requestIdCounter.getAndIncrement()) : requestId;
+        final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
 
         executorServiceForProcess.execute(new AbstractRunnable() {
             @Override
@@ -116,8 +175,13 @@ public class DeploymentManager {
             @Override
             protected void doRun() {
                 try {
-                    processContext.process.get().writeInferenceRequest(jsonDoc);
-                    waitForResult(processContext, resolvedId, listener);
+                    NlpTask.Processor processor = processContext.nlpTask.get().createProcessor();
+                    processor.validateInputs(input);
+                    BytesReference request = processor.getRequestBuilder().buildRequest(input, requestId);
+                    logger.trace("Inference Request "+ request.utf8ToString());
+                    processContext.process.get().writeInferenceRequest(request);
+
+                    waitForResult(processContext, requestId, timeout, processor.getResultProcessor(), listener);
                 } catch (IOException e) {
                     logger.error(new ParameterizedMessage("[{}] error writing to process", processContext.modelId), e);
                     onFailure(ExceptionsHelper.serverError("error writing to process", e));
@@ -126,17 +190,29 @@ public class DeploymentManager {
         });
     }
 
-    private void waitForResult(ProcessContext processContext, String requestId, ActionListener<PyTorchResult> listener) {
+    private void waitForResult(ProcessContext processContext,
+                               String requestId,
+                               TimeValue timeout,
+                               NlpTask.ResultProcessor inferenceResultsProcessor,
+                               ActionListener<InferenceResults> listener) {
         try {
-            // TODO the timeout value should come from the action
-            TimeValue timeout = TimeValue.timeValueSeconds(5);
             PyTorchResult pyTorchResult = processContext.resultProcessor.waitForResult(requestId, timeout);
             if (pyTorchResult == null) {
                 listener.onFailure(new ElasticsearchStatusException("timeout [{}] waiting for inference result",
                     RestStatus.TOO_MANY_REQUESTS, timeout));
-            } else {
-                listener.onResponse(pyTorchResult);
+                return;
             }
+
+            if (pyTorchResult.isError()) {
+                listener.onFailure(new ElasticsearchStatusException(pyTorchResult.getError(),
+                    RestStatus.INTERNAL_SERVER_ERROR));
+                return;
+            }
+
+            logger.debug(() -> new ParameterizedMessage("[{}] retrieved result for request [{}]", processContext.modelId, requestId));
+            InferenceResults results = inferenceResultsProcessor.processResult(pyTorchResult);
+            logger.debug(() -> new ParameterizedMessage("[{}] processed result for request [{}]", processContext.modelId, requestId));
+            listener.onResponse(results);
         } catch (InterruptedException e) {
             listener.onFailure(e);
         }
@@ -152,6 +228,7 @@ public class DeploymentManager {
         private final String modelId;
         private final String index;
         private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
+        private final SetOnce<NlpTask> nlpTask = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;
         private final PyTorchStateStreamer stateStreamer;
 
@@ -180,14 +257,11 @@ public class DeploymentManager {
         }
 
         private Consumer<String> onProcessCrash() {
-            return reason -> {
-                logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
-            };
+            return reason -> logger.error("[{}] process crashed due to reason [{}]", modelId, reason);
         }
 
         void loadModel(ActionListener<Boolean> listener) {
             process.get().loadModel(modelId, index, stateStreamer, listener);
         }
     }
-
 }

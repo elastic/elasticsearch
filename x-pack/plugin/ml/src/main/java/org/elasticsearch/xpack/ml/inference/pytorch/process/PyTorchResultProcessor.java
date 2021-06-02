@@ -41,7 +41,7 @@ public class PyTorchResultProcessor {
                 logger.debug(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
                 PendingResult pendingResult = pendingResults.get(result.getRequestId());
                 if (pendingResult == null) {
-                    logger.debug(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
+                    logger.warn(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));
                 } else {
                     pendingResult.result = result;
                     pendingResult.latch.countDown();

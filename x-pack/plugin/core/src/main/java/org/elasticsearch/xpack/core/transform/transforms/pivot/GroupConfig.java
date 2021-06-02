@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,12 +28,15 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
 
 import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.regex.Matcher;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /*
@@ -73,8 +77,19 @@ public class GroupConfig implements Writeable, ToXContentObject {
         return groups;
     }
 
-    public boolean isValid() {
-        return this.groups != null && this.groups.values().stream().allMatch(SingleGroupSource::isValid);
+    public Collection<String> getUsedNames() {
+        return groups != null ? groups.keySet() : Collections.emptySet();
+    }
+
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        if (groups == null) {
+            validationException = addValidationError("pivot.groups must not be null", validationException);
+        } else {
+            for (SingleGroupSource group : groups.values()) {
+                validationException = group.validate(validationException);
+            }
+        }
+        return validationException;
     }
 
     @Override

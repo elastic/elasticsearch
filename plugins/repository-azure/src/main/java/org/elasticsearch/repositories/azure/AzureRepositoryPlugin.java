@@ -34,6 +34,8 @@ import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -53,6 +55,17 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
         // Trigger static initialization with the plugin class loader
         // so we have access to the proper xml parser
         JacksonAdapter.createDefaultSerializerAdapter();
+
+        // Even though we don't use it, we need to force static init
+        // of the default resolver which reads /etc/hosts so it doesn't init later
+        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+            try {
+                Class.forName("io.netty.resolver.HostsFileEntriesResolver");
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+            return null;
+        });
     }
 
     // protected for testing

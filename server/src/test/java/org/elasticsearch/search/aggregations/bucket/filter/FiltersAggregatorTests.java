@@ -10,7 +10,9 @@ package org.elasticsearch.search.aggregations.bucket.filter;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
@@ -32,12 +34,14 @@ import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -61,7 +65,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.internal.ContextIndexSearcherTests.DocumentSubsetDirectoryReader;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,6 +75,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.IntFunction;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
@@ -85,14 +89,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class FiltersAggregatorTests extends AggregatorTestCase {
-    private MappedFieldType fieldType;
-
-    @Before
-    public void setUpTest() throws Exception {
-        super.setUp();
-        fieldType = new KeywordFieldMapper.KeywordFieldType("field");
-    }
-
     public void testEmpty() throws Exception {
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
@@ -106,7 +102,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         }
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", filters);
         builder.otherBucketKey("other");
-        InternalFilters response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        InternalFilters response = searchAndReduce(
+            indexSearcher,
+            new MatchAllDocsQuery(),
+            builder,
+            new KeywordFieldMapper.KeywordFieldType("field")
+        );
         assertEquals(response.getBuckets().size(), numFilters);
         for (InternalFilters.InternalBucket filter : response.getBuckets()) {
             assertEquals(filter.getDocCount(), 0);
@@ -206,7 +207,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FiltersAggregationBuilder builder = new FiltersAggregationBuilder("test", keys);
         builder.otherBucket(true);
         builder.otherBucketKey("other");
-        final InternalFilters filters = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+        final InternalFilters filters = searchAndReduce(
+            indexSearcher,
+            new MatchAllDocsQuery(),
+            builder,
+            new KeywordFieldMapper.KeywordFieldType("field")
+        );
         assertEquals(filters.getBuckets().size(), 7);
         assertEquals(filters.getBucketByKey("foobar").getDocCount(), 2);
         assertEquals(filters.getBucketByKey("foo").getDocCount(), 2);
@@ -261,7 +267,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             builder.otherBucket(true);
             builder.otherBucketKey("other");
 
-            final InternalFilters response = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), builder, fieldType);
+            final InternalFilters response = searchAndReduce(
+                indexSearcher,
+                new MatchAllDocsQuery(),
+                builder,
+                new KeywordFieldMapper.KeywordFieldType("field")
+            );
             List<InternalFilters.InternalBucket> buckets = response.getBuckets();
             assertEquals(buckets.size(), filters.length + 1);
 
@@ -787,6 +798,160 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), greaterThanOrEqualTo(1));
             }
         }, dateFt, intFt);
+    }
+
+    public void testDocValuesFieldExistsForDate() throws IOException {
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        QueryBuilder exists;
+        if (randomBoolean()) {
+            exists = new ExistsQueryBuilder("f");
+        } else {
+            // Range query covering all values in the index is rewritten to exists
+            exists = new RangeQueryBuilder("f").gte("2020-01-01").lt("2020-01-02");
+        }
+        long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
+        docValuesFieldExistsTestCase(exists, ft, true, i -> {
+            long date = start + TimeUnit.HOURS.toMillis(i);
+            return List.of(new LongPoint("f", date), new NumericDocValuesField("f", date));
+        });
+    }
+
+    public void testDocValuesFieldExistsForDateWithMultiValuedFields() throws IOException {
+        DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
+        long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
+            long date = start + TimeUnit.HOURS.toMillis(i);
+            return List.of(
+                new LongPoint("f", date),
+                new LongPoint("f", date + 10),
+                new SortedNumericDocValuesField("f", date),
+                new SortedNumericDocValuesField("f", date + 10)
+            );
+        });
+    }
+
+    public void testDocValuesFieldExistsForDateWithoutData() throws IOException {
+        docValuesFieldExistsNoDataTestCase(new DateFieldMapper.DateFieldType("f"));
+    }
+
+    public void testDocValuesFieldExistsForNumber() throws IOException {
+        NumberFieldMapper.NumberType numberType = randomFrom(NumberFieldMapper.NumberType.values());
+        NumberFieldMapper.NumberFieldType ft = new NumberFieldMapper.NumberFieldType(
+            "f",
+            numberType,
+            true,
+            false,
+            true,
+            true,
+            null,
+            Map.of(),
+            null
+        );
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
+            return numberType.createFields("f", i, true, true, false);
+        });
+    }
+
+    public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {
+        docValuesFieldExistsNoDataTestCase(new NumberFieldMapper.NumberFieldType(
+            "f",
+            randomFrom(NumberFieldMapper.NumberType.values()),
+            true,
+            false,
+            true,
+            true,
+            null,
+            Map.of(),
+            null
+        ));
+    }
+
+    public void testDocValuesFieldExistsForKeyword() throws IOException {
+        KeywordFieldMapper.KeywordFieldType ft = new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of());
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, false, i -> {
+            BytesRef text = new BytesRef(randomAlphaOfLength(5));
+            return List.of(new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE), new SortedSetDocValuesField("f", text));
+        });
+    }
+
+    public void testDocValuesFieldExistsForKeywordWithoutData() throws IOException {
+        docValuesFieldExistsNoDataTestCase(new KeywordFieldMapper.KeywordFieldType("f", true, true, Map.of()));
+    }
+
+    private void docValuesFieldExistsTestCase(
+        QueryBuilder exists,
+        MappedFieldType fieldType,
+        boolean canUseMetadata,
+        IntFunction<List<? extends IndexableField>> buildDocWithField
+    ) throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            iw -> {
+                for (int i = 0; i < 10; i++) {
+                    iw.addDocument(buildDocWithField.apply(i));
+                }
+            },
+            (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
+
+                assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
+                Map<?, ?> filterAggDebug = debug.get("test");
+                List<?> filtersDebug = (List<?>) filterAggDebug.get("filters");
+                Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
+                assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
+                assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
+            },
+            fieldType,
+            fnft
+        );
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(buildDocWithField.apply(i));
+            }
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(List.of());
+            }
+        }, (searcher, aggregator) -> {
+            long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
+            Map<String, Object> debug = new HashMap<>();
+            aggregator.collectDebugInfo(debug::put);
+            List<?> filtersDebug = (List<?>) debug.get("filters");
+            Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
+            assertThat(estimatedCost, canUseMetadata ? equalTo(0L) : greaterThan(0L));
+            assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), canUseMetadata ? equalTo(0) : greaterThan(0));
+        }, fieldType, fnft);
+    }
+
+    private void docValuesFieldExistsNoDataTestCase(
+        MappedFieldType fieldType
+    ) throws IOException {
+        QueryBuilder exists = new ExistsQueryBuilder(fieldType.name());
+        AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(List.of());
+            }
+        };
+        // Exists queries convert to MatchNone if this isn't defined
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
+        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+            assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
+            long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertThat(debug, hasEntry("specialized_for", "docvalues_field_exists"));
+            assertThat(estimatedCost, equalTo(0L));
+            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
+            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+        }, fieldType, fnft);
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
+            assertThat(result.getBuckets(), hasSize(1));
+            assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(0L));
+        }, fieldType, fnft);
     }
 
     @Override

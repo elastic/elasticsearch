@@ -89,9 +89,40 @@ The settings, mappings, and aliases that would be applied to the index.
 .Properties of `template`
 [%collapsible%open]
 ====
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+`aliases`::
+(object) Aliases for the index. If no aliases apply, the response returns an
+empty `aliases` object.
 +
-Response includes an empty object if no aliases would be applied. 
+=====
+`<alias>`::
+(object) The key is the alias name. The object body contains options for the
+alias.
++
+.Properties of `<alias>`
+[%collapsible%open]
+======
+`filter`::
+(<<query-dsl,Query DSL object>>) Query used to limit documents the alias can
+access.
+
+`index_routing`::
+(string) Value used to route indexing operations to a specific shard. This
+overwrites the `routing` value for indexing operations.
+
+`is_hidden`::
+(Boolean) If `true`, the alias is <<hidden,hidden>>.
+
+`is_write_index`::
+(Boolean) If `true`, the index is the <<write-index,write index>> for the alias.
+
+`routing`::
+(string) Value used to route indexing and search operations to a specific shard.
+
+`search_routing`::
+(string) Value used to route search operations to a specific shard. This
+overwrites the `routing` value for search operations.
+======
+=====
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 +

@@ -19,7 +19,7 @@ group = 'org.elasticsearch.client'
 archivesBaseName = 'elasticsearch-rest-high-level-client'
 
 // HLRC is published under the Elastic License
-ext.projectLicenses = ['Elastic License 2.0': ext.elasticLicenseUrl]
+ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
 
 restResources {
   //we need to copy the yaml spec so we can check naming (see RestHighlevelClientTests#testApiNamingConventions)

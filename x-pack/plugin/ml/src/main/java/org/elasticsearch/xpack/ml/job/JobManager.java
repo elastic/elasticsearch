@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -84,6 +86,8 @@ import java.util.regex.Pattern;
  * </ul>
  */
 public class JobManager {
+
+    private static final Version MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER = Version.V_7_14_0;
 
     private static final Logger logger = LogManager.getLogger(JobManager.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JobManager.class);
@@ -220,17 +224,31 @@ public class JobManager {
 
     /**
      * Validate the char filter/tokenizer/token filter names used in the categorization analyzer config (if any).
-     * This validation has to be done server-side; it cannot be done in a client as that won't have loaded the
-     * appropriate analysis modules/plugins.
-     * The overall structure can be validated at parse time, but the exact names need to be checked separately,
-     * as plugins that provide the functionality can be installed/uninstalled.
+     * If the user has not provided a categorization analyzer then set the standard one if categorization is
+     * being used at all and all the nodes in the cluster are running a version that will understand it.  This
+     * method must only be called when a job is first created - since it applies a default if it were to be
+     * called after that it could change the meaning of a job that has already run.  The validation in this
+     * method has to be done server-side; it cannot be done in a client as that won't have loaded the appropriate
+     * analysis modules/plugins. (The overall structure can be validated at parse time, but the exact names need
+     * to be checked separately, as plugins that provide the functionality can be installed/uninstalled.)
      */
-    static void validateCategorizationAnalyzer(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry)
-        throws IOException {
-        CategorizationAnalyzerConfig categorizationAnalyzerConfig = jobBuilder.getAnalysisConfig().getCategorizationAnalyzerConfig();
+    static void validateCategorizationAnalyzerOrSetDefault(Job.Builder jobBuilder, AnalysisRegistry analysisRegistry,
+                                                           Version minNodeVersion) throws IOException {
+        AnalysisConfig analysisConfig = jobBuilder.getAnalysisConfig();
+        CategorizationAnalyzerConfig categorizationAnalyzerConfig = analysisConfig.getCategorizationAnalyzerConfig();
         if (categorizationAnalyzerConfig != null) {
             CategorizationAnalyzer.verifyConfigBuilder(new CategorizationAnalyzerConfig.Builder(categorizationAnalyzerConfig),
                 analysisRegistry);
+        } else if (analysisConfig.getCategorizationFieldName() != null
+            && minNodeVersion.onOrAfter(MIN_NODE_VERSION_FOR_STANDARD_CATEGORIZATION_ANALYZER)) {
+            // Any supplied categorization filters are transferred into the new categorization analyzer.
+            // The user supplied categorization filters will already have been validated when the put job
+            // request was built, so we know they're valid.
+            AnalysisConfig.Builder analysisConfigBuilder = new AnalysisConfig.Builder(analysisConfig)
+                .setCategorizationAnalyzerConfig(
+                    CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(analysisConfig.getCategorizationFilters()))
+                .setCategorizationFilters(null);
+            jobBuilder.setAnalysisConfig(analysisConfigBuilder);
         }
     }
 
@@ -240,10 +258,12 @@ public class JobManager {
     public void putJob(PutJobAction.Request request, AnalysisRegistry analysisRegistry, ClusterState state,
                        ActionListener<PutJobAction.Response> actionListener) throws IOException {
 
+        Version minNodeVersion = state.getNodes().getMinNodeVersion();
+
         Job.Builder jobBuilder = request.getJobBuilder();
         jobBuilder.validateAnalysisLimitsAndSetDefaults(maxModelMemoryLimit);
         jobBuilder.validateModelSnapshotRetentionSettingsAndSetDefaults();
-        validateCategorizationAnalyzer(jobBuilder, analysisRegistry);
+        validateCategorizationAnalyzerOrSetDefault(jobBuilder, analysisRegistry, minNodeVersion);
 
         Job job = jobBuilder.build(new Date());
 

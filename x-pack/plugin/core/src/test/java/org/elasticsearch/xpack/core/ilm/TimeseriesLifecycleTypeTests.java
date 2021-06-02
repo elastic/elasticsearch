@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -44,6 +46,7 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.ORDERED_V
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.VALID_WARM_ACTIONS;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateAllSearchableSnapshotActionsUseSameRepository;
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMaxDocs;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.validateFrozenPhaseHasSearchableSnapshotAction;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -786,6 +789,59 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
             assertThat(err,
                 containsString("phases [frozen,delete] configure a [min_age] value less than " +
                     "the [min_age] of [3d] for the [warm] phase, configuration: {frozen=2d, delete=1d}"));
+        }
+    }
+
+    public void testValidateMaxDocs() {
+        {
+            Phase coldPhase = new Phase(COLD_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(coldPhase);
+
+            assertFalse(Strings.hasText(validateMaxDocs(phases)));
+        }
+
+        {
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), Collections.emptyMap());
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(hotPhase);
+
+            assertFalse(Strings.hasText(validateMaxDocs(phases)));
+        }
+
+        {
+            RolloverAction rolloverAction = new RolloverAction(new ByteSizeValue(1), null, null, null);
+
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(RolloverAction.NAME, rolloverAction);
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), actions);
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(hotPhase);
+
+            assertFalse(Strings.hasText(validateMaxDocs(phases)));
+        }
+
+        {
+            RolloverAction rolloverAction = new RolloverAction(
+                new ByteSizeValue(1),
+                null,
+                null,
+                randomLongBetween(0, IndexWriter.MAX_DOCS)
+            );
+
+            Map<String, LifecycleAction> actions = new HashMap<>();
+            actions.put(RolloverAction.NAME, rolloverAction);
+
+            Phase hotPhase = new Phase(HOT_PHASE, TimeValue.timeValueDays(1), actions);
+
+            List<Phase> phases = new ArrayList<>();
+            phases.add(hotPhase);
+
+            assertFalse(Strings.hasText(validateMaxDocs(phases)));
         }
     }
 

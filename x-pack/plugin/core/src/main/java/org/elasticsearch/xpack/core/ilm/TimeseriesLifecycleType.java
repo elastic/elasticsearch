@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.lucene.index.IndexWriter;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -409,6 +411,29 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
         // If we found any invalid phase timings, concatenate their messages and return the message
         return Strings.collectionToCommaDelimitedString(errors);
+    }
+
+    /**
+     * Validates max_docs doesn't exceed Lucene limit.
+     */
+    public static String validateMaxDocs(Collection<Phase> phases) {
+        String error = null;
+
+        Optional<Phase> maybeHotPhase = phases.stream()
+            .filter(p -> p.getName().equals(HOT_PHASE))
+            .findFirst();
+
+        if (maybeHotPhase.isPresent()) {
+            Phase hotPhase = maybeHotPhase.get();
+
+            if (hotPhase.getActions().containsKey(RolloverAction.NAME)) {
+                RolloverAction rolloverAction = (RolloverAction) hotPhase.getActions().get(RolloverAction.NAME);
+                if (rolloverAction.getMaxDocs() != null && rolloverAction.getMaxDocs() > IndexWriter.MAX_DOCS) {
+                    error = "phase [" + HOT_PHASE + "] configures [max_docs] to value greater than Lucene limit.";
+                }
+            }
+        }
+        return error;
     }
 
     /**

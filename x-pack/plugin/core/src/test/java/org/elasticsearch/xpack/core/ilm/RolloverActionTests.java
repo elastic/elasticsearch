@@ -87,10 +87,9 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     }
 
     public void testMaxDocsLimit() {
-        Long maxDocsLimit =  Long.valueOf(IndexWriter.MAX_DOCS);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new RolloverAction(null, null, null,  maxDocsLimit + 1));
-        assertEquals("max_docs cannot exceed Lucene limit.", exception.getMessage());
+        Long maxDocsLimit = (long) IndexWriter.MAX_DOCS;
+        Long maxDocs = new RolloverAction(null, null, null,  maxDocsLimit + 1).getMaxDocs();
+        assertEquals(maxDocsLimit, maxDocs);
     }
 
     public void testToSteps() {

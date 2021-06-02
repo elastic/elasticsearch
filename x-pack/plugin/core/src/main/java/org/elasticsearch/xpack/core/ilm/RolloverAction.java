@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -32,6 +34,9 @@ import java.util.Objects;
  * A {@link LifecycleAction} which rolls over the index.
  */
 public class RolloverAction implements LifecycleAction {
+
+    private static final Logger logger = LogManager.getLogger(RolloverAction.class);
+
     public static final String NAME = "rollover";
     public static final String INDEXING_COMPLETE_STEP_NAME = "set-indexing-complete";
     public static final ParseField MAX_SIZE_FIELD = new ParseField("max_size");
@@ -74,13 +79,15 @@ public class RolloverAction implements LifecycleAction {
         }
 
         if (maxDocs != null && maxDocs > IndexWriter.MAX_DOCS) {
-            throw new IllegalArgumentException("max_docs cannot exceed Lucene limit.");
+            logger.warn("[max_docs] cannot exceed Lucene limit. Setting [max_docs] to " + IndexWriter.MAX_DOCS + ".");
+            this.maxDocs = (long) IndexWriter.MAX_DOCS;
+        } else {
+            this.maxDocs = maxDocs;
         }
 
         this.maxSize = maxSize;
         this.maxPrimaryShardSize = maxPrimaryShardSize;
         this.maxAge = maxAge;
-        this.maxDocs = maxDocs;
     }
 
     public RolloverAction(StreamInput in) throws IOException {

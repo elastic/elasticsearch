@@ -61,13 +61,21 @@ public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException err = null;
             String phaseTimingErr = TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings(this.policy.getPhases().values());
             if (Strings.hasText(phaseTimingErr)) {
-                err = new ActionRequestValidationException();
+                ActionRequestValidationException err = new ActionRequestValidationException();
                 err.addValidationError(phaseTimingErr);
+                return err;
             }
-            return err;
+
+            String maxDocsErr = TimeseriesLifecycleType.validateMaxDocs(this.policy.getPhases().values());
+            if (Strings.hasText(maxDocsErr)) {
+                ActionRequestValidationException err = new ActionRequestValidationException();
+                err.addValidationError(maxDocsErr);
+                return err;
+            }
+
+            return null;
         }
 
         public static Request parseRequest(String name, XContentParser parser) {

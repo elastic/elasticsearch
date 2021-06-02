@@ -50,11 +50,4 @@ public class RolloverActionTests extends AbstractXContentTestCase<RolloverAction
             () -> new RolloverAction(null, null, null, null));
         assertEquals("At least one rollover condition must be set.", exception.getMessage());
     }
-
-    public void testMaxDocsLimit() {
-        Long maxDocsLimit =  Long.valueOf(IndexWriter.MAX_DOCS);
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-            () -> new org.elasticsearch.xpack.core.ilm.RolloverAction(null, null, null,  maxDocsLimit + 1));
-        assertEquals("max_docs cannot exceed Lucene limit.", exception.getMessage());
-    }
 }

@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -110,7 +111,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -464,9 +464,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     // Add all resolved indices from the feature states to the list of indices
                     for (String feature : featureStatesSet) {
-                        for (String pattern : systemIndexDescriptorMap.get(feature).getAssociatedIndexPatterns()) {
-                            Collections.addAll(indexNames, indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(
-                                    currentState, LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern));
+                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
+                            indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
                     }
                     indices = Collections.unmodifiableList(new ArrayList<>(indexNames));

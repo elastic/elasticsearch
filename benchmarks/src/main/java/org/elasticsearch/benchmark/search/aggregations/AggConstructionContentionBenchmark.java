@@ -347,6 +347,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return true;
+        }
+
+        @Override
         public void close() {
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
             releaseMe.add(preallocated);

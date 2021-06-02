@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import org.junit.After;
 import org.junit.Before;
 

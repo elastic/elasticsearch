@@ -32,7 +32,7 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
-import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
 import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;

@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
-import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
-import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 

@@ -33,6 +33,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTask;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.io.IOException;
 import java.util.Map;

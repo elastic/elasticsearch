@@ -63,7 +63,7 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         testCase("user2", "user1");
     }
 
-    private void testCase(String user, String other) throws Exception {
+    private void testCase(String user, String otherUser) throws Exception {
         for (String indexName : new String[] { "index", "index-" + user }) {
             Response submitResp = submitAsyncSqlSearch(
                 "SELECT event_type FROM \"" + indexName + "\" WHERE val=0",
@@ -76,16 +76,16 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
             assertOK(getResp);
 
             // other cannot access the result
-            ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSqlSearch(id, other));
+            ResponseException exc = expectThrows(ResponseException.class, () -> getAsyncSqlSearch(id, otherUser));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other cannot delete the result
-            exc = expectThrows(ResponseException.class, () -> deleteAsyncSqlSearch(id, other));
+            exc = expectThrows(ResponseException.class, () -> deleteAsyncSqlSearch(id, otherUser));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(404));
 
             // other and user cannot access the result from direct get calls
             AsyncExecutionId searchId = AsyncExecutionId.decode(id);
-            for (String runAs : new String[] { user, other }) {
+            for (String runAs : new String[] { user, otherUser }) {
                 exc = expectThrows(ResponseException.class, () -> get(XPackPlugin.ASYNC_RESULTS_INDEX, searchId.getDocId(), runAs));
                 assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(403));
                 assertThat(exc.getMessage(), containsString("unauthorized"));
@@ -96,7 +96,7 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         }
         ResponseException exc = expectThrows(
             ResponseException.class,
-            () -> submitAsyncSqlSearch("SELECT * FROM \"index-" + other + "\"", TimeValue.timeValueSeconds(10), user)
+            () -> submitAsyncSqlSearch("SELECT * FROM \"index-" + otherUser + "\"", TimeValue.timeValueSeconds(10), user)
         );
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }

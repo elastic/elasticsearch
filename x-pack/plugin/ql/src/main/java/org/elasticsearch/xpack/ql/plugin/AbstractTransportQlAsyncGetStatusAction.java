@@ -24,8 +24,8 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
-import org.elasticsearch.xpack.ql.async.StoredAsyncResponse;
-import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.util.Objects;
 
@@ -68,7 +68,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
                 request,
                 taskManager,
                 asyncTaskClass,
-                AsyncTask::getStatusResponse,
+                AbstractTransportQlAsyncGetStatusAction::getStatusResponse,
                 QlStatusResponse::getStatusFromStoredSearch,
                 listener
             );
@@ -76,6 +76,17 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
             transportService.sendRequest(node, actionName, request,
                 new ActionListenerResponseHandler<>(listener, QlStatusResponse::new, ThreadPool.Names.SAME));
         }
+    }
+
+    private static QlStatusResponse getStatusResponse(StoredAsyncTask<?> asyncTask) {
+        return new QlStatusResponse(
+            asyncTask.getExecutionId().getEncoded(),
+            true,
+            true,
+            asyncTask.getStartTime(),
+            asyncTask.getExpirationTimeMillis(),
+            null
+        );
     }
 
     protected abstract Writeable.Reader<Response> responseReader();

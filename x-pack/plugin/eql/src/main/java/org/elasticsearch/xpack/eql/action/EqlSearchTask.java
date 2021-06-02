@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.eql.action;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.ql.async.StoredAsyncTask;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 
 import java.util.Map;
 

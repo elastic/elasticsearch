@@ -146,6 +146,7 @@ import org.elasticsearch.painless.node.SWhile;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
+import org.elasticsearch.painless.symbol.Decorations.CaptureBox;
 import org.elasticsearch.painless.symbol.Decorations.CapturesDecoration;
 import org.elasticsearch.painless.symbol.Decorations.ComparisonType;
 import org.elasticsearch.painless.symbol.Decorations.Compound;
@@ -189,6 +190,7 @@ import org.elasticsearch.painless.symbol.Decorations.Write;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
@@ -1405,6 +1407,10 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         if (capturesDecoration != null) {
             irReferenceNode.attachDecoration(new IRDCaptureNames(
                     Collections.singletonList(capturesDecoration.getCaptures().get(0).getName())));
+
+            if (scriptScope.getCondition(userFunctionRefNode, CaptureBox.class)) {
+                irReferenceNode.attachCondition(IRCCaptureBox.class);
+            }
         }
 
         scriptScope.putDecoration(userFunctionRefNode, new IRNodeDecoration(irReferenceNode));

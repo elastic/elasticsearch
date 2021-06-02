@@ -540,6 +540,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve searchable snapshots indices. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
@@ -558,6 +567,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveSLMPoliciesUponCompletion() == false) {
             // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
             deleteAllSLMPolicies();
+        }
+
+        // Clean up searchable snapshots indices before deleting snapshots and repositories
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+            wipeSearchableSnapshotsIndices();
         }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
@@ -783,6 +797,22 @@ public abstract class ESRestTestCase extends ESTestCase {
                 if (statusCode < 404 || statusCode > 405) {
                     throw ee;
                 }
+            }
+        }
+    }
+
+    protected void wipeSearchableSnapshotsIndices() throws IOException {
+        // retrieves all indices with a type of store equals to "snapshot"
+        final Request request = new Request("GET", "_cluster/state/metadata");
+        request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
+
+        final Response response = adminClient().performRequest(request);
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
+        if (indices != null) {
+            for (String index : indices.keySet()) {
+                assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                    adminClient().performRequest(new Request("DELETE", index)));
             }
         }
     }

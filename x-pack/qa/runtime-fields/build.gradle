@@ -77,6 +77,7 @@ subprojects {
           'search.aggregation/20_terms/string profiler via global ordinals filters implementation',
           'search.aggregation/20_terms/string profiler via global ordinals native implementation',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',
+          'search.aggregation/22_terms_disable_opt/does not use optimization',
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
           /////// NOT SUPPORTED ///////

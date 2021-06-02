@@ -162,6 +162,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
@@ -266,11 +268,12 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (blobStoreContext != null) {
                 blobStoreContext.forceConsistent();
             }
-
-            // TODO: bring this back to life
-            // BlobStoreTestUtil.assertConsistency(
-            // (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
-            // Runnable::run);
+            final PlainActionFuture<AssertionError> future = BlobStoreTestUtil.assertConsistencyAsync(
+                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
+            );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertTrue(future.isDone());
+            assertNull(future.actionGet(0));
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }

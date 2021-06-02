@@ -248,7 +248,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
-        BlobStoreTestUtil.assertConsistency(repo, executor);
+        BlobStoreTestUtil.assertConsistency(repo);
     }
 
     protected void assertDeleted(BlobPath path, String name) throws Exception {

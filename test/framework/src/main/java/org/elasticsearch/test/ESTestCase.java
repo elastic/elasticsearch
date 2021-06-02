@@ -418,9 +418,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected List<String> filteredWarnings() {
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release",
+                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         } else {
-            return List.of();
+            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
         }
     }
 

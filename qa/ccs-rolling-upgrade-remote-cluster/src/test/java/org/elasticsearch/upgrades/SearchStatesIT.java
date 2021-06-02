@@ -30,7 +30,6 @@ package org.elasticsearch.upgrades;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -69,7 +68,6 @@ import static org.hamcrest.Matchers.not;
  * This test ensure that we keep the search states of a CCS request correctly when the local and remote clusters
  * have different but compatible versions. See SearchService#createAndPutReaderContext
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73642")
 public class SearchStatesIT extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(SearchStatesIT.class);

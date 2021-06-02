@@ -153,7 +153,7 @@ public class GatewayMetaState implements Closeable {
                     if (DiscoveryNode.isMasterNode(settings)) {
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
-                        persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
+                        persistedState = new AsyncPersistedState(settings, transportService.getThreadPool(),
                             new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState));
                     }
                     if (DiscoveryNode.canContainData(settings)) {
@@ -310,16 +310,16 @@ public class GatewayMetaState implements Closeable {
     // visible for testing
     public boolean allPendingAsyncStatesWritten() {
         final PersistedState ps = persistedState.get();
-        if (ps instanceof AsyncLucenePersistedState) {
-            return ((AsyncLucenePersistedState) ps).allPendingAsyncStatesWritten();
+        if (ps instanceof AsyncPersistedState) {
+            return ((AsyncPersistedState) ps).allPendingAsyncStatesWritten();
         } else {
             return true;
         }
     }
 
-    static class AsyncLucenePersistedState extends InMemoryPersistedState {
+    static class AsyncPersistedState extends InMemoryPersistedState {
 
-        private static final Logger logger = LogManager.getLogger(AsyncLucenePersistedState.class);
+        private static final Logger logger = LogManager.getLogger(AsyncPersistedState.class);
 
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
@@ -331,7 +331,7 @@ public class GatewayMetaState implements Closeable {
 
         private final Object mutex = new Object();
 
-        AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
+        AsyncPersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
             super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
             final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
             threadPoolExecutor = EsExecutors.newFixed(

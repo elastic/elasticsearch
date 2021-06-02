@@ -68,31 +68,31 @@ public class EclipseConventionPlugin implements Plugin<Project> {
 
         String finalLicenseHeader = licenseHeader;
         project.getTasks().register("copyEclipseSettings", Copy.class, copy -> {
-            copy.mustRunAfter("wipeEclipseSettings");
-            // TODO: "package this up" for external builds
-            copy.from(new File(root, "build-tools-internal/src/main/resources/eclipse.settings"));
-            copy.into(".settings");
-            copy.filter(new Transformer<String, String>() {
-                @Override
-                public String transform(String s) {
-                    return s.replaceAll("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
-                }
-            });
+                copy.mustRunAfter("wipeEclipseSettings");
+                // TODO: "package this up" for external builds
+                copy.from(new File(root, "build-tools-internal/src/main/resources/eclipse.settings"));
+                copy.into(".settings");
+                copy.filter(new Transformer<String, String>() {
+                    @Override
+                    public String transform(String s) {
+                        return s.replaceAll("@@LICENSE_HEADER_TEXT@@", finalLicenseHeader);
+                    }
+                });
+        });
+        // otherwise .settings is not nuked entirely
+        project.getTasks().register("wipeEclipseSettings", Delete.class, new Action<Delete>() {
+            @Override
+            public void execute(Delete delete) {
+                delete.delete(".settings");
+            }
+        });
 
-            // otherwise .settings is not nuked entirely
-            project.getTasks().register("wipeEclipseSettings", Delete.class, new Action<Delete>() {
-                @Override
-                public void execute(Delete delete) {
-                    delete.delete(".settings");
-                }
-            });
+        project.getTasks().named("cleanEclipse").configure(t -> t.dependsOn("wipeEclipseSettings"));
 
-            project.getTasks().named("cleanEclipse").configure(t -> t.dependsOn("wipeEclipseSettings"));
+        // otherwise the eclipse merging is *super confusing*
+        project.getTasks().named("eclipse").configure(t -> t.dependsOn("cleanEclipse", "copyEclipseSettings"));
 
-            // otherwise the eclipse merging is *super confusing*
-            project.getTasks().named("eclipse").configure(t -> t.dependsOn("cleanEclipse", "copyEclipseSettings"));
-
-            project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
+        project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
                 JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
                 java.getModularity().getInferModulePath().set(false);
 
@@ -107,7 +107,7 @@ public class EclipseConventionPlugin implements Plugin<Project> {
                      */
                     int i = 0;
                     classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(it ->
-                            ((SourceFolder) it).setOutput("out/eclipse"+i)
+                            ((SourceFolder) it).setOutput("out/eclipse/"+i)
                     );
 
                     // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
@@ -123,7 +123,6 @@ public class EclipseConventionPlugin implements Plugin<Project> {
                 });
 
                 project.getTasks().named("eclipseJdt").configure(t -> t.dependsOn("copyEclipseSettings"));
-            });
         });
     }
 

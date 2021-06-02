@@ -75,7 +75,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +88,6 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -359,17 +357,6 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
         assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
-
-        // test that shadowed fields aren't returned by getMatchingFieldTypes
-        Collection<MappedFieldType> matches = context.getIndexTimeFieldTypes(ft -> true);
-        assertThat(matches, hasSize(2));
-        for (MappedFieldType match : matches) {
-            assertThat(match, instanceOf(MockFieldMapper.FakeFieldType.class));
-        }
-        {
-            Collection<MappedFieldType> matchingFieldTypes = context.getIndexTimeFieldTypes(ft -> ft.name().equals("dog"));
-            assertThat(matchingFieldTypes, hasSize(0));
-        }
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

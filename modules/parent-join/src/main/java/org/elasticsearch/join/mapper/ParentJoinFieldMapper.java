@@ -291,8 +291,8 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     protected void doValidate(MappingLookup mappingLookup) {
-        List<String> joinFields = mappingLookup.getIndexTimeFieldTypes(ft -> ft instanceof JoinFieldType)
-            .stream().map(MappedFieldType::name).collect(Collectors.toList());
+        List<String> joinFields = mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
+            .filter(ft -> ft instanceof JoinFieldType).map(MappedFieldType::name).collect(Collectors.toList());
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }

@@ -17,8 +17,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -224,15 +222,5 @@ final class FieldTypeLookup {
         return fieldToCopiedFields.containsKey(resolvedField)
             ? fieldToCopiedFields.get(resolvedField)
             : Set.of(resolvedField);
-    }
-
-    /**
-     * Returns the field types that match the provided predicate.
-     * Note that this is not going to include fields that are dynamically exposed through {@link DynamicFieldType}.
-     * @param predicate the predicate
-     * @return the matching field types
-     */
-    Collection<MappedFieldType> getFieldTypes(Predicate<MappedFieldType> predicate) {
-        return fullNameToFieldType.values().stream().filter(predicate).collect(Collectors.toList());
     }
 }

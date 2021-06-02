@@ -69,9 +69,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -378,7 +378,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
+            public Set<String> getMatchingFieldNames(String pattern) {
                 throw new UnsupportedOperationException();
             }
 

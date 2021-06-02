@@ -41,12 +41,11 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
-import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -113,13 +112,10 @@ public abstract class AggregationContext implements Releasable {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
-     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
-     * under the properties section of the mappings. Runtime fields are not included.
-     *
-     * @param predicate the predicate
-     * @return the matching mapped field types
+     * Returns a set of field names that match a regex-like pattern
+     * All field names in the returned set are guaranteed to resolve to a field
      */
-    public abstract Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate);
+    public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -351,8 +347,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
-            return context.getIndexTimeFieldTypes(predicate);
+        public Set<String> getMatchingFieldNames(String pattern) {
+            return context.getMatchingFieldNames(pattern);
         }
 
         @Override

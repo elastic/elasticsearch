@@ -19,7 +19,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -27,8 +26,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
@@ -39,23 +37,22 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context::getIndexTimeFieldTypes);
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context::getIndexTimeFieldTypes);
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Function<Predicate<MappedFieldType>, Collection<MappedFieldType>> fieldTypeLookup) {
-        Optional<JoinFieldType> joinFieldType = fieldTypeLookup.apply(ft -> ft instanceof JoinFieldType)
-            .stream().map(ft -> (JoinFieldType) ft).findFirst();
-        return joinFieldType.map(JoinFieldType::getJoiner).orElse(null);
+    static Joiner getJoiner(Stream<MappedFieldType> fieldTypes) {
+        Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
+        return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();

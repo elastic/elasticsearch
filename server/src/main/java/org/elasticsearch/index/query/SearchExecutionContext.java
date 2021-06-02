@@ -58,7 +58,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -328,17 +327,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return matches;
-    }
-
-    /**
-     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
-     * under the properties section of the mappings. Runtime fields are not included.
-     *
-     * @param predicate the predicate
-     * @return the matching mapped field types
-     */
-    public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
-        return mappingLookup.getIndexTimeFieldTypes(predicate);
     }
 
     /**

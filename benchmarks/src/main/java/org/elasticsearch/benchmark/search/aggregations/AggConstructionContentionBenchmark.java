@@ -67,12 +67,11 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * Benchmarks the overhead of constructing {@link Aggregator}s in many
@@ -214,7 +213,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
+        public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
         }
 

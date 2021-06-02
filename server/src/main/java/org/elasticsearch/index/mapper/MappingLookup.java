@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -297,17 +296,6 @@ public final class MappingLookup {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         return fieldTypeLookup.getMatchingFieldNames(pattern);
-    }
-
-    /**
-     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
-     * under the properties section of the mappings. Runtime fields are not included.
-     *
-     * @param predicate the predicate
-     * @return the matching mapped field types
-     */
-    public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
-        return indexTimeLookup.getFieldTypes(predicate);
     }
 
     /**

@@ -296,7 +296,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             randomInt(),
             () -> 0L,
             () -> false,
-            q -> q
+            q -> q,
+            true
         );
         releasables.add(context);
         return context;

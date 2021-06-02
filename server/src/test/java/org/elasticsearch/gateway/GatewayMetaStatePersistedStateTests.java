@@ -473,7 +473,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 wrapper.setRandomIOExceptionRateOnOpen(ioExceptionRate.get());
             }
 
-            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+            for (int i = between(1, 5); 0 <= i; i--) {
                 if (randomBoolean()) {
                     final long version = randomNonNegativeLong();
                     final String indexName = randomAlphaOfLength(10);
@@ -529,7 +529,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         final BigArrays mockBigArrays = mock(BigArrays.class);
         when(mockBigArrays.newByteArray(anyLong())).thenAnswer(invocationOnMock ->
         {
-            if (throwError.get()) {
+            if (throwError.get() && randomBoolean()) {
                 throw new TestError();
             }
             return realBigArrays.newByteArray((Long) invocationOnMock.getArguments()[0]);
@@ -546,18 +546,30 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
             throwError.set(true);
 
-            final ClusterState newState = createClusterState(
-                randomNonNegativeLong(),
-                Metadata.builder()
-                    .clusterUUID(randomAlphaOfLength(10))
-                    .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
-                    .build());
-            expectThrows(TestError.class, () -> persistedState.setLastAcceptedState(newState));
-
-            throwError.set(false);
-
-            currentTerm += 1;
-            persistedState.setCurrentTerm(currentTerm);
+            for (int i = between(1, 5); 0 <= i; i--) {
+                if (randomBoolean()) {
+                    final ClusterState newState = createClusterState(
+                        randomNonNegativeLong(),
+                        Metadata.builder()
+                            .clusterUUID(randomAlphaOfLength(10))
+                            .coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build())
+                            .build());
+                    try {
+                        persistedState.setLastAcceptedState(newState);
+                        state = newState;
+                    } catch (TestError e) {
+                        // ok
+                    }
+                } else {
+                    final long newTerm = currentTerm + 1;
+                    try {
+                        persistedState.setCurrentTerm(newTerm);
+                        currentTerm = newTerm;
+                    } catch (TestError e) {
+                        // ok
+                    }
+                }
+            }
 
             assertEquals(state, persistedState.getLastAcceptedState());
             assertEquals(currentTerm, persistedState.getCurrentTerm());

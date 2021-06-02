@@ -728,6 +728,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (request.getWaitForCheckpoints().length == 0) {
             waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         } else {
+            assert request.getWaitForCheckpoints().length > shardIndex;
             waitForCheckpoint = request.getWaitForCheckpoints()[shardIndex];
         }
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,

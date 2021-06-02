@@ -59,6 +59,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
+    public static final long[] EMPTY_LONG_ARRAY =  new long[0];
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
@@ -99,7 +100,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private long[] waitForCheckpoints = new long[0];
+    private long[] waitForCheckpoints = EMPTY_LONG_ARRAY;
 
     public SearchRequest() {
         this((Version) null);

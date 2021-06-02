@@ -429,7 +429,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     } else {
                         timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
                     }
-                    if (NO_TIMEOUT.equals(timeout) == false) {
+                    if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
                         threadPool.schedule(() ->
                             readyListener.onFailure(
                                 new ElasticsearchTimeoutException(

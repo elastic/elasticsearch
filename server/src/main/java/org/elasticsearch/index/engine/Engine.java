@@ -735,6 +735,14 @@ public abstract class Engine implements Closeable {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
 
+    /**
+     * @return the max issued seqNo for this Engine
+     */
+    public abstract long getMaxSeqNo();
+
+    /**
+     * @return the processed local checkpoint for this Engine
+     */
     public abstract long getProcessedLocalCheckpoint();
 
     /**

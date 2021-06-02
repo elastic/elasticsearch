@@ -1352,7 +1352,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         final IndexResponse response = client().prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
-        searchRequest.indices("index").source(new SearchSourceBuilder().query(new TermQueryBuilder("id", "1")));
 
         SearchPhaseResult searchPhaseResult = future.actionGet();
         assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);

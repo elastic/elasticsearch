@@ -2,12 +2,14 @@
 [[fleet-search]]
 === Fleet search API
 ++++
-<titleabbrev>Get global checkpoints</titleabbrev>
+<titleabbrev>Fleet search</titleabbrev>
 ++++
 
 The purpose of the fleet search api is to provide a search api where the search
 will only be executed after provided checkpoint has been processed and is visible
 for searches inside of Elasticsearch.
+
+This API is experimental and only intended for internal use by fleet server.
 
 [discrete]
 [[wait-for-checkpoint-functionality]]

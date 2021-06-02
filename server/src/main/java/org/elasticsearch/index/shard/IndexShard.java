@@ -1012,7 +1012,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public RefreshStats refreshStats() {
-        int listeners = refreshListeners.pendingLocationListenerCount();
+        int listeners = refreshListeners.pendingCount();
         return new RefreshStats(
             refreshMetric.count(),
             TimeUnit.NANOSECONDS.toMillis(refreshMetric.sum()),
@@ -1697,7 +1697,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private void onNewEngine(Engine newEngine) {
         assert Thread.holdsLock(engineMutex);
         refreshListeners.setCurrentRefreshLocationSupplier(newEngine::getTranslogLastWriteLocation);
-        refreshListeners.setCurrentProcessedSeqNoSupplier(newEngine::getProcessedLocalCheckpoint);
+        refreshListeners.setCurrentProcessedCheckpointSupplier(newEngine::getProcessedLocalCheckpoint);
+        refreshListeners.setMaxIssuedSeqNoSupplier(newEngine::getMaxSeqNo);
     }
 
     /**
@@ -1706,7 +1707,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void performRecoveryRestart() throws IOException {
         assert Thread.holdsLock(mutex) == false : "restart recovery under mutex";
         synchronized (engineMutex) {
-            assert refreshListeners.pendingLocationListenerCount() == 0 : "we can't restart with pending listeners";
+            assert refreshListeners.pendingCount() == 0 : "we can't restart with pending listeners";
             IOUtils.close(currentEngineReference.getAndSet(null));
             resetRecoveryStage();
         }
@@ -3487,7 +3488,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (readAllowed) {
             refreshListeners.addOrNotify(checkpoint, listener);
         } else {
-            // we're not yet ready fo ready for reads, just ignore refresh cycles
+            // we're not yet ready for reads, fail to notify client
             listener.onFailure(new IllegalStateException("Read not allowed on IndexShard"));
         }
     }

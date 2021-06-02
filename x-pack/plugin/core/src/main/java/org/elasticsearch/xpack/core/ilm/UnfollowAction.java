@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ public final class UnfollowAction implements LifecycleAction {
     public UnfollowAction() {}
 
     @Override
-    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey, XPackLicenseState licenseState) {
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey preUnfollowKey = new StepKey(phase, NAME, CONDITIONAL_UNFOLLOW_STEP);
         StepKey indexingComplete = new StepKey(phase, NAME, WaitForIndexingCompleteStep.NAME);
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);

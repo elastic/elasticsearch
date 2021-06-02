@@ -18,7 +18,7 @@ public class WaitForSnapshotActionTests extends AbstractActionTestCase<WaitForSn
     public void testToSteps() {
         WaitForSnapshotAction action = createTestInstance();
         Step.StepKey nextStep = new Step.StepKey("", "", "");
-        List<Step> steps = action.toSteps(null, "delete", nextStep, null);
+        List<Step> steps = action.toSteps(null, "delete", nextStep);
         assertEquals(1, steps.size());
         Step step = steps.get(0);
         assertTrue(step instanceof WaitForSnapshotStep);

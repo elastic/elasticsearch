@@ -17,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -95,7 +94,7 @@ public class MigrateAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey, XPackLicenseState licenseState) {
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         if (enabled) {
             StepKey preMigrateBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_MIGRATE_STEP);
             StepKey migrationKey = new StepKey(phase, NAME, NAME);

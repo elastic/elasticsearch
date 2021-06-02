@@ -65,7 +65,7 @@ public class MockActionTests extends AbstractActionTestCase<MockAction> {
             steps.add(new MockStep(randomStepKey(), randomStepKey()));
         }
         MockAction action = new MockAction(steps);
-        assertEquals(action.getSteps(), action.toSteps(null, null, null, null));
+        assertEquals(action.getSteps(), action.toSteps(null, null, null));
     }
 }
 

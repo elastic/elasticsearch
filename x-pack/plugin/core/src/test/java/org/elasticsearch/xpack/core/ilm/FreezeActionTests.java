@@ -37,7 +37,7 @@ public class FreezeActionTests extends AbstractActionTestCase<FreezeAction> {
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(3, steps.size());
         StepKey expectedFirstStepKey = new StepKey(phase, FreezeAction.NAME, FreezeAction.CONDITIONAL_SKIP_FREEZE_STEP);

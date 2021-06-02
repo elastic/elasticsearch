@@ -41,7 +41,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         String phase = randomAlphaOfLengthBetween(1, 10);
         StepKey nextStepKey = new StepKey(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10),
                 randomAlphaOfLengthBetween(1, 10));
-        List<Step> steps = action.toSteps(null, phase, nextStepKey, null);
+        List<Step> steps = action.toSteps(null, phase, nextStepKey);
         assertThat(steps, notNullValue());
         assertThat(steps.size(), equalTo(8));
 

@@ -90,6 +90,11 @@ public class SearchableSnapshotAction implements LifecycleAction {
     }
 
     @Override
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey, XPackLicenseState licenseState) {
         StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);

@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -94,7 +95,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -162,7 +163,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -418,5 +419,9 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
+    }
+
+    private XPackLicenseState createLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0L);
     }
 }

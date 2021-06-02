@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -175,7 +176,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, null));
+        Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, createLicenseState()));
         StepKey stepKey = step.getKey();
 
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
@@ -211,7 +212,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         String phaseJson = Strings.toString(phaseExecutionInfo);
         NoOpClient client = new NoOpClient(threadPool);
         List<Step> waitForRolloverStepList =
-            action.toSteps(client, phaseName, null, null).stream()
+            action.toSteps(client, phaseName, null).stream()
                 .filter(s -> s.getKey().getName().equals(WaitForRolloverReadyStep.NAME))
                 .collect(toList());
         assertThat(waitForRolloverStepList.size(), is(1));
@@ -734,7 +735,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
         Settings indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -1176,6 +1177,10 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         return new MockPolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, REGISTRY, client);
+    }
+
+    private XPackLicenseState createLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0L);
     }
 
     private class NoOpHistoryStore extends ILMHistoryStore {

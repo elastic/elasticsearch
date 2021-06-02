@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.license.XPackLicenseState;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -78,7 +77,7 @@ public class DeleteAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey, XPackLicenseState licenseState) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Step.StepKey waitForNoFollowerStepKey = new Step.StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
         Step.StepKey deleteStepKey = new Step.StepKey(phase, NAME, DeleteStep.NAME);
         Step.StepKey cleanSnapshotKey = new Step.StepKey(phase, NAME, CleanupSnapshotStep.NAME);

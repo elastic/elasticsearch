@@ -65,7 +65,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     private void assertNonBestCompression(ForceMergeAction instance) {
         String phase = randomAlphaOfLength(5);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        List<Step> steps = instance.toSteps(null, phase, nextStepKey, null);
+        List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(5, steps.size());
         BranchingStep firstStep = (BranchingStep) steps.get(0);
@@ -90,7 +90,7 @@ public class ForceMergeActionTests extends AbstractActionTestCase<ForceMergeActi
     private void assertBestCompression(ForceMergeAction instance) {
         String phase = randomAlphaOfLength(5);
         StepKey nextStepKey = new StepKey(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10));
-        List<Step> steps = instance.toSteps(null, phase, nextStepKey, null);
+        List<Step> steps = instance.toSteps(null, phase, nextStepKey);
         assertNotNull(steps);
         assertEquals(9, steps.size());
         List<Tuple<StepKey, StepKey>> stepKeys = steps.stream()

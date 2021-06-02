@@ -111,6 +111,9 @@ Supported protocols with versions. Valid protocols: `SSLv2Hello`,
 the default is `TLSv1.3,TLSv1.2,TLSv1.1`. Otherwise, the default is
 `TLSv1.2,TLSv1.1`.
 +
+{es} relies on your JDK’s implementation of SSL and TLS.
+View <<jdk-tls-versions>> for more information.
++
 --
 NOTE: If `xpack.security.fips_mode.enabled` is `true`, you cannot use `SSLv2Hello`
 or `SSLv3`. See <<fips-140-compliance>>.

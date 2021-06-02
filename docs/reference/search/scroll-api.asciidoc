@@ -53,7 +53,7 @@ deprecated:[7.0.0]
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 
 [[scroll-api-desc]]
 ==== {api-description-title}

@@ -121,8 +121,6 @@ tasks.named("yamlRestCompatTest").configure {
     'ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats',
     'ml/jobs_get_stats/Test get job stats for closed job',
     'ml/jobs_get_stats/Test no exception on get job stats with missing index',
-    // TODO: the ml_info mute can be removed from master once the ml_standard tokenizer is in 7.x
-    'ml/ml_info/Test ml info',
     'ml/post_data/Test POST data job api, flush, close and verify DataCounts doc',
     'ml/post_data/Test flush with skip_time',
     'ml/set_upgrade_mode/Setting upgrade mode to disabled from enabled',

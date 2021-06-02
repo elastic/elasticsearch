@@ -415,7 +415,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> k.contains(s)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
@@ -428,6 +428,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
         if (enableJodaDeprecationWarningsCheck()) {
             filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
@@ -435,6 +436,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
         return filtered;
+
     }
 
     /**

@@ -476,8 +476,7 @@ public class JobDataDeleter {
         executeAsyncWithOrigin(client, ML_ORIGIN, GetModelSnapshotsAction.INSTANCE, request, ActionListener.wrap(
             response -> {
                 List<ModelSnapshot> deleteCandidates = response.getPage().results();
-                JobDataDeleter deleter = new JobDataDeleter(client, jobId);
-                deleter.deleteModelSnapshots(deleteCandidates, listener);
+                deleteModelSnapshots(deleteCandidates, listener);
             },
             listener::onFailure));
     }

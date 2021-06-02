@@ -57,6 +57,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * Migrates the elasticsearch abstractions to use data tiers for allocation routing.
      * This will:
      * - remove the given V1 index template if it exists.
+     *
      * - loop through the existing ILM policies and look at the configured {@link AllocateAction}s. If they define *any* routing rules
      * based on the provided node attribute name (we look at include, exclude and require rules) *ALL* the rules in the allocate action
      * will be removed. All the rules are removed in order to allow for ILM to inject the {@link MigrateAction}.
@@ -71,6 +72,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
      *          number_of_replicas: 0
      *      }
      *  Note that if the `allocate` action doesn't define any `number_of_replicas` it will be removed completely from the migrated policy.
+     *  As part of migrating the ILM policies we also update the cached phase definition for the managed indices to reflect the migrated
+     *  policy phase.
      *
      *  - loop through all the indices convert the index.routing.allocation.require.{nodeAttrName} setting (if present) to the
      *  corresponding data tier `_tier_preference` routing. We are only able to convert the `frozen`, `cold`, `warm`, or `hot` setting

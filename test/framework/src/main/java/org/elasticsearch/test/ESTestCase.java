@@ -429,7 +429,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
-        if (enableJodaDeprecationWarningsCheck()) {
+        if (enableJodaDeprecationWarningsCheck() == false) {
             filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {

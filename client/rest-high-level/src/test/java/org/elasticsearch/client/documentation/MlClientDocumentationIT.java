@@ -3828,11 +3828,11 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             .setCompressedDefinition(InferenceToXContentCompressor.deflate(definition)) // <2>
             .setModelId("my-new-trained-model") // <3>
             .setModelType(TrainedModelType.TREE_ENSEMBLE) // <4>
-            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <4>
-            .setDescription("test model") // <5>
-            .setMetadata(new HashMap<>()) // <6>
-            .setTags("my_regression_models") // <7>
-            .setInferenceConfig(new RegressionConfig("value", 0)) // <8>
+            .setInput(new TrainedModelInput("col1", "col2", "col3", "col4")) // <5>
+            .setDescription("test model") // <6>
+            .setMetadata(new HashMap<>()) // <7>
+            .setTags("my_regression_models") // <8>
+            .setInferenceConfig(new RegressionConfig("value", 0)) // <9>
             .build();
         // end::put-trained-model-config
 

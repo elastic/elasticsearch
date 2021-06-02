@@ -39,7 +39,10 @@ import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -49,6 +52,12 @@ import static org.elasticsearch.test.NodeRoles.dataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class IndicesServiceCloseTests extends ESTestCase {
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(),
+            List.of("setting [path.shared_data] is deprecated and will be removed in a future release").stream())
+            .collect(Collectors.toList());
+    }
 
     private Node startNode() throws NodeValidationException {
         final Path tempDir = createTempDir();

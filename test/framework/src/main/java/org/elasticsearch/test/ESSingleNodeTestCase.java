@@ -54,7 +54,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING;
 import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVERY_SEED_HOSTS_SETTING;
@@ -185,6 +188,13 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
     /** True if a dummy http transport should be used, or false if the real http transport should be used. */
     protected boolean addMockHttpTransport() {
         return true;
+    }
+
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(super.filteredWarnings().stream(),
+            List.of("setting [path.shared_data] is deprecated and will be removed in a future release").stream())
+            .collect(Collectors.toList());
     }
 
     private Node newNode() {

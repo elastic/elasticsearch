@@ -1174,16 +1174,17 @@ GROUP BY gender HAVING (max / 10) + 10 > 165  OR ABS(min * -100) > 60 ORDER BY g
 
 aggregateFunctionsWithScalarsAndGroupByAndHaving_CombinedFields
 schema::min:d|max:d|gender:s
-SELECT MIN(ABS(salary * (languages / - 20.0))) AS "min",
-MAX(salary / ((languages / 3.0) + 1)) AS "max",
+SELECT MIN(ABS(salary * (salary / - 200000.0))) AS "min",
+MAX(salary / ((salary / 300000.0) + 1)) AS "max",
 gender
 FROM test_emp
 GROUP BY gender HAVING (min::long) / 120 > 12 OR ROUND(max) / 10 > 5200 ORDER BY gender;
 
-      min      |      max      |    gender
----------------+---------------+---------------
-2436.75        |55287.75       |null
-1401.75        |52508.25       |M
+      min         |      max         |    gender
+------------------+------------------+---------------
+3206.5248800000004|59176.06103013778 |null           
+3373.7628799999998|59725.767008745985|F              
+3365.715125       |59999.35999829333 |M              
 ;
 
 aggregateFunctionsWithScalarsAndGroupByAndHavingConvertedToStats

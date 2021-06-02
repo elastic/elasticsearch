@@ -177,6 +177,22 @@ public class QueryTranslatorFailTests extends AbstractQueryTranslatorTestCase {
                 "offender [parent_process_name] in [process_name in (parent_process_name, \"SYSTEM\")]", msg);
     }
 
+    public void testFieldsInComparisonsUnsupported() {
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
+                () -> plan("process where length(user) > length(user_name)"));
+        String msg = e.getMessage();
+        assertEquals("Line 1:30: Comparisons against fields are not (currently) supported; " +
+                "offender [length(user_name)] in [>]", msg);
+    }
+
+    public void testFieldsInSameSideComparisonUnsupported() {
+        QlIllegalArgumentException e = expectThrows(QlIllegalArgumentException.class,
+                () -> plan("process where length(user) - length(user_name) > 0"));
+        String msg = e.getMessage();
+        assertEquals("Line 1:22: Comparisons against fields are not (currently) supported; " +
+                "offenders [user] and [user_name] in [>]", msg);
+    }
+
     public void testSequenceWithBeforeBy() {
         String msg = errorParsing("sequence with maxspan=1s by key [a where true] [b where true]");
         assertEquals("1:2: Please specify sequence [by] before [with] not after", msg);

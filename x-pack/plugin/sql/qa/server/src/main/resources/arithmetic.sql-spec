@@ -244,9 +244,9 @@ SELECT emp_no FROM test_emp WHERE 1./-salary  > 1/-6E4;
 chainedNegationDenominator
 SELECT emp_no FROM test_emp WHERE 1./(-(-(-salary)) * -1)  < 1/6E4;
 negationProductDenominator
-SELECT emp_no FROM test_emp WHERE 1/(-salary::FLOAT * -emp_no) > 1/5E8;
+SELECT emp_no FROM test_emp WHERE 1/(-salary::FLOAT * -salary) > 1/5E8;
 negationNumeratorAndDenominator
-SELECT emp_no FROM test_emp WHERE 3 * (-languages)/(-salary::FLOAT * -emp_no) > -3/6E7;
+SELECT emp_no FROM test_emp WHERE 3 * (-salary)/(-salary::FLOAT * -salary) > -3/6E7;
 negationsDoubleDenominator
-SELECT emp_no FROM test_emp WHERE ((1000000000 / -salary) / 2) * (-1 / (2 / -emp_no::FLOAT)) / -1000 >= 50000;
+SELECT emp_no FROM test_emp WHERE ((1000000000 / -salary) / 2) * (-1 / (2 / -salary::FLOAT)) / -1000 >= 50000;
 

@@ -247,6 +247,41 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("Line 1:43: Comparisons against fields are not (currently) supported; offender [int] in [>]", ex.getMessage());
     }
 
+    public void testComparisonAgainstColumnsSameSide() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE int - float > 0");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
+        assertEquals("Line 1:36: Comparisons against fields are not (currently) supported; offenders [int] and [float] in [>]",
+            ex.getMessage());
+    }
+
+    public void testComparisonAgainstColumnsSameSideWithFunctions() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE length(keyword) - length(some.string.typical) = 0");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
+        assertEquals("Line 1:43: Comparisons against fields are not (currently) supported; offenders [keyword] and [some.string.typical]"
+            + " in [==]",
+            ex.getMessage());
+    }
+
+    public void testComparisonAgainstColumnsSameSideWithNestedFunctions() {
+        LogicalPlan p = plan("SELECT some.string FROM test WHERE length(repeat('a', length(keyword) - length(some.string.typical))) < 0");
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+        QlIllegalArgumentException ex = expectThrows(QlIllegalArgumentException.class, () -> translate(condition));
+        assertEquals("Line 1:62: Comparisons against fields are not (currently) supported; offenders [keyword] and [some.string.typical]"
+            + " in [<]",
+            ex.getMessage());
+    }
+
     public void testMathFunctionHavingClause() {
         MathOperation operation =
                 (MathOperation) randomFrom(Stream.of(MathOperation.values()).filter(o -> o != PI && o != E).toArray());

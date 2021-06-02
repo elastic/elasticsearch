@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.string.BinaryCompar
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
@@ -92,6 +93,8 @@ final class QueryTranslator {
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
                 bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
                 Expressions.name(bc.right()), bc.symbol());
+            bc.left().forEachDown(ArithmeticOperation.class,
+                op -> ExpressionTranslators.BinaryComparisons.checkFieldsUsageInArithmeticOperation(op, bc));
         }
 
         private static Query translate(InsensitiveBinaryComparison bc, TranslatorHandler handler) {

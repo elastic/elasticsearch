@@ -12,8 +12,10 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -264,9 +267,44 @@ public final class ExpressionTranslators {
 
         public static void checkBinaryComparison(BinaryComparison bc) {
             Check.isTrue(bc.right().foldable(),
-                         "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
-                         bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
-                         Expressions.name(bc.right()), bc.symbol());
+                "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
+                bc.right().sourceLocation().getLineNumber(), bc.right().sourceLocation().getColumnNumber(),
+                Expressions.name(bc.right()), bc.symbol());
+            bc.left().forEachDown(ArithmeticOperation.class, op -> checkFieldsUsageInArithmeticOperation(op, bc));
+        }
+
+        @SuppressWarnings("rawtypes")
+        public static void checkFieldsUsageInArithmeticOperation(ArithmeticOperation a, BinaryPredicate bc) {
+            Set<FieldAttribute> leftFields = collectFields(a.left(), bc);
+            Set<FieldAttribute> rightFields = collectFields(a.right(), bc);
+            boolean containsAll = (leftFields.size() > rightFields.size() && leftFields.containsAll(rightFields))
+                || (leftFields.size() < rightFields.size() && rightFields.containsAll(leftFields))
+                || leftFields.containsAll(rightFields);
+
+            if (containsAll == false) {
+                Expression firstOffender = leftFields.toArray(new FieldAttribute[1])[0];
+                Expression secondOffender = rightFields.toArray(new FieldAttribute[1])[0];
+                Check.isTrue(containsAll,
+                    "Line {}:{}: Comparisons against fields are not (currently) supported; offenders [{}] and [{}] in [{}]",
+                    firstOffender.sourceLocation().getLineNumber(), firstOffender.sourceLocation().getColumnNumber(),
+                    Expressions.name(firstOffender), Expressions.name(secondOffender), bc.symbol());
+            }
+        }
+
+        @SuppressWarnings("rawtypes")
+        public static Set<FieldAttribute> collectFields(Expression e, BinaryPredicate bc) {
+            Set<FieldAttribute> fields = new LinkedHashSet<>();
+            if (e instanceof Function) {
+                for(Expression c : e.children()) {
+                    fields.addAll(collectFields(c, bc));
+                }
+            } else if (e instanceof ArithmeticOperation) {
+                checkFieldsUsageInArithmeticOperation((ArithmeticOperation) e, bc);
+            } else if (e instanceof FieldAttribute) {
+                fields.add((FieldAttribute) e);
+            }
+            
+            return fields;
         }
 
         public static Query doTranslate(BinaryComparison bc, TranslatorHandler handler) {

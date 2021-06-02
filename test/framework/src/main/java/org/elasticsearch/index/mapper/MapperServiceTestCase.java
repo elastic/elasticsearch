@@ -477,6 +477,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean enableRewriteToFilterByFilter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }

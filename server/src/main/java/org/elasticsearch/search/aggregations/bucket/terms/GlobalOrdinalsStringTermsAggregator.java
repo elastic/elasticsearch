@@ -284,7 +284,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 order,
                 format,
                 bucketCountThresholds,
-                l -> true,
+                ALWAYS_TRUE,
                 context,
                 parent,
                 remapGlobalOrds,

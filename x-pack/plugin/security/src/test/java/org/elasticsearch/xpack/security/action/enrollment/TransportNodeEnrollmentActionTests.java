@@ -142,6 +142,9 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
         assertThat(nodesInfoRequests.size(), equalTo(1));
+
+        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{

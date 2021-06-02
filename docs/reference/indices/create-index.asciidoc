@@ -21,7 +21,9 @@ PUT /my-index-000001
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `create_index`
-or `manage` <<privileges-list-indices,index privilege>> for the target index.
+or `manage` <<privileges-list-indices,index privilege>> for the target index. To
+add the index to an alias, you must have the `manage` index privilege for the
+alias.
 
 [[indices-create-api-desc]]
 ==== {api-description-title}
@@ -66,13 +68,14 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[indices-create-api-request-body]]
 ==== {api-request-body-title}
 
-// tag::aliases[]
 `aliases`::
-(Optional, object) Aliases for the index.
+(Optional, object of objects) Aliases for the index.
 +
-.Properties of `aliases` objects
+--
+// tag::aliases-props[]
 [%collapsible%open]
-====
+.Properties of `aliases` objects
+=======
 `<alias>`::
 (Required, object) The key is the alias name. Supports
 <<date-math-index-names,date math>>.
@@ -81,9 +84,9 @@ The object body contains options for the alias. Supports an empty object.
 +
 .Properties of `<alias>`
 [%collapsible%open]
-=====
+======
 `filter`::
-(Optional, <<query-dsl,Query DSL object>>) Query used to limit the documents the
+(Optional, <<query-dsl,Query DSL object>>) Query used to limit documents the
 alias can access.
 
 `index_routing`::
@@ -92,7 +95,7 @@ If specified, this overwrites the `routing` value for indexing operations.
 
 `is_hidden`::
 (Optional, Boolean) If `true`, the alias is <<hidden,hidden>>. Defaults to
-`false`.
+`false`. All indices for the alias must have the same `is_hidden` value.
 
 `is_write_index`::
 (Optional, Boolean) If `true`, the index is the <<write-index,write index>> for
@@ -105,9 +108,10 @@ specific shard.
 `search_routing`::
 (Optional, string) Value used to route search operations to a specific shard. If
 specified, this overwrites the `routing` value for search operations.
-=====
-====
-// end::aliases[]
+======
+=======
+// end::aliases-props[]
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 

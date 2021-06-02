@@ -495,6 +495,24 @@ public class RefreshListenersTests extends ESTestCase {
         assertThat(seqNoListener.error.getMessage(), equalTo(message));
     }
 
+    public void testForcedRefreshDoesNotCompleteUnRefreshedCheckpoint() throws Exception {
+        assertEquals(0, listeners.pendingCount());
+
+        Engine.IndexResult index = index("1");
+        DummySeqNoListener seqNoListener = new DummySeqNoListener();
+        for (int i = 0; i < maxListeners; ++i) {
+            listeners.addOrNotify(index.getSeqNo(), seqNoListener);
+        }
+
+        long mockSeqNo = index.getSeqNo() + 1;
+        listeners.setMaxIssuedSeqNoSupplier(() -> mockSeqNo);
+        DummySeqNoListener forcingListener = new DummySeqNoListener();
+        listeners.addOrNotify(mockSeqNo, forcingListener);
+        assertFalse(forcingListener.isDone.get());
+        assertTrue(seqNoListener.isDone.get());
+        assertEquals(1, listeners.pendingCount());
+    }
+
     private Engine.IndexResult index(String id) throws IOException {
         return index(id, "test");
     }

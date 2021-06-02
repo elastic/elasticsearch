@@ -132,7 +132,7 @@ public class NerResults implements InferenceResults {
             return map;
         }
 
-            public String getLabel() {
+        public String getLabel() {
             return label;
         }
 

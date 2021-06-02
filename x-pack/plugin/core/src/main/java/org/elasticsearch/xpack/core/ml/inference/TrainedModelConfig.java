@@ -89,7 +89,7 @@ public class TrainedModelConfig implements ToXContentObject, Writeable {
     public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
     public static final ParseField LOCATION = new ParseField("location");
 
-    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0; // TODO adjust after backport
+    public static final Version VERSION_3RD_PARTY_CONFIG_ADDED = Version.V_8_0_0; 
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<TrainedModelConfig.Builder, Void> LENIENT_PARSER = createParser(true);

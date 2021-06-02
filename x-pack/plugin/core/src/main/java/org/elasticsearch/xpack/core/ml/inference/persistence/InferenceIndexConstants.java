@@ -27,7 +27,7 @@ public final class InferenceIndexConstants {
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
      *
-     * version: UNKNOWN_MERGED_ON_FEATURE_BRANCH: 000004   TODO
+     * version: 8.0.0: 000004
      *  - adds binary_definition for TrainedModelDefinitionDoc
      */
     public static final String INDEX_VERSION = "000004";

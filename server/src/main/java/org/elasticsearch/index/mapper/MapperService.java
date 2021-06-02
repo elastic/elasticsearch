@@ -48,7 +48,6 @@ import java.util.Objects;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public class MapperService extends AbstractIndexComponent implements Closeable {
 
@@ -373,9 +372,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (this.mapper == null) {
             return Collections.emptySet();
         }
-        return this.mapper.mappers().getAllFieldTypes().stream()
-            .filter(MappedFieldType::eagerGlobalOrdinals)
-            .collect(Collectors.toList());
+        return this.mapper.mappers().getIndexTimeFieldTypes(MappedFieldType::eagerGlobalOrdinals);
     }
 
     /**

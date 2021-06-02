@@ -24,8 +24,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
 
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
@@ -36,24 +39,24 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context.getAllFieldTypes());
+        return getJoiner(context::getIndexTimeFieldTypes);
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context.getMatchingFieldTypes("*"));
+        return getJoiner(context::getIndexTimeFieldTypes);
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Collection<MappedFieldType> fieldTypes) {
-        JoinFieldType ft = ParentJoinFieldMapper.getJoinFieldType(fieldTypes);
-        return ft != null ? ft.getJoiner() : null;
+    static Joiner getJoiner(Function<Predicate<MappedFieldType>, Collection<MappedFieldType>> fieldTypeLookup) {
+        Optional<JoinFieldType> joinFieldType = fieldTypeLookup.apply(ft -> ft instanceof JoinFieldType)
+            .stream().map(ft -> (JoinFieldType) ft).findFirst();
+        return joinFieldType.map(JoinFieldType::getJoiner).orElse(null);
     }
-
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
@@ -178,5 +181,4 @@ public final class Joiner {
         }
         return conflicted == false;
     }
-
 }

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 /**
@@ -158,9 +159,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
-            ? null
-            : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -301,23 +300,14 @@ public final class MappingLookup {
     }
 
     /**
-     * Returns all the mapped field types that match a pattern
+     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
+     * under the properties section of the mappings. Runtime fields are not included.
      *
-     * Note that if a field is aliased and both its actual name and its alias
-     * match the pattern, the returned collection will contain the field type
-     * twice.
-     *
-     * @param pattern the pattern to match field names against
+     * @param predicate the predicate
+     * @return the matching mapped field types
      */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        return fieldTypeLookup.getMatchingFieldTypes(pattern);
-    }
-
-    /**
-     * @return all mapped field types
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return fieldTypeLookup.getMatchingFieldTypes("*");
+    public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
+        return indexTimeLookup.getFieldTypes(predicate);
     }
 
     /**

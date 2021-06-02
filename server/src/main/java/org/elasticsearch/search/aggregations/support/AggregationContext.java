@@ -24,8 +24,8 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -46,6 +46,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
@@ -112,9 +113,13 @@ public abstract class AggregationContext implements Releasable {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
-     * Returns the registered mapped field types.
+     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
+     * under the properties section of the mappings. Runtime fields are not included.
+     *
+     * @param predicate the predicate
+     * @return the matching mapped field types
      */
-    public abstract Collection<MappedFieldType> getMatchingFieldTypes(String pattern);
+    public abstract Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate);
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -346,8 +351,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-            return context.getMatchingFieldTypes(pattern);
+        public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
+            return context.getIndexTimeFieldTypes(predicate);
         }
 
         @Override

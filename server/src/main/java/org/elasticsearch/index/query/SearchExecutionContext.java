@@ -331,46 +331,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * @return all mapped field types, including runtime fields defined in the request
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return getMatchingFieldTypes("*");
-    }
-
-    /**
-     * Returns all mapped field types that match a given pattern
+     * Returns the index time field types matching the predicate. This is used to find specific field types among the ones defined
+     * under the properties section of the mappings. Runtime fields are not included.
      *
-     * Includes any runtime fields that have been defined in the request. Note
-     * that a runtime field with the same name as a mapped field will override
-     * the mapped field.
-     *
-     * @param pattern the field name pattern
+     * @param predicate the predicate
+     * @return the matching mapped field types
      */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
-        if (runtimeMappings.isEmpty()) {
-            return mappedFieldTypes;
-        }
-
-        Map<String, MappedFieldType> mappedByName = new HashMap<>();
-        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
-
-        if ("*".equals(pattern)) {
-            mappedByName.putAll(runtimeMappings);
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern) == false) {
-                return mappedFieldTypes;
-            }
-            mappedByName.put(pattern, runtimeMappings.get(pattern));
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    mappedByName.put(name, runtimeMappings.get(name));
-                }
-            }
-        }
-        return mappedByName.values();
+    public Collection<MappedFieldType> getIndexTimeFieldTypes(Predicate<MappedFieldType> predicate) {
+        return mappingLookup.getIndexTimeFieldTypes(predicate);
     }
 
     /**

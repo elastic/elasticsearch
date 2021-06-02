@@ -10,15 +10,15 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -148,49 +148,6 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns all the mapped field types that match a pattern
-     *
-     * Note that if a field is aliased and both its actual name and its alias
-     * match the pattern, the returned collection will contain the field type
-     * twice.
-     */
-    Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        if (Regex.isMatchAllPattern(pattern)) {
-            if (dynamicFieldTypes.isEmpty()) {
-                return fullNameToFieldType.values();
-            }
-            List<MappedFieldType> fieldTypes = new ArrayList<>(fullNameToFieldType.values());
-            for (DynamicFieldType dynamicFieldType : dynamicFieldTypes.values()) {
-                for (String subfield : dynamicFieldType.getKnownSubfields()) {
-                    fieldTypes.add(dynamicFieldType.getChildFieldType(subfield));
-                }
-            }
-            return fieldTypes;
-        }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            MappedFieldType ft = get(pattern);
-            return ft == null ? Collections.emptySet() : Collections.singleton(ft);
-        }
-        List<MappedFieldType> matchingFields = new ArrayList<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(fullNameToFieldType.get(field));
-            }
-        }
-        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
-            String parentName = dynamicFieldTypeEntry.getKey();
-            DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
-            for (String subfield : dynamicFieldType.getKnownSubfields()) {
-                if (Regex.simpleMatch(pattern, parentName + "." + subfield)) {
-                    matchingFields.add(dynamicFieldType.getChildFieldType(subfield));
-                }
-            }
-        }
-        return matchingFields;
-    }
-
-    /**
      * Returns a set of field names that match a regex-like pattern
      *
      * All field names in the returned set are guaranteed to resolve to a field
@@ -267,5 +224,15 @@ final class FieldTypeLookup {
         return fieldToCopiedFields.containsKey(resolvedField)
             ? fieldToCopiedFields.get(resolvedField)
             : Set.of(resolvedField);
+    }
+
+    /**
+     * Returns the field types that match the provided predicate.
+     * Note that this is not going to include fields that are dynamically exposed through {@link DynamicFieldType}.
+     * @param predicate the predicate
+     * @return the matching field types
+     */
+    Collection<MappedFieldType> getFieldTypes(Predicate<MappedFieldType> predicate) {
+        return fullNameToFieldType.values().stream().filter(predicate).collect(Collectors.toList());
     }
 }

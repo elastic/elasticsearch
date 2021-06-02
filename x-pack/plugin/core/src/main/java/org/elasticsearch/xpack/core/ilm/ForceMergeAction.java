@@ -112,7 +112,7 @@ public class ForceMergeAction implements LifecycleAction {
     }
 
     @Override
-    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+    public List<Step> toSteps(Client client, String phase, Step.StepKey nextStepKey) {
         Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
         Settings bestCompressionSettings = Settings.builder()
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), CodecService.BEST_COMPRESSION_CODEC).build();

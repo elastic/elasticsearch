@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.repositories;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -14,7 +16,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
@@ -23,15 +24,17 @@ import java.util.function.BooleanSupplier;
  */
 public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
 
+    private static final Logger logger = LogManager.getLogger(GetSnapshotInfoContext.class);
+
     /**
-     * Snapshot ids to fetch info for
+     * Snapshot ids to fetch info for.
      */
     private final List<SnapshotId> snapshotIds;
 
     /**
      * Stop fetching additional {@link SnapshotInfo} if an exception is encountered.
      */
-    private final boolean failFast;
+    private final boolean abortOnFailure;
 
     /**
      * If this supplier returns true, indicates that the task that initiated this context has been cancelled and that not further fetching
@@ -41,7 +44,8 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     /**
      * Listener resolved when fetching {@link SnapshotInfo} has completed. If resolved successfully, no more calls to
-     * {@link #onSnapshotInfo} will be made. If resolved with an exception, one or more {@link SnapshotInfo} failed to be fetched.
+     * {@link #onSnapshotInfo} will be made. Only resolves exceptionally if {@link #abortOnFailure} is true in case one or more
+     * {@link SnapshotInfo} failed to be fetched.
      */
     private final ActionListener<Void> doneListener;
 
@@ -53,16 +57,15 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     private final CountDown counter;
 
-    private final AtomicReference<Exception> exception = new AtomicReference<>();
-
     public GetSnapshotInfoContext(Collection<SnapshotId> snapshotIds,
-                                  boolean failFast,
+                                  boolean abortOnFailure,
                                   BooleanSupplier isCancelled,
                                   BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
                                   ActionListener<Void> doneListener) {
+        assert snapshotIds.isEmpty() == false : "no snapshot ids to fetch given";
         this.snapshotIds = List.copyOf(snapshotIds);
         this.counter = new CountDown(snapshotIds.size());
-        this.failFast = failFast;
+        this.abortOnFailure = abortOnFailure;
         this.isCancelled = isCancelled;
         this.onSnapshotInfo = onSnapshotInfo;
         this.doneListener = doneListener;
@@ -76,7 +79,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      * @return true if fetching {@link SnapshotInfo} should be stopped after encountering any exception
      */
     public boolean failFast() {
-        return failFast;
+        return abortOnFailure;
     }
 
     /**
@@ -114,20 +117,14 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     @Override
     public void onFailure(Exception e) {
-        if (failFast) {
+        if (abortOnFailure) {
             if (counter.fastForward()) {
                 failDoneListener(e);
             }
         } else {
-            final Exception failure = exception.updateAndGet(ex -> {
-                if (ex == null) {
-                    return e;
-                }
-                ex.addSuppressed(e);
-                return ex;
-            });
+            logger.warn("failed to fetch snapshot info", e);
             if (counter.countDown()) {
-                failDoneListener(failure);
+                doneListener.onResponse(null);
             }
         }
     }

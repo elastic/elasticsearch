@@ -284,19 +284,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 ignoreUnavailable == false,
                 task::isCancelled,
                 (context, snapshotInfo) -> snapshotInfos.add(snapshotInfo),
-                ignoreUnavailable ? new ActionListener<>() {
+                ignoreUnavailable ? ActionListener.runAfter(new ActionListener<>() {
                     @Override
                     public void onResponse(Void unused) {
                         logger.trace("done fetching snapshot infos [{}]", snapshotIdsToIterate);
-                        allDoneListener.onResponse(null);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug("failed to fetch snapshot info for some snapshots", e);
-                        allDoneListener.onResponse(null);
+                        assert false : new AssertionError("listener should always complete successfully for ignoreUnavailable=true", e);
+                        logger.warn("failed to fetch snapshot info for some snapshots", e);
                     }
-                } : allDoneListener
+                }, () -> allDoneListener.onResponse(null)) : allDoneListener
             )
         );
     }

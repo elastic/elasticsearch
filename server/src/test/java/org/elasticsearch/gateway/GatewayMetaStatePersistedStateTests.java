@@ -348,7 +348,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             gateway.start(settings, transportService, clusterService,
                 new MetaStateService(nodeEnvironment, xContentRegistry()), null, null, persistedClusterStateService);
             final CoordinationState.PersistedState persistedState = gateway.getPersistedState();
-            assertThat(persistedState, instanceOf(GatewayMetaState.AsyncLucenePersistedState.class));
+            assertThat(persistedState, instanceOf(GatewayMetaState.AsyncPersistedState.class));
 
             //generate random coordinationMetadata with different lastAcceptedConfiguration and lastCommittedConfiguration
             CoordinationMetadata coordinationMetadata;
@@ -368,9 +368,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             CoordinationMetadata persistedCoordinationMetadata =
                 persistedClusterStateService.loadOnDiskState().metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
-                equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
-                equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
 
             persistedState.markLastAcceptedStateAsCommitted();
             assertBusy(() -> assertTrue(gateway.allPendingAsyncStatesWritten()));
@@ -384,9 +384,9 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
             assertClusterStateEqual(expectedClusterState, persistedState.getLastAcceptedState());
             persistedCoordinationMetadata = persistedClusterStateService.loadOnDiskState().metadata.coordinationMetadata();
             assertThat(persistedCoordinationMetadata.getLastAcceptedConfiguration(),
-                equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
             assertThat(persistedCoordinationMetadata.getLastCommittedConfiguration(),
-                equalTo(GatewayMetaState.AsyncLucenePersistedState.staleStateConfiguration));
+                equalTo(GatewayMetaState.AsyncPersistedState.staleStateConfiguration));
             assertTrue(persistedClusterStateService.loadOnDiskState().metadata.clusterUUIDCommitted());
 
             // generate a series of updates and check if batching works
@@ -417,7 +417,7 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
 
             try (CoordinationState.PersistedState reloadedPersistedState = newGatewayPersistedState()) {
                 assertEquals(currentTerm, reloadedPersistedState.getCurrentTerm());
-                assertClusterStateEqual(GatewayMetaState.AsyncLucenePersistedState.resetVotingConfiguration(state),
+                assertClusterStateEqual(GatewayMetaState.AsyncPersistedState.resetVotingConfiguration(state),
                     reloadedPersistedState.getLastAcceptedState());
                 assertNotNull(reloadedPersistedState.getLastAcceptedState().metadata().index(indexName));
             }

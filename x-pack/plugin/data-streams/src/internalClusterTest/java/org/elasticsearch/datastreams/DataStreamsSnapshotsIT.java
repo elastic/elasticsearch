@@ -80,6 +80,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private String dsBackingIndexName;
     private String otherDsBackingIndexName;
     private String ds2BackingIndexName;
+    private String otherDs2BackingIndexName;
     private String id;
 
     @Override
@@ -111,6 +112,7 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         otherDsBackingIndexName = getDataStreamResponse.getDataStreams().get(1).getDataStream().getIndices().get(0).getName();
         // Will be used in some tests, to test renaming while restoring a snapshot:
         ds2BackingIndexName = dsBackingIndexName.replace("-ds-", "-ds2-");
+        otherDs2BackingIndexName = otherDsBackingIndexName.replace("-other-ds-", "-other-ds2-");
 
         IndexResponse indexResponse = client.prepareIndex("ds", "_doc")
             .setOpType(DocWriteRequest.OpType.CREATE)
@@ -518,6 +520,48 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
         assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds"));
+    }
+
+    public void testRenameWriteDataStream() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .setIncludeGlobalState(false)
+            .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        client.admin()
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("other-ds")
+            .setRenamePattern("other-ds")
+            .setRenameReplacement("other-ds2")
+            .get();
+
+        GetDataStreamAction.Response ds = client.execute(
+            GetDataStreamAction.INSTANCE,
+            new GetDataStreamAction.Request(new String[] { "other-ds2" })
+        ).get();
+        assertEquals(1, ds.getDataStreams().size());
+        assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+        assertEquals(otherDs2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+
+        GetAliasesResponse getAliasesResponse = client.admin().indices().getAliases(new GetAliasesRequest("my-alias")).actionGet();
+        assertThat(getAliasesResponse.getDataStreamAliases().keySet(), containsInAnyOrder("ds", "other-ds", "other-ds2"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds2").get(0).getWriteDataStream(), equalTo("other-ds2"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").size(), equalTo(1));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getName(), equalTo("my-alias"));
+        assertThat(getAliasesResponse.getDataStreamAliases().get("other-ds").get(0).getWriteDataStream(), equalTo("other-ds2"));
     }
 
     public void testBackingIndexIsNotRenamedWhenRestoringDataStream() {

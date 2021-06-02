@@ -524,7 +524,11 @@ public class RestoreService implements ClusterStateApplier {
                                     List<String> renamedDataStreams = alias.getDataStreams().stream()
                                         .map(s -> s.replaceAll(request.renamePattern(), request.renameReplacement()))
                                         .collect(Collectors.toList());
-                                    return new DataStreamAlias(alias.getName(), renamedDataStreams, alias.getWriteDataStream());
+                                    String writeDataStream = alias.getWriteDataStream();
+                                    if (writeDataStream != null) {
+                                        writeDataStream = writeDataStream.replaceAll(request.renamePattern(), request.renameReplacement());
+                                    }
+                                    return new DataStreamAlias(alias.getName(), renamedDataStreams, writeDataStream);
                                 } else {
                                     return alias;
                                 }

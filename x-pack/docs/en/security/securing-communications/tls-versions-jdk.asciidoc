@@ -17,40 +17,40 @@ Check your security provider's release notes for information on TLS support.
 ====
 
 `SSLv3`::
-  SSL v3 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
-  See <<jdk-enable-tls-protocol>>.
+SSL v3 is supported on all {es} <<jvm-version,compatible JDKs>> but is disabled by default.
+See <<jdk-enable-tls-protocol>>.
 
 `TLSv1`::
-  TLS v1.0 is supported on all {es} <<jvm-version,compatible JDKs>>.
-  Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.0 by default.
-  See <<jdk-enable-tls-protocol>>.
+TLS v1.0 is supported on all {es} <<jvm-version,compatible JDKs>>.
+Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.0 by default.
+See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.1`::
-  TLS v1.1 is supported on all {es} <<jvm-version,compatible JDKs>>.
-  Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.1 by default.
-  See <<jdk-enable-tls-protocol>>.
+TLS v1.1 is supported on all {es} <<jvm-version,compatible JDKs>>.
+Some newer JDKs, including the JDK bundled with {es}, disable TLS v1.1 by default.
+See <<jdk-enable-tls-protocol>>.
 
 `TLSv1.2`::
-  TLS v1.2 is supported on all {es} <<jvm-version,compatible JDKs>>.
-  It is enabled by default on all JDKs that are supported by {es}, including the bundled JDK.
+TLS v1.2 is supported on all {es} <<jvm-version,compatible JDKs>>.
+It is enabled by default on all JDKs that are supported by {es}, including the bundled JDK.
 
 `TLSv1.3`::
-  TLS v1.3 is supported on all recent {es} <<jvm-version,compatible JDKs>>.
-  This includes the latest release of Java 8 (any release newer than 8u261)
-  as well as all versions of Java 11 or later.
-  It is supported and enabled by default on the {es} bundled JDK.
+TLS v1.3 is supported on JDK11 and later, and JDK8 builds newer than 8u261
+(including the most recent release of each JDK8 distribution that {es} supports).
+TLS v1.3 is supported and enabled by default on the JDK that is bundled with {es}.
++
+NOTE: Although {es} supports running on older JDK8 builds without TLS v1.3,
+we recommend upgrading to a JDK version that includes TLS v1.3 for better
+support and updates.
 
 [[jdk-enable-tls-protocol]]
 ==== Enabling additional SSL/TLS versions on your JDK
 
-The set of supported SSL/TLS versions for a JDK is controlled by a _java security
-properties file_ that is installed as part of your JDK.
-It is possible to override values that are set in this configuration file in order to
-enable SSL and TLS versions that would otherwise be disabled.
+The set of supported SSL/TLS versions for a JDK is controlled by a java security
+properties file that is installed as part of your JDK.
 
-The JDK configuration file lists the SSL/TLS algorithms that are disabled in that JDK.
-Removing a TLS version from that list will allow it to be used on the JDK.
-To do this, you should follow these steps:
+This configuration file lists the SSL/TLS algorithms that are disabled in that JDK.
+Complete these steps to remove a TLS version from that list and use it in your JDK.
 
 1. Locate the configuration file for your JDK.
 2. Copy the `jdk.tls.disabledAlgorithms` setting from that file, and add it to a custom
@@ -108,7 +108,7 @@ modify the `jdk.tls.disabledAlgorithms` setting so that any SSL or TLS versions
 that you wish to use are no longer listed.
 
 For example, to enable TLSv1.1 on OpenJDK 16 (which uses the
-`jdk.tls.disabledAlgorithms` settings shown above), then the contents of the
+`jdk.tls.disabledAlgorithms` settings shown previously), the
 `es.java.security` file would contain the previously disabled TLS algorithms
 _except_ `TLSv1.1`:
 
@@ -123,14 +123,15 @@ jdk.tls.disabledAlgorithms=SSLv3, TLSv1, RC4, DES, MD5withRSA, \
 To enable your custom security policy, add a file in the <<set-jvm-options, `jvm.options.d`>>
 directory within your {es} configuration directory.
 
-1. Locate the `jvm.options.d` directory for your {es} installation.
-2. Create a file named `java.security.options` within the `jvm.options.d` directory.
-3. Set the path for the `es.java.security` file.
+To enable your custom security policy, create a file named
+`java.security.options` within the <<set-jvm-options, jvm.options.d>>
+directory of your {es} configuration directory, with this content:
 
 [source,text]
 ----
 -Djava.security.properties=/path/to/your/es.java.security
 ----
+
 ==== Enabling TLS versions in {es}
 
 SSL/TLS versions can be enabled and disabled within {es} via the

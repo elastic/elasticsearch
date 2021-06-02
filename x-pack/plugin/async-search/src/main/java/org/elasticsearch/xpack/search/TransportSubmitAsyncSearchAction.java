@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
@@ -175,12 +176,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
+        final AsyncExecutionId executionId = searchTask.getExecutionId();
+        store.updateResponse(executionId, threadContext.getResponseHeaders(),response,
             ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(exc);
                     if (cause instanceof DocumentMissingException == false &&
-                            cause instanceof VersionConflictEngineException == false) {
+                        cause instanceof VersionConflictEngineException == false &&
+                        cause instanceof ResourceNotFoundException == false) {
                         logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
                             searchTask.getExecutionId().getEncoded()), exc);
                     }

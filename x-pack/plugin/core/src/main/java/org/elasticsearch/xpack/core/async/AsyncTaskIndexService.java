@@ -23,16 +23,20 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
@@ -46,7 +50,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
@@ -195,23 +199,54 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
-    public void updateResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> listener) {
+    public void updateResponse(AsyncExecutionId executionId,
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<IndexResponse> listener) {
         try {
-            Map<String, Object> source = new HashMap<>();
-            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-            source.put(RESULT_FIELD, encodeResponse(response));
-            UpdateRequest request = new UpdateRequest()
-                .index(index)
-                .id(docId)
-                .doc(source, XContentType.JSON)
-                .retryOnConflict(5);
-            clientWithOrigin.update(request, listener);
+            final String encodedResponse = encodeResponse(response);
+            doUpdateResponse(executionId, responseHeaders, encodedResponse, 0, listener);
         } catch(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private void doUpdateResponse(AsyncExecutionId executionId, Map<String, List<String>> responseHeaders,
+                                  String encodedResponse, int retryCount, ActionListener<IndexResponse> listener) {
+        // Since the encodedResponse can be very large, we perform the update logic on the client to minimize
+        // the memory usage by UpdateRequest and UpdateHelper.
+        assert retryCount <= 5 : retryCount;
+        final String docId = executionId.getDocId();
+        final GetRequest getRequest = new GetRequest(index)
+            .id(docId)
+            .preference(executionId.getEncoded())
+            .realtime(true);
+        clientWithOrigin.get(getRequest, listener.delegateFailure((l1, getResult) -> {
+            if (getResult.isExists() == false) {
+                // should be DocumentMissingException but we do not have shardId here
+                l1.onFailure(new ResourceNotFoundException(docId));
+                return;
+            }
+            assert getResult.getId().equals(docId) : getResult.getId() + " != " + docId;
+            final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(
+                getResult.getSourceAsBytesRef(), true);
+            final Map<String, Object> updatingSource = new HashMap<>(sourceAndContent.v2().size() + 2);
+            updatingSource.putAll(sourceAndContent.v2());
+            updatingSource.put(RESPONSE_HEADERS_FIELD, responseHeaders);
+            updatingSource.put(RESULT_FIELD, encodedResponse);
+            final IndexRequest indexRequest = new IndexRequest(index)
+                .id(docId)
+                .source(updatingSource, sourceAndContent.v1())
+                .setIfSeqNo(getResult.getSeqNo())
+                .setIfPrimaryTerm(getResult.getPrimaryTerm());
+            clientWithOrigin.index(indexRequest, l1.delegateResponse((l2, e) -> {
+                if (e instanceof VersionConflictEngineException && retryCount < 5) {
+                    doUpdateResponse(executionId, responseHeaders, encodedResponse, retryCount + 1, listener);
+                } else {
+                    l2.onFailure(e);
+                }
+            }));
+        }));
     }
 
     /**
@@ -456,10 +491,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Encode the provided response in a binary form using base64 encoding.
      */
     String encodeResponse(R response) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, out);
-            response.writeTo(out);
-            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
+        // Maybe write the base64 encoded directly the _source of IndexRequest?
+        try (BytesStreamOutput buffer = new BytesStreamOutput()) {
+            try (StreamOutput out = new OutputStreamStreamOutput(Base64.getEncoder().wrap(buffer))) {
+                Version.writeVersion(Version.CURRENT, out);
+                response.writeTo(out);
+            }
+            final byte[] bytes = BytesReference.toBytes(buffer.bytes());
+            return new String(bytes, StandardCharsets.UTF_8);
         }
     }
 
@@ -467,11 +506,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
     R decodeResponse(String value) throws IOException {
-        try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-            try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                in.setVersion(Version.readVersion(in));
-                return reader.read(in);
-            }
+        final byte[] bytes = value.getBytes(StandardCharsets.UTF_8);
+        final StreamInput decodedStream = new InputStreamStreamInput(Base64.getDecoder().wrap(StreamInput.wrap(bytes)));
+        try (StreamInput in = new NamedWriteableAwareStreamInput(decodedStream, registry)) {
+            in.setVersion(Version.readVersion(in));
+            return reader.read(in);
         }
     }
 

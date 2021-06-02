@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -245,8 +244,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                     new TestAsyncResponse(null, task.getExpirationTime()), futureCreate);
                 futureCreate.actionGet(TimeValue.timeValueSeconds(10));
 
-                PlainActionFuture<UpdateResponse> futureUpdate = new PlainActionFuture<>();
-                indexService.updateResponse(task.getExecutionId().getDocId(), emptyMap(),
+                PlainActionFuture<IndexResponse> futureUpdate = new PlainActionFuture<>();
+                indexService.updateResponse(task.getExecutionId(), emptyMap(),
                     new TestAsyncResponse("final_response", task.getExpirationTime()), futureUpdate);
                 futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
             } else {

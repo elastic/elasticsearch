@@ -7,163 +7,232 @@
 
 package org.elasticsearch.xpack.security.enrollment;
 
-import org.elasticsearch.Build;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.BoundTransportAddress;
-import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.node.NodeService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
-import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeyGenerator;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse;
+import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Clock;
 import java.util.Base64;
-import java.util.Collections;
-import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.doReturn;
+import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class CreateEnrollmentTokenTests  extends ESTestCase {
-    private ApiKeyGenerator apiKeyGenerator;
-    private SecurityContext securityContext;
+public class CreateEnrollmentTokenTests extends ESTestCase {
     private Environment environment;
-    private NodeService nodeService;
-    private SSLService sslService;
-    private BoundTransportAddress dummyBoundTransportAddress;
-    private SecureString key;
-    private Instant now;
-    private CreateEnrollmentToken createEnrollmentToken;
+    private final MockTerminal terminal = new MockTerminal();
 
     @Before
     public void setupMocks() throws Exception {
-        final Clock clock = Clock.systemUTC();
-        now = clock.instant();
-        environment = mock(Environment.class);
         final Path tempDir = createTempDir();
         final Path httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
-        when(environment.configFile()).thenReturn(tempDir);
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.http.ssl.truststore.secure_password", "password");
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "password");
         final Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
+            .put("xpack.http.ssl.enabled", true)
             .put( "xpack.security.authc.api_key.enabled", true)
-            .put("keystore.path", "httpCa.p12")
-            .put("keystore.password", "password")
+            .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .setSecureSettings(secureSettings)
+            .put("path.home", tempDir)
             .build();
-        sslService = mock(SSLService.class);
-        final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
-        when(sslService.getHttpTransportSSLConfiguration()).thenReturn(sslConfiguration);
-
-        Authentication authentication =
-            new Authentication(new User("joe", "manage_enrollment"),
-                new Authentication.RealmRef("test", "test", "node"), null);
-        securityContext = mock(SecurityContext.class);
-        when(securityContext.getAuthentication()).thenReturn(authentication);
-
-        nodeService = mock(NodeService.class);
-        dummyBoundTransportAddress = new BoundTransportAddress(
-            new TransportAddress[]{buildNewFakeTransportAddress()}, buildNewFakeTransportAddress());
-        NodeInfo nodeInfo = new NodeInfo(
-            Version.CURRENT,
-            Build.CURRENT,
-            new DiscoveryNode("test_node", buildNewFakeTransportAddress(), emptyMap(), emptySet(), VersionUtils.randomVersion(random())),
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            new HttpInfo(dummyBoundTransportAddress, randomNonNegativeLong()),
-            null,
-            null,
-            null,
-            null);
-        doReturn(nodeInfo).when(nodeService).info(false, false, false, false, false, false,
-            true, false, false, false, false);
-
-        final TransportService transportService = new TransportService(settings,
-            mock(Transport.class),
-            mock(ThreadPool.class),
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> null,
-            null,
-            Collections.emptySet());
-
-        apiKeyGenerator = mock(ApiKeyGenerator.class);
-        key = new SecureString(randomAlphaOfLength(18).toCharArray());
-        final CreateApiKeyResponse createApiKeyResponse = new CreateApiKeyResponse(randomAlphaOfLengthBetween(6, 32),
-            randomAlphaOfLength(12), key, now.plusMillis(CreateEnrollmentToken.ENROLL_API_KEY_EXPIRATION_SEC*1000));
-
-        Mockito.doAnswer(inv -> {
-            final Object[] args = inv.getArguments();
-            assertThat(args, arrayWithSize(3));
-
-            assertThat(args[0], equalTo(authentication));
-
-            ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[args.length - 1];
-            listener.onResponse(createApiKeyResponse);
-
-            return null;
-        }).when(apiKeyGenerator).generateApiKey(any(Authentication.class), any(CreateApiKeyRequest.class), any(ActionListener.class));
-
-        createEnrollmentToken = new CreateEnrollmentToken(apiKeyGenerator, securityContext, environment, nodeService, sslService);
+        environment = new Environment(settings, tempDir);
     }
 
-    public void testCreate() {
+    public void testCreateSuccess() {
         try {
-            String token = createEnrollmentToken.create();
+            final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+            when(client.getDefaultURL()).thenReturn("http://localhost:9200");
+            final URL defaultUrl = new URL(client.getDefaultURL());
+            final URL createAPIKeyURL = CreateEnrollmentToken.createAPIKeyURL(defaultUrl);
+            final URL getHttpInfoURL = CreateEnrollmentToken.getHttpInfoURL(defaultUrl);
 
+            final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
+            when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+                any(CheckedFunction.class))).thenReturn(httpResponseOK);
+
+            String createApiKeyResponseBody;
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.startObject()
+                    .field("id", "DR6CzXkBDf8amV_48yYX")
+                    .field("name", "enrollment_token_API_key_VuaCfGcBCdbkQm")
+                    .field("expiration", "1622652381786")
+                    .field("api_key", "x3YqU_rqQwm-ESrkExcnOg")
+                    .endObject();
+                createApiKeyResponseBody = Strings.toString(builder);
+            }
+            when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedFunction.class)))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
+
+            String getHttpInfoResponseBody;
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.startObject()
+                    .startObject("nodes")
+                    .startObject("sxLDrFu8SnKepObrEOjPZQ")
+                    .field("version", "8.0.0")
+                    .startObject("http")
+                    .field("publish_address", "127.0.0.1:9200")
+                    .endObject().endObject().endObject().endObject();
+                getHttpInfoResponseBody = Strings.toString(builder);
+            }
+            when(client.execute(eq("GET"), eq(getHttpInfoURL), eq(ElasticUser.NAME), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedFunction.class)))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody));
+
+            final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
+
+            final String response = createEnrollmentToken.create(terminal, "elastic", new SecureString("elastic"));
+
+            final String version = response.substring(0, response.lastIndexOf("."));
+            final String token = response.substring(response.lastIndexOf(".") + 1);
+            assertEquals(version, "8.0.0");
             Map<String, String> info = getDecoded(token);
-            assertEquals("0", info.get("v"));
-            assertEquals(dummyBoundTransportAddress.publishAddress().toString(), info.get("adr"));
+            assertEquals("[127.0.0.1:9200]", info.get("adr"));
             assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", info.get("fgr"));
-            assertEquals(key.toString(), info.get("key"));
+            assertEquals("x3YqU_rqQwm-ESrkExcnOg", info.get("key"));
         } catch (Exception e) {
             logger.info("failed to create enrollment token ", e);
             fail("failed to create enrollment token");
         }
     }
 
+    public void testFailedCreateApiKey() {
+        try {
+            final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+            when(client.getDefaultURL()).thenReturn("http://localhost:9200");
+            final URL defaultUrl = new URL(client.getDefaultURL());
+            final URL createAPIKeyURL = CreateEnrollmentToken.createAPIKeyURL(defaultUrl);
+
+            final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
+            when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+                any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+
+            final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
+            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+                new SecureString("elastic")));
+            assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling POST "));
+        } catch (Exception e) {
+            logger.info("testFailedCreateApiKey failed", e);
+            fail("testFailedCreateApiKey failed");
+        }
+    }
+
+    public void testFailedRetrieveHttpInfo() {
+        try {
+            final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+            when(client.getDefaultURL()).thenReturn("http://localhost:9200");
+            final URL defaultUrl = new URL(client.getDefaultURL());
+            final URL createAPIKeyURL = CreateEnrollmentToken.createAPIKeyURL(defaultUrl);
+            final URL getHttpInfoURL = CreateEnrollmentToken.getHttpInfoURL(defaultUrl);
+
+            final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
+            when(client.execute(anyString(), any(URL.class), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+                any(CheckedFunction.class))).thenReturn(httpResponseOK);
+
+            String createApiKeyResponseBody;
+            try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+                builder.startObject()
+                    .field("id", "DR6CzXkBDf8amV_48yYX")
+                    .field("name", "enrollment_token_API_key_VuaCfGcBCdbkQm")
+                    .field("expiration", "1622652381786")
+                    .field("api_key", "x3YqU_rqQwm-ESrkExcnOg")
+                    .endObject();
+                createApiKeyResponseBody = Strings.toString(builder);
+            }
+            when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
+                any(CheckedSupplier.class), any(CheckedFunction.class)))
+                .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
+
+            final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
+            when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+                any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+
+            final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
+            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+                new SecureString("elastic")));
+            assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
+        } catch (Exception e) {
+            logger.info("testFailedRetrieveHttpInfo failed", e);
+            fail("testFailedRetrieveHttpInfo failed");
+        }
+    }
+
+    public void testSSLNotConfigured() {
+        try {
+            final Path tempDir = createTempDir();
+            final Path httpCaPath = tempDir.resolve("httpCa.p12");
+            Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "password");
+            final Settings settings = Settings.builder()
+                .put("xpack.security.enabled", true)
+                .put("xpack.http.ssl.enabled", true)
+                .put( "xpack.security.authc.api_key.enabled", true)
+                .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+                .put("xpack.security.http.ssl.enabled", true)
+                .setSecureSettings(secureSettings)
+                .put("path.home", tempDir)
+                .build();
+            final Environment environment = new Environment(settings, tempDir);
+            final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+
+            ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class,
+                () -> new CreateEnrollmentToken(environment, client));
+            assertThat(ex.getMessage(), Matchers.containsString("invalid SSL configuration"));
+        } catch (Exception e) {
+            logger.info("testSSLNotConfigured failed", e);
+            fail("testSSLNotConfigured failed");
+        }
+    }
+
     private Map<String, String> getDecoded(String token) throws IOException {
-        String jsonString = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
+        final String jsonString = new String(Base64.getDecoder().decode(token), StandardCharsets.UTF_8);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, jsonString)) {
-            Map<String, Object> info = parser.map();
+            final Map<String, Object> info = parser.map();
             assertNotEquals(info, null);
             return info.entrySet().stream()
                 .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().toString()));
         }
+    }
+
+    private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {
+        final HttpResponse.HttpResponseBuilder builder = new HttpResponse.HttpResponseBuilder();
+        builder.withHttpStatus(httpStatus);
+        builder.withResponseBody(responseJson);
+        return builder.build();
     }
 }

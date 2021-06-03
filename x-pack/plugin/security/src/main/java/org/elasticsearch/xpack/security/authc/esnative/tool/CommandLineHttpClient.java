@@ -131,7 +131,7 @@ public class CommandLineHttpClient {
         return responseBuilder.build();
     }
 
-    String getDefaultURL() {
+    public String getDefaultURL() {
         final Settings settings = env.settings();
         final String scheme = XPackSettings.HTTP_SSL_ENABLED.get(settings) ? "https" : "http";
         List<String> httpPublishHost = SETTING_HTTP_PUBLISH_HOST.get(settings);

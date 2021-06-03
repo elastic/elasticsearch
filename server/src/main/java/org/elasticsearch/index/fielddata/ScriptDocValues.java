@@ -273,28 +273,44 @@ public abstract class ScriptDocValues<T> extends AbstractList<T> {
         public void setNextDocId(int docId) throws IOException {
             if (in.advanceExact(docId)) {
                 resize(in.docValueCount());
-                double centroidLat = 0;
-                double centroidLon = 0;
-                double maxLon = Double.NEGATIVE_INFINITY;
-                double minLon = Double.POSITIVE_INFINITY;
-                double maxLat = Double.NEGATIVE_INFINITY;
-                double minLat = Double.POSITIVE_INFINITY;
-                for (int i = 0; i < count; i++) {
-                    GeoPoint point = in.nextValue();
-                    values[i].reset(point.lat(), point.lon());
-                    centroidLat += point.getLat();
-                    centroidLon += point.getLon();
-                    maxLon = Math.max(maxLon, values[i].getLon());
-                    minLon = Math.min(minLon, values[i].getLon());
-                    maxLat = Math.max(maxLat, values[i].getLat());
-                    minLat = Math.min(minLat, values[i].getLat());
+                if (count == 1) {
+                    setSingleValue();
+                } else {
+                    setMultiValue();
                 }
-                centroid.reset(centroidLat / count, centroidLon / count);
-                boundingBox.topLeft().reset(maxLat, minLon);
-                boundingBox.bottomRight().reset(minLat, maxLon);
             } else {
                 resize(0);
             }
+        }
+
+        private void setSingleValue() throws IOException {
+            GeoPoint point = in.nextValue();
+            values[0].reset(point.lat(), point.lon());
+            centroid.reset(point.lat(), point.lon());
+            boundingBox.topLeft().reset(point.lat(), point.lon());
+            boundingBox.bottomRight().reset(point.lat(), point.lon());
+        }
+
+        private void setMultiValue() throws IOException {
+            double centroidLat = 0;
+            double centroidLon = 0;
+            double maxLon = Double.NEGATIVE_INFINITY;
+            double minLon = Double.POSITIVE_INFINITY;
+            double maxLat = Double.NEGATIVE_INFINITY;
+            double minLat = Double.POSITIVE_INFINITY;
+            for (int i = 0; i < count; i++) {
+                GeoPoint point = in.nextValue();
+                values[i].reset(point.lat(), point.lon());
+                centroidLat += point.getLat();
+                centroidLon += point.getLon();
+                maxLon = Math.max(maxLon, values[i].getLon());
+                minLon = Math.min(minLon, values[i].getLon());
+                maxLat = Math.max(maxLat, values[i].getLat());
+                minLat = Math.min(minLat, values[i].getLat());
+            }
+            centroid.reset(centroidLat / count, centroidLon / count);
+            boundingBox.topLeft().reset(maxLat, minLon);
+            boundingBox.bottomRight().reset(minLat, maxLon);
         }
 
         /**

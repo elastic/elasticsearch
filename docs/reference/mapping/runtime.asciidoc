@@ -597,7 +597,6 @@ the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
 the original `_source`.
 
-[discrete]
 [[runtime-define-field-dayofweek]]
 ==== Define a runtime field to calculate the day of week
 For example, the following request adds a runtime field called `day_of_week`.
@@ -626,7 +625,6 @@ PUT my-index-000001/
 }
 ----
 
-[discrete]
 [[runtime-ingest-data]]
 ==== Ingest some data
 Let's ingest some sample data, which will result in two indexed fields:
@@ -660,7 +658,6 @@ POST /my-index-000001/_bulk?refresh
 ----
 //TEST[continued]
 
-[discrete]
 [[runtime-search-dayofweek]]
 ==== Search for the calculated day of week
 The following request uses the search API to retrieve the `day_of_week` field

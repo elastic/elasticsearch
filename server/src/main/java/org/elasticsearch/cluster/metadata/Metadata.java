@@ -1177,7 +1177,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public boolean put(String aliasName, String dataStream) {
+        public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream) {
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1193,14 +1193,23 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             DataStreamAlias alias = dataStreamAliases.get(aliasName);
             if (alias == null) {
-                alias = new DataStreamAlias(aliasName, List.of(dataStream));
+                String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
+                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream);
             } else {
                 Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
+                String writeDataStream = alias.getWriteDataStream();
+                if (isWriteDataStream == null || isWriteDataStream == false) {
+                    if (dataStream.equals(writeDataStream)) {
+                        writeDataStream = null;
+                    }
+                } else if (isWriteDataStream) {
+                    writeDataStream = dataStream;
+                }
                 boolean added = dataStreams.add(dataStream);
-                if (added == false) {
+                if (added == false && Objects.equals(alias.getWriteDataStream(), writeDataStream)) {
                     return false;
                 }
-                alias = new DataStreamAlias(aliasName, List.copyOf(dataStreams));
+                alias = new DataStreamAlias(aliasName, List.copyOf(dataStreams), writeDataStream);
             }
             dataStreamAliases.put(aliasName, alias);
 
@@ -1229,7 +1238,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     if (dataStreams.isEmpty()) {
                         aliasesToDelete.add(alias.getName());
                     } else {
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams)));
+                        String writeDataStream = alias.getWriteDataStream();
+                        if (dataStreams.contains(writeDataStream) == false) {
+                            writeDataStream = null;
+                        }
+                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams), writeDataStream));
                     }
                 }
             }
@@ -1261,8 +1274,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             if (dataStreams.isEmpty()) {
                 dataStreamAliases.remove(aliasName);
             } else {
+                String writeDataStream = existing.getWriteDataStream();
+                if (dataStreamName.equals(writeDataStream)) {
+                    writeDataStream = null;
+                }
                 dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams)));
+                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams), writeDataStream));
             }
 
             Map<String, DataStream> existingDataStream =
@@ -1521,8 +1538,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         .flatMap(ds -> ds.getIndices().stream())
                         .map(index -> indices.get(index.getName()))
                         .collect(Collectors.toList());
+                    IndexMetadata writeIndexOfWriteDataStream = null;
+                    if (alias.getWriteDataStream() != null) {
+                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
+                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
+                    }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams));
+                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
             }

@@ -160,6 +160,9 @@ public class RestGetAliasesAction extends BaseRestHandler {
                     {
                         for (DataStreamAlias alias : entry.getValue()) {
                             builder.startObject(alias.getName());
+                            if (entry.getKey().equals(alias.getWriteDataStream())) {
+                                builder.field("is_write_data_stream", true);
+                            }
                             builder.endObject();
                         }
                     }

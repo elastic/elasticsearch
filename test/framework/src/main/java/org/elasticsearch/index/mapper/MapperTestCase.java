@@ -701,6 +701,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         } else {
             expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.nullField("field"))));
         }
+
+        assertWarnings(getParseMinimalWarnings());
     }
 
     protected boolean allowsNullValues() {

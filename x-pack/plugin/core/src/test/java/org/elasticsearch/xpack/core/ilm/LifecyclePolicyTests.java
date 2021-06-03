@@ -123,7 +123,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             }
             phases.put(phase, new Phase(phase, after, actions));
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     public static LifecyclePolicy randomTimeseriesLifecyclePolicy(@Nullable String lifecycleName) {
@@ -203,7 +203,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         } else {
             phases.remove(TimeseriesLifecycleType.FROZEN_PHASE);
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     private static Function<String, Set<String>> getPhaseToValidActions() {
@@ -271,7 +271,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             String phaseName = randomAlphaOfLength(10);
             phases.put(phaseName, new Phase(phaseName, after, actions));
         }
-        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        return new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
     }
 
     @Override
@@ -299,7 +299,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases);
+        return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, name, phases, randomMeta());
     }
 
     @Override
@@ -311,7 +311,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Client client = mock(Client.class);
         lifecycleName = randomAlphaOfLengthBetween(1, 20);
         Map<String, Phase> phases = new LinkedHashMap<>();
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(2));
         assertThat(steps.get(0), instanceOf(InitializePolicyContextStep.class));
@@ -331,7 +331,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Map<String, LifecycleAction> actions = Collections.singletonMap(MockAction.NAME, firstAction);
         Phase firstPhase = new Phase("test", TimeValue.ZERO, actions);
         phases.put(firstPhase.getName(), firstPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
         StepKey firstStepKey = InitializePolicyContextStep.KEY;
         StepKey secondStepKey = PhaseCompleteStep.finalStep("new").getKey();
         List<Step> steps = policy.toSteps(client);
@@ -366,7 +366,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
         List<Step> steps = policy.toSteps(client);
         assertThat(steps.size(), equalTo(7));
@@ -395,7 +395,7 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         Phase secondPhase = new Phase("second_phase", TimeValue.ZERO, secondActions);
         phases.put(firstPhase.getName(), firstPhase);
         phases.put(secondPhase.getName(), secondPhase);
-        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases);
+        LifecyclePolicy policy = new LifecyclePolicy(TestLifecycleType.INSTANCE, lifecycleName, phases, randomMeta());
 
         assertTrue(policy.isActionSafe(new StepKey("first_phase", MockAction.NAME, randomAlphaOfLength(10))));
 
@@ -427,5 +427,18 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(0, 10) + "+" + randomAlphaOfLengthBetween(0, 10));
 
         LifecyclePolicy.validatePolicyName(randomAlphaOfLengthBetween(1, 255));
+    }
+
+    public static Map<String, Object> randomMeta() {
+        if (randomBoolean()) {
+            if (randomBoolean()) {
+                return Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4));
+            } else {
+                return Collections.singletonMap(randomAlphaOfLength(5),
+                    Collections.singletonMap(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            }
+        } else {
+            return null;
+        }
     }
 }

@@ -25,6 +25,11 @@ public class PassThroughProcessor implements NlpTask.Processor {
     }
 
     @Override
+    public void validateInputs(String inputs) {
+        // nothing to validate
+    }
+
+    @Override
     public NlpTask.RequestBuilder getRequestBuilder() {
         return bertRequestBuilder;
     }

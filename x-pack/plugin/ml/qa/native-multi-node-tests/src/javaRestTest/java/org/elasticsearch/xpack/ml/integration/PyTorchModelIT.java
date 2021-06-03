@@ -168,23 +168,20 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void startDeployment() throws IOException {
-//        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start");
-        Request request = new Request("POST", "/_ml/trained_models/deployment/" + MODEL_ID + "/_start");
+        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start");
         Response response = client().performRequest(request);
         logger.info("Start response: " + EntityUtils.toString(response.getEntity()));
     }
 
     private void stopDeployment() throws IOException {
-//        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_stop");
-        Request request = new Request("POST", "/_ml/trained_models/deployment/" + MODEL_ID + "/_stop");
+        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_stop");
         client().performRequest(request);
     }
 
     private Response infer(String input) throws IOException {
-//        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_infer");
-        Request request = new Request("POST", "/_ml/trained_models/deployment/" + MODEL_ID + "/_infer");
+        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_infer");
         request.setJsonEntity("{  " +
-            "\"input\": \"my words\"\n" +
+            "\"input\": \"" + input + "\"\n" +
             "}");
         return client().performRequest(request);
     }

@@ -334,7 +334,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         public Object format(GeoPoint point, String format) {
             GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(point.asGeometry());
+            return geometryFormat.toXContentAsObject(new Point(point.lon(), point.lat()));
         }
     }
 

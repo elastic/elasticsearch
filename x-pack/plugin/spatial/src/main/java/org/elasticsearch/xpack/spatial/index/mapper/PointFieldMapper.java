@@ -19,6 +19,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -214,7 +215,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         public Object format(CartesianPoint value, String format) {
             GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(value.asGeometry());
+            return geometryFormat.toXContentAsObject(new Point(value.getX(), value.getY()));
         }
     }
 }

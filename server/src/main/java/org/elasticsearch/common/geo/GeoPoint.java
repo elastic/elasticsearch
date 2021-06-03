@@ -208,10 +208,6 @@ public class GeoPoint implements ToXContentFragment {
         return Geohash.stringEncode(lon, lat);
     }
 
-    public Point asGeometry() {
-        return new Point(lon(), lat());
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -576,7 +576,8 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "regular_node"),
             equalTo(Collections.emptySet()));
         // No danger, because this is a "RESTART" type shutdown
-        assertThat(IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
+        assertThat("restart type shutdowns are not considered dangerous",
+            IndexLifecycleService.indicesOnShuttingDownNodesInDangerousStep(state, "shutdown_node"),
             equalTo(Collections.emptySet()));
 
         state = ClusterState.builder(state)

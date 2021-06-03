@@ -87,7 +87,16 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                         test.systemProperty("java.locale.providers", "SPI,JRE");
                     } else {
                         test.systemProperty("java.locale.providers", "SPI,COMPAT");
-                        test.jvmArgs("--illegal-access=warn");
+                        test.jvmArgs(
+                            "--illegal-access=deny",
+                            // TODO: only open these for mockito when it is modularized
+                            "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
+                            "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                            "--add-opens=java.base/java.net=ALL-UNNAMED",
+                            "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
+                            "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
+                            "--add-opens=java.base/java.time=ALL-UNNAMED"
+                        );
                     }
                 }
             });

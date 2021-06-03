@@ -44,7 +44,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `end`::
     (Optional, string) Specifies to get events with timestamps earlier than this
-    time. Defaults to `null`, which means it is unset and results are not
+    time. Defaults to unset, which means results are not
     limited to specific timestamps.
 
 `from`::

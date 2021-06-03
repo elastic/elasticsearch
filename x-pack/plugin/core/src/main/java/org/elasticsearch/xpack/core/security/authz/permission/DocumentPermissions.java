@@ -92,7 +92,7 @@ public final class DocumentPermissions implements CacheKey {
      * @throws IOException thrown if there is an exception during parsing
      */
     public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                                      Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
+                               Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
         if (hasDocumentLevelPermissions()) {
             BooleanQuery.Builder filter;
             if (queries != null && limitedByQueries != null) {

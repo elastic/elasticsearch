@@ -188,6 +188,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
     public FieldPermissions limitFieldPermissions(FieldPermissions limitedBy) {
         if (hasFieldLevelSecurity() && limitedBy != null && limitedBy.hasFieldLevelSecurity()) {
             Automaton permittedFieldsAutomaton = Automatons.intersectAndMinimize(getIncludeAutomaton(), limitedBy.getIncludeAutomaton());
+            // The concatenation and subsequent is only safe when we are be sure each field permission only has
+            // a single definition. Otherwise, it is not obvious where the boundary is between field permission and limitedBy.
+            if (fieldPermissionsDefinitions == null || fieldPermissionsDefinitions.length != 1) {
+                throw new IllegalStateException("expect field permission with single definition, but found ["
+                    + Arrays.toString(fieldPermissionsDefinitions) + "]");
+            }
+            if (limitedBy.fieldPermissionsDefinitions == null || limitedBy.fieldPermissionsDefinitions.length != 1) {
+                throw new IllegalStateException("expect limitedBy field permission with single definition, but found ["
+                    + Arrays.toString(limitedBy.fieldPermissionsDefinitions) + "]");
+            }
             return new FieldPermissions(
                 ArrayUtils.concat(fieldPermissionsDefinitions, limitedBy.fieldPermissionsDefinitions, FieldPermissionsDefinition.class),
                 permittedFieldsAutomaton);

@@ -298,7 +298,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
         this.snapshotCommitSuppliers = snapshotCommitSuppliers;
-        this.requestCacheKeyDifferentiators = requestCacheKeyDifferentiators;
+        this.requestCacheKeyDifferentiators = List.copyOf(requestCacheKeyDifferentiators);
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a

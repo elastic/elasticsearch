@@ -29,11 +29,13 @@ public final class MlTasks {
     public static final String DATAFEED_TASK_NAME = "xpack/ml/datafeed";
     public static final String DATA_FRAME_ANALYTICS_TASK_NAME = "xpack/ml/data_frame/analytics";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_NAME = "xpack/ml/job/snapshot/upgrade";
+    public static final String TRAINED_MODEL_DEPLOYMENT_TASK_NAME = "xpack/ml/trained_model/deployment";
 
     public static final String JOB_TASK_ID_PREFIX = "job-";
     public static final String DATAFEED_TASK_ID_PREFIX = "datafeed-";
     public static final String DATA_FRAME_ANALYTICS_TASK_ID_PREFIX = "data_frame_analytics-";
     public static final String JOB_SNAPSHOT_UPGRADE_TASK_ID_PREFIX = "job-snapshot-upgrade-";
+    public static final String TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX = "trained_model_deployment-";
 
     public static final PersistentTasksCustomMetadata.Assignment AWAITING_UPGRADE =
         new PersistentTasksCustomMetadata.Assignment(null,
@@ -91,6 +93,10 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
+    public static String trainedModelDeploymentTaskId(String modelId) {
+        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + modelId;
+    }
+
     @Nullable
     public static PersistentTasksCustomMetadata.PersistentTask<?> getJobTask(String jobId, @Nullable PersistentTasksCustomMetadata tasks) {
         return tasks == null ? null : tasks.getTask(jobTaskId(jobId));
@@ -113,6 +119,12 @@ public final class MlTasks {
                                                                                           String snapshotId,
                                                                                           @Nullable PersistentTasksCustomMetadata tasks) {
         return tasks == null ? null : tasks.getTask(snapshotUpgradeTaskId(jobId, snapshotId));
+    }
+
+    @Nullable
+    public static PersistentTasksCustomMetadata.PersistentTask<?> getTrainedModelDeploymentTask(
+            String modelId, @Nullable PersistentTasksCustomMetadata tasks) {
+        return tasks == null ? null : tasks.getTask(trainedModelDeploymentTaskId(modelId));
     }
 
     /**

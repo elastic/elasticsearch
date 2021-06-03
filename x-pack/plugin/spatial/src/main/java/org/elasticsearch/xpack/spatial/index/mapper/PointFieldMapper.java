@@ -158,7 +158,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value()).init(this);
     }
 
-    public static class PointFieldType extends AbstractGeometryFieldType implements ShapeQueryable {
+    public static class PointFieldType extends AbstractGeometryFieldType<CartesianPoint> implements ShapeQueryable {
 
         private final ShapeQueryPointProcessor queryProcessor;
 

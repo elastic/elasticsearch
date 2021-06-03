@@ -100,7 +100,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         IGNORE_MALFORMED_SETTING.get(c.getSettings()),
         COERCE_SETTING.get(c.getSettings())));
 
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry>
         implements ShapeQueryable {
 
         private final ShapeQueryProcessor queryProcessor;

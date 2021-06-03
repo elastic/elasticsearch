@@ -219,7 +219,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return CONTENT_TYPE;
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
         private static final GeometryParser PARSER = new GeometryParser(true, true, true);
         private final FieldValues<GeoPoint> scriptValues;

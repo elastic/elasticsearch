@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -1131,6 +1132,21 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             "the shard cannot remain on this node because it is above the high watermark cluster setting" +
                 " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node," +
                 " actual free: [20.0%]"));
+    }
+
+    public void testSingleDataNodeDeprecationWarning() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+
+        assertThat(e.getCause().getMessage(),
+            equalTo("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is not allowed," +
+                " only true is valid"));
+
+        assertSettingDeprecationsAndWarnings(new Setting<?>[]{ DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE });
     }
 
     public void testDiskThresholdWithSnapshotShardSizes() {

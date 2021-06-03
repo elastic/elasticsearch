@@ -26,9 +26,11 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,11 +68,22 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdDecider.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiskThresholdDecider.class);
 
     public static final String NAME = "disk_threshold";
 
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE =
-        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false, Setting.Property.NodeScope);
+        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", true,
+            new Setting.Validator<>() {
+                @Override
+                public void validate(Boolean value) {
+                    if (value == Boolean.FALSE) {
+                        throw new SettingsException("setting [{}=false] is not allowed, only true is valid",
+                            ENABLE_FOR_SINGLE_DATA_NODE.getKey());
+                    }
+                }
+            },
+            Setting.Property.NodeScope, Setting.Property.Deprecated);
 
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS =
         Setting.boolSetting("index.routing.allocation.disk.watermark.ignore", false,

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
@@ -78,7 +79,7 @@ public class CartesianPoint implements ToXContentFragment {
                     X_FIELD.getPreferredName(),
                     x);
             }
-         } catch (NumberFormatException ex) {
+        } catch (NumberFormatException ex) {
             throw new ElasticsearchParseException("[{}]] must be a number", X_FIELD.getPreferredName());
         }
         try {
@@ -160,7 +161,7 @@ public class CartesianPoint implements ToXContentFragment {
         double y = Double.NaN;
         NumberFormatException numberFormatException = null;
 
-        if(parser.currentToken() == XContentParser.Token.START_OBJECT) {
+        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             try (XContentSubParser subParser = new XContentSubParser(parser)) {
                 while (subParser.nextToken() != XContentParser.Token.END_OBJECT) {
                     if (subParser.currentToken() == XContentParser.Token.FIELD_NAME) {
@@ -201,7 +202,7 @@ public class CartesianPoint implements ToXContentFragment {
                                 case VALUE_NUMBER:
                                 case VALUE_STRING:
                                     try {
-                                         CartesianPoint.assertZValue(ignoreZvalue, subParser.doubleValue(true));
+                                        CartesianPoint.assertZValue(ignoreZvalue, subParser.doubleValue(true));
                                     } catch (NumberFormatException e) {
                                         numberFormatException = e;
                                     }
@@ -220,7 +221,7 @@ public class CartesianPoint implements ToXContentFragment {
                     }
                 }
             }
-           if (numberFormatException != null) {
+            if (numberFormatException != null) {
                 throw new ElasticsearchParseException("[{}] and [{}] must be valid double values", numberFormatException,
                     X_FIELD.getPreferredName(),
                     Y_FIELD.getPreferredName());
@@ -232,7 +233,7 @@ public class CartesianPoint implements ToXContentFragment {
                 return point.reset(x, y);
             }
 
-        } else if(parser.currentToken() == XContentParser.Token.START_ARRAY) {
+        } else if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
             try (XContentSubParser subParser = new XContentSubParser(parser)) {
                 int element = 0;
                 while (subParser.nextToken() != XContentParser.Token.END_ARRAY) {
@@ -252,7 +253,7 @@ public class CartesianPoint implements ToXContentFragment {
                 }
             }
             return point.reset(x, y);
-        } else if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+        } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
             String val = parser.text();
             return point.resetFromString(val, ignoreZvalue);
         } else {
@@ -288,5 +289,9 @@ public class CartesianPoint implements ToXContentFragment {
                 zValue);
         }
         return zValue;
+    }
+
+    public Point asGeometry() {
+        return new Point(getX(), getY());
     }
 }

@@ -437,7 +437,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         }
         return filtered;
-
     }
 
     /**

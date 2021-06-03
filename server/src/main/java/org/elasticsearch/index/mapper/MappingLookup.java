@@ -160,9 +160,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
-            ? null
-            : new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
+        this.indexTimeLookup = new FieldTypeLookup(mapping.type(), mappers, aliasMappers, emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -300,26 +298,6 @@ public final class MappingLookup {
      */
     public Set<String> getMatchingFieldNames(String pattern) {
         return fieldTypeLookup.getMatchingFieldNames(pattern);
-    }
-
-    /**
-     * Returns all the mapped field types that match a pattern
-     *
-     * Note that if a field is aliased and both its actual name and its alias
-     * match the pattern, the returned collection will contain the field type
-     * twice.
-     *
-     * @param pattern the pattern to match field names against
-     */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        return fieldTypeLookup.getMatchingFieldTypes(pattern);
-    }
-
-    /**
-     * @return all mapped field types
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return fieldTypeLookup.getMatchingFieldTypes("*");
     }
 
     /**

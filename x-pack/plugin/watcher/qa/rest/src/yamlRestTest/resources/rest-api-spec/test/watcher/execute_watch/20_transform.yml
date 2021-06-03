@@ -140,7 +140,6 @@ setup:
 
 ---
 "Test execute watch api with misconfigured search transform on failure":
-
   - do:
       indices.create:
         index: my_test_index

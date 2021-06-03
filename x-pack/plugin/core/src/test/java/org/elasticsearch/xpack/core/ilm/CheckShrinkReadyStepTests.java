@@ -331,7 +331,7 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
         assertNull(actualResult.getInfomationContext());
     }
 
-    public void testStepBecomesUncompletable() {
+    public void testStepCompletableIfAllShardsActive() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder()
@@ -349,6 +349,57 @@ public class CheckShrinkReadyStepTests extends AbstractStepTestCase<CheckShrinkR
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
+
+        CheckShrinkReadyStep step = createRandomInstance();
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)
+            .numberOfReplicas(1).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata> builder().fPut(index.getName(),
+            indexMetadata);
+
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder()
+                .indices(indices.build())
+                .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Collections.singletonMap("node1",
+                    SingleNodeShutdownMetadata.builder()
+                        .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                        .setStartedAtMillis(randomNonNegativeLong())
+                        .setReason("test")
+                        .setNodeId("node1")
+                        .build()))))
+            .nodes(DiscoveryNodes.builder()
+                .add(DiscoveryNode.createLocal(Settings.builder().put(node1Settings.build())
+                        .put(Node.NODE_NAME_SETTING.getKey(), "node1").build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    "node1"))
+                .add(DiscoveryNode.createLocal(Settings.builder().put(node2Settings.build())
+                        .put(Node.NODE_NAME_SETTING.getKey(), "node2").build(),
+                    new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    "node2")))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        assertTrue(step.isCompletable());
+        ClusterStateWaitStep.Result actualResult = step.isConditionMet(index, clusterState);
+        assertTrue(actualResult.isComplete());
+        assertTrue(step.isCompletable());
+    }
+
+    public void testStepBecomesUncompletable() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
+        Settings.Builder existingSettings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+        Settings.Builder expectedSettings = Settings.builder();
+        Settings.Builder node1Settings = Settings.builder();
+        Settings.Builder node2Settings = Settings.builder();
+        requires.forEach((k, v) -> {
+            existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
+            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
+            node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
+        });
+
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.INITIALIZING));
 
         CheckShrinkReadyStep step = createRandomInstance();
         IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)

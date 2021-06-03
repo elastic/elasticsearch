@@ -79,12 +79,6 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
             .map(singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
             .orElse(false);
 
-        if (nodeBeingRemoved) {
-            completable = false;
-            return new Result(false, new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn +
-                "] is currently marked as shutting down for removal"));
-        }
-
         final IndexRoutingTable routingTable = clusterState.getRoutingTable().index(index);
         int foundShards = 0;
         for (ShardRouting shard : routingTable.shardsWithState(ShardRoutingState.STARTED)) {
@@ -102,6 +96,12 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
                 index, expectedShardCount, idShardsShouldBeOn, getKey().getAction());
             return new Result(true, null);
         } else {
+            if (nodeBeingRemoved) {
+                completable = false;
+                return new Result(false, new SingleMessageFieldInfo("node with id [" + idShardsShouldBeOn +
+                    "] is currently marked as shutting down for removal"));
+            }
+
             logger.trace("{} failed to find {} allocated shards (found {}) on node [{}] for shrink readiness ({})",
                 index, expectedShardCount, foundShards, idShardsShouldBeOn, getKey().getAction());
             return new Result(false, new CheckShrinkReadyStep.Info(idShardsShouldBeOn, expectedShardCount,

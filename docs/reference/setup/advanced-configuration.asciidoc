@@ -113,7 +113,7 @@ memory on the host.
 * Set `Xms` and `Xmx` to no more than the threshold for compressed ordinary
 object pointers (oops). The exact threshold varies but 26GB is safe on most
 systems and can be as large as 30GB on some systems. To verify you are under the
-threshold, check `elasticsearch.logs` for an entry like this:
+threshold, check the {es} log for an entry like this:
 +
 [source,txt]
 ----

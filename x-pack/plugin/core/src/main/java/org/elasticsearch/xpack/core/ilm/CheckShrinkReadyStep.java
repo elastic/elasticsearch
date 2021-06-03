@@ -75,8 +75,8 @@ public class CheckShrinkReadyStep extends ClusterStateWaitStep {
 
         boolean nodeBeingRemoved = NodesShutdownMetadata.getShutdowns(clusterState)
             .map(NodesShutdownMetadata::getAllNodeMetadataMap)
-            .map(nmm -> nmm.get(idShardsShouldBeOn))
-            .map(snsm -> snsm.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
+            .map(shutdownMetadataMap -> shutdownMetadataMap.get(idShardsShouldBeOn))
+            .map(singleNodeShutdown -> singleNodeShutdown.getType() == SingleNodeShutdownMetadata.Type.REMOVE)
             .orElse(false);
 
         if (nodeBeingRemoved) {

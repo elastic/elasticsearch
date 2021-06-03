@@ -40,6 +40,7 @@ subprojects {
     user username: "test_admin", password: "x-pack-test-password"
     user username: "user1", password: 'x-pack-test-password', role: "user1"
     user username: "user2", password: 'x-pack-test-password', role: "user2"
+    user username: "manage_user", password: 'x-pack-test-password', role: "manage_user"
   }
 
   File testArtifactsDir = project.file("$buildDir/testArtifacts")

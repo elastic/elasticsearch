@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
+import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -101,6 +102,24 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
+    // user with manage privilege can check status and delete
+    public void testWithManager() throws IOException {
+        Response submitResp = submitAsyncSqlSearch("SELECT event_type FROM \"index\" WHERE val=0", TimeValue.timeValueSeconds(10), "user1");
+        assertOK(submitResp);
+        String id = extractResponseId(submitResp);
+        Response getResp = getAsyncSqlSearch(id, "user1");
+        assertOK(getResp);
+
+        Response getStatus = getAsyncSqlStatus(id, "manage_user");
+        assertOK(getStatus);
+        Map<String, Object> status = BaseRestSqlTestCase.toMap(getStatus, null);
+        assertEquals(200, status.get("completion_status"));
+
+        Response deleteResp = deleteAsyncSqlSearch(id, "manage_user");
+        assertOK(deleteResp);
+
+    }
+
     static String extractResponseId(Response response) throws IOException {
         Map<String, Object> map = toMap(response);
         return (String) map.get("id");
@@ -148,6 +167,14 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
         final Request request = new Request("GET", "/_sql/async/" + id);
         setRunAsHeader(request, user);
         request.addParameter("wait_for_completion_timeout", "0ms");
+        request.addParameter("format", "json");
+        return client().performRequest(request);
+    }
+
+    static Response getAsyncSqlStatus(String id, String user) throws IOException {
+        final Request request = new Request("GET", "/_sql/async/status/" + id);
+        setRunAsHeader(request, user);
+        request.addParameter("format", "json");
         return client().performRequest(request);
     }
 

@@ -1,3 +1,4 @@
+import org.apache.tools.ant.taskdefs.condition.Os
 
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.java'
@@ -5,4 +6,8 @@ apply plugin: 'elasticsearch.java'
 dependencies {
     internalClusterTestImplementation testArtifact(project(':plugins:repository-gcs'), 'internalClusterTest')
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:repository-encrypted'), 'test')
+}
+
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  tasks.named("internalClusterTest").configure {enabled = false }
 }

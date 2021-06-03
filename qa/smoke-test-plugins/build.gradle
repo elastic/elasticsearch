@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -38,4 +40,8 @@ tasks.named("processTestResources").configure {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
+}
+
+if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+  tasks.named("integTest").configure {enabled = false }
 }

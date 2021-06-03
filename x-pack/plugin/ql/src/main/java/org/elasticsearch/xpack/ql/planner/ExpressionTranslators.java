@@ -274,12 +274,20 @@ public final class ExpressionTranslators {
         }
 
         @SuppressWarnings("rawtypes")
+        /*
+         * This method is only meant to be used by a BinaryComparison or InsensitiveBinaryComparison (in EQL).
+         * To not duplicate code in QL and EQL because of the method signature, BinaryPredicate (as a common base class of
+         * both BinaryComparison and InsensitiveBinaryComparison) is used.
+         * 
+         * The method covers the use of multiple fields inside arithmetic operations, be it usage standalone (as FieldAttribute)
+         * or inside Functions. This covers the scenario length(first_name) + length(last_name) > 10, for example.
+         * An expression of the form concat(first_name, last_name) is not rejected.
+         */
         public static void checkFieldsUsageInArithmeticOperation(ArithmeticOperation a, BinaryPredicate bc) {
             Set<FieldAttribute> leftFields = collectFields(a.left(), bc);
             Set<FieldAttribute> rightFields = collectFields(a.right(), bc);
-            boolean containsAll = (leftFields.size() > rightFields.size() && leftFields.containsAll(rightFields))
-                || (leftFields.size() < rightFields.size() && rightFields.containsAll(leftFields))
-                || leftFields.containsAll(rightFields);
+            boolean containsAll = (leftFields.size() >= rightFields.size() && leftFields.containsAll(rightFields))
+                || (leftFields.size() < rightFields.size() && rightFields.containsAll(leftFields));
 
             if (containsAll == false) {
                 Expression firstOffender = leftFields.toArray(new FieldAttribute[1])[0];

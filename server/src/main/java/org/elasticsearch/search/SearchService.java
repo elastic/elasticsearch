@@ -61,6 +61,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -184,6 +185,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ResponseCollectorService responseCollectorService;
 
+    private final ExecutorSelector executorSelector;
+
     private final BigArrays bigArrays;
 
     private final DfsPhase dfsPhase = new DfsPhase();
@@ -219,7 +222,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService) {
+                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService,
+                         ExecutorSelector executorSelector) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -231,6 +235,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.executorSelector = executorSelector;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -540,7 +545,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
-            executorName = Names.SYSTEM_READ;
+            executorName = executorSelector.executorForSearch(indexShard.shardId().getIndexName());
         } else if (indexShard.indexSettings().isSearchThrottled()) {
             executorName = Names.SEARCH_THROTTLED;
         } else {

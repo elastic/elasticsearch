@@ -47,6 +47,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -1313,6 +1314,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                      .setOrigin(SECURITY_ORIGIN)
                      .build()
              ))
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 
@@ -1327,6 +1329,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
              .setVersionMetaKey(SECURITY_VERSION_STRING)
              .setOrigin(SECURITY_ORIGIN)
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 

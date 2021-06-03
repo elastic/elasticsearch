@@ -125,15 +125,17 @@ Every new backing index is an opportunity to further tune your strategy.
 
 [discrete]
 [[shard-size-recommendation]]
-==== Aim for shard sizes between 10GB and 65GB
+==== Aim for shard sizes between 10GB and 50GB
 
-Shards larger than 65GB may make a cluster less likely to recover from failure.
-When a node fails, {es} rebalances the node's shards across the data tier's
-remaining nodes. Larger shards can be harder to move across a network and may
-tax node resources.
+Large shards may make a cluster less likely to recover from failure. When a node
+fails, {es} rebalances the node's shards across the data tier's remaining nodes.
+Large shards can be harder to move across a network and may tax node resources.
+
+While not a hard limit, shards between 10GB and 50GB tend to work well. You may
+be able to use larger shards depending on your network and use case.
 
 If you use {ilm-init}, set the <<ilm-rollover,rollover action>>'s
-`max_primary_shard_size` threshold to `65gb` to avoid larger shards.
+`max_primary_shard_size` threshold to `50gb` to avoid shards larger than 50GB.
 
 To see the current size of your shards, use the <<cat-shards,cat shards API>>.
 
@@ -149,12 +151,12 @@ the index.
 [source,txt]
 ----
 index                                 prirep shard store
-.ds-my-data-stream-2099.05.06-000001  p      0      65gb
+.ds-my-data-stream-2099.05.06-000001  p      0      50gb
 ...
 ----
 // TESTRESPONSE[non_json]
 // TESTRESPONSE[s/\.ds-my-data-stream-2099\.05\.06-000001/my-index-000001/]
-// TESTRESPONSE[s/65gb/.*/]
+// TESTRESPONSE[s/50gb/.*/]
 
 [discrete]
 [[shard-count-recommendation]]

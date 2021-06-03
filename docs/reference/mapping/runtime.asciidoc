@@ -764,8 +764,6 @@ address.
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
 
-[source-console]
-
 [[runtime-indexed]]
 === Index a runtime field
 Runtime fields are defined by the context where they run. For example, you

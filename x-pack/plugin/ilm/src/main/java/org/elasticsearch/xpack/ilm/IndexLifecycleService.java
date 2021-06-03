@@ -409,23 +409,25 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = StreamSupport.stream(state.metadata().indices().spliterator(), false)
             // Filter out to only consider managed indices
-            .filter(c -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(c.value.getSettings())))
+            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.value.getSettings())))
             // Only look at indices in the shrink action
-            .filter(c -> ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(c.value).getAction()))
+            .filter(indexToMetadata ->
+                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getAction()))
             // Only look at indices on a step that may potentially be dangerous if we removed the node
-            .filter(c -> {
-                String step = LifecycleExecutionState.fromIndexMetadata(c.value).getStep();
+            .filter(indexToMetadata -> {
+                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getStep();
                 return SetSingleNodeAllocateStep.NAME.equals(step) ||
                     CheckShrinkReadyStep.NAME.equals(step) ||
                     ShrinkStep.NAME.equals(step) ||
                     ShrunkShardsAllocatedStep.NAME.equals(step);
             })
             // Only look at indices where the node picked for the shrink is the node marked as shutting down
-            .filter(c -> {
-                String nodePicked = c.value.getSettings().get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id");
+            .filter(indexToMetadata -> {
+                String nodePicked = indexToMetadata.value.getSettings()
+                    .get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id");
                 return nodeId.equals(nodePicked);
             })
-            .map(c -> c.key)
+            .map(indexToMetadata -> indexToMetadata.key)
             .collect(Collectors.toSet());
         logger.trace("with nodes marked as shutdown for removal {}, indices {} are preventing shutdown",
             shutdownNodes, indicesPreventingShutdown);

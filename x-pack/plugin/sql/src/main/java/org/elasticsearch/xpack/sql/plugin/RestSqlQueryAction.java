@@ -18,6 +18,7 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
@@ -78,32 +79,36 @@ public class RestSqlQueryAction extends BaseRestHandler {
         }
 
         long startNanos = System.nanoTime();
-        return channel -> client.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<SqlQueryResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
-                RestResponse restResponse;
+        return channel -> {
+            RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new RestResponseListener<>(channel) {
+                @Override
+                public RestResponse buildResponse(SqlQueryResponse response) throws Exception {
+                    RestResponse restResponse;
 
-                // XContent branch
-                if (responseMediaType instanceof XContentType) {
-                    XContentType type = (XContentType) responseMediaType;
-                    XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
-                    response.toXContent(builder, request);
-                    restResponse = new BytesRestResponse(RestStatus.OK, builder);
-                } else { // TextFormat
-                    TextFormat type = (TextFormat) responseMediaType;
-                    final String data = type.format(request, response);
+                    // XContent branch
+                    if (responseMediaType instanceof XContentType) {
+                        XContentType type = (XContentType) responseMediaType;
+                        XContentBuilder builder = channel.newBuilder(request.getXContentType(), type, true);
+                        response.toXContent(builder, request);
+                        restResponse = new BytesRestResponse(RestStatus.OK, builder);
+                    } else { // TextFormat
+                        TextFormat type = (TextFormat) responseMediaType;
+                        final String data = type.format(request, response);
 
-                    restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request), data.getBytes(StandardCharsets.UTF_8));
+                        restResponse = new BytesRestResponse(RestStatus.OK, type.contentType(request),
+                            data.getBytes(StandardCharsets.UTF_8));
 
-                    if (response.hasCursor()) {
-                        restResponse.addHeader("Cursor", response.cursor());
+                        if (response.hasCursor()) {
+                            restResponse.addHeader("Cursor", response.cursor());
+                        }
                     }
-                }
 
-                restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
-                return restResponse;
-            }
-        });
+                    restResponse.addHeader("Took-nanos", Long.toString(System.nanoTime() - startNanos));
+                    return restResponse;
+                }
+            });
+        };
     }
 
     @Override

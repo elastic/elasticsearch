@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
@@ -70,6 +71,7 @@ public class SystemIndices {
     private final Predicate<String> systemDataStreamAutomaton;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
+    private final ExecutorSelector executorSelector;
 
     /**
      * Initialize the SystemIndices object
@@ -84,6 +86,7 @@ public class SystemIndices {
         this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
+        this.executorSelector = new ExecutorSelector(this);
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -500,7 +503,7 @@ public class SystemIndices {
         private final String description;
         private final Collection<SystemIndexDescriptor> indexDescriptors;
         private final Collection<SystemDataStreamDescriptor> dataStreamDescriptors;
-        private final Collection<String> associatedIndexPatterns;
+        private final Collection<AssociatedIndexDescriptor> associatedIndexDescriptors;
         private final TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction;
 
         /**
@@ -508,19 +511,19 @@ public class SystemIndices {
          * @param description Description of the feature
          * @param indexDescriptors Collection of objects describing system indices for this feature
          * @param dataStreamDescriptors Collection of objects describing system data streams for this feature
-         * @param associatedIndexPatterns Patterns describing associated indices
+         * @param associatedIndexDescriptors Collection of objects describing associated indices for this feature
          * @param cleanUpFunction A function that will clean up the feature's state
          */
         public Feature(
             String description,
             Collection<SystemIndexDescriptor> indexDescriptors,
             Collection<SystemDataStreamDescriptor> dataStreamDescriptors,
-            Collection<String> associatedIndexPatterns,
+            Collection<AssociatedIndexDescriptor> associatedIndexDescriptors,
             TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> cleanUpFunction) {
             this.description = description;
             this.indexDescriptors = indexDescriptors;
             this.dataStreamDescriptors = dataStreamDescriptors;
-            this.associatedIndexPatterns = associatedIndexPatterns;
+            this.associatedIndexDescriptors = associatedIndexDescriptors;
             this.cleanUpFunction = cleanUpFunction;
         }
 
@@ -563,8 +566,8 @@ public class SystemIndices {
             return dataStreamDescriptors;
         }
 
-        public Collection<String> getAssociatedIndexPatterns() {
-            return associatedIndexPatterns;
+        public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+            return associatedIndexDescriptors;
         }
 
         public TriConsumer<ClusterService, Client, ActionListener<ResetFeatureStateStatus>> getCleanUpFunction() {
@@ -574,24 +577,24 @@ public class SystemIndices {
         /**
          * Clean up the state of a feature
          * @param indexDescriptors List of descriptors of a feature's system indices
-         * @param associatedIndexPatterns List of patterns of a feature's associated indices
+         * @param associatedIndexDescriptors List of descriptors of a feature's associated indices
          * @param name Name of the feature, used in logging
          * @param clusterService A clusterService, for retrieving cluster metadata
          * @param client A client, for issuing delete requests
          * @param listener A listener to return success or failure of cleanup
          */
         public static void cleanUpFeature(
-            Collection<SystemIndexDescriptor> indexDescriptors,
-            Collection<String> associatedIndexPatterns,
+            Collection<? extends IndexPatternMatcher> indexDescriptors,
+            Collection<? extends IndexPatternMatcher> associatedIndexDescriptors,
             String name,
             ClusterService clusterService,
             Client client,
             ActionListener<ResetFeatureStateStatus> listener) {
-            Stream<String> systemIndices = indexDescriptors.stream()
-                .map(sid -> sid.getMatchingIndices(clusterService.state().getMetadata()))
-                .flatMap(List::stream);
+            Metadata metadata = clusterService.state().getMetadata();
 
-            List<String> allIndices = Stream.concat(systemIndices, associatedIndexPatterns.stream())
+            List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
+                .map(descriptor -> descriptor.getMatchingIndices(metadata))
+                .flatMap(List::stream)
                 .collect(Collectors.toList());
 
             if (allIndices.isEmpty()) {
@@ -620,7 +623,12 @@ public class SystemIndices {
         return new Feature(plugin.getFeatureDescription(),
             plugin.getSystemIndexDescriptors(settings),
             plugin.getSystemDataStreamDescriptors(),
-            plugin.getAssociatedIndexPatterns(),
+            plugin.getAssociatedIndexDescriptors(),
             plugin::cleanUpFeature);
     }
+
+    public ExecutorSelector getExecutorSelector() {
+        return executorSelector;
+    }
+
 }

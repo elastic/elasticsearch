@@ -8,10 +8,14 @@
 
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.util.GradleUtils;
+import org.gradle.api.JavaVersion;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.testing.Test;
 
 public class InternalClusterTestPlugin implements Plugin<Project> {
 
@@ -19,7 +23,15 @@ public class InternalClusterTestPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);
+        TaskProvider<Test> internalClusterTest = GradleUtils.addTestSourceSet(project, SOURCE_SET_NAME);
+        internalClusterTest.configure(task -> {
+            // Set GC options to mirror defaults in jvm.options
+            if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_14) < 0) {
+                task.jvmArgs("-XX:+UseConcMarkSweepGC", "-XX:CMSInitiatingOccupancyFraction=75", "-XX:+UseCMSInitiatingOccupancyOnly");
+            } else {
+                task.jvmArgs("-XX:+UseG1GC");
+            }
+        });
 
         // TODO: fix usages of IT tests depending on Tests methods so this extension is not necessary
         GradleUtils.extendSourceSet(project, SourceSet.TEST_SOURCE_SET_NAME, SOURCE_SET_NAME);

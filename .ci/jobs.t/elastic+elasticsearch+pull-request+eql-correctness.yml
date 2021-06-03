@@ -20,7 +20,7 @@
           cancel-builds-on-update: true
           white-list-target-branches:
             - %BRANCH%
-            - ^feature/.*
+            - ^feat(ure)?/.*
           excluded-regions:
             - ^docs/.*
           black-list-labels:

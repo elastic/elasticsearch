@@ -122,8 +122,9 @@ public class NerResultProcessorTests extends ESTestCase {
     private static NerResultProcessor createProcessor(List<String> vocab, String input){
         BertTokenizer tokenizer = BertTokenizer.builder(vocab)
             .setDoLowerCase(true)
+            .setWithSpecialTokens(false)
             .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input, false);
+        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
         return new NerResultProcessor(tokenizationResult);
     }
 }

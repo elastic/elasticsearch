@@ -140,6 +140,19 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         this.subjectShards = new HashSet<>(randomSubsetOf(randomIntBetween(1, shardIds.size()), shardIds));
     }
 
+    @Override
+    protected List<String> filteredWarnings() {
+        return Stream.concat(
+            super.filteredWarnings().stream(),
+            Stream.of(
+                "[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+                "[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch "
+                    + "and will be removed in a future release! See the breaking changes documentation for the next major version."
+            )
+        ).collect(Collectors.toList());
+    }
+
     public void testStoragePreventsAllocation() {
         ClusterState lastState = null;
         int maxRounds = state.getRoutingNodes().unassigned().size() + 3; // (allocated + start + detect-same)

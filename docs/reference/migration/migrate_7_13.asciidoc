@@ -140,6 +140,17 @@ settings API] to set `action.destructive_requires_name` to `false` to avoid
 errors in 8.0.0.
 ====
 
+[[slow-log-level-removal]]
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed.
+[%collapsible]
+====
+*Details* +
+`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
+by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
+all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
+====
+
 [discrete]
 [[breaking_713_eql_deprecations]]
 ==== EQL deprecations

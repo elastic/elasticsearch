@@ -283,19 +283,19 @@ public class IndexDeprecationChecks {
     static DeprecationIssue indexingSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
         return slowLogSettingCheck(indexMetadata, IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
     }
+
     static DeprecationIssue searchSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
         return slowLogSettingCheck(indexMetadata, SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
     }
-
 
     private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting) {
         if (setting.exists(indexMetadata.getSettings())) {
             final String message = String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
-            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/master/release-notes-8.0.0-alpha1.html";
-            //TODO fix url
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html" +
+                "#slow-log-level-removal";
 
-            final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds",
+            final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
                 setting.getKey());
             return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details);
         }

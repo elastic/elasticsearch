@@ -28,6 +28,8 @@ public class Task {
      */
     public static final String X_OPAQUE_ID = "X-Opaque-Id";
 
+    public static final String TRACE_PARENT = "traceparent";
+
     private final long id;
 
     private final String type;

@@ -109,11 +109,19 @@ public final class ThreadContext implements Writeable {
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * Otherwise when context is stash, it should be empty.
          */
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
-            threadLocal.set(threadContextStruct);
-        } else {
+
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
+            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+                ThreadContextStruct threadContextStruct =
+                    DEFAULT_CONTEXT.putHeaders(Map.of(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID)));
+                threadLocal.set(threadContextStruct);
+            } if (context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
+                ThreadContextStruct threadContextStruct =
+                    DEFAULT_CONTEXT.putHeaders(Map.of(Task.TRACE_PARENT, context.requestHeaders.get(Task.TRACE_PARENT)));
+                threadLocal.set(threadContextStruct);
+            }
+        }
+        else {
             threadLocal.set(DEFAULT_CONTEXT);
         }
         return () -> {

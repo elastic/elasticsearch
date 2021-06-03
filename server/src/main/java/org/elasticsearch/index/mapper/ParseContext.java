@@ -427,6 +427,8 @@ public abstract class ParseContext {
 
         @Override
         public void addDynamicMapper(Mapper mapper) {
+            // eagerly check field name limit here to avoid OOM errors
+            mappingLookup.checkFieldLimit(indexSettings.getMappingTotalFieldsLimit(), dynamicMappers.size() + 1);
             if (mapper instanceof ObjectMapper) {
                 dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
             }

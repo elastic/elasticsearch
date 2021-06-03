@@ -1,4 +1,4 @@
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 
 evaluationDependsOn(xpackModule('core'))
 
@@ -20,6 +20,7 @@ dependencies {
 }
 
 // AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  tasks.named("internalClusterTest").configure {enabled = false }
+tasks.named("internalClusterTest").configure {
+  onlyIf { OS.current() != OS.WINDOWS }
 }
+

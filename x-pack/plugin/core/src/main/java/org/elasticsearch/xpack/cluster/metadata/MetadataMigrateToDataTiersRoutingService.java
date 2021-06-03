@@ -40,6 +40,7 @@ import java.util.TreeMap;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 
 /**
@@ -89,8 +90,13 @@ public final class MetadataMigrateToDataTiersRoutingService {
                                                                                   @Nullable String nodeAttrName,
                                                                                   @Nullable String indexTemplateToDelete,
                                                                                   NamedXContentRegistry xContentRegistry, Client client) {
-        Metadata.Builder mb = Metadata.builder(currentState.metadata());
+        IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
+            throw new IllegalStateException("stop ILM before migrating to data tiers, current state is [" +
+                currentMetadata.getOperationMode() + "]");
+        }
 
+        Metadata.Builder mb = Metadata.builder(currentState.metadata());
         String removedIndexTemplateName = null;
         if (Strings.isNullOrEmpty(indexTemplateToDelete) == false &&
             currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {

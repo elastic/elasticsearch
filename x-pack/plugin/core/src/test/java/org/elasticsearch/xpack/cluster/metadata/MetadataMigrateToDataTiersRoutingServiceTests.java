@@ -46,6 +46,7 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -84,7 +85,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
+                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
             .put(IndexMetadata.builder(indexName).settings(getBaseIndexSettings())).build())
             .build();
 
@@ -141,7 +142,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.RUNNING))
+                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
             .put(indexMetadata).build())
             .build();
 
@@ -336,7 +337,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
                 Map.of(policyToMigrate.getName(), policyWithDataAttribute, shouldntBeMigratedPolicy.getName(), policyWithOtherAttribute),
-                OperationMode.RUNNING))
+                OperationMode.STOPPED))
             .put(IndexTemplateMetadata.builder("catch-all").patterns(List.of("*"))
                 .settings(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot"))
                 .build())
@@ -394,6 +395,40 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
             IndexMetadata migratedIndex = migratedEntitiesTuple.v1().metadata().index("indexWitWarmDataAttribute");
             assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+        }
+    }
+
+    public void testMigrateToDataTiersRoutingRequiresILMStopped() {
+        {
+            ClusterState ilmRunningState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Map.of(), OperationMode.RUNNING)))
+                .build();
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client));
+            assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
+        }
+
+        {
+            ClusterState ilmStoppingState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Map.of(), OperationMode.STOPPING)))
+                .build();
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
+                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client));
+            assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
+        }
+
+        {
+            ClusterState ilmStoppedState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Map.of(), OperationMode.STOPPED)))
+                .build();
+            Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(ilmStoppedState, "data", "catch-all",
+                REGISTRY, client);
+            assertThat(migratedState.v2().migratedIndices, empty());
+            assertThat(migratedState.v2().migratedPolicies, empty());
+            assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
         }
     }
 

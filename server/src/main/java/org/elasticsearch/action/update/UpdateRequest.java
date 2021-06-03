@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -114,6 +115,18 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     private boolean docAsUpsert = false;
     private boolean detectNoop = true;
     private boolean requireAlias = false;
+
+    private final AbstractRefCounted refCounted = new AbstractRefCounted("update-request") {
+        @Override
+        protected void closeInternal() {
+            if (doc != null) {
+                doc.decRef();
+            }
+            if (upsertRequest != null) {
+                upsertRequest.decRef();
+            }
+        }
+    };
 
     @Nullable
     private IndexRequest doc;
@@ -826,6 +839,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
     }
 
     private void doWrite(StreamOutput out, boolean thin) throws IOException {
+        assert refCounted.refCount() > 0;
         waitForActiveShards.writeTo(out);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeString(MapperService.SINGLE_MAPPING_NAME);
@@ -951,5 +965,20 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest>
             childRequestBytes += upsertRequest.ramBytesUsed();
         }
         return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id) + childRequestBytes;
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
     }
 }

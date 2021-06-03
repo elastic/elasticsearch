@@ -278,6 +278,9 @@ class BulkPrimaryExecutionContext {
         assert translatedResponse.getItemId() == getCurrentItem().id();
 
         if (translatedResponse.isFailed() == false && requestToExecute != null && requestToExecute != getCurrent())  {
+            // we swap out the request at #currentIndex so we have to adjust ref counts accordingly
+            requestToExecute.incRef();
+            request.items()[currentIndex].decRef();
             request.items()[currentIndex] = new BulkItemRequest(request.items()[currentIndex].id(), requestToExecute);
         }
         getCurrentItem().setPrimaryResponse(translatedResponse);

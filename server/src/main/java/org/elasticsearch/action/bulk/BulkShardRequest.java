@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -30,6 +31,19 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     private final BulkItemRequest[] items;
 
+    private final AbstractRefCounted refCounted = new AbstractRefCounted("bulk-shard-request") {
+        @Override
+        protected void closeInternal() {
+            for (int i = 0; i < items.length; i++) {
+                BulkItemRequest item = items[i];
+                if (item != null) {
+                    item.decRef();
+                    items[i] = null;
+                }
+            }
+        }
+    };
+
     public BulkShardRequest(StreamInput in) throws IOException {
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
@@ -42,6 +56,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     public long totalSizeInBytes() {
+        assert refCounted.refCount() > 0;
         long totalSizeInBytes = 0;
         for (int i = 0; i < items.length; i++) {
             DocWriteRequest<?> request = items[i].request();
@@ -60,11 +75,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
     }
 
     public BulkItemRequest[] items() {
+        assert refCounted.refCount() > 0;
         return items;
     }
 
     @Override
     public String[] indices() {
+        assert refCounted.refCount() > 0;
         // A bulk shard request encapsulates items targeted at a specific shard of an index.
         // However, items could be targeting aliases of the index, so the bulk request although
         // targeting a single concrete index shard might do so using several alias names.
@@ -82,6 +99,7 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        assert refCounted.refCount() > 0;
         super.writeTo(out);
         out.writeArray((o, item) -> {
             if (item != null) {
@@ -129,11 +147,13 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     protected BulkShardRequest routedBasedOnClusterVersion(long routedBasedOnClusterVersion) {
+        assert refCounted.refCount() > 0;
         return super.routedBasedOnClusterVersion(routedBasedOnClusterVersion);
     }
 
     @Override
     public void onRetry() {
+        assert refCounted.refCount() > 0;
         for (BulkItemRequest item : items) {
             if (item.request() instanceof ReplicationRequest) {
                 // all replication requests need to be notified here as well to ie. make sure that internal optimizations are
@@ -145,6 +165,22 @@ public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> i
 
     @Override
     public long ramBytesUsed() {
+        assert refCounted.refCount() > 0;
         return SHALLOW_SIZE + Stream.of(items).mapToLong(Accountable::ramBytesUsed).sum();
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
     }
 }

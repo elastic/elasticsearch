@@ -121,6 +121,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public long ramBytesUsed() {
+        assert refCount() > 0;
         return delegate.ramBytesUsed();
     }
 

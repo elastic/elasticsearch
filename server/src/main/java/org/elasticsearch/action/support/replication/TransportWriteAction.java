@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
@@ -171,17 +172,28 @@ public abstract class TransportWriteAction<
     @Override
     protected void shardOperationOnPrimary(
             Request request, IndexShard primary, ActionListener<PrimaryResult<ReplicaRequest, Response>> listener) {
-        threadPool.executor(executorFunction.apply(primary)).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
-            }
+        request.incRef();
+        final Releasable releasable = Releasables.releaseOnce(request::decRef);
+        boolean success = false;
+        try {
+            threadPool.executor(executorFunction.apply(primary)).execute(
+                    new ActionRunnable<>(ActionListener.runAfter(listener, releasable::close)) {
+                        @Override
+                        protected void doRun() {
+                            dispatchedShardOperationOnPrimary(request, primary, listener);
+                        }
 
-            @Override
-            public boolean isForceExecution() {
-                return force(request);
+                        @Override
+                        public boolean isForceExecution() {
+                            return force(request);
+                        }
+                    });
+            success = true;
+        } finally {
+            if (success == false) {
+                releasable.close();
             }
-        });
+        }
     }
 
     protected abstract void dispatchedShardOperationOnPrimary(
@@ -196,17 +208,29 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                dispatchedShardOperationOnReplica(request, replica, listener);
-            }
+        request.incRef();
+        final Releasable releasable = Releasables.releaseOnce(request::decRef);
+        boolean success = false;
+        try {
+            threadPool.executor(executorFunction.apply(replica)).execute(new ActionRunnable<>(
+                    ActionListener.runAfter(listener, releasable::close)) {
+                @Override
+                protected void doRun() {
+                    dispatchedShardOperationOnReplica(request, replica, listener);
+                }
 
-            @Override
-            public boolean isForceExecution() {
-                return true;
+                @Override
+                public boolean isForceExecution() {
+                    return true;
+                }
+            });
+            success = true;
+        } finally {
+            if (success == false) {
+                assert false : "execution should always start because of forced execution";
+                releasable.close();
             }
-        });
+        }
     }
 
     protected abstract void dispatchedShardOperationOnReplica(

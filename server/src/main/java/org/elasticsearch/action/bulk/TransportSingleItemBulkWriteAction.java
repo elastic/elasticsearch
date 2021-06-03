@@ -18,6 +18,8 @@ import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 
@@ -38,7 +40,17 @@ public abstract class TransportSingleItemBulkWriteAction<
 
     @Override
     protected void doExecute(Task task, final Request request, final ActionListener<Response> listener) {
-        bulkAction.execute(task, toSingleItemBulkRequest(request), wrapBulkResponse(listener));
+        final BulkRequest bulkRequest = toSingleItemBulkRequest(request);
+        final Releasable releaseBytes = Releasables.releaseOnce(bulkRequest::decRef);
+        boolean success = false;
+        try {
+            bulkAction.execute(task, bulkRequest, ActionListener.runAfter(wrapBulkResponse(listener), releaseBytes::close));
+            success = true;
+        } finally {
+            if (success == false) {
+                releaseBytes.close();
+            }
+        }
     }
 
     public static <Response extends ReplicationResponse & WriteResponse>

@@ -748,25 +748,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void wipeAllIndices() throws IOException {
+        final String[] indicesToIgnore = new String[] {
+            // ignore ilm history which can pop up after deleting all data streams but shouldn't interfere
+            ".ds-ilm-history-*"
+        };
+
+        // delete system indices
+        final Request postRequest = new Request("POST", "/_features/_reset");
+        adminClient().performRequest(postRequest);
+
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
-            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
+            final Request deleteRequest = new Request("DELETE", "*,-" + String.join(",-", indicesToIgnore));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
-            RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> {
-                    if (warnings.size() == 0) {
-                        return false;
-                    } else if (warnings.size() > 1) {
-                        return true;
-                    }
-                    // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                    final String warning = warnings.get(0);
-                    final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                        && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                    return isSystemIndexWarning == false;
-                }).build();
-            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));

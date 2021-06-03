@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class VariablesTests extends ESTestCase {
-    public void testCreateCtxModel() throws Exception {
+    public void testCreateCtxModel() {
         ZonedDateTime scheduledTime = ZonedDateTime.now(ZoneOffset.UTC);
         ZonedDateTime triggeredTime = scheduledTime.toInstant().plusMillis(50).atZone(ZoneOffset.UTC);
         ZonedDateTime executionTime = triggeredTime.toInstant().plusMillis(50).atZone(ZoneOffset.UTC);

@@ -1,8 +1,8 @@
 
 include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 
-:lucene_version:        8.7.0
-:lucene_version_path:   8_7_0
+:lucene_version:        8.9.0
+:lucene_version_path:   8_9_0
 :jdk:                   11.0.2
 :jdk_major:             11
 :build_flavor:          default
@@ -15,7 +15,8 @@ include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 ///////
 Javadoc roots used to generate links from Painless's API reference
 ///////
-:java11-javadoc: https://docs.oracle.com/en/java/javase/11/docs/api
+:javadoc:             https://docs.oracle.com/en/java/javase/{jdk_major}/docs/api
+:java11-javadoc:      https://docs.oracle.com/en/java/javase/11/docs/api
 :lucene-core-javadoc: https://lucene.apache.org/core/{lucene_version_path}/core
 
 ifeval::["{release-state}"=="unreleased"]

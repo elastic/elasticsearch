@@ -18,6 +18,13 @@ indices.
 
 `GET /_cat/recovery`
 
+[[cat-recovery-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-recovery-api-desc]]
 ==== {api-description-title}
@@ -33,13 +40,9 @@ include::{es-repo-dir}/indices/recovery.asciidoc[tag=shard-recovery-desc]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-recovery-query-params]]
 ==== {api-query-parms-title}
@@ -73,7 +76,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v
+GET _cat/recovery?v=true
 ----------------------------------------------------------------------------
 // TEST[setup:my_index]
 
@@ -102,7 +105,7 @@ host the replicas, you can retrieve information about an ongoing recovery.
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
 // TEST[setup:my_index]
 
@@ -132,7 +135,7 @@ snapshot recovery.
 
 [source,console]
 --------------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
 --------------------------------------------------------------------------------
 // TEST[skip:no need to execute snapshot/restore here]
 

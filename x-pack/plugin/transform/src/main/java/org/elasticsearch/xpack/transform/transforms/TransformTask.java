@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.transform.transforms;
@@ -174,6 +175,9 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             if (context.getChangesLastDetectedAt() != null) {
                 infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
             }
+            if (context.getLastSearchTime() != null) {
+                infoBuilder.setLastSearchTime(context.getLastSearchTime());
+            }
             listener.onResponse(infoBuilder.build());
         }, listener::onFailure);
 
@@ -342,7 +346,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
 
         // If state was in a failed state, we should stop immediately
         if (wasFailed) {
-            getIndexer().stopAndSaveState();
+            getIndexer().stopAndMaybeSaveState();
             return;
         }
 
@@ -359,10 +363,7 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
         // or has yet to even start one.
         // Either way, this means that we won't get to have onFinish called down stream (or at least won't for some time).
             (indexerState == IndexerState.STARTED && getIndexer().initialRun())) {
-            IndexerState state = getIndexer().stop();
-            if (state == IndexerState.STOPPED) {
-                getIndexer().stopAndSaveState();
-            }
+            getIndexer().stopAndMaybeSaveState();
         }
     }
 

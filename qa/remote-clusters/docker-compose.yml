@@ -16,6 +16,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
@@ -30,6 +31,7 @@ services:
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem
@@ -68,6 +70,7 @@ services:
        - cluster.routing.allocation.disk.watermark.high=1b
        - cluster.routing.allocation.disk.watermark.flood_stage=1b
        - node.store.allow_mmap=false
+       - ingest.geoip.downloader.enabled=false
        - xpack.security.enabled=true
        - xpack.security.transport.ssl.enabled=true
        - xpack.security.http.ssl.enabled=true
@@ -82,6 +85,7 @@ services:
        - xpack.http.ssl.verification_mode=certificate
        - xpack.security.transport.ssl.verification_mode=certificate
        - xpack.license.self_generated.type=trial
+       - action.destructive_requires_name=false
     volumes:
        - ./build/repo:/tmp/es-repo
        - ./build/certs/testnode.pem:/usr/share/elasticsearch/config/testnode.pem

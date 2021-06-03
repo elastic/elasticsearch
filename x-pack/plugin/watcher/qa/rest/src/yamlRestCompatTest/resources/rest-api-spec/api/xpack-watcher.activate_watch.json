@@ -1,0 +1,34 @@
+{
+  "xpack-watcher.activate_watch":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-activate-watch.html",
+      "description":"Activates a currently inactive watch."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/watcher/watch/{watch_id}/_activate",
+          "methods":[
+            "PUT",
+            "POST"
+          ],
+          "parts":{
+            "watch_id":{
+              "type":"string",
+              "description":"Watch ID"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    }
+  }
+}

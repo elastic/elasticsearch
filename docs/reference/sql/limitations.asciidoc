@@ -196,22 +196,13 @@ indexed with some loss of precision from the original values (4.190951585769653E
 Therefore calling `ST_Z` function in the filtering, grouping or sorting will return `null`.
 
 [discrete]
-[[fields-from-source]]
-=== Retrieving from `_source`
+[[using-fields-api]]
+=== Retrieving using the `fields` search parameter
 
-Most of {es-sql}'s columns are retrieved from the document's `_source` and there is no attempt to get the columns content from
-`docvalue_fields` not even in the case <<mapping-source-field,`_source`>> field is disabled in the mapping explicitly.
-If a column, for which there is no source stored, is asked for in a query, {es-sql} will not return it. Field types that don't follow
-this restriction are: `keyword`, `date`, `scaled_float`, `geo_point`, `geo_shape` since they are NOT returned from `_source` but
-from `docvalue_fields`.
-
-[discrete]
-[[fields-from-docvalues]]
-=== Retrieving from `docvalue_fields`
-
-When the number of columns retrievable from `docvalue_fields` is greater than the configured <<dynamic-index-settings,`index.max_docvalue_fields_search` setting>>
-the query will fail with `IllegalArgumentException: Trying to retrieve too many docvalue_fields` error. Either the mentioned {es}
-setting needs to be adjusted or fewer columns retrievable from `docvalue_fields` need to be selected.
+{es-sql} retrieves column values using the <<search-fields-param,search API's
+`fields` parameter>>. Any limitations on the `fields` parameter also apply to
+{es-sql} queries. For example, if `_source` is disabled
+for any of the returned fields or at index level, the values cannot be retrieved.
 
 [discrete]
 [[aggs-in-pivot]]

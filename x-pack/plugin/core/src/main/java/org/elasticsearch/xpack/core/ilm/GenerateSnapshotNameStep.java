@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
@@ -36,7 +37,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
 
     public static final String NAME = "generate-snapshot-name";
 
-    private static final Logger logger = LogManager.getLogger(CreateSnapshotStep.class);
+    private static final Logger logger = LogManager.getLogger(GenerateSnapshotNameStep.class);
 
     private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_RESOLVER =
         new IndexNameExpressionResolver.DateMathExpressionResolver();
@@ -78,11 +79,17 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
         newCustomData.setSnapshotName(snapshotName);
         newCustomData.setSnapshotRepository(snapshotRepository);
+        newCustomData.setSnapshotIndexName(index.getName());
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetaData);
         indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap());
         newClusterStateBuilder.metadata(Metadata.builder(clusterState.getMetadata()).put(indexMetadataBuilder));
         return newClusterStateBuilder.build();
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override
@@ -132,7 +139,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false, false);
+            super(null, null, startTime, false, false, false, false, name -> false);
         }
 
         @Override

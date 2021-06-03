@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ccr;
 
@@ -17,12 +18,14 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -250,6 +253,52 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 assertThat(tasks.size(), equalTo(0));
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
+        }
+    }
+
+    public void testUnPromoteAndFollowDataStream() throws Exception {
+        if ("follow".equals(targetCluster) == false) {
+            return;
+        }
+
+        var numDocs = 64;
+        var dataStreamName = "logs-eu-monitor1";
+        var dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
+
+        // Setup
+        {
+            createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
+        }
+        // Create data stream and ensure that is is auto followed
+        {
+            try (var leaderClient = buildLeaderClient()) {
+                for (var i = 0; i < numDocs; i++) {
+                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"@timestamp\": \"" + dateFormat.format(new Date()) + "\",\"message\":\"abc\"}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDataStream(leaderClient, dataStreamName, backingIndexName(dataStreamName, 1));
+                verifyDocuments(leaderClient, dataStreamName, numDocs);
+            }
+            assertBusy(() -> {
+                verifyDataStream(client(), dataStreamName, backingIndexName(dataStreamName, 1));
+                ensureYellow(dataStreamName);
+                verifyDocuments(client(), dataStreamName, numDocs);
+            });
+        }
+        // promote and unfollow
+        {
+            var promoteRequest = new Request("POST", "/_data_stream/_promote/" + dataStreamName);
+            assertOK(client().performRequest(promoteRequest));
+            // Now that the data stream is a non replicated data stream, rollover.
+            var rolloverRequest = new Request("POST", "/" +  dataStreamName + "/_rollover");
+            assertOK(client().performRequest(rolloverRequest));
+            // Unfollow .ds-logs-eu-monitor1-000001,
+            // which is now possible because this index can now be closed as it is no longer the write index.
+            pauseFollow(backingIndexName(dataStreamName, 1));
+            closeIndex(backingIndexName(dataStreamName, 1));
+            unfollow(backingIndexName(dataStreamName, 1));
         }
     }
 

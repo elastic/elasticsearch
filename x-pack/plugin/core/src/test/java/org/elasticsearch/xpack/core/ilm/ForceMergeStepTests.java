@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ilm;
 
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -77,19 +78,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        SetOnce<Boolean> completed = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                completed.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("unexpected method call", e);
-            }
-        });
-        assertThat(completed.get(), equalTo(true));
+        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, null, null, f)));
     }
 
     public void testPerformActionThrowsException() {
@@ -113,19 +102,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         }).when(indicesClient).forceMerge(any(), any());
 
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, maxNumSegments);
-        SetOnce<Boolean> exceptionThrown = new SetOnce<>();
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
-            @Override
-            public void onResponse(boolean complete) {
-                throw new AssertionError("unexpected method call");
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assertEquals(exception, e);
-                exceptionThrown.set(true);
-            }
-        });
-        assertThat(exceptionThrown.get(), equalTo(true));
+        assertSame(exception, expectThrows(Exception.class, () -> PlainActionFuture.<Boolean, Exception>get(
+            f -> step.performAction(indexMetadata, null, null, f))));
     }
 }

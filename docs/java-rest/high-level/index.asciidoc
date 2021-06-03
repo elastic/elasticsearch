@@ -5,7 +5,6 @@
 
 [partintro]
 --
-added[6.0.0-beta1]
 
 The Java High Level REST Client works on top of the Java Low Level REST client.
 Its main goal is to expose API specific methods, that accept request objects as

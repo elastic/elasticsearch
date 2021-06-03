@@ -195,8 +195,9 @@ class DerParser {
          * @return A parser for the construct.
          */
         public DerParser getParser() throws IOException {
-            if (!isConstructed())
+            if (isConstructed() == false) {
                 throw new IOException("Invalid DER: can't parse primitive entity"); //$NON-NLS-1$
+            }
 
             return new DerParser(value);
         }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.planner;
 
@@ -295,9 +296,9 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertTrue(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "").contains(
-                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
-                        +
-            "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
+                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(" +
+                    "InternalQlScriptUtils.nullSafeCastNumeric(params.a0,params.v0),params.v1))\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"INTEGER\",\"v1\":10}},"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
         assertThat(ee.output().get(1).toString(), startsWith("max(int){r}"));
@@ -507,7 +508,7 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
         assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
     }
-    
+
     public void testPivotHasSameQueryAsGroupBy() {
         final Map<String, String> aggFnsWithMultipleArguments = Map.of(
             "PERCENTILE", "PERCENTILE(int, 0)",

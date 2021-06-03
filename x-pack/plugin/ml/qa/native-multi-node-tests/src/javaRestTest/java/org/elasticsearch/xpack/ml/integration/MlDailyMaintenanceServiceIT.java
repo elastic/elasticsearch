@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -25,7 +26,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -44,8 +44,7 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     public void setUpMocks() {
         jobConfigProvider = new JobConfigProvider(client(), xContentRegistry());
         threadPool = mock(ThreadPool.class);
-        ExecutorService directExecutorService = EsExecutors.newDirectExecutorService();
-        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(directExecutorService);
+        when(threadPool.executor(ThreadPool.Names.SAME)).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
     }
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {
@@ -111,7 +110,6 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
                     new DataDescription.Builder()
                         .setTimeFormat("epoch"));
 
-        registerJob(job);
         putJob(job);
     }
 

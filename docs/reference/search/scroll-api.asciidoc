@@ -48,6 +48,13 @@ deprecated:[7.0.0]
 
 `POST /_search/scroll`
 
+[[scroll-api-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
 [[scroll-api-desc]]
 ==== {api-description-title}
 
@@ -62,7 +69,9 @@ parameter indicates how long {es} should retain the
 
 The search response returns a scroll ID in the `_scroll_id` response body
 parameter. You can then use the scroll ID with the scroll API to retrieve the
-next batch of results for the request.
+next batch of results for the request. If the {es} {security-features} are enabled,
+the access to the results of a specific scroll ID is restricted to
+<<can-access-resources-check,the user or API key that submitted the search>>.
 
 You can also use the scroll API to specify a new `scroll` parameter that extends
 or shortens the retention period for the search context.

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless;
@@ -110,7 +99,7 @@ public class FunctionRef {
                 isDelegateInterface = false;
                 isDelegateAugmented = false;
                 delegateInvokeType = H_INVOKESTATIC;
-                delegateMethodName = localFunction.getFunctionName();
+                delegateMethodName = localFunction.getMangledName();
                 delegateMethodType = localFunction.getMethodType();
                 delegateInjections = new Object[0];
 
@@ -159,7 +148,10 @@ public class FunctionRef {
                                 "not found");
                     }
                 } else if (captured) {
-                    throw new IllegalStateException("internal error");
+                    throw new IllegalArgumentException(
+                            "cannot use a static method as a function reference " +
+                            "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
+                            "with a non-static captured variable");
                 }
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
@@ -176,6 +168,20 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
+
+                // interfaces that override a method from Object receive the method handle for
+                // Object rather than for the interface; we change the first parameter to match
+                // the interface type so the constant interface method reference is correctly
+                // written to the constant pool
+                if (delegateInvokeType != H_INVOKESTATIC &&
+                        painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
+                    if (painlessMethod.methodType.parameterType(0) != Object.class) {
+                        throw new IllegalStateException("internal error");
+                    }
+                    
+                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
+                }
+
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
                 delegateMethodReturnType = painlessMethod.returnType;

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.assembler;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.eql.execution.search.extractor.FieldHitExtractor;
+import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
 import org.elasticsearch.xpack.eql.execution.search.extractor.TimestampFieldHitExtractor;
 import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
 import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
@@ -58,6 +60,8 @@ public class ExecutionManager {
         // fields
         HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
         HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
+        // implicit tiebreake, present only in the response and which doesn't have a corresponding field
+        HitExtractor itbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
         // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
         String timestampName = Expressions.name(timestamp);
 
@@ -92,7 +96,7 @@ public class ExecutionManager {
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields);
                 Criterion<BoxedQueryRequest> criterion =
-                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, i == 0 && descending);
+                        new Criterion<>(i, boxedRequest, keyExtractors, tsExtractor, tbExtractor, itbExtractor, i == 0 && descending);
                 criteria.add(criterion);
             } else {
                 // until

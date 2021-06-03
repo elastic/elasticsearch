@@ -18,17 +18,20 @@ which have not yet been removed by the merge process.
 
 `GET /_cat/count`
 
+[[cat-count-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for any data stream, index, or alias
+you retrieve.
 
 [[cat-count-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-count-api-query-params]]
 ==== {api-query-parms-title}
@@ -55,7 +58,7 @@ The following `count` API request retrieves the document count for the
 
 [source,console,id=cat-count-individual-example]
 --------------------------------------------------
-GET /_cat/count/my-index-000001?v
+GET /_cat/count/my-index-000001?v=true
 --------------------------------------------------
 // TEST[setup:my_index_big]
 
@@ -77,7 +80,7 @@ streams and indices in the cluster.
 
 [source,console,id=cat-count-all-example]
 --------------------------------------------------
-GET /_cat/count?v
+GET /_cat/count?v=true
 --------------------------------------------------
 // TEST[setup:my_index_big]
 // TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]

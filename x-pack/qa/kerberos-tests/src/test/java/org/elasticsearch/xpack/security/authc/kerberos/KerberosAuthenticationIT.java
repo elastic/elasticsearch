@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.security.authc.kerberos;
@@ -90,6 +91,8 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+        assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17-ea".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_KEYTAB_KEY);
         final String keytabPath = System.getProperty(TEST_USER_WITH_KEYTAB_PATH_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -99,6 +102,8 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+        assumeFalse("This test fails often on Java 17 early access. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17-ea".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
@@ -108,6 +113,8 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     }
 
     public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+        assumeFalse("This test fails often on Java 17. See: https://github.com/elastic/elasticsearch/issues/72120",
+            "17-ea".equals(System.getProperty("java.version")));
         final String userPrincipalName = System.getProperty(TEST_USER_WITH_PWD_KEY);
         final String password = System.getProperty(TEST_USER_WITH_PWD_PASSWD_KEY);
         final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));

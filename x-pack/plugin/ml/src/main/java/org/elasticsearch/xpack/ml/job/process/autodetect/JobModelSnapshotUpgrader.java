@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.process.autodetect;
@@ -189,7 +190,13 @@ public final class JobModelSnapshotUpgrader {
                     fieldIndexes.put(field, index++);
                 }
             }
-            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index);
+            // field for categorization tokens
+            if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA && job.getAnalysisConfig().getCategorizationFieldName() != null) {
+                fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
+            }
+
+            // control field
+            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index++);
             return fieldIndexes;
         }
 

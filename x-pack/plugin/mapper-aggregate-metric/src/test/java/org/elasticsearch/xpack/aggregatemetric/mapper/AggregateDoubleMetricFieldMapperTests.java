@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
@@ -96,6 +97,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     @Override
     protected Object getSampleValueForQuery() {
         return 50.0;
+    }
+
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
     }
 
     /**
@@ -526,5 +532,23 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
         assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
         assertDocValuesField(fields, "field." + defaultMetric);
         assertNoFieldNamesField(fields);
+    }
+
+    @Override
+    protected Object generateRandomInputValue(MappedFieldType ft) {
+        assumeFalse("Test implemented in a follow up", true);
+        return null;
+    }
+
+    public void testCannotBeUsedInMultifields() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(fieldMapping(b -> {
+            b.field("type", "keyword");
+            b.startObject("fields");
+            b.startObject("metric");
+            minimalMapping(b);
+            b.endObject();
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("Field [metric] of type [aggregate_metric_double] can't be used in multifields"));
     }
 }

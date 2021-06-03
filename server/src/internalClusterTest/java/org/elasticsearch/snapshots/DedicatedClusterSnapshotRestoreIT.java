@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.snapshots;
@@ -22,6 +11,7 @@ package org.elasticsearch.snapshots;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -30,7 +20,9 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -39,14 +31,16 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.node.Node;
@@ -82,6 +76,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -97,6 +92,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -454,6 +450,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                     assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
+                } finally {
+                    CloseableChannel.closeChannel(clusterStateRequest.getHttpChannel());
                 }
                 clusterStateLatch.countDown();
             }
@@ -593,7 +591,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     public void testSnapshotWithDateMath() {
         final String repo = "repo";
 
-        final IndexNameExpressionResolver nameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
+        final IndexNameExpressionResolver nameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         final String snapshotName = "<snapshot-{now/d}>";
 
         logger.info("-->  creating repository");
@@ -987,10 +985,92 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         awaitNoMoreRunningOperations();
         SnapshotInfo snapshotInfo = getSnapshot(repoName, "test-snap");
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.PARTIAL));
-        assertThat(snapshotInfo.shardFailures().size(), greaterThan(0));
+        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
         logger.info("--> done");
     }
+
+    public void testPartialSnapshotsDoNotRecordDeletedShardFailures() throws Exception {
+        internalCluster().startMasterOnlyNodes(1);
+        final String dataNode = internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+
+        final String firstIndex = "index-one";
+        createIndexWithContent(firstIndex);
+        final String secondIndex = "index-two";
+        createIndexWithContent(secondIndex);
+
+        final String snapshot = "snapshot-one";
+        blockDataNode(repoName, dataNode);
+        final ActionFuture<CreateSnapshotResponse> snapshotResponse = startFullSnapshot(repoName, snapshot, true);
+        waitForBlock(dataNode, repoName);
+
+        assertAcked(client().admin().indices().prepareDelete(firstIndex));
+
+        unblockNode(repoName, dataNode);
+
+        SnapshotInfo snapshotInfo = assertSuccessful(snapshotResponse);
+        assertThat(snapshotInfo.shardFailures(), empty());
+    }
+
+    public void testDeleteIndexDuringSnapshot() throws Exception {
+        final String indexName = "test-idx";
+        assertAcked(prepareCreate(indexName, 1, indexSettingsNoReplicas(1)));
+        ensureGreen();
+        indexRandomDocs(indexName, 100);
+
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+
+        final String firstSnapshotName = "test-snap";
+        createSnapshot(repoName, firstSnapshotName, List.of(indexName));
+        final int concurrentLoops = randomIntBetween(2, 5);
+        final List<Future<Void>> futures = new ArrayList<>(concurrentLoops);
+        for (int i = 0; i < concurrentLoops; i++) {
+            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            futures.add(future);
+            startSnapshotDeleteLoop(repoName, indexName, "test-snap-" + i, future);
+        }
+
+        Thread.sleep(200);
+
+        logger.info("--> delete index");
+        assertAcked(admin().indices().prepareDelete(indexName));
+
+        for (Future<Void> future : futures) {
+            future.get();
+        }
+
+        logger.info("--> restore snapshot 1");
+        clusterAdmin().prepareRestoreSnapshot(repoName, firstSnapshotName).get();
+        ensureGreen(indexName);
+    }
+
+    // create and delete a snapshot of the given name and for the given single index in a loop until the index is removed from the cluster
+    // at which point doneListener is resolved
+    private void startSnapshotDeleteLoop(String repoName, String indexName, String snapshotName, ActionListener<Void> doneListener) {
+        clusterAdmin().prepareCreateSnapshot(repoName, snapshotName)
+                .setWaitForCompletion(true)
+                .setPartial(true)
+                .setIndices(indexName)
+                .execute(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateSnapshotResponse createSnapshotResponse) {
+                        clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute(
+                                ActionTestUtils.assertNoFailureListener(acknowledgedResponse -> {
+                                    assertAcked(acknowledgedResponse);
+                                    startSnapshotDeleteLoop(repoName, indexName, snapshotName, doneListener);
+                                }));
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        assertThat(e, instanceOf(IndexNotFoundException.class));
+                        doneListener.onResponse(null);
+                    }
+                });
+    }
+
 
     public void testGetReposWithWildcard() {
         internalCluster().startMasterOnlyNode();

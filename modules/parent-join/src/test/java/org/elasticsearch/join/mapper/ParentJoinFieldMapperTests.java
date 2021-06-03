@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.join.mapper;
@@ -25,6 +14,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -34,10 +25,13 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.join.ParentJoinPlugin;
 import org.elasticsearch.plugins.Plugin;
 
+import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
     @Override
@@ -52,8 +46,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
-
-        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
 
@@ -239,7 +233,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        Joiner joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -265,7 +260,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        joiner = Joiner.getJoiner(mapperService.mappingLookup().getMatchingFieldNames("*").stream()
+            .map(mapperService.mappingLookup()::getFieldType));
         assertNotNull(joiner);
         assertEquals("join_field", joiner.getJoinField());
         assertTrue(joiner.childTypeExists("child2"));
@@ -328,7 +324,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
 
     public void testMultipleJoinFields() throws Exception {
         {
-            MapperParsingException exc = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
+            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> createMapperService(mapping(b -> {
                 b.startObject("join_field");
                 b.field("type", "join");
                 b.startObject("relations").field("parent", "child").field("child", "grand_child").endObject();
@@ -337,7 +333,8 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 b.field("type", "join");
                 b.startObject("relations").field("product", "item").endObject().endObject();
             })));
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined more than once"));
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
 
         {
@@ -348,11 +345,12 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }));
             // Updating the mapping with another join field also fails
-            MapperParsingException exc = expectThrows(
-                MapperParsingException.class,
+            IllegalArgumentException exc = expectThrows(
+                IllegalArgumentException.class,
                 () -> merge(mapperService, mapping(b -> b.startObject("another_join_field").field("type", "join").endObject()))
             );
-            assertThat(exc.getMessage(), containsString("Field [_parent_join] is defined more than once"));
+            assertThat(exc.getMessage(),
+                equalTo("Only one [parent-join] field can be defined per index, got [join_field, another_join_field]"));
         }
     }
 
@@ -385,5 +383,33 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertFalse(mapperService.fieldType("join_field#parent").eagerGlobalOrdinals());
         assertNotNull(mapperService.fieldType("join_field#child"));
         assertFalse(mapperService.fieldType("join_field#child").eagerGlobalOrdinals());
+    }
+
+    public void testSubFields() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> b
+            .startObject("join_field")
+                .field("type", "join")
+                .startObject("relations")
+                    .field("parent", "child")
+                    .field("child", "grand_child")
+                .endObject()
+            .endObject()));
+        ParentJoinFieldMapper mapper = (ParentJoinFieldMapper) mapperService.mappingLookup().getMapper("join_field");
+        assertTrue(mapper.fieldType().isSearchable());
+        assertTrue(mapper.fieldType().isAggregatable());
+
+        Iterator<Mapper> it = mapper.iterator();
+        FieldMapper next = (FieldMapper) it.next();
+        assertThat(next.name(), equalTo("join_field#parent"));
+        assertTrue(next.fieldType().isSearchable());
+        assertTrue(next.fieldType().isAggregatable());
+
+        assertTrue(it.hasNext());
+        next = (FieldMapper) it.next();
+        assertThat(next.name(), equalTo("join_field#child"));
+        assertTrue(next.fieldType().isSearchable());
+        assertTrue(next.fieldType().isAggregatable());
+
+        assertFalse(it.hasNext());
     }
 }

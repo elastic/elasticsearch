@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.plugins;
@@ -47,7 +36,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 import static org.elasticsearch.gateway.MetadataStateFormat.STATE_DIR_NAME;
@@ -67,6 +55,15 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // prevent shards to move around after they got assigned the first time
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
+    }
+
     public void testListenersInvokedWhenIndexIsDeleted() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
@@ -74,8 +71,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2 * between(1, 2))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
         final NumShards numShards = getNumShards(indexName);
@@ -128,7 +125,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4 * between(1, 2))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 
@@ -191,7 +188,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4 * between(1, 2))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 
@@ -238,12 +235,13 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final Path dataDirWithLeftOverShards = createTempDir();
         String dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), List.of(dataDirWithLeftOverShards.toAbsolutePath().toString()))
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataDirWithLeftOverShards.toAbsolutePath().toString())
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build()
         );
 
-        final Index[] leftovers = new Index[between(1, 3)];
+        // TODO: decide if multiple leftovers should/can be tested without MDP
+        final Index[] leftovers = new Index[1];
         logger.debug("--> creating [{}] leftover indices on data node [{}]", leftovers.length, dataNode);
         for (int i = 0; i < leftovers.length; i++) {
             final String indexName = "index-" + i;
@@ -277,22 +275,19 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final Index index = internalCluster().clusterService(masterNode).state().metadata().index(indexName).getIndex();
         logger.debug("--> index [{}] created", index);
 
-        final List<Path> dataPaths = new ArrayList<>();
+        final Path dataPath = createTempDir();
+        final Path shardPath = dataPath.resolve(INDICES_FOLDER).resolve(index.getUUID()).resolve("0");
+        Files.createDirectories(shardPath);
         for (int i = 0; i < leftovers.length; i++) {
-            final Path dataPath = createTempDir();
-            dataPaths.add(dataPath);
-            final Path shardPath = dataPath.resolve(INDICES_FOLDER).resolve(index.getUUID()).resolve("0");
-            Files.createDirectories(shardPath);
             final Path leftoverPath = dataDirWithLeftOverShards.resolve(INDICES_FOLDER).resolve(leftovers[i].getUUID()).resolve("0");
             Files.move(leftoverPath.resolve(STATE_DIR_NAME), shardPath.resolve(STATE_DIR_NAME));
             Files.move(leftoverPath.resolve(INDEX_FOLDER_NAME), shardPath.resolve(INDEX_FOLDER_NAME));
         }
 
-        logger.debug("--> starting another data node with data paths [{}]", dataPaths);
+        logger.debug("--> starting another data node with data path [{}]", dataPath);
         dataNode = internalCluster().startDataOnlyNode(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(),
-                    dataPaths.stream().map(p -> p.toAbsolutePath().toString()).collect(Collectors.toList()))
+                .put(Environment.PATH_DATA_SETTING.getKey(), dataPath.toAbsolutePath().toString())
                 .putNull(Environment.PATH_SHARED_DATA_SETTING.getKey())
                 .build());
         ensureStableCluster(1 + 1, masterNode);
@@ -330,12 +325,12 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
             return List.of(new IndexFoldersDeletionListener() {
                 @Override
-                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path[] indexPaths) {
+                public void beforeIndexFoldersDeleted(Index index, IndexSettings indexSettings, Path indexPath) {
                     deletedIndices.add(index);
                 }
 
                 @Override
-                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path[] shardPaths) {
+                public void beforeShardFoldersDeleted(ShardId shardId, IndexSettings indexSettings, Path shardPath) {
                     deletedShards.computeIfAbsent(shardId.getIndex(), i -> new ArrayList<>()).add(shardId);
                 }
             });

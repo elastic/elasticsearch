@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.utils.persistence;
 
@@ -58,7 +59,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public boolean hasNext() {
-        return !isScrollInitialised || count != totalHits;
+        return isScrollInitialised == false || count != totalHits;
     }
 
     /**
@@ -73,7 +74,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
      */
     @Override
     public Deque<T> next() {
-        if (!hasNext()) {
+        if (hasNext() == false) {
             throw new NoSuchElementException();
         }
 
@@ -121,7 +122,7 @@ public abstract class BatchedDocumentsIterator<T> implements BatchedIterator<T> 
         }
         count += hits.length;
 
-        if (!hasNext() && scrollId != null) {
+        if (hasNext() == false && scrollId != null) {
             client.prepareClearScroll().setScrollIds(Collections.singletonList(scrollId)).get();
         }
         return results;

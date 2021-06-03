@@ -17,5 +17,8 @@
         </attribute-list>
       </required-attributes>
     </connection-normalizer>
+    <connection-properties>
+      <script file='connectionProperties.js'/>
+    </connection-properties>
     </connection-resolver>
 </tdr>

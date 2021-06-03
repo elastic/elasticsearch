@@ -5,15 +5,14 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Put {dfanalytics-jobs} API
+=== Create {dfanalytics-jobs} API
 
-beta::[]
 
 Creates a new {dfanalytics-job}.
 The API accepts a +{request}+ object as a request and returns a +{response}+.
 
 [id="{upid}-{api}-request"]
-==== Put {dfanalytics-jobs} request
+==== Request
 
 A +{request}+ requires the following argument:
 
@@ -55,7 +54,8 @@ include-tagged::{doc-tests-file}[{api}-source-config]
 <1> Constructing a new DataFrameAnalyticsSource
 <2> The source index
 <3> The query from which to gather the data. If query is not set, a `match_all` query is used by default.
-<4> Source filtering to select which fields will exist in the destination index.
+<4> Runtime mappings that will be added to the destination index mapping.
+<5> Source filtering to select which fields will exist in the destination index.
 
 ===== QueryConfig
 
@@ -128,6 +128,13 @@ include-tagged::{doc-tests-file}[{api}-classification]
 <12> The number of top classes (or -1 which denotes all classes) to be reported in the results. Defaults to 2.
 <13> Custom feature processors that will create new features for analysis from the included document
      fields. Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for all features.
+<14> The alpha regularization parameter. A non-negative double.
+<15> The growth rate of the shrinkage parameter. A double in [0.5, 2.0].
+<16> The soft tree depth limit. A non-negative double.
+<17> The soft tree depth tolerance. Controls how much the soft tree depth limit is respected. A double greater than or equal to 0.01.
+<18> The amount by which to downsample the data for stochastic gradient estimates. A double in (0, 1.0].
+<19> The maximum number of optimisation rounds we use for hyperparameter optimisation per parameter. An integer in [0, 20].
+<20> Whether to enable early stopping to finish training process if it is not finding better models.
 
 ===== Regression
 
@@ -152,6 +159,13 @@ include-tagged::{doc-tests-file}[{api}-regression]
 <12> An optional parameter to the loss function.
 <13> Custom feature processors that will create new features for analysis from the included document
 fields. Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for all features.
+<14> The alpha regularization parameter. A non-negative double.
+<15> The growth rate of the shrinkage parameter. A double in [0.5, 2.0].
+<16> The soft tree depth limit. A non-negative double.
+<17> The soft tree depth tolerance. Controls how much the soft tree depth limit is respected. A double greater than or equal to 0.01.
+<18> The amount by which to downsample the data for stochastic gradient estimates. A double in (0, 1.0].
+<19> The maximum number of optimisation rounds we use for hyperparameter optimisation per parameter. An integer in [0, 20].
+<20> Whether to enable early stopping to finish training process if it is not finding better models.
 
 ==== Analyzed fields
 

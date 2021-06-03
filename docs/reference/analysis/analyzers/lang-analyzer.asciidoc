@@ -55,7 +55,7 @@ more details.
 ===== Excluding words from stemming
 
 The `stem_exclusion` parameter allows you to specify an array
-of lowercase words that should not be stemmed.  Internally, this
+of lowercase words that should not be stemmed. Internally, this
 functionality is implemented by adding the
 <<analysis-keyword-marker-tokenfilter,`keyword_marker` token filter>>
 with the `keywords` set to the value of the `stem_exclusion` parameter.
@@ -427,7 +427,7 @@ PUT /catalan_example
 ===== `cjk` analyzer
 
 NOTE: You may find that `icu_analyzer` in the ICU analysis plugin works better
-for CJK text than the `cjk` analyzer.  Experiment with your text and queries.
+for CJK text than the `cjk` analyzer. Experiment with your text and queries.
 
 The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
 

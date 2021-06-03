@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -57,8 +59,8 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
-            ActionListener<ExplainLifecycleResponse> listener) {
+    protected void doMasterOperation(Task task, ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
+                                     ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);
@@ -103,6 +105,7 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getStepTime(),
                         lifecycleState.getSnapshotRepository(),
                         lifecycleState.getSnapshotName(),
+                        lifecycleState.getShrinkIndexName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

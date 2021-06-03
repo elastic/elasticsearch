@@ -1,25 +1,14 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -49,6 +38,13 @@ configurations {
 dependencies {
   api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
   api project(path: 'hadoop-common', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'hadoop-common')
+  }
   api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"
@@ -72,13 +68,15 @@ dependencies {
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent) {
+      builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
+    }
   }
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
   }
 }
 
@@ -108,7 +106,7 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -124,6 +122,7 @@ for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture') || name.equals('secureHaHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
     }
     // If it's an HA fixture, set a nameservice to use in the JVM options
     if (name.equals('haHdfsFixture') || name.equals('secureHaHdfsFixture')) {
@@ -158,6 +157,7 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
     }
 
     if (name.contains("Secure")) {
+      onlyIf { BuildParams.runtimeJavaVersion < JavaVersion.VERSION_16 }
       if (name.contains("Ha")) {
         dependsOn "secureHaHdfsFixture"
       } else {
@@ -196,7 +196,8 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
         if (disabledIntegTestTaskNames.contains(name) == false) {
           nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
           nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-          jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
+          jvmArgs "-Djava.security.krb5.conf=${krb5conf}",
+                  "--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
           nonInputProperties.systemProperty(
             "test.krb5.keytab.hdfs",
             project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")

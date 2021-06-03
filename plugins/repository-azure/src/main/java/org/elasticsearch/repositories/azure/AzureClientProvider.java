@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.azure;
@@ -39,6 +28,7 @@ import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.resolver.DefaultAddressResolverGroup;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -98,6 +88,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     private final EventLoopGroup eventLoopGroup;
     private final ConnectionProvider connectionProvider;
     private final ByteBufAllocator byteBufAllocator;
+    private final reactor.netty.http.client.HttpClient nettyHttpClient;
     private final ClientLogger clientLogger = new ClientLogger(AzureClientProvider.class);
     private volatile boolean closed = false;
 
@@ -105,12 +96,14 @@ class AzureClientProvider extends AbstractLifecycleComponent {
                         String reactorExecutorName,
                         EventLoopGroup eventLoopGroup,
                         ConnectionProvider connectionProvider,
-                        ByteBufAllocator byteBufAllocator) {
+                        ByteBufAllocator byteBufAllocator,
+                        reactor.netty.http.client.HttpClient nettyHttpClient) {
         this.threadPool = threadPool;
         this.reactorExecutorName = reactorExecutorName;
         this.eventLoopGroup = eventLoopGroup;
         this.connectionProvider = connectionProvider;
         this.byteBufAllocator = byteBufAllocator;
+        this.nettyHttpClient = nettyHttpClient;
     }
 
     static int eventLoopThreadsFromSettings(Settings settings) {
@@ -128,7 +121,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         final TimeValue openConnectionTimeout = OPEN_CONNECTION_TIMEOUT.get(settings);
         final TimeValue maxIdleTime = MAX_IDLE_TIME.get(settings);
 
-        ConnectionProvider provider =
+        ConnectionProvider connectionProvider =
             ConnectionProvider.builder("azure-sdk-connection-pool")
                 .maxConnections(MAX_OPEN_CONNECTIONS.get(settings))
                 .pendingAcquireMaxCount(PENDING_CONNECTION_QUEUE_SIZE) // This determines the max outstanding queued requests
@@ -138,9 +131,22 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         ByteBufAllocator pooledByteBufAllocator = createByteBufAllocator();
 
+        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider)
+                .runOn(eventLoopGroup)
+                .option(ChannelOption.ALLOCATOR, pooledByteBufAllocator)
+                .resolver(DefaultAddressResolverGroup.INSTANCE)
+                .port(80)
+                .wiretap(false);
+
         // Just to verify that this executor exists
         threadPool.executor(REPOSITORY_THREAD_POOL_NAME);
-        return new AzureClientProvider(threadPool, REPOSITORY_THREAD_POOL_NAME, eventLoopGroup, provider, pooledByteBufAllocator);
+        return new AzureClientProvider(threadPool,
+            REPOSITORY_THREAD_POOL_NAME,
+            eventLoopGroup,
+            connectionProvider,
+            pooledByteBufAllocator,
+            nettyHttpClient
+        );
     }
 
     private static ByteBufAllocator createByteBufAllocator() {
@@ -170,17 +176,6 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         if (closed) {
             throw new IllegalStateException("AzureClientProvider is already closed");
         }
-
-        reactor.netty.http.client.HttpClient nettyHttpClient = reactor.netty.http.client.HttpClient.create(connectionProvider);
-        nettyHttpClient = nettyHttpClient
-            .port(80)
-            .wiretap(false);
-
-        nettyHttpClient = nettyHttpClient.tcpConfiguration(tcpClient -> {
-            tcpClient = tcpClient.runOn(eventLoopGroup);
-            tcpClient = tcpClient.option(ChannelOption.ALLOCATOR, byteBufAllocator);
-            return tcpClient;
-        });
 
         final HttpClient httpClient = new NettyAsyncHttpClientBuilder(nettyHttpClient)
             .disableBufferCopy(true)

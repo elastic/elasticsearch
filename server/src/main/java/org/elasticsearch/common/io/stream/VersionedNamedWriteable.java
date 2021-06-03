@@ -1,25 +1,18 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.common.io.stream;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+
+import java.io.IOException;
 
 /**
  * A {@link NamedWriteable} that has a minimum version associated with it.
@@ -50,4 +43,27 @@ public interface VersionedNamedWriteable extends NamedWriteable {
         return out.getVersion().onOrAfter(custom.getMinimalSupportedVersion());
     }
 
+    /**
+     * Writes all those values in the given map to {@code out} that pass the version check in {@link #shouldSerialize} as a list.
+     *
+     * @param out     stream to write to
+     * @param customs map of customs
+     * @param <T>     type of customs in map
+     */
+    static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, ImmutableOpenMap<String, T> customs)
+            throws IOException {
+        // filter out custom states not supported by the other node
+        int numberOfCustoms = 0;
+        for (final ObjectCursor<T> cursor : customs.values()) {
+            if (shouldSerialize(out, cursor.value)) {
+                numberOfCustoms++;
+            }
+        }
+        out.writeVInt(numberOfCustoms);
+        for (final ObjectCursor<T> cursor : customs.values()) {
+            if (shouldSerialize(out, cursor.value)) {
+                out.writeNamedWriteable(cursor.value);
+            }
+        }
+    }
 }

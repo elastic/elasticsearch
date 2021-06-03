@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices;
@@ -123,7 +112,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             key.entity.onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
             CleanupKey cleanupKey = new CleanupKey(cacheEntity, reader.getReaderCacheHelper().getKey());
-            if (!registeredClosedListeners.containsKey(cleanupKey)) {
+            if (registeredClosedListeners.containsKey(cleanupKey) == false) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
                     ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
@@ -250,8 +239,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             Key key = (Key) o;
             if (mappingCacheKey.equals(key.mappingCacheKey) == false) return false;
             if (readerCacheKey.equals(key.readerCacheKey) == false) return false;
-            if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
-            if (!value.equals(key.value)) return false;
+            if (entity.getCacheIdentity().equals(key.entity.getCacheIdentity()) == false) return false;
+            if (value.equals(key.value) == false) return false;
             return true;
         }
 
@@ -262,6 +251,19 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             result = 31 * result + readerCacheKey.hashCode();
             result = 31 * result + value.hashCode();
             return result;
+        }
+
+        @Override
+        public String toString() {
+            return "Key(mappingKey=["
+                + mappingCacheKey
+                + "],readerKey=["
+                + readerCacheKey
+                + "],entityKey=["
+                + entity.getCacheIdentity()
+                + ",value=" // BytesRef's toString already has [] so we don't add it here
+                + value.toBytesRef() // BytesRef has a readable toString
+                + ")";
         }
     }
 
@@ -290,7 +292,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             }
             CleanupKey that = (CleanupKey) o;
             if (Objects.equals(readerCacheKey, that.readerCacheKey) == false) return false;
-            if (!entity.getCacheIdentity().equals(that.entity.getCacheIdentity())) return false;
+            if (entity.getCacheIdentity().equals(that.entity.getCacheIdentity()) == false) return false;
             return true;
         }
 
@@ -319,7 +321,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 currentKeysToClean.add(cleanupKey);
             }
         }
-        if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
+        if (currentKeysToClean.isEmpty() == false || currentFullClean.isEmpty() == false) {
             for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext(); ) {
                 Key key = iterator.next();
                 if (currentFullClean.contains(key.entity.getCacheIdentity())) {

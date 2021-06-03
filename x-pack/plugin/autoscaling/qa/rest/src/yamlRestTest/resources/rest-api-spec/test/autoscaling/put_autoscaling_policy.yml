@@ -4,7 +4,7 @@
       autoscaling.put_autoscaling_policy:
         name: my_autoscaling_policy
         body:
-          roles: [ master ]
+          roles: [ data_content ]
 
   - match: { "acknowledged": true }
 
@@ -19,7 +19,7 @@
   - do:
       autoscaling.get_autoscaling_policy:
         name: my_autoscaling_policy
-  - match: { roles: [ master ] }
+  - match: { roles: [ data_content ] }
   - match: { deciders.fixed: {} }
 
   # update roles
@@ -112,3 +112,12 @@
           policy:
             fixed:
               storage: bad
+
+---
+"Test put autoscaling policy with no default deciders":
+  - do:
+      catch: bad_request
+      autoscaling.put_autoscaling_policy:
+        name: my_autoscaling_policy
+        body:
+          roles: [ ]

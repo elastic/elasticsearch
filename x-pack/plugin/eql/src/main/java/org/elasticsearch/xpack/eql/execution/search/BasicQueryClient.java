@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.execution.search;
@@ -18,6 +19,7 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
@@ -43,11 +45,13 @@ public class BasicQueryClient implements QueryClient {
     final EqlConfiguration cfg;
     final Client client;
     final String[] indices;
+    final List<FieldAndFormat> fetchFields;
 
     public BasicQueryClient(EqlSession eqlSession) {
         this.cfg = eqlSession.configuration();
         this.client = eqlSession.client();
         this.indices = cfg.indices();
+        this.fetchFields = cfg.fetchFields();
     }
 
     @Override
@@ -56,7 +60,7 @@ public class BasicQueryClient implements QueryClient {
         // set query timeout
         searchSource.timeout(cfg.requestTimeout());
 
-        SearchRequest search = prepareRequest(client, searchSource, false, indices);
+        SearchRequest search = prepareRequest(searchSource, false, indices);
         search(search, searchLogListener(listener, log));
     }
 
@@ -136,8 +140,14 @@ public class BasicQueryClient implements QueryClient {
                 // the default size is 10 so be sure to change it
                 // NB:this is different from mget
                 .size(idQuery.ids().size());
+            if (fetchFields != null) {
+                fetchFields.forEach(builder::fetchField);
+            }
+            if (cfg.runtimeMappings() != null) {
+                builder.runtimeMappings(cfg.runtimeMappings());
+            }
 
-            SearchRequest search = prepareRequest(client, builder, false, entry.getKey());
+            SearchRequest search = prepareRequest(builder, false, entry.getKey());
             multiSearchBuilder.add(search);
         }
 

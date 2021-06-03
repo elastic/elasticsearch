@@ -15,6 +15,13 @@ indices for data streams.
 
 `GET /_cat/indices`
 
+[[cat-indices-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must
+also have the `monitor` or `manage` <<privileges-list-indices,index privilege>>
+for any data stream, index, or alias you retrieve.
 
 [[cat-indices-api-desc]]
 ==== {api-description-title}
@@ -41,12 +48,9 @@ To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-indices-api-query-params]]
 ==== {api-query-parms-title}
@@ -96,7 +100,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 [[examples]]
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/my-index-*?v&s=index
+GET /_cat/indices/my-index-*?v=true&s=index
 --------------------------------------------------
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]

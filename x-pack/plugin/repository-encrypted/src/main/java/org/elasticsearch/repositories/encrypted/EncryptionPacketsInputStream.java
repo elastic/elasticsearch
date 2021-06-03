@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.repositories.encrypted;
@@ -136,12 +137,6 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         encryptionInputStream = new SequenceInputStream(new ByteArrayInputStream(packetIv.array()), encryptionInputStream);
         encryptionInputStream = new BufferOnMarkInputStream(encryptionInputStream, encryptedPacketLength);
         return new CountingInputStream(encryptionInputStream, false);
-    }
-
-    // remove after https://github.com/elastic/elasticsearch/pull/66769 is merged in
-    @Override
-    public int available() throws IOException {
-        return 0;
     }
 
     @Override

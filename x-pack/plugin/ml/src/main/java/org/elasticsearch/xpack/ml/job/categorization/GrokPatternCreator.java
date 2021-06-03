@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.categorization;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.grok.Grok;
 
 import java.util.ArrayList;
@@ -123,7 +125,12 @@ public final class GrokPatternCreator {
                 // the message was very long, and the example was truncated.  In this
                 // case we will have appended an ellipsis to indicate truncation.
                 assert example.endsWith("...") : exampleProcessor.pattern() + " did not match non-truncated example " + example;
-                logger.warn("[{}] Pattern [{}] did not match example [{}]", jobId, exampleProcessor.pattern(), example);
+                if (example.endsWith("...")) {
+                    logger.trace(() -> new ParameterizedMessage("[{}] Pattern [{}] did not match truncated example",
+                        jobId, exampleProcessor.pattern()));
+                } else {
+                    logger.warn("[{}] Pattern [{}] did not match non-truncated example [{}]", jobId, exampleProcessor.pattern(), example);
+                }
             }
         }
 

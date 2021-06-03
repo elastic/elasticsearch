@@ -95,7 +95,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -163,7 +163,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setPhaseDefinition(phaseJson);
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
@@ -419,9 +419,5 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         gotStep = registry.getStep(metadata.index(index), shrinkStep.getKey());
         assertThat(((ShrinkStep) shrinkStep).getNumberOfShards(), equalTo(2));
         assertThat(((ShrinkStep) gotStep).getNumberOfShards(), equalTo(1));
-    }
-
-    private XPackLicenseState createLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY, () -> 0L);
     }
 }

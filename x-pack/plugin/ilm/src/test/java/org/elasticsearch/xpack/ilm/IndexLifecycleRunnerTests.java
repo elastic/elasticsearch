@@ -176,7 +176,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(phaseExecutionInfo);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, createLicenseState()));
+        Step step = randomFrom(action.toSteps(new NoOpClient(threadPool), phaseName, null, null));
         StepKey stepKey = step.getKey();
 
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
@@ -735,7 +735,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policy.getName(), phase, 1, randomNonNegativeLong());
         String phaseJson = Strings.toString(pei);
         LifecycleAction action = randomValueOtherThan(new MigrateAction(false), () -> randomFrom(phase.getActions().values()));
-        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, createLicenseState()));
+        Step step = randomFrom(action.toSteps(client, phaseName, MOCK_STEP_KEY, null));
         Settings indexSettings = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
@@ -1177,10 +1177,6 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         return new MockPolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, REGISTRY, client);
-    }
-
-    private XPackLicenseState createLicenseState() {
-        return new XPackLicenseState(Settings.EMPTY, () -> 0L);
     }
 
     private class NoOpHistoryStore extends ILMHistoryStore {

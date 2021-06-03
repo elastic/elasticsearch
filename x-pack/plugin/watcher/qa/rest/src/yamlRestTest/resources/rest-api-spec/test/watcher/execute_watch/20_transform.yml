@@ -190,3 +190,35 @@ setup:
   - match: { watch_record.result.transform.status: "failure" }
   - match: { watch_record.result.transform.reason: "unknown query [does_not_exist]" }
   - is_true: watch_record.result.transform.error
+
+---
+"Test execute watch api with failure on mutation of ctx":
+  - do:
+      watcher.execute_watch:
+        body:  >
+          {
+            "watch" : {
+              "trigger": {
+                "schedule" : { "cron" : "0 0 0 1 * ? 2099" }
+              },
+              "transform" : {
+                "script" : "ctx.foo = 1; return ctx.payload;"
+              },
+              "actions": {
+                "indexme" : {
+                  "index" : {
+                    "index" : "my_test_index",
+                    "doc_id": "my-id"
+                  }
+                }
+              }
+            }
+          }
+
+  - match: { watch_record.trigger_event.type: "manual" }
+  - match: { watch_record.state: "executed" }
+  - match: { watch_record.status.execution_state: "executed" }
+  - match: { watch_record.result.transform.status: "failure" }
+  - match: { watch_record.result.transform.reason: "runtime error" }
+  - match: { watch_record.result.transform.error.caused_by.type: "unsupported_operation_exception" }
+  - is_true: watch_record.result.transform.error

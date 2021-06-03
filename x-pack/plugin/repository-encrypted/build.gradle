@@ -19,6 +19,7 @@ dependencies {
     testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("internalClusterTest").configure {enabled = false }
 }

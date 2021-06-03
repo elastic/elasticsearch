@@ -42,6 +42,7 @@ tasks.named("processTestResources").configure {
   MavenFilteringHack.filter(it, expansions)
 }
 
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("integTest").configure {enabled = false }
 }

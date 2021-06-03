@@ -8,6 +8,7 @@ dependencies {
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:repository-encrypted'), 'test')
 }
 
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   tasks.named("internalClusterTest").configure {enabled = false }
 }

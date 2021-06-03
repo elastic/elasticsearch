@@ -40,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -192,7 +193,8 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread updateThread = new Thread(() -> {
             latch.countDown();
-            for (int i = 0; i < 100; i++) {
+            final int iterations = iterations(1, 20);
+            for (int i = 0; i < iterations; i++) {
                 SearchResponse searchResponse = randomBoolean() ? null
                     : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
                     ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
@@ -201,12 +203,11 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
                 indexService.updateResponse(id, Map.of(), newResponse, future);
                 try {
-                    future.get();
-                } catch (Exception e) {
+                    future.actionGet();
+                } catch (Exception ignore) {
                     PlainActionFuture<AsyncSearchResponse> getFuture = PlainActionFuture.newFuture();
                     indexService.getResponse(id, randomBoolean(), getFuture);
                     expectThrows(ResourceNotFoundException.class, getFuture::actionGet);
-                    return;
                 }
             }
         });
@@ -218,14 +219,19 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             deleteFuture.actionGet();
         }
         updateThread.join(30_000, 0);
+        PlainActionFuture<AsyncSearchResponse> getFuture = PlainActionFuture.newFuture();
+        indexService.getResponse(id, randomBoolean(), getFuture);
+        expectThrows(ResourceNotFoundException.class, getFuture::actionGet);
     }
 
     public void testUpdateResponseAndExpirationTimeConcurrently() throws Exception {
         assertThat(null, equalTo(null));
         AsyncExecutionId executionId = new AsyncExecutionId("0", new TaskId("N/A", 0));
         long lastExpirationTime = randomLong();
-        AsyncSearchResponse initialResponse = new AsyncSearchResponse(executionId.getEncoded(), true, true, 0L, lastExpirationTime);
+        final AtomicReference<SearchResponse> searchResponse = new AtomicReference<>();
         {
+            AsyncSearchResponse initialResponse = new AsyncSearchResponse(
+                executionId.getEncoded(), searchResponse.get(), null, true, true, 0L, lastExpirationTime);
             PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
             indexService.createResponse(executionId.getDocId(), Collections.emptyMap(), initialResponse, future);
             future.actionGet();
@@ -233,25 +239,28 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         Thread updateResponseThread = new Thread(() -> {
             latch.countDown();
-            SearchResponse searchResponse = null;
             int iterations = between(1, 5);
             for (int i = 0; i < iterations; i++) {
                 if (randomBoolean()) {
                     PlainActionFuture<AsyncSearchResponse> getFuture = PlainActionFuture.newFuture();
                     indexService.getResponse(executionId, randomBoolean(), getFuture);
                     final SearchResponse actualResponse = getFuture.actionGet().getSearchResponse();
-                    if (searchResponse == null) {
+                    if (searchResponse.get() == null) {
                         assertNull(actualResponse);
                     } else {
-                        assertThat(Strings.toString(actualResponse), equalTo(Strings.toString(searchResponse)));
+                        assertThat(Strings.toString(actualResponse), equalTo(Strings.toString(searchResponse.get())));
                     }
                 }
-                searchResponse = randomBoolean() ? null
-                    : new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
-                    ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY);
-
+                if (randomBoolean()) {
+                    searchResponse.set(null);
+                } else {
+                    searchResponse.set(
+                        new SearchResponse(InternalSearchResponse.empty(), randomAlphaOfLength(10), 1, 1, 0, randomIntBetween(0, 10000),
+                            ShardSearchFailure.EMPTY_ARRAY, SearchResponse.Clusters.EMPTY)
+                    );
+                }
                 AsyncSearchResponse newResponse = new AsyncSearchResponse(executionId.getEncoded(),
-                    searchResponse, null, true, true, randomLong(), randomLong());
+                    searchResponse.get(), null, true, true, randomLong(), randomLong());
                 PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
                 indexService.updateResponse(executionId, Map.of(), newResponse, future);
                 future.actionGet();
@@ -273,6 +282,16 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             updateFuture.actionGet();
         }
         updateResponseThread.join(60_000, 0);
+
+        PlainActionFuture<AsyncSearchResponse> getFuture = PlainActionFuture.newFuture();
+        indexService.getResponse(executionId, randomBoolean(), getFuture);
+        final AsyncSearchResponse asyncResponse = getFuture.actionGet();
+        if (searchResponse.get() == null) {
+            assertNull(asyncResponse.getSearchResponse());
+        } else {
+            assertThat(Strings.toString(asyncResponse.getSearchResponse()), equalTo(Strings.toString(searchResponse.get())));
+        }
+        assertThat(asyncResponse.getExpirationTime(), equalTo(lastExpirationTime));
     }
 
     private void assertSettings() {

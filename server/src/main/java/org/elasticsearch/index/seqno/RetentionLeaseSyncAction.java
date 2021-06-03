@@ -73,17 +73,21 @@ public class RetentionLeaseSyncAction extends
         final IndexingPressure indexingPressure,
         final SystemIndices systemIndices) {
         super(
-                settings,
-                ACTION_NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                RetentionLeaseSyncAction.Request::new,
-                RetentionLeaseSyncAction.Request::new,
-                ignore -> ThreadPool.Names.MANAGEMENT, false, indexingPressure, systemIndices);
+            settings,
+            ACTION_NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            RetentionLeaseSyncAction.Request::new,
+            RetentionLeaseSyncAction.Request::new,
+            (service, ignore) -> ThreadPool.Names.MANAGEMENT,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override

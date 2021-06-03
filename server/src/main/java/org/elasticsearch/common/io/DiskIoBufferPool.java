@@ -39,7 +39,8 @@ public class DiskIoBufferPool {
         for (String s : Arrays.asList(
             "[" + ThreadPool.Names.WRITE + "]",
             "[" + ThreadPool.Names.FLUSH + "]",
-            "[" + ThreadPool.Names.SYSTEM_WRITE + "]")) {
+            "[" + ThreadPool.Names.SYSTEM_WRITE + "]",
+            "[" + ThreadPool.Names.SYSTEM_CRITICAL_WRITE + "]")) {
             if (threadName.contains(s)) {
                 return true;
             }

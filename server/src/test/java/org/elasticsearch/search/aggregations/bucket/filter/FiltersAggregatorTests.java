@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import io.github.nik9000.mapmatcher.MapMatcher;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -77,11 +79,13 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -329,7 +333,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filter.query(), equalTo(((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery()));
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
-            assertThat(debug, hasEntry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
+            assertMap(debug, matchesMap().extraOk().entry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
         }, ft);
     }
 
@@ -384,15 +388,20 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filterByFilter.estimateCost(maxDoc), equalTo(1L));
                 Map<String, Object> debug = new HashMap<>();
                 filterByFilter.collectDebugInfo(debug::put);
-                assertThat(debug, hasEntry("segments_with_deleted_docs", 0));
-                assertThat(debug, hasEntry("estimated_cost", 1L));
-                assertThat(debug, hasEntry("max_cost", (long) maxDoc));
-                assertThat(debug, hasEntry("estimate_cost_time", 0L));
-                List<?> filtersDebug = (List<?>) debug.get("filters");
-                for (int i = 0; i < filterByFilter.filters().size(); i++) {
-                    Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(i);
-                    assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-                }
+                assertMap(
+                    debug,
+                    matchesMap().entry("segments_with_deleted_docs", 0)
+                        .entry("estimated_cost", 1L)
+                        .entry("max_cost", (long) maxDoc)
+                        .entry("estimate_cost_time", 0L)
+                        .entry("segments_with_doc_count_field", 0)
+                        .entry("segments_counted", 0)
+                        .entry("segments_collected", 0)
+                        .entry(
+                            "filters",
+                            matchesList().item(matchesMap().extraOk().entry("scorers_prepared_while_estimating_cost", greaterThan(0)))
+                        )
+                );
             },
             ft
         );
@@ -443,8 +452,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_all"));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", greaterThan(0)));
         });
         testCase(
             builder,
@@ -469,8 +477,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(10L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_all"));
-            assertThat(debug, hasEntry("results_from_metadata", 0));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", 0));
         });
         testCase(
             builder,
@@ -533,8 +540,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
                 Map<String, Object> debug = new HashMap<>();
                 ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);
-                assertThat(debug, hasEntry("specialized_for", "match_all"));
-                assertThat(debug, hasEntry("results_from_metadata", 0));
+                assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", 0));
             }
         }
     }
@@ -551,7 +557,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_none"));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_none"));
         });
         testCase(
             builder,
@@ -578,9 +584,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "term"));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
-            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+            assertMap(
+                debug,
+                matchesMap().entry("specialized_for", "term")
+                    .entry("query", "f:0")
+                    .entry("results_from_metadata", greaterThan(0))
+                    .entry("scorers_prepared_while_estimating_cost", equalTo(0))
+            );
         }, ft);
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));
@@ -900,11 +910,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
 
                 assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
-                Map<?, ?> filterAggDebug = debug.get("test");
-                List<?> filtersDebug = (List<?>) filterAggDebug.get("filters");
-                Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
-                assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
-                assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
+                MapMatcher expectedFilterDebug = matchesMap().extraOk()
+                    .entry("specialized_for", "docvalues_field_exists")
+                    .entry("results_from_metadata", canUseMetadata ? greaterThan(0) : equalTo(0));
+                assertMap(
+                    debug,
+                    matchesMap().entry("test", matchesMap().extraOk().entry("filters", matchesList().item(expectedFilterDebug)))
+                );
             },
             fieldType,
             fnft
@@ -942,11 +954,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
             assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
             long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
-            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "docvalues_field_exists"));
             assertThat(estimatedCost, equalTo(0L));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
-            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertMap(debug, matchesMap().extraOk()
+                .entry("specialized_for", "docvalues_field_exists")
+                .entry("results_from_metadata", greaterThan(0))
+                .entry("scorers_prepared_while_estimating_cost", equalTo(0)));
         }, fieldType, fnft);
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));

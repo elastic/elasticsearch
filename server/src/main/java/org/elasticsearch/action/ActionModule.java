@@ -451,9 +451,6 @@ public class ActionModule extends AbstractModule {
                 if (restWrapper != null) {
                     throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                 }
-                if("org.elasticsearch.xpack.security.Security".equals(plugin.getClass().getCanonicalName()) == false) {
-                    logger.warn("Plugin " + plugin.getClass().getName() + " installs a custom REST wrapper.");
-                }
                 restWrapper = newRestWrapper;
             }
         }

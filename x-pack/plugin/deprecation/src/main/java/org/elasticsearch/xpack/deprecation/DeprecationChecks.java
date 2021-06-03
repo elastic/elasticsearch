@@ -86,7 +86,8 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkMultipleDataPaths,
                     NodeDeprecationChecks::checkDataPathsList,
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
-                    NodeDeprecationChecks::checkSharedDataPathSetting
+                    NodeDeprecationChecks::checkSharedDataPathSetting,
+                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
                 )
             ).collect(Collectors.toList());
         }

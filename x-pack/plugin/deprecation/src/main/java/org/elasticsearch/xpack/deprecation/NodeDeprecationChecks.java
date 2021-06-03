@@ -13,6 +13,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -418,6 +421,20 @@ class NodeDeprecationChecks {
             final String details = "Found shared data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
         }
+        return null;
+    }
+
+    static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.get(settings) == false && DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
+            String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                String.format("setting [%s=false] is deprecated and will not be available in a future version", key),
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                    "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
+                String.format("found [%s] configured to false. Discontinue use of this setting or set it to true.", key)
+            );
+        }
+
         return null;
     }
 }

@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -39,6 +40,15 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+
+import java.util.List;
+
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
@@ -589,5 +599,29 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "Found shared data path configured. Discontinue use of this setting."
             )));
+    }
+
+    public void testSingleDataNodeWatermarkSetting() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
+            null));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        assertThat(issues, contains(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+                    " will not be available in a future version",
+                expectedUrl,
+                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured to false." +
+                    " Discontinue use of this setting or set it to true."
+            )));
+
+        assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+            " will not be available in a future version");
     }
 }

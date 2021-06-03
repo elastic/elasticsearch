@@ -53,6 +53,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;
@@ -1131,6 +1132,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             "the shard cannot remain on this node because it is above the high watermark cluster setting" +
                 " [cluster.routing.allocation.disk.watermark.high=70%] and there is less than the required [30.0%] free disk on node," +
                 " actual free: [20.0%]"));
+    }
+
+    public void testSingleDataNodeDeprecationWarning() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+            " will not be available in a future version");
     }
 
     public void testDiskThresholdWithSnapshotShardSizes() {

@@ -55,4 +55,20 @@ cluster then you must upgrade the affected nodes. Once upgraded, they will join
 the cluster again.
 ====
 
+[discrete]
+[[breaking_714_core_deprecations]]
+=== Core deprecations
+
+[discrete]
+[[deprecate-single-data-node-watermark]]
+.Setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+should never be explicitly set to false. In 8.0, the only legal value will be
+true. In a future release, the setting will be removed completely, with same
+behavior as if the setting was `true`.
+====
+
 // end::notable-breaking-changes[]

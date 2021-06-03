@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.util.HashSet;
 import java.util.List;
@@ -420,4 +421,13 @@ class NodeDeprecationChecks {
         }
         return null;
     }
+
+    static DeprecationIssue checkMonitoringExporterPassword(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        return checkRemovedSetting(
+            settings,
+            HttpExporter.AUTH_PASSWORD_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings"
+        );
+    }
+
 }

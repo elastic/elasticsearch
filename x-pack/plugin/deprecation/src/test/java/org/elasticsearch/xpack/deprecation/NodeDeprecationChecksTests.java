@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
@@ -588,6 +590,24 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found shared data path configured. Discontinue use of this setting."
+            )));
+    }
+
+    public void testMonitoringExporterPassword() {
+        final String prefix = "xpack.monitoring.exporters." + randomAlphaOfLength(5);
+        final Settings settings = Settings.builder()
+            .put(prefix + ".auth.password", "_pass")
+            .build();
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
+
+        assertThat(issue, equalTo(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [foo] is deprecated and will be removed in a future version",
+                expectedUrl,
+                "the setting [foo] is currently set to [_pass], remove this setting"
             )));
     }
 }

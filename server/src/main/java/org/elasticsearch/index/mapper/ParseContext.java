@@ -306,7 +306,7 @@ public abstract class ParseContext {
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
-        private final Set<String> fieldsSeen = new HashSet<>();
+        private final Set<String> newFieldsSeen = new HashSet<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
@@ -429,8 +429,9 @@ public abstract class ParseContext {
         @Override
         public void addDynamicMapper(Mapper mapper) {
             // eagerly check field name limit here to avoid OOM errors
-            fieldsSeen.add(mapper.name());
-            mappingLookup.checkFieldLimit(indexSettings.getMappingTotalFieldsLimit(), fieldsSeen.size());
+            if (mappingLookup.getMapper(mapper.name()) == null && newFieldsSeen.add(mapper.name())) {
+                mappingLookup.checkFieldLimit(indexSettings.getMappingTotalFieldsLimit(), newFieldsSeen.size());
+            }
             if (mapper instanceof ObjectMapper) {
                 dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
             }

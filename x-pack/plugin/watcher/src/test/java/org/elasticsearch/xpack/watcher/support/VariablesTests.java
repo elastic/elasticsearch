@@ -58,4 +58,25 @@ public class VariablesTests extends ESTestCase {
         assertThat(ObjectPath.eval("ctx.payload", model), is(payload.data()));
         assertThat(ObjectPath.eval("ctx.metadata", model), is(metatdata));
     }
+
+    public void testCreateCtxIsUnmodifiable()  {
+        ZonedDateTime scheduledTime = ZonedDateTime.now(ZoneOffset.UTC);
+        ZonedDateTime triggeredTime = scheduledTime.toInstant().plusMillis(50).atZone(ZoneOffset.UTC);
+        ZonedDateTime executionTime = triggeredTime.toInstant().plusMillis(50).atZone(ZoneOffset.UTC);
+        Payload payload = new Payload.Simple(singletonMap("payload_key", "payload_value"));
+        Map<String, Object> metatdata = singletonMap("metadata_key", "metadata_value");
+        TriggerEvent event = new ScheduleTriggerEvent("_watch_id", triggeredTime, scheduledTime);
+        Wid wid = new Wid("_watch_id", executionTime);
+        WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContextBuilder("_watch_id")
+            .wid(wid)
+            .executionTime(executionTime)
+            .triggerEvent(event)
+            .payload(payload)
+            .metadata(metatdata)
+            .buildMock();
+
+        Map<String, Object> model = Variables.createCtx(ctx, payload);
+        assertThat(model, notNullValue());
+        expectThrows(UnsupportedOperationException.class, () -> { model.put("foo", "bar"); });
+    }
 }

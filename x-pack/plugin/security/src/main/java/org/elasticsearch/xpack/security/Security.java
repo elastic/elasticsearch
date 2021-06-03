@@ -1119,11 +1119,14 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        final boolean ssl = enabled && HTTP_SSL_ENABLED.get(settings);
-        final SSLConfiguration httpSSLConfig = ssl ? getSslService().getHttpTransportSSLConfiguration() : null;
-        boolean extractClientCertificate = httpSSLConfig != null && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        boolean extractClientCertificate = false;
+        if (enabled && HTTP_SSL_ENABLED.get(settings)) {
+            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
+            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        }
+        boolean finalExtractClientCertificate = extractClientCertificate;
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
-            handler, extractClientCertificate);
+            handler, finalExtractClientCertificate);
     }
 
     @Override

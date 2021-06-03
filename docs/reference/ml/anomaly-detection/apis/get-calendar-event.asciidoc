@@ -56,7 +56,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 
 `start`::
     (Optional, string) Specifies to get events with timestamps after this time.
-    Defaults to `null`, which means it is unset and results are not limited to
+    Defaults to unset, which means results are not limited to
     specific timestamps.
 
 [[ml-get-calendar-event-results]]

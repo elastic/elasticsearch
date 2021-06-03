@@ -11,9 +11,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
@@ -430,6 +432,22 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             assertThat(migratedState.v2().migratedPolicies, empty());
             assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
         }
+    }
+
+    public void testMigrationDoesNotRemoveComposableTemplates() {
+        ComposableIndexTemplate composableIndexTemplate = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList("*"))
+            .template(new Template(Settings.builder().put(DATA_ROUTING_REQUIRE_SETTING, "hot").build(), null, null))
+            .build();
+
+        String composableTemplateName = "catch-all-composable-template";
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+            .put(composableTemplateName, composableIndexTemplate).build())
+            .build();
+        Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
+            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client);
+        assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
+        assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
     }
 
     private LifecyclePolicyMetadata getWarmColdPolicyMeta(ShrinkAction shrinkAction, AllocateAction warmAllocateAction,

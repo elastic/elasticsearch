@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -210,5 +211,20 @@ public final class DocumentPermissions implements CacheKey {
     public void writeCacheKey(StreamOutput out) throws IOException {
         out.writeCollection(queries == null ? List.of() : queries, (o, q) -> q.writeTo(o));
         out.writeCollection(limitedByQueries == null ? List.of() : limitedByQueries, (o, q) -> q.writeTo(o));
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        DocumentPermissions that = (DocumentPermissions) o;
+        return Objects.equals(queries, that.queries) && Objects.equals(limitedByQueries, that.limitedByQueries);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(queries, limitedByQueries);
     }
 }

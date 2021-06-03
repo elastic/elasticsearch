@@ -43,27 +43,16 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
         var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
         final IndicesAccessControl indicesAccessControl =
             threadContextHolder.get().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-        final SortedMap<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new TreeMap<>();
-        for (String index : request.indices()) {
-            IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
-            if (indexAccessControl != null) {
-                final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
-                final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
-                if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
-                    logger.trace("index [{}] with field level access controls [{}] " +
-                            "document level access controls [{}]. differentiating request cache key",
-                        index, flsEnabled, dlsEnabled);
-                    accessControlByIndex.put(index, indexAccessControl);
-                }
-            } else {
-                logger.trace("not differentiating request cache key for index [{}] " +
-                    "since it has no field or document level access controls", index);
-            }
-        }
-        if (false == accessControlByIndex.isEmpty()) {
-            logger.trace("Applying shard request cache differentiator for dls/fls");
-            for (IndicesAccessControl.IndexAccessControl iac : accessControlByIndex.values()) {
-                iac.writeCacheKey(out);
+        final String indexName = request.shardId().getIndexName();
+        IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
+        if (indexAccessControl != null) {
+            final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
+            final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
+            if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
+                logger.trace("index [{}] with field level access controls [{}] " +
+                        "document level access controls [{}]. Differentiating request cache key",
+                    indexName, flsEnabled, dlsEnabled);
+                indexAccessControl.writeCacheKey(out);
             }
         }
     }

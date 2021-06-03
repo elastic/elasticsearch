@@ -199,7 +199,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 Matchers.containsString("failed to parse"));
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertThat(e.getCause().getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded"));
+                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]"));
         } finally {
             indexingCompletedLatch.countDown();
         }

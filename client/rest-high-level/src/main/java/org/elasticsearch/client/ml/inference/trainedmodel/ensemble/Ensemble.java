@@ -29,7 +29,6 @@ public class Ensemble implements TrainedModel {
     public static final ParseField FEATURE_NAMES = new ParseField("feature_names");
     public static final ParseField TRAINED_MODELS = new ParseField("trained_models");
     public static final ParseField AGGREGATE_OUTPUT  = new ParseField("aggregate_output");
-    public static final ParseField TARGET_TYPE = new ParseField("target_type");
     public static final ParseField CLASSIFICATION_LABELS = new ParseField("classification_labels");
     public static final ParseField CLASSIFICATION_WEIGHTS = new ParseField("classification_weights");
 
@@ -48,7 +47,7 @@ public class Ensemble implements TrainedModel {
         PARSER.declareNamedObject(Ensemble.Builder::setOutputAggregator,
             (p, c, n) -> p.namedObject(OutputAggregator.class, n, null),
             AGGREGATE_OUTPUT);
-        PARSER.declareString(Ensemble.Builder::setTargetType, TARGET_TYPE);
+        PARSER.declareString(Ensemble.Builder::setTargetType, TargetType.TARGET_TYPE);
         PARSER.declareStringArray(Ensemble.Builder::setClassificationLabels, CLASSIFICATION_LABELS);
         PARSER.declareDoubleArray(Ensemble.Builder::setClassificationWeights, CLASSIFICATION_WEIGHTS);
     }
@@ -105,7 +104,7 @@ public class Ensemble implements TrainedModel {
                 Collections.singletonList(outputAggregator));
         }
         if (targetType != null) {
-            builder.field(TARGET_TYPE.getPreferredName(), targetType);
+            builder.field(TargetType.TARGET_TYPE.getPreferredName(), targetType);
         }
         if (classificationLabels != null) {
             builder.field(CLASSIFICATION_LABELS.getPreferredName(), classificationLabels);

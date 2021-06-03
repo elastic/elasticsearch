@@ -121,6 +121,76 @@ lexicographically.
 Flattened object fields currently cannot be stored. It is not possible to
 specify the <<mapping-store, `store`>> parameter in the mapping.
 
+[[search-fields-flattened]]
+==== Retrieving flattened fields
+
+Field values and concrete subfields can be retrieved using the 
+<<search-fields-param,fields parameter>>. content. Since the `flattened` field maps an 
+entire object with potentially many subfields as a single field, the response contains
+the unaltered structure from `_source`.
+
+Single subfields, however, can be fetched by specifying them explicitly in the request.
+This only works for concrete paths, but not using wildcards:
+
+[source,console]
+--------------------------------------------------
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "flattened_field": {
+        "type": "flattened"
+      }
+    }
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh=true
+{
+  "flattened_field" : {
+    "subfield" : "value"
+  }
+}
+
+POST my-index-000001/_search
+{
+  "fields": ["flattened_field.subfield"],
+  "_source": false
+}
+--------------------------------------------------
+
+[source,console-result]
+----
+{
+  "took": 2,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 1.0,
+    "hits": [{
+      "_index": "my-index-000001",
+      "_id": "1",
+      "_score": 1.0,
+      "fields": {
+        "flattened_field.subfield" : [ "value" ]
+      }
+    }]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
+
 [[flattened-params]]
 ==== Parameters for flattened object fields
 

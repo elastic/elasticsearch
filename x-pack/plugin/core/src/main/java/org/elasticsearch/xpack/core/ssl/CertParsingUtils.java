@@ -86,7 +86,7 @@ public class CertParsingUtils {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         for (Path path : certPaths) {
             try (InputStream input = Files.newInputStream(path)) {
-                certificates.addAll((Collection<Certificate>) certFactory.generateCertificates(input));
+                certificates.addAll(certFactory.generateCertificates(input));
                 if (certificates.isEmpty()) {
                     throw new CertificateException("failed to parse any certificates from [" + path.toAbsolutePath() + "]");
                 }
@@ -95,6 +95,7 @@ public class CertParsingUtils {
         return certificates.toArray(new Certificate[0]);
     }
 
+    @SuppressWarnings("unchecked")
     public static X509Certificate[] readX509Certificates(List<Path> certPaths) throws CertificateException, IOException {
         Collection<X509Certificate> certificates = new ArrayList<>();
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
@@ -108,7 +109,7 @@ public class CertParsingUtils {
 
     public static List<Certificate> readCertificates(InputStream input) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
-        Collection<Certificate> certificates = (Collection<Certificate>) certFactory.generateCertificates(input);
+        Collection<? extends Certificate> certificates = certFactory.generateCertificates(input);
         return new ArrayList<>(certificates);
     }
 
@@ -133,7 +134,7 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(store, keyPassword);
     }
 
-    static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+    public static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = new HashMap<>(store.size());
@@ -166,7 +167,7 @@ public class CertParsingUtils {
         return keyManager(keyStore, password, KeyManagerFactory.getDefaultAlgorithm());
     }
 
-    private static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
+    public static KeyStore getKeyStore(Certificate[] certificateChain, PrivateKey privateKey, char[] password)
         throws KeyStoreException, IOException, NoSuchAlgorithmException, CertificateException {
         KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
         keyStore.load(null, null);

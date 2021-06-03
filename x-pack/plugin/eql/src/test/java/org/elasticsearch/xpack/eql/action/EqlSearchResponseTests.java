@@ -233,7 +233,7 @@ public class EqlSearchResponseTests extends AbstractBWCWireSerializingTestCase<E
                 mutatedSequences.add(new Sequence(s.joinKeys(), mutateEvents(s.events(), version)));
             }
         }
-        
+
         return new EqlSearchResponse(new EqlSearchResponse.Hits(mutatedEvents, mutatedSequences, instance.hits().totalHits()),
             instance.took(), instance.isTimeout(), instance.id(), instance.isRunning(), instance.isPartial());
     }

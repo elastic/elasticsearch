@@ -28,10 +28,10 @@ GET /my-index-000001/_search
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 +
-To search a <<point-in-time-api,point in time (PIT)>> for an index alias, you
-must have the `read` index privilege for the alias's concrete indices.
+To search a <<point-in-time-api,point in time (PIT)>> for an alias, you
+must have the `read` index privilege for the alias's data streams or indices.
 
 [[search-search-api-desc]]
 ==== {api-description-title}
@@ -44,12 +44,9 @@ query string parameter>> or <<search-request-body,request body>>.
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases to search.
-Wildcard (`*`) expressions are supported.
-+
-To search all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases to
+search. Supports wildcards (`*`). To search all data streams and indices, omit
+this parameter or use `*` or `_all`.
 
 [role="child_attributes"]
 [[search-search-api-query-params]]
@@ -66,7 +63,7 @@ Defaults to `true`.
 [[search-partial-responses]]
 `allow_partial_search_results`::
 (Optional, Boolean)
-If `true`, returns partial results if there are request timeouts or
+If `true`, returns partial results if there are shard request timeouts or
 <<shard-failures,shard failures>>. If `false`, returns an error with
 no partial results. Defaults to `true`.
 +
@@ -287,7 +284,7 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 `track_scores`::
@@ -334,7 +331,7 @@ pattern.
 (Optional, string)
 Format in which the doc values are returned.
 +
-For <<date,date fields>>, you can specify a  date <<mapping-date-format,date
+For <<date,date fields>>, you can specify a date <<mapping-date-format,date
 `format`>>. For <<number,numeric fields>> fields, you can specify a
 https://docs.oracle.com/javase/8/docs/api/java/text/DecimalFormat.html[DecimalFormat
 pattern].
@@ -428,38 +425,85 @@ Period of time used to extend the life of the PIT.
 <<query-dsl,Query DSL>>.
 
 [[search-api-body-runtime]]
+// tag::runtime-mappings-def[]
 `runtime_mappings`::
-(Optional, object)
-Defines a <<runtime-search-request,runtime field>> in the search request that
-exist only as part of the query. Fields defined in the search request take
-precedence over fields defined with the same name in the index mappings.
+(Optional, object of objects)
+Defines one or more <<runtime-search-request,runtime fields>> in the search
+request. These fields take precedence over mapped fields with the same name.
 +
 .Properties of `runtime_mappings` objects
 [%collapsible%open]
 ====
+
+`<field-name>`::
+(Required, object)
+Configuration for the runtime field. The key is the field name.
++
+.Properties of `<field-name>`
+[%collapsible%open]
+=====
+
 `type`::
 (Required, string)
-<<mapping-types,Data type>> of the object, which can be any of the following:
+<<mapping-types,Field type>>, which can be any of the following:
 +
 include::{es-ref-dir}/mapping/runtime.asciidoc[tag=runtime-data-types]
 
 `script`::
 (Optional, string)
-<<modules-scripting-using,Painless script>> that is executed at query time. The
+<<modules-scripting-using,Painless script>> executed at query time. The
 script has access to the entire context of a document, including the original
 `_source` and any mapped fields plus their values.
 +
-Your script must include `emit` to return calculated values. For
-example:
+This script must include `emit` to return calculated values. For example:
 +
-[source,js]
+[source,js,indent=0]
 ----
-"script": {
-  "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
-        }
+include::search.asciidoc[tag=runtime-script]
 ----
 // NOTCONSOLE
+
+=====
 ====
+// end::runtime-mappings-def[]
+
+////
+[source,console]
+----
+POST _search?size=1&filter_path=hits.hits
+{
+  "runtime_mappings": {
+    "dow": {
+      "type": "keyword",
+      // tag::runtime-script[]
+      "script": "emit(doc['@timestamp'].value.dayOfWeekEnum.toString())"
+      // end::runtime-script[]
+    }
+  },
+  "fields": [{"field": "dow"}]
+}
+----
+// TEST[setup:my_index]
+
+[source,console-result]
+----
+{
+  "hits": {
+    "hits": [
+      {
+        "_index": $body.hits.hits.0._index,
+        "_id": $body.hits.hits.0._id,
+        "_score": $body.hits.hits.0._score,
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "dow": ["SUNDAY"]
+        }
+      }
+    ]
+  }
+}
+----
+////
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::
@@ -531,7 +575,7 @@ Defaults to `0`, which does not terminate query execution early.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait
-for a response. If no response is received before the timeout expires, the
+for a response from each shard. If no response is received before the timeout expires, the
 request fails and returns an error. Defaults to no timeout.
 
 [[request-body-search-version]]
@@ -713,7 +757,7 @@ Key is the field name. Value is the value for the field.
 
 [source,console]
 ----
-GET /my-index-000001/_search
+GET /my-index-000001/_search?from=40&size=20
 {
   "query": {
     "term": {
@@ -723,6 +767,7 @@ GET /my-index-000001/_search
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/\?from=40&size=20//]
 
 The API returns the following response:
 
@@ -739,7 +784,7 @@ The API returns the following response:
   },
   "hits": {
     "total": {
-      "value": 1,
+      "value": 20,
       "relation": "eq"
     },
     "max_score": 1.3862942,
@@ -768,9 +813,12 @@ The API returns the following response:
             "id": "kimchy"
           }
         }
-      }
+      },
+      ...
     ]
   }
 }
 ----
 // TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/"value": 20,/"value": 1,/]
+// TESTRESPONSE[s/,\n      \.\.\.//]

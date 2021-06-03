@@ -45,7 +45,6 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
-import static org.hamcrest.Matchers.equalTo;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
     @Override
@@ -195,12 +194,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader reader = DirectoryReader.open(w)) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-
-
-                IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () ->  searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType));
-                assertThat(e.getMessage(), equalTo("Field [this_field_does_not_exist] does not exist, SignificantText "
-                    + "requires an analyzed field"));
+                InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
+                SignificantTerms terms = sampler.getAggregations().get("sig_text");
+                assertTrue(terms.getBuckets().isEmpty()); 
             }
         }
     }

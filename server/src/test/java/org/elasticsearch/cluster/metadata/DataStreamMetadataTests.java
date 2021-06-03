@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.AbstractNamedWriteableTestCase;
 
 import java.io.IOException;
@@ -17,18 +17,34 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
+
 public class DataStreamMetadataTests extends AbstractNamedWriteableTestCase<DataStreamMetadata> {
+
+    public void testFromXContent() throws IOException {
+        xContentTester(this::createParser, this::createTestInstance, ToXContent.EMPTY_PARAMS, DataStreamMetadata::fromXContent)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            .test();
+    }
 
     @Override
     protected DataStreamMetadata createTestInstance() {
         if (randomBoolean()) {
-            return new DataStreamMetadata(Collections.emptyMap());
+            return new DataStreamMetadata(Map.of(), Map.of());
         }
         Map<String, DataStream> dataStreams = new HashMap<>();
         for (int i = 0; i < randomIntBetween(1, 5); i++) {
             dataStreams.put(randomAlphaOfLength(5), DataStreamTestHelper.randomInstance());
         }
-        return new DataStreamMetadata(dataStreams);
+
+        Map<String, DataStreamAlias> dataStreamsAliases = new HashMap<>();
+        if (randomBoolean()) {
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                DataStreamAlias alias = DataStreamTestHelper.randomAliasInstance();
+                dataStreamsAliases.put(alias.getName(), alias);
+            }
+        }
+        return new DataStreamMetadata(dataStreams, dataStreamsAliases);
     }
 
     @Override

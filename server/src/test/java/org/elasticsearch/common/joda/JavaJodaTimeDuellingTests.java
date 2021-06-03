@@ -45,6 +45,11 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
             : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
     }
 
+    public void testIncorrectFormat() {
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
+        assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
+    }
+
     public void testTimezoneParsing() {
         /** this testcase won't work in joda. See comment in {@link #testPartialTimeParsing()}
          *  assertSameDateAs("2016-11-30T+01", "strict_date_optional_time", "strict_date_optional_time");

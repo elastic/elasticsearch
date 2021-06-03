@@ -16,6 +16,7 @@ import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -167,7 +168,10 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("ES_JAVA_HOME", systemJavaHome));
         }
-        if (installation != null && distribution.isDocker() == false) {
+        if (installation != null
+            && installation.distribution.isDocker() == false
+            && Version.fromString(installation.distribution.baseVersion).onOrAfter(Version.V_7_11_0)) {
+            // Explicitly set heap for versions 7.11 and later otherwise auto heap sizing will cause OOM issues
             setHeap("1g");
         }
     }
@@ -215,6 +219,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
@@ -296,6 +301,7 @@ public abstract class PackagingTestCase extends Assert {
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -315,6 +321,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -335,6 +342,7 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             case DOCKER:
             case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:

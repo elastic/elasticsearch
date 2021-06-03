@@ -92,13 +92,13 @@ public class MoveAllocationCommand implements AllocationCommand {
 
         boolean found = false;
         RoutingNode fromRoutingNode = allocation.routingNodes().node(fromDiscoNode.getId());
-        if (fromRoutingNode == null && fromDiscoNode.isDataNode() == false) {
+        if (fromRoutingNode == null && fromDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  fromDiscoNode.getName()
                 + "] is not a data node.");
         }
         RoutingNode toRoutingNode = allocation.routingNodes().node(toDiscoNode.getId());
-        if (toRoutingNode == null && toDiscoNode.isDataNode() == false) {
+        if (toRoutingNode == null && toDiscoNode.canContainData() == false) {
             throw new IllegalArgumentException("[move_allocation] can't move [" + index + "][" + shardId + "] from "
                 + fromDiscoNode + " to " + toDiscoNode + ": source [" +  toDiscoNode.getName()
                 + "] is not a data node.");

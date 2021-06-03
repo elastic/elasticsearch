@@ -33,7 +33,7 @@ GET _search/template
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-template-api-desc]]
 ==== {api-description-title}
@@ -109,13 +109,14 @@ The API request body must contain the search definition template and its paramet
 
 
 [[search-template-api-example]]
-==== {api-response-codes-title}
+==== {api-examples-title}
 
 
 [[pre-registered-templates]]
 ===== Store a search template
 
-You can store a search template using the stored scripts API.
+To store a search template, use the <<create-stored-script-api,create stored
+script API>>. Specify `mustache` as the `lang`.
 
 [source,console]
 ------------------------------------------
@@ -150,7 +151,8 @@ created:
 //////////////////////////
 
 
-The template can be retrieved by calling
+To retrieve the template, use the <<get-stored-script-api,get stored script
+API>>.
 
 [source,console]
 ------------------------------------------
@@ -158,7 +160,7 @@ GET _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
 
-The API returns the following result:
+The API returns:
 
 [source,console-result]
 ------------------------------------------
@@ -175,15 +177,14 @@ The API returns the following result:
 }
 ------------------------------------------
 
-
-This template can be deleted by calling
+To delete the template, use the <<delete-stored-script-api,delete stored script
+API>>.
 
 [source,console]
 ------------------------------------------
 DELETE _scripts/<templateid>
 ------------------------------------------
 // TEST[continued]
-
 
 [[use-registered-templates]]
 ===== Using a stored search template
@@ -535,7 +536,7 @@ for `end`:
 ===== Conditional clauses
 
 Conditional clauses cannot be expressed using the JSON form of the template.
-Instead, the template *must* be passed as a string.  For instance, let's say
+Instead, the template *must* be passed as a string. For instance, let's say
 we wanted to run a `match` query on the `line` field, and optionally wanted
 to filter by line numbers, where `start` and `end` are optional.
 
@@ -670,7 +671,7 @@ Allows to execute several search template requests.
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[multi-search-template-api-desc]]
 ==== {api-description-title}

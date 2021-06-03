@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ilm.actions;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -33,6 +34,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.index;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.updatePolicy;
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68609")
 public class RollupActionIT extends ESRestTestCase {
 
     private String index;
@@ -65,7 +67,6 @@ public class RollupActionIT extends ESRestTestCase {
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69934")
     public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
@@ -92,7 +93,7 @@ public class RollupActionIT extends ESRestTestCase {
      * @throws IOException if request fails
      */
     private String getRollupIndexName(String index) throws IOException {
-        Response response = client().performRequest(new Request("GET", "/rollup-" + index + "-*"));
+        Response response = client().performRequest(new Request("GET", "/rollup-*-" + index));
         Map<String, Object> asMap = responseAsMap(response);
         if (asMap.size() == 1) {
             return (String) asMap.keySet().toArray()[0];

@@ -13,6 +13,7 @@ You can view a list of in-progress and completed recoveries using the
 <<cat-recovery, cat recovery API>>.
 
 [discrete]
+[[recovery-settings]]
 ==== Recovery settings
 
 `indices.recovery.max_bytes_per_sec`::

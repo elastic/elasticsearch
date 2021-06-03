@@ -82,7 +82,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
@@ -92,7 +92,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         // see com.azure.storage.blob.BlobUrlParts.parseIpUrl
         final String endpoint = "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + httpServerUrl() + "/" + accountName;
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(AzureStorageSettings.ENDPOINT_SUFFIX_SETTING.getConcreteSettingForNamespace("test").getKey(), endpoint)
             .setSecureSettings(secureSettings)
             .build();
@@ -210,7 +210,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     public void testLargeBlobCountDeletion() throws Exception {
         int numberOfBlobs = randomIntBetween(257, 2000);
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             for (int i = 0; i < numberOfBlobs; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
                 String blobName = randomAlphaOfLength(10);
@@ -224,7 +224,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
         try (BlobStore store = newBlobStore()) {
-            final BlobContainer container = store.blobContainer(new BlobPath());
+            final BlobContainer container = store.blobContainer(BlobPath.EMPTY);
             List<String> blobsToDelete = new ArrayList<>();
             for (int i = 0; i < 10; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
@@ -239,7 +239,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             Randomness.shuffle(blobsToDelete);
-            container.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+            container.deleteBlobsIgnoringIfNotExists(blobsToDelete.iterator());
             assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }

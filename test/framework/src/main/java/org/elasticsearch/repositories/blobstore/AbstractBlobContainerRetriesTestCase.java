@@ -79,6 +79,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         @Nullable Boolean disableChunkedEncoding,
         @Nullable ByteSizeValue bufferSize);
 
+    protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
+        return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
+            .or(instanceOf(RuntimeException.class));
+    }
+
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
         final long position = randomLongBetween(0, MAX_RANGE_VAL);
@@ -236,8 +241,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 Streams.readFully(stream);
             }
         });
-        assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
-            .or(instanceOf(RuntimeException.class)));
+        assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
             containsString("premature end of chunk coded message body: closing chunk expected")).or(containsString("Read timed out"))
             .or(containsString("unexpected end of file from server")));

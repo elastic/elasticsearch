@@ -9,46 +9,39 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.support.SecurityTokenType;
+import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.util.Base64;
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
 
 public class ServiceAccountService {
 
-    public static final String REALM_TYPE = "service_account";
-    public static final String REALM_NAME = "service_account";
-    public static final Version VERSION_MINIMUM = Version.V_8_0_0;
-
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
+    private static final int MIN_TOKEN_SECRET_LENGTH = 10;
 
-    private final ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private final ServiceAccountTokenStore serviceAccountTokenStore;
+    private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore) {
-        this.serviceAccountsTokenStore = serviceAccountsTokenStore;
-    }
-
-    public static boolean isServiceAccount(Authentication authentication) {
-        return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
+    public ServiceAccountService(ServiceAccountTokenStore serviceAccountTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+        this.serviceAccountTokenStore = serviceAccountTokenStore;
+        this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
@@ -59,110 +52,110 @@ public class ServiceAccountService {
         return ACCOUNTS.keySet();
     }
 
-    // {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
+    public static Map<String, ServiceAccount> getServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
+    }
+
     /**
      * Parses a token object from the content of a {@link ServiceAccountToken#asBearerString()} bearer string}.
      * This bearer string would typically be
+     * {@link org.elasticsearch.xpack.security.authc.TokenService#extractBearerTokenFromHeader extracted} from an HTTP authorization header.
      *
      * <p>
      * <strong>This method does not validate the credential, it simply parses it.</strong>
      * There is no guarantee that the {@link ServiceAccountToken#getSecret() secret} is valid,
      * or even that the {@link ServiceAccountToken#getAccountId() account} exists.
      * </p>
-     * @param token A raw token string (if this is from an HTTP header, then the <code>"Bearer "</code> prefix must be removed before
+     * @param bearerString A raw token string (if this is from an HTTP header, then the <code>"Bearer "</code> prefix must be removed before
      *              calling this method.
      * @return An unvalidated token object.
      */
-    public static ServiceAccountToken tryParseToken(SecureString token) {
+    public static ServiceAccountToken tryParseToken(SecureString bearerString) {
         try {
-            if (token == null) {
+            if (bearerString == null) {
                 return null;
             }
-            return doParseToken(token);
-        } catch (IOException e) {
-            logger.debug("Cannot parse possible service account token", e);
+            return ServiceAccountToken.fromBearerString(bearerString);
+        } catch (Exception e) {
+            logger.trace("Cannot parse possible service account token", e);
             return null;
         }
     }
 
-    public void authenticateWithToken(ServiceAccountToken token, ThreadContext threadContext, String nodeName,
-                                      ActionListener<Authentication> listener) {
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        serviceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            listener.onResponse(new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+        }, listener::onFailure));
+    }
 
-        if (ElasticServiceAccounts.NAMESPACE.equals(token.getAccountId().namespace()) == false) {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "only [{}] service accounts are supported, but received [{}]",
-                ElasticServiceAccounts.NAMESPACE, token.getAccountId().asPrincipal());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
-            return;
-        }
+    public void authenticateToken(ServiceAccountToken serviceAccountToken, String nodeName, ActionListener<Authentication> listener) {
+        logger.trace("attempt to authenticate service account token [{}]", serviceAccountToken.getQualifiedName());
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account authentication", () -> {
+            if (ElasticServiceAccounts.NAMESPACE.equals(serviceAccountToken.getAccountId().namespace()) == false) {
+                logger.debug("only [{}] service accounts are supported, but received [{}]",
+                    ElasticServiceAccounts.NAMESPACE, serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
 
-        final ServiceAccount account = ACCOUNTS.get(token.getAccountId().asPrincipal());
-        if (account == null) {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "the [{}] service account does not exist", token.getAccountId().asPrincipal());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
-            return;
-        }
+            final ServiceAccount account = ACCOUNTS.get(serviceAccountToken.getAccountId().asPrincipal());
+            if (account == null) {
+                logger.debug("the [{}] service account does not exist", serviceAccountToken.getAccountId().asPrincipal());
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
 
-        if (serviceAccountsTokenStore.authenticate(token)) {
-            listener.onResponse(success(account, token, nodeName));
-        } else {
-            final ParameterizedMessage message = new ParameterizedMessage(
-                "failed to authenticate service account [{}] with token name [{}]",
-                token.getAccountId().asPrincipal(),
-                token.getTokenName());
-            logger.debug(message);
-            listener.onFailure(new ElasticsearchSecurityException(message.getFormattedMessage()));
-        }
+            if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
+                logger.debug("failing authentication for service account token [{}],"
+                        + " the provided credential has length [{}]"
+                        + " but a token's secret value must be at least [{}] characters",
+                    serviceAccountToken.getQualifiedName(),
+                    serviceAccountToken.getSecret().length(),
+                    MIN_TOKEN_SECRET_LENGTH);
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+
+            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource() , nodeName));
+                } else {
+                    final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
+                    logger.debug(e.getMessage());
+                    listener.onFailure(e);
+                }
+            }, listener::onFailure));
+        });
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
-
-        final String principal = authentication.getUser().principal();
-        final ServiceAccount account = ACCOUNTS.get(principal);
-        if (account == null) {
-            listener.onFailure(new ElasticsearchSecurityException(
-                "cannot load role for service account [" + principal + "] - no such service account"
-            ));
-            return;
-        }
-        listener.onResponse(account.roleDescriptor());
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
+            final String principal = authentication.getUser().principal();
+            final ServiceAccount account = ACCOUNTS.get(principal);
+            if (account == null) {
+                listener.onFailure(new ElasticsearchSecurityException(
+                    "cannot load role for service account [" + principal + "] - no such service account"));
+                return;
+            }
+            listener.onResponse(account.roleDescriptor());
+        });
     }
 
-    private Authentication success(ServiceAccount account, ServiceAccountToken token, String nodeName) {
+    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, TokenSource tokenSource,
+                                                String nodeName) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
+        final Authentication.RealmRef authenticatedBy =
+            new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", token.getTokenName()));
+            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
     }
 
-
-
-    private static ServiceAccountToken doParseToken(SecureString token) throws IOException {
-        final byte[] bytes = CharArrays.toUtf8Bytes(token.getChars());
-        logger.trace("parsing token bytes {}", MessageDigests.toHexString(bytes));
-        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
-            final Version version = Version.readVersion(in);
-            in.setVersion(version);
-            if (version.before(VERSION_MINIMUM)) {
-                logger.trace("token has version {}, but we need at least {}", version, VERSION_MINIMUM);
-                return null;
-            }
-            final SecurityTokenType tokenType = SecurityTokenType.read(in);
-            if (tokenType != SecurityTokenType.SERVICE_ACCOUNT) {
-                logger.trace("token is of type {}, but we only handle {}", tokenType, SecurityTokenType.SERVICE_ACCOUNT);
-                return null;
-            }
-
-            final ServiceAccountId account = new ServiceAccountId(in);
-            final String tokenName = in.readString();
-            final SecureString secret = in.readSecureString();
-
-            return new ServiceAccountToken(account, tokenName, secret);
-        }
+    private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {
+        return new ElasticsearchSecurityException("failed to authenticate service account [{}] with token name [{}]",
+            RestStatus.UNAUTHORIZED,
+            serviceAccountToken.getAccountId().asPrincipal(),
+            serviceAccountToken.getTokenName());
     }
-
 }

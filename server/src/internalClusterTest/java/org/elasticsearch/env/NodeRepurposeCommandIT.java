@@ -14,6 +14,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
+import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 
@@ -45,7 +47,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
         // put some unknown role here to make sure the tool does not bark when encountering an unknown role
-        final Settings noMasterNoDataSettings = Settings.builder().putList("node.roles", "unknown_role").build();
+        final Settings noMasterNoDataSettings = nonMasterNode(nonDataNode());
 
         final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
             .put(noMasterNoDataSettings)

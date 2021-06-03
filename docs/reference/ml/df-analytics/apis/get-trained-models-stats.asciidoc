@@ -9,8 +9,6 @@
 
 Retrieves usage information for trained models.
 
-beta::[]
-
 
 [[ml-get-trained-models-stats-request]]
 == {api-request-title}
@@ -29,12 +27,9 @@ beta::[]
 [[ml-get-trained-models-stats-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-trained-models-stats-desc]]
 == {api-description-title}

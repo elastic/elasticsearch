@@ -48,15 +48,7 @@ GET /_xpack/usage
 {
   "security" : {
     "available" : true,
-    "enabled" : false,
-    "ssl" : {
-      "http" : {
-        "enabled" : false
-      },
-      "transport" : {
-        "enabled" : false
-      }
-    }
+    "enabled" : false
   },
   "monitoring" : {
     "available" : true,

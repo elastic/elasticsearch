@@ -8,11 +8,9 @@
 
 package org.elasticsearch.index.mapper.annotatedtext;
 
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
-import org.elasticsearch.index.analysis.AnalyzerScope;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -25,9 +23,8 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
 
     public void testIntervals() throws IOException {
         MappedFieldType ft = new AnnotatedTextFieldMapper.AnnotatedTextFieldType("field", Collections.emptyMap());
-        NamedAnalyzer a = new NamedAnalyzer("name", AnalyzerScope.INDEX, new StandardAnalyzer());
-        IntervalsSource source = ft.intervals("Donald Trump", 0, true, a, false);
-        assertEquals(Intervals.phrase(Intervals.term("donald"), Intervals.term("trump")), source);
+        IntervalsSource source = ft.termIntervals(new BytesRef("donald"), null);
+        assertEquals(Intervals.term("donald"), source);
     }
 
     public void testFetchSourceValue() throws IOException {

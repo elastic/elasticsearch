@@ -41,6 +41,11 @@ public class AllocationRoutedStep extends ClusterStateWaitStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         IndexMetadata idxMeta = clusterState.metadata().index(index);
         if (idxMeta == null) {

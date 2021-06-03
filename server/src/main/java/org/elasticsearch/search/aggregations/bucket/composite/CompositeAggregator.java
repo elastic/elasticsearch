@@ -32,6 +32,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
@@ -103,7 +104,15 @@ final class CompositeAggregator extends BucketsAggregator {
                 this::addRequestCircuitBreakerBytes
             );
         }
-        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size, rawAfterKey);
+        this.queue = new CompositeValuesCollectorQueue(context.bigArrays(), sources, size);
+        if (rawAfterKey != null) {
+            try {
+                this.queue.setAfterKey(rawAfterKey);
+            } catch (IllegalArgumentException ex) {
+                throw new ElasticsearchParseException("Cannot set after key in the composite aggregation [" + name + "] - " +
+                    ex.getMessage(), ex);
+            }
+        }
         this.rawAfterKey = rawAfterKey;
     }
 
@@ -339,7 +348,7 @@ final class CompositeAggregator extends BucketsAggregator {
             formats[i] = sources[i].format;
         }
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(new SortAndFormats(indexSortPrefix, formats),
-            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length));
+            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length), null);
         if (indexSortPrefix.getSort().length < sources.length) {
             // include all docs that belong to the partial bucket
             fieldDoc.doc = -1;
@@ -373,7 +382,7 @@ final class CompositeAggregator extends BucketsAggregator {
         Sort indexSortPrefix = buildIndexSortPrefix(ctx);
         int sortPrefixLen = computeSortPrefixLen(indexSortPrefix);
 
-        SortedDocsProducer sortedDocsProducer = sortPrefixLen == 0  ?
+        SortedDocsProducer sortedDocsProducer = (sortPrefixLen == 0 && parent == null) ?
             sources[0].createSortedDocsProducerOrNull(ctx.reader(), topLevelQuery()) : null;
         if (sortedDocsProducer != null) {
             // Visit documents sorted by the leading source of the composite definition and terminates
@@ -397,10 +406,22 @@ final class CompositeAggregator extends BucketsAggregator {
                 // We have an after key and index sort is applicable so we jump directly to the doc
                 // that is after the index sort prefix using the rawAfterKey and we start collecting
                 // document from there.
-                processLeafFromQuery(ctx, indexSortPrefix);
+                try {
+                    processLeafFromQuery(ctx, indexSortPrefix);
+                } catch (CollectionTerminatedException e) {
+                    /*
+                     * Signal that there isn't anything to collect. We're going
+                     * to return noop collector anyway so we can ignore it.
+                     */
+                }
                 return LeafBucketCollector.NO_OP_COLLECTOR;
             } else {
-                final LeafBucketCollector inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                final LeafBucketCollector inner;
+                try {
+                    inner = queue.getLeafCollector(ctx, getFirstPassCollector(docIdSetBuilder, sortPrefixLen));
+                } catch (CollectionTerminatedException e) {
+                    return LeafBucketCollector.NO_OP_COLLECTOR;
+                }
                 return new LeafBucketCollector() {
                     @Override
                     public void collect(int doc, long zeroBucket) throws IOException {

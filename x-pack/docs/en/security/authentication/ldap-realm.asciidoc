@@ -17,7 +17,7 @@ _common name_ (`cn`) or _unique ID_ (`uid`). A DN is specified as a string,
 for example  `"cn=admin,dc=example,dc=com"` (white spaces are ignored).
 
 The `ldap` realm supports two modes of operation, a user search mode
-and a mode with specific templates for user DNs. 
+and a mode with specific templates for user DNs.
 
 [[mapping-roles-ldap]]
 ==== Mapping LDAP groups to roles
@@ -60,7 +60,7 @@ This metadata is returned in the
 <<security-api-authenticate,authenticate API>>, and can be used with
 <<templating-role-query, templated queries>> in roles.
 
-Additional fields can be included in the user's metadata by  configuring
+Additional fields can be included in the user's metadata by configuring
 the `metadata` setting on the LDAP realm. This metadata is available for use
 with the <<mapping-roles-api, role mapping API>> or in
 <<templating-role-query, templated role queries>>.
@@ -72,3 +72,5 @@ the {security-features} should interact with multiple LDAP servers. The
 {security-features} support both failover and load balancing modes of operation.
 
 See <<load-balancing>>.
+
+include::../securing-communications/tls-ldap.asciidoc[]

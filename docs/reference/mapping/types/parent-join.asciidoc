@@ -269,7 +269,7 @@ and scripts, and may be queried with the
 <<query-dsl-parent-id-query, `parent_id` query>>:
 
 [source,console]
---------------------------
+----
 GET my-index-000001/_search
 {
   "query": {
@@ -286,21 +286,70 @@ GET my-index-000001/_search
       }
     }
   },
-  "script_fields": {
+  "runtime_mappings": {
     "parent": {
-      "script": {
-         "source": "doc['my_join_field#question']" <3>
-      }
+      "type": "long",
+      "script": """
+        emit(Integer.parseInt(doc['my_join_field#question'].value)) <3>
+      """
     }
-  }
+  },
+  "fields": [
+    { "field": "parent" }
+  ]
 }
---------------------------
+----
 // TEST[continued]
-
+// TEST[s/_search/_search?filter_path=aggregations,hits.hits&sort=my_id/]
 <1> Querying the `parent id` field (also see the <<query-dsl-has-parent-query,`has_parent` query>> and the <<query-dsl-has-child-query,`has_child` query>>)
 <2> Aggregating on the `parent id` field (also see the <<search-aggregations-bucket-children-aggregation,`children`>> aggregation)
-<3> Accessing the parent id` field in scripts
+<3> Accessing the `parent id` field in scripts. 
 
+////
+[source,console-result]
+----
+{
+  "aggregations": {
+    "parents": {
+      "doc_count_error_upper_bound": 0,
+      "sum_other_doc_count": 0,
+      "buckets": [
+        {
+          "key": "1",
+          "doc_count": 2
+        }
+      ]
+    }
+  },
+  "hits": {
+    "hits": [
+      {
+        "_id": "3",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_routing": "1",
+        "_source": $body.hits.hits.0._source,
+        "fields": {
+          "parent": [1]
+        },
+        "sort": ["3"]
+      },
+      {
+        "_id": "4",
+        "_index": "my-index-000001",
+        "_score": null,
+        "_routing": "1",
+        "_source": $body.hits.hits.1._source,
+        "fields": {
+          "parent": [1]
+        },
+        "sort": ["4"]
+      }
+    ]
+  }
+}
+----
+////
 
 ==== Global ordinals
 

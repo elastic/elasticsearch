@@ -254,15 +254,13 @@ public final class ParentJoinFieldMapper extends FieldMapper {
             if (context.sourceToParse().routing() == null) {
                 throw new IllegalArgumentException("[routing] is missing for join field [" + name() + "]");
             }
-            ParseContext externalContext = context.createExternalValueContext(parent);
             String fieldName = fieldType().joiner.parentJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, parent);
         }
         if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
-            ParseContext externalContext = context.createExternalValueContext(context.sourceToParse().id());
             String fieldName = fieldType().joiner.childJoinField(name);
-            parentIdFields.get(fieldName).parse(externalContext);
+            parentIdFields.get(fieldName).indexValue(context, context.sourceToParse().id());
         }
 
         BytesRef binaryValue = new BytesRef(name);
@@ -273,7 +271,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
+    protected void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.field("type", contentType());
         builder.field("eager_global_ordinals", eagerGlobalOrdinals);
         builder.startObject("relations");
@@ -294,7 +292,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
     @Override
     protected void doValidate(MappingLookup mappers) {
-        List<String> joinFields = getJoinFieldTypes(mappers.fieldTypes()).stream()
+        List<String> joinFields = getJoinFieldTypes(mappers.getAllFieldTypes()).stream()
             .map(JoinFieldType::name)
             .collect(Collectors.toList());
         if (joinFields.size() > 1) {

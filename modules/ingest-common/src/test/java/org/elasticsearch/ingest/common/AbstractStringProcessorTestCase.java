@@ -127,12 +127,23 @@ public abstract class AbstractStringProcessorTestCase<T> extends ESTestCase {
     }
 
     public void testTargetField() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
-        String fieldValue = RandomDocumentPicks.randomString(random());
-        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
+        IngestDocument ingestDocument;
+        String fieldValue;
+        String fieldName;
+        boolean ignoreMissing;
+        do {
+            ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.emptyMap());
+            fieldValue = RandomDocumentPicks.randomString(random());
+            fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
+            ignoreMissing = randomBoolean();
+        } while (isSupportedValue(ingestDocument.getFieldValue(fieldName, Object.class, ignoreMissing)) == false);
         String targetFieldName = fieldName + "foo";
-        Processor processor = newProcessor(fieldName, randomBoolean(), targetFieldName);
+        Processor processor = newProcessor(fieldName, ignoreMissing, targetFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(targetFieldName, expectedResultType()), equalTo(expectedResult(fieldValue)));
+    }
+
+    protected boolean isSupportedValue(Object value) {
+        return true;
     }
 }

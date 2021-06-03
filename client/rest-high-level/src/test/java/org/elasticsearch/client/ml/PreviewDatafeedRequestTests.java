@@ -8,6 +8,7 @@
 package org.elasticsearch.client.ml;
 
 import org.elasticsearch.client.ml.datafeed.DatafeedConfigTests;
+import org.elasticsearch.client.ml.job.config.JobTests;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -17,7 +18,9 @@ public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<Previe
 
     @Override
     protected PreviewDatafeedRequest createTestInstance() {
-        return new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId());
+        return randomBoolean() ?
+            new PreviewDatafeedRequest(DatafeedConfigTests.randomValidDatafeedId()) :
+            new PreviewDatafeedRequest(DatafeedConfigTests.createRandom(), randomBoolean() ? null : JobTests.createRandomizedJob());
     }
 
     @Override
@@ -27,6 +30,6 @@ public class PreviewDatafeedRequestTests extends AbstractXContentTestCase<Previe
 
     @Override
     protected boolean supportsUnknownFields() {
-        return true;
+        return false;
     }
 }

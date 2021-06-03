@@ -42,7 +42,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;
 
-    @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
         nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
@@ -54,9 +53,9 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
 

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -40,13 +39,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.core.DataTier;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -71,7 +70,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     public ReactiveStorageDeciderService(Settings settings, ClusterSettings clusterSettings, AllocationDeciders allocationDeciders) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        this.dataTierAllocationDecider = new DataTierAllocationDecider(settings, clusterSettings);
+        this.dataTierAllocationDecider = new DataTierAllocationDecider();
         this.allocationDeciders = allocationDeciders;
     }
 
@@ -89,11 +88,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
     public List<DiscoveryNodeRole> roles() {
         return List.of(
             DiscoveryNodeRole.DATA_ROLE,
-            DataTier.DATA_CONTENT_NODE_ROLE,
-            DataTier.DATA_HOT_NODE_ROLE,
-            DataTier.DATA_WARM_NODE_ROLE,
-            DataTier.DATA_COLD_NODE_ROLE,
-            DataTier.DATA_FROZEN_NODE_ROLE
+            DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_HOT_NODE_ROLE,
+            DiscoveryNodeRole.DATA_WARM_NODE_ROLE,
+            DiscoveryNodeRole.DATA_COLD_NODE_ROLE
         );
     }
 
@@ -511,7 +509,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
                 final String uuid = UUIDs.randomBase64UUID();
-                dataStream = dataStream.rollover(uuid, Version.CURRENT);
+                dataStream = dataStream.rollover(state.metadata(), uuid);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(dataStream.getWriteIndex().getName())
                     .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
@@ -563,7 +561,14 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             private final ClusterInfo delegate;
 
             private ExtendedClusterInfo(ImmutableOpenMap<String, Long> extraShardSizes, ClusterInfo info) {
-                super(info.getNodeLeastAvailableDiskUsages(), info.getNodeMostAvailableDiskUsages(), extraShardSizes, null, null);
+                super(
+                    info.getNodeLeastAvailableDiskUsages(),
+                    info.getNodeMostAvailableDiskUsages(),
+                    extraShardSizes,
+                    ImmutableOpenMap.of(),
+                    null,
+                    null
+                );
                 this.delegate = info;
             }
 
@@ -585,6 +590,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 } else {
                     return delegate.getShardSize(shardRouting, defaultValue);
                 }
+            }
+
+            @Override
+            public Optional<Long> getShardDataSetSize(ShardId shardId) {
+                return delegate.getShardDataSetSize(shardId);
             }
 
             @Override

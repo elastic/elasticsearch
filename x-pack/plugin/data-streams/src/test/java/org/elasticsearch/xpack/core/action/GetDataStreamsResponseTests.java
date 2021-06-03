@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.cluster.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.io.stream.Writeable;

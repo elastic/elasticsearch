@@ -23,7 +23,7 @@ Updates the license for your {es} cluster.
 
 * If {es} {security-features} are enabled and you are installing a gold or higher
 license, you must enable TLS on the transport networking layer before you
-install the license. See <<configuring-tls>>.
+install the license. See <<encrypt-internode-communication>>.
 
 * If the <<operator-privileges,{operator-feature}>> is enabled, only operator
 users can use this API.

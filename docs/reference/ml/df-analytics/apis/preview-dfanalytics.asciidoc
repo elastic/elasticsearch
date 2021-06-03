@@ -10,8 +10,6 @@
 
 Previews the features used by a {dataframe-analytics-config}.
 
-beta::[]
-
 
 [[ml-preview-dfanalytics-request]]
 == {api-request-title}
@@ -28,12 +26,8 @@ beta::[]
 [[ml-preview-dfanalytics-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* cluster: `monitor_ml`
-
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-preview-dfanalytics-desc]]

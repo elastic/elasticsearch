@@ -29,7 +29,9 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -42,13 +44,13 @@ import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.Base64;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
@@ -217,12 +219,33 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     /**
      * Writes a blob in the specific bucket
-     *  @param inputStream content of the blob to be written
+     * @param bytes       content of the blob to be written
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     */
+    void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        if (bytes.length() > getLargeBlobThresholdInBytes()) {
+            // Compute md5 here so #writeBlobResumable forces the integrity check on the resumable upload.
+            // This is needed since we rely on atomic write behavior when writing BytesReferences in BlobStoreRepository which is not
+            // guaranteed for resumable uploads.
+            final String md5 = Base64.getEncoder().encodeToString(MessageDigests.digest(bytes, MessageDigests.md5()));
+            writeBlobResumable(BlobInfo.newBuilder(bucketName, blobName).setMd5(md5).build(), bytes.streamInput(), bytes.length(),
+                failIfAlreadyExists);
+        } else {
+            writeBlob(bytes.streamInput(), bytes.length(), failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+        }
+    }
+
+    /**
+     * Writes a blob in the specific bucket
+     * @param inputStream content of the blob to be written
      * @param blobSize    expected size of the blob to be written
      * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
      */
     void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        writeBlob(inputStream, blobSize, failIfAlreadyExists, BlobInfo.newBuilder(bucketName, blobName).build());
+    }
+
+    private void writeBlob(InputStream inputStream, long blobSize, boolean failIfAlreadyExists, BlobInfo blobInfo) throws IOException {
         if (blobSize > getLargeBlobThresholdInBytes()) {
             writeBlobResumable(blobInfo, inputStream, blobSize, failIfAlreadyExists);
         } else {
@@ -234,6 +257,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     long getLargeBlobThresholdInBytes() {
         return LARGE_BLOB_THRESHOLD_BYTE_SIZE;
     }
+
+    // possible options for #writeBlobResumable uploads
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_NO_MD5 = {Storage.BlobWriteOption.doesNotExist()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_NO_MD5 = new Storage.BlobWriteOption[0];
+    private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 =
+            {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.md5Match()};
+    private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = {Storage.BlobWriteOption.md5Match()};
 
     /**
      * Uploads a blob using the "resumable upload" method (multiple requests, which
@@ -252,8 +282,14 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         inputStream.mark(Integer.MAX_VALUE);
         final byte[] buffer = new byte[size < bufferSize ? Math.toIntExact(size) : bufferSize];
         StorageException storageException = null;
-        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ?
-            new Storage.BlobWriteOption[]{Storage.BlobWriteOption.doesNotExist()} : new Storage.BlobWriteOption[0];
+        final Storage.BlobWriteOption[] writeOptions;
+        if (blobInfo.getMd5() == null) {
+            // no md5, use options without checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
+        } else {
+            // md5 value is set so we use it by enabling checksum validation
+            writeOptions = failIfAlreadyExists ? NO_OVERWRITE_CHECK_MD5 : OVERWRITE_CHECK_MD5;
+        }
         for (int retry = 0; retry < 3; ++retry) {
             try {
                 final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
@@ -349,15 +385,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
             do {
-                final Collection<String> blobsToDelete = new ArrayList<>();
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
-                page.getValues().forEach(b -> {
-                    blobsToDelete.add(b.getName());
-                    blobsDeleted.incrementAndGet();
-                    bytesDeleted.addAndGet(b.getSize());
+                final Iterator<Blob> blobs = page.getValues().iterator();
+                deleteBlobsIgnoringIfNotExists(new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return blobs.hasNext();
+                    }
+
+                    @Override
+                    public String next() {
+                        final Blob next = blobs.next();
+                        blobsDeleted.incrementAndGet();
+                        bytesDeleted.addAndGet(next.getSize());
+                        return next.getName();
+                    }
                 });
-                deleteBlobsIgnoringIfNotExists(blobsToDelete);
                 deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
                 page = page.getNextPage();
             } while (page != null);
@@ -370,17 +414,28 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
-        if (blobNames.isEmpty()) {
+    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
             return;
         }
-        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final Iterator<BlobId> blobIdsToDelete = new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobNames.hasNext();
+            }
+
+            @Override
+            public BlobId next() {
+                return BlobId.of(bucketName, blobNames.next());
+            }
+        };
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         try {
             SocketAccess.doPrivilegedVoidIOException(() -> {
                 final AtomicReference<StorageException> ioe = new AtomicReference<>();
                 final StorageBatch batch = client().batch();
-                for (BlobId blob : blobIdsToDelete) {
+                while (blobIdsToDelete.hasNext()) {
+                    BlobId blob = blobIdsToDelete.next();
                     batch.delete(blob).notify(
                         new BatchResult.Callback<>() {
                             @Override
@@ -390,7 +445,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             @Override
                             public void error(StorageException exception) {
                                 if (exception.getCode() != HTTP_NOT_FOUND) {
-                                    failedBlobs.add(blob);
+                                    // track up to 10 failed blob deletions for the exception message below
+                                    if (failedBlobs.size() < 10) {
+                                        failedBlobs.add(blob);
+                                    }
                                     if (ioe.compareAndSet(null, exception) == false) {
                                         ioe.get().addSuppressed(exception);
                                     }
@@ -406,7 +464,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 }
             });
         } catch (final Exception e) {
-            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
+            throw new IOException("Exception when deleting blobs " + failedBlobs, e);
         }
         assert failedBlobs.isEmpty();
     }

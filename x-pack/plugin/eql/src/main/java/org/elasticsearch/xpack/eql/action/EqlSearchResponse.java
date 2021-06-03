@@ -204,7 +204,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Event, Void> PARSER =
-                new ConstructingObjectParser<>("eql/search_response_event", true, 
+                new ConstructingObjectParser<>("eql/search_response_event", true,
                     args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2], (Map<String, DocumentField>) args[3]));
 
         static {

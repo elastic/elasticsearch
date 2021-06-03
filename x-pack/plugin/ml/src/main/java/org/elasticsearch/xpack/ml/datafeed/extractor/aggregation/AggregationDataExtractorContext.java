@@ -36,7 +36,7 @@ class AggregationDataExtractorContext {
         this.jobId = Objects.requireNonNull(jobId);
         this.timeField = Objects.requireNonNull(timeField);
         this.fields = Objects.requireNonNull(fields);
-        this.indices = indices.toArray(new String[indices.size()]);
+        this.indices = indices.toArray(new String[0]);
         this.query = Objects.requireNonNull(query);
         this.aggs = Objects.requireNonNull(aggs);
         this.start = start;

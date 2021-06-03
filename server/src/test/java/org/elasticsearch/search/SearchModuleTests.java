@@ -300,6 +300,7 @@ public class SearchModuleTests extends ESTestCase {
             "bool",
             "boosting",
             "constant_score",
+            "combined_fields",
             "dis_max",
             "exists",
             "field_masking_span",

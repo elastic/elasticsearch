@@ -24,7 +24,9 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 
 public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlSearchRequest> {
 
@@ -65,17 +67,16 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
                 randomFetchFields = null;
             }
             QueryBuilder filter = parseFilter(defaultTestFilter);
-            EqlSearchRequest request = new EqlSearchRequest()
-                .indices(new String[]{defaultTestIndex})
+            return new EqlSearchRequest()
+                .indices(defaultTestIndex)
                 .filter(filter)
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
                 .size(randomInt(50))
                 .query(randomAlphaOfLength(10))
-                .fetchFields(randomFetchFields);
-
-            return request;
+                .fetchFields(randomFetchFields)
+                .runtimeMappings(randomRuntimeMappings());
         } catch (IOException ex) {
             assertNotNull("unexpected IOException " + ex.getCause().getMessage(), ex);
         }
@@ -100,7 +101,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
 
     @Override
     protected EqlSearchRequest doParseInstance(XContentParser parser) {
-        return EqlSearchRequest.fromXContent(parser).indices(new String[]{defaultTestIndex});
+        return EqlSearchRequest.fromXContent(parser).indices(defaultTestIndex);
     }
 
     @Override
@@ -119,6 +120,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
         mutatedInstance.keepAlive(instance.keepAlive());
         mutatedInstance.keepOnCompletion(instance.keepOnCompletion());
         mutatedInstance.fetchFields(version.onOrAfter(Version.V_7_13_0) ? instance.fetchFields() : null);
+        mutatedInstance.runtimeMappings(version.onOrAfter(Version.V_7_13_0) ? instance.runtimeMappings() : emptyMap());
 
         return mutatedInstance;
     }

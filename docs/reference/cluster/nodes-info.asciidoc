@@ -108,7 +108,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-id]
 
 `total_indexing_buffer`::
 		Total heap allowed to be used to hold recently indexed
-		documents before they must be written to disk.  This size is
+		documents before they must be written to disk. This size is
 		a shared pool across all shards on this node, and is
     controlled by <<indexing-buffer,Indexing Buffer settings>>.
 

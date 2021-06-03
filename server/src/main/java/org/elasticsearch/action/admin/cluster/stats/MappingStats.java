@@ -38,11 +38,14 @@ import java.util.regex.Pattern;
  */
 public final class MappingStats implements ToXContentFragment, Writeable {
 
+    private static final Pattern DOC_PATTERN = Pattern.compile("doc[\\[.]");
+    private static final Pattern SOURCE_PATTERN = Pattern.compile("params\\._source");
+
     /**
      * Create {@link MappingStats} from the given cluster state.
      */
     public static MappingStats of(Metadata metadata, Runnable ensureNotCancelled) {
-        Map<String, IndexFeatureStats> fieldTypes = new HashMap<>();
+        Map<String, FieldStats> fieldTypes = new HashMap<>();
         Set<String> concreteFieldNames = new HashSet<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
         for (IndexMetadata indexMetadata : metadata) {
@@ -65,12 +68,22 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     } else if (fieldMapping.containsKey("properties")) {
                         type = "object";
                     }
-
                     if (type != null) {
-                        IndexFeatureStats stats = fieldTypes.computeIfAbsent(type, IndexFeatureStats::new);
+                        FieldStats stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
                         stats.count++;
                         if (indexFieldTypes.add(type)) {
                             stats.indexCount++;
+                        }
+                        Object scriptObject = fieldMapping.get("script");
+                        if (scriptObject instanceof Map) {
+                            Map<?, ?> script = (Map<?, ?>) scriptObject;
+                            Object sourceObject = script.get("source");
+                            stats.scriptCount++;
+                            updateScriptParams(sourceObject, stats.fieldScriptStats);
+                            Object langObject = script.get("lang");
+                            if (langObject != null) {
+                                stats.scriptLangs.add(langObject.toString());
+                            }
                         }
                     }
                 });
@@ -95,14 +108,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                     } else if (scriptObject instanceof Map) {
                         Map<?, ?> script = (Map<?, ?>) scriptObject;
                         Object sourceObject = script.get("source");
-                        if (sourceObject != null) {
-                            String scriptSource = sourceObject.toString();
-                            int chars = scriptSource.length();
-                            long lines = scriptSource.lines().count();
-                            int docUsages = countOccurrences(scriptSource, "doc[\\[\\.]");
-                            int sourceUsages = countOccurrences(scriptSource, "params\\._source");
-                            stats.update(chars, lines, sourceUsages, docUsages);
-                        }
+                        updateScriptParams(sourceObject, stats.fieldScriptStats);
                         Object langObject = script.get("lang");
                         if (langObject != null) {
                             stats.scriptLangs.add(langObject.toString());
@@ -114,9 +120,19 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return new MappingStats(fieldTypes.values(), runtimeFieldTypes.values());
     }
 
-    private static int countOccurrences(String script, String keyword) {
+    private static void updateScriptParams(Object scriptSourceObject, FieldScriptStats scriptStats) {
+        if (scriptSourceObject != null) {
+            String scriptSource = scriptSourceObject.toString();
+            int chars = scriptSource.length();
+            long lines = scriptSource.lines().count();
+            int docUsages = countOccurrences(scriptSource, DOC_PATTERN);
+            int sourceUsages = countOccurrences(scriptSource, SOURCE_PATTERN);
+            scriptStats.update(chars, lines, sourceUsages, docUsages);
+        }
+    }
+
+    private static int countOccurrences(String script, Pattern pattern) {
         int occurrences = 0;
-        Pattern pattern = Pattern.compile(keyword);
         Matcher matcher = pattern.matcher(script);
         while (matcher.find()) {
             occurrences++;
@@ -124,41 +140,41 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return occurrences;
     }
 
-    private final Set<IndexFeatureStats> fieldTypeStats;
-    private final Set<RuntimeFieldStats> runtimeFieldTypeStats;
+    private final Set<FieldStats> fieldTypeStats;
+    private final Set<RuntimeFieldStats> runtimeFieldStats;
 
-    MappingStats(Collection<IndexFeatureStats> fieldTypeStats, Collection<RuntimeFieldStats> runtimeFieldTypeStats) {
-        List<IndexFeatureStats> stats = new ArrayList<>(fieldTypeStats);
+    MappingStats(Collection<FieldStats> fieldTypeStats, Collection<RuntimeFieldStats> runtimeFieldStats) {
+        List<FieldStats> stats = new ArrayList<>(fieldTypeStats);
         stats.sort(Comparator.comparing(IndexFeatureStats::getName));
-        this.fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<IndexFeatureStats>(stats));
-        List<RuntimeFieldStats> runtimeStats = new ArrayList<>(runtimeFieldTypeStats);
+        this.fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(stats));
+        List<RuntimeFieldStats> runtimeStats = new ArrayList<>(runtimeFieldStats);
         runtimeStats.sort(Comparator.comparing(RuntimeFieldStats::type));
-        this.runtimeFieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(runtimeStats));
+        this.runtimeFieldStats = Collections.unmodifiableSet(new LinkedHashSet<>(runtimeStats));
     }
 
     MappingStats(StreamInput in) throws IOException {
-        fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(IndexFeatureStats::new)));
-        runtimeFieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(RuntimeFieldStats::new)));
+        fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(FieldStats::new)));
+        runtimeFieldStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(RuntimeFieldStats::new)));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeCollection(fieldTypeStats);
-        out.writeCollection(runtimeFieldTypeStats);
+        out.writeCollection(runtimeFieldStats);
     }
 
     /**
      * Return stats about field types.
      */
-    public Set<IndexFeatureStats> getFieldTypeStats() {
+    public Set<FieldStats> getFieldTypeStats() {
         return fieldTypeStats;
     }
 
     /**
      * Return stats about runtime field types.
      */
-    public Set<RuntimeFieldStats> getRuntimeFieldTypeStats() {
-        return runtimeFieldTypeStats;
+    public Set<RuntimeFieldStats> getRuntimeFieldStats() {
+        return runtimeFieldStats;
     }
 
     @Override
@@ -170,7 +186,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         builder.endArray();
         builder.startArray("runtime_field_types");
-        for (RuntimeFieldStats st : runtimeFieldTypeStats) {
+        for (RuntimeFieldStats st : runtimeFieldStats) {
             st.toXContent(builder, params);
         }
         builder.endArray();
@@ -190,11 +206,11 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         MappingStats that = (MappingStats) o;
         return fieldTypeStats.equals(that.fieldTypeStats) &&
-            runtimeFieldTypeStats.equals(that.runtimeFieldTypeStats);
+            runtimeFieldStats.equals(that.runtimeFieldStats);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldTypeStats, runtimeFieldTypeStats);
+        return Objects.hash(fieldTypeStats, runtimeFieldStats);
     }
 }

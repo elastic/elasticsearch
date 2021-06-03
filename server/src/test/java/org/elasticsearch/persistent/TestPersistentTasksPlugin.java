@@ -53,6 +53,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -296,14 +297,14 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
         }
 
         @Override
-        public Assignment getAssignment(TestParams params, ClusterState clusterState) {
+        public Assignment getAssignment(TestParams params, Collection<DiscoveryNode> candidateNodes, ClusterState clusterState) {
             if (nonClusterStateCondition == false) {
                 return new Assignment(null, "non cluster state condition prevents assignment");
             }
             if (params == null || params.getExecutorNodeAttr() == null) {
-                return super.getAssignment(params, clusterState);
+                return super.getAssignment(params, candidateNodes, clusterState);
             } else {
-                DiscoveryNode executorNode = selectLeastLoadedNode(clusterState,
+                DiscoveryNode executorNode = selectLeastLoadedNode(clusterState, candidateNodes,
                         discoveryNode -> params.getExecutorNodeAttr().equals(discoveryNode.getAttributes().get("test_attr")));
                 if (executorNode != null) {
                     return new Assignment(executorNode.getId(), "test assignment");

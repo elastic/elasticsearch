@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Set;
 
@@ -77,4 +79,9 @@ public abstract class AbstractNumericFieldMapperTestCase extends MapperTestCase 
     }
 
     protected abstract void doTestNullValue(String type) throws IOException;
+
+    @Override
+    protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
+        b.field("type", randomFrom(types()));
+    }
 }

@@ -7,8 +7,8 @@
  */
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -68,13 +68,15 @@ dependencies {
   // Set the keytab files in the classpath so that we can access them from test code without the security manager
   // freaking out.
   if (isEclipse == false) {
-    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent)
+    testRuntimeOnly files(project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab").parent) {
+      builtBy ":test:fixtures:krb5kdc-fixture:preProcessFixture"
+    }
   }
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
+    include '_common', 'cluster', 'nodes', 'indices', 'index', 'snapshot'
   }
 }
 
@@ -104,7 +106,7 @@ String krb5conf = project(':test:fixtures:krb5kdc-fixture').ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures for HA/Secure combinations
 for (String fixtureName : ['hdfsFixture', 'haHdfsFixture', 'secureHdfsFixture', 'secureHaHdfsFixture']) {
-  project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.internal.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, project(':test:fixtures:krb5kdc-fixture').tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -194,7 +196,8 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
         if (disabledIntegTestTaskNames.contains(name) == false) {
           nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
           nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
-          jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
+          jvmArgs "-Djava.security.krb5.conf=${krb5conf}",
+                  "--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
           nonInputProperties.systemProperty(
             "test.krb5.keytab.hdfs",
             project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")

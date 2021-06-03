@@ -1,0 +1,38 @@
+setup:
+  - skip:
+      features: [arbitrary_key]
+---
+"node_info test":
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes
+  - is_true: cluster_name
+
+---
+"node_info role test":
+  - skip:
+      version: " - 7.7.99"
+      reason: "node roles were not sorted before 7.8.0"
+      features: [no_xpack]
+
+  - do:
+      nodes.info: {}
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - is_true: nodes.$node_id.roles
+  # the roles output is sorted
+  - match: { nodes.$node_id.roles.0: "data" }
+  - match: { nodes.$node_id.roles.1: "data_cold" }
+  - match: { nodes.$node_id.roles.2: "data_content" }
+  - match: { nodes.$node_id.roles.3: "data_frozen" }
+  - match: { nodes.$node_id.roles.4: "data_hot" }
+  - match: { nodes.$node_id.roles.5: "data_warm" }
+  - match: { nodes.$node_id.roles.6: "ingest" }
+  - match: { nodes.$node_id.roles.7: "master" }
+  - match: { nodes.$node_id.roles.8: "ml" }
+  - match: { nodes.$node_id.roles.9: "remote_cluster_client" }
+  - match: { nodes.$node_id.roles.10: "transform" }

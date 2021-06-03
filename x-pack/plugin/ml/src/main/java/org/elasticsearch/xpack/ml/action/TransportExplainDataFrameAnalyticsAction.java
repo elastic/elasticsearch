@@ -102,7 +102,7 @@ public class TransportExplainDataFrameAnalyticsAction
         // added.  We know the ML plugin is enabled on the current node, because this code is in it!
         DiscoveryNode localNode = clusterService.localNode();
         boolean isMlNode = MachineLearning.isMlNode(localNode);
-        if (isMlNode || localNode.isMasterNode() || localNode.isDataNode() || localNode.isIngestNode()) {
+        if (isMlNode || localNode.isMasterNode() || localNode.canContainData() || localNode.isIngestNode()) {
             if (isMlNode == false) {
                 logger.debug("estimating data frame analytics memory on non-ML node");
             }

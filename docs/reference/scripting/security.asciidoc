@@ -101,9 +101,9 @@ script.allowed_types: inline <1>
 [discrete]
 === Allowed script contexts setting
 
-By default all script contexts are allowed to be executed.  This can be modified using the
-setting `script.allowed_contexts`.  Only the contexts specified as part of the setting will
-be allowed to be executed.  To specify no contexts are allowed, set `script.allowed_contexts`
+By default all script contexts are allowed to be executed. This can be modified using the
+setting `script.allowed_contexts`. Only the contexts specified as part of the setting will
+be allowed to be executed. To specify no contexts are allowed, set `script.allowed_contexts`
 to be `none`.
 
 [source,yaml]

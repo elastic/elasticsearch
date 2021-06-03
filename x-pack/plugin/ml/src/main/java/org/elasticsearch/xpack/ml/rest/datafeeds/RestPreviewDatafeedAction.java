@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestPreviewDatafeedAction extends BaseRestHandler {
@@ -24,7 +25,10 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview")
+            new Route(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview"),
+            new Route(GET, BASE_PATH + "datafeeds/_preview"),
+            new Route(POST, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_preview"),
+            new Route(POST, BASE_PATH + "datafeeds/_preview")
         );
     }
 
@@ -35,8 +39,12 @@ public class RestPreviewDatafeedAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String datafeedId = restRequest.param(DatafeedConfig.ID.getPreferredName());
-        PreviewDatafeedAction.Request request = new PreviewDatafeedAction.Request(datafeedId);
+        PreviewDatafeedAction.Request request = restRequest.hasContentOrSourceParam() ?
+            PreviewDatafeedAction.Request.fromXContent(
+                restRequest.contentOrSourceParamParser(),
+                restRequest.param(DatafeedConfig.ID.getPreferredName(), null)
+            ) :
+            new PreviewDatafeedAction.Request(restRequest.param(DatafeedConfig.ID.getPreferredName()));
         return channel -> client.execute(PreviewDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

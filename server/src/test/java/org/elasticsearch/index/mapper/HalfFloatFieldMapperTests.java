@@ -38,4 +38,9 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "half_float");
     }
+
+    @Override
+    protected Number randomNumber() {
+        return randomBoolean() ? randomFloat() : randomDoubleBetween(-65504, 65504, true);
+    }
 }

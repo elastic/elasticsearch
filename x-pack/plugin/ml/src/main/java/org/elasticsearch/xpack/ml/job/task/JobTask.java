@@ -51,7 +51,7 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
 
     public void closeJob(String reason) {
         isClosing = true;
-        autodetectProcessManager.closeJob(this, false, reason);
+        autodetectProcessManager.closeJob(this, reason);
     }
 
     void setAutodetectProcessManager(AutodetectProcessManager autodetectProcessManager) {

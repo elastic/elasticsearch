@@ -15,8 +15,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.store.IndexInputStats;
-import org.elasticsearch.index.store.SearchableSnapshotDirectory;
+import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -118,6 +118,7 @@ public class TransportSearchableSnapshotsStatsAction extends AbstractTransportSe
             toTimedCounter(inputStats.getDirectBytesRead()),
             toTimedCounter(inputStats.getOptimizedBytesRead()),
             toCounter(inputStats.getBlobStoreBytesRequested()),
+            toCounter(inputStats.getLuceneBytesRead()),
             inputStats.getCurrentIndexCacheFills()
         );
     }

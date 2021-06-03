@@ -14,8 +14,8 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -32,6 +32,7 @@ import org.elasticsearch.geometry.Rectangle;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
@@ -39,7 +40,7 @@ import static org.elasticsearch.common.geo.GeoUtils.normalizePoint;
 /**
  * Utility class that converts geometries into Lucene-compatible form for indexing in a geo_shape field.
  */
-public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geometry, Geometry> {
+public class GeoShapeIndexer {
 
     private final boolean orientation;
     private final String name;
@@ -166,14 +167,12 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
         });
     }
 
-    @Override
-    public Class<Geometry> processedClass() {
-        return Geometry.class;
-    }
-
-    @Override
-    public List<IndexableField> indexShape(ParseContext context, Geometry shape) {
+    public List<IndexableField> indexShape(Geometry shape) {
         LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
+        shape = prepareForIndexing(shape);
+        if (shape == null) {
+            return Collections.emptyList();
+        }
         shape.visit(visitor);
         return visitor.fields();
     }

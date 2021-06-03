@@ -36,4 +36,15 @@ public class FloatFieldMapperTests extends NumberFieldMapperTests {
     protected void minimalMapping(XContentBuilder b) throws IOException {
         b.field("type", "float");
     }
+
+    @Override
+    protected Number randomNumber() {
+        /*
+         * The source parser and doc values round trip will both reduce
+         * the precision to 32 bits if the value is more precise.
+         * randomDoubleBetween will smear the values out across a wide
+         * range of valid values.
+         */
+        return randomBoolean() ? randomDoubleBetween(-Float.MAX_VALUE, Float.MAX_VALUE, true) : randomFloat();
+    }
 }

@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-public class ScriptService implements Closeable, ClusterStateApplier {
+public class ScriptService implements Closeable, ClusterStateApplier, ScriptCompiler {
 
     private static final Logger logger = LogManager.getLogger(ScriptService.class);
 
@@ -408,6 +408,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
                 ScriptContext<?> context = contexts.get(request.context());
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
+                }
+                if (context.allowStoredScript == false) {
+                    throw new IllegalArgumentException("cannot store a script for context [" + request.context() + "]");
                 }
                 scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }

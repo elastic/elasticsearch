@@ -9,16 +9,20 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -26,10 +30,12 @@ import static java.util.Collections.emptySet;
 import static org.elasticsearch.test.NodeRoles.nonRemoteClusterClientNode;
 import static org.elasticsearch.test.NodeRoles.remoteClusterClientNode;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -37,7 +43,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DiscoveryNodeTests extends ESTestCase {
 
     public void testRolesAreSorted() {
-        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         final DiscoveryNode node = new DiscoveryNode(
             "name",
             "id",
@@ -87,13 +93,7 @@ public class DiscoveryNodeTests extends ESTestCase {
         InetAddress inetAddress = InetAddress.getByAddress("name1", new byte[] { (byte) 192, (byte) 168, (byte) 0, (byte) 1});
         TransportAddress transportAddress = new TransportAddress(inetAddress, randomIntBetween(0, 65535));
 
-        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true) {
-            @Override
-            public Setting<Boolean> legacySetting() {
-                return null;
-            }
-
-        };
+        DiscoveryNodeRole customRole = new DiscoveryNodeRole("data_custom_role", "z", true);
 
         DiscoveryNode node = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
             Collections.singleton(customRole), Version.CURRENT);
@@ -156,12 +156,49 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
         final DiscoveryNode node = new DiscoveryNode("test-id", buildNewFakeTransportAddress(),
-                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.roles(), Version.CURRENT);
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
         final String descriptionWithoutAttributes = stringBuilder.toString();
         assertThat(node.toString(), allOf(startsWith(descriptionWithoutAttributes), containsString("test-attr=val")));
         assertThat(descriptionWithoutAttributes, not(containsString("test-attr")));
+    }
+
+    public void testDiscoveryNodeToXContent() {
+        final TransportAddress transportAddress = buildNewFakeTransportAddress();
+        final DiscoveryNode node = new DiscoveryNode(
+                "test-name",
+                "test-id",
+                "test-ephemeral-id",
+                "test-hostname",
+                "test-hostaddr",
+                transportAddress,
+                Collections.singletonMap("test-attr", "val"),
+            DiscoveryNodeRole.roles(),
+                Version.CURRENT);
+
+        final String jsonString = Strings.toString(node, randomBoolean(), randomBoolean());
+        final Map<String, Object> topLevelMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), jsonString, randomBoolean());
+
+        assertThat(topLevelMap.toString(), topLevelMap.size(), equalTo(1));
+        assertTrue(topLevelMap.toString(), topLevelMap.containsKey("test-id"));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> detailsMap = (Map<String, Object>) topLevelMap.get("test-id");
+
+        assertThat(topLevelMap.toString(), detailsMap.remove("name"), equalTo("test-name"));
+        assertThat(topLevelMap.toString(), detailsMap.remove("ephemeral_id"), equalTo("test-ephemeral-id"));
+        assertThat(topLevelMap.toString(), detailsMap.remove("transport_address"), equalTo(transportAddress.toString()));
+
+        @SuppressWarnings("unchecked")
+        final Map<String, Object> attributes = (Map<String, Object>) detailsMap.remove("attributes");
+        assertThat(topLevelMap.toString(), attributes.get("test-attr"), equalTo("val"));
+
+        @SuppressWarnings("unchecked")
+        final List<String> roles = (List<String>) detailsMap.remove("roles");
+        assertThat(roles, hasItems("master", "data_content", "remote_cluster_client"));
+
+        assertThat(detailsMap.toString(), detailsMap, anEmptyMap());
     }
 
 }

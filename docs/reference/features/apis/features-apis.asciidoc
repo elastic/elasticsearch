@@ -7,5 +7,7 @@ by Elasticsearch and Elasticsearch plugins.
 [discrete]
 === Features APIs
 * <<get-features-api,Get Features API>>
+* <<reset-features-api,Rest Features API>>
 
 include::get-features-api.asciidoc[]
+include::reset-features-api.asciidoc[]

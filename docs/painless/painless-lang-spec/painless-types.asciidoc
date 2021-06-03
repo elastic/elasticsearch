@@ -259,7 +259,7 @@ during operations.
 Declare a `def` type <<painless-variables, variable>> or access a `def` type
 member field (from a reference type instance), and assign it any type of value
 for evaluation during later operations. The default value for a newly-declared
-`def` type variable is `null`.  A `def` type variable or method/function
+`def` type variable is `null`. A `def` type variable or method/function
 parameter can change the type it represents during the compilation and
 evaluation of a script.
 
@@ -400,7 +400,7 @@ range `[2, d]` where `d >= 2`, each element within each dimension in the range
 `[1, d-1]` is also an array type. The element type of each dimension, `n`, is an
 array type with the number of dimensions equal to `d-n`. For example, consider
 `int[][][]` with 3 dimensions. Each element in the 3rd dimension, `d-3`, is the
-primitive type `int`.  Each element in the 2nd dimension, `d-2`, is the array
+primitive type `int`. Each element in the 2nd dimension, `d-2`, is the array
 type `int[]`. And each element in the 1st dimension, `d-1` is the array type
 `int[][]`.
 

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
@@ -15,6 +15,10 @@ dependencies {
   testImplementation "com.fasterxml.jackson.core:jackson-databind:2.8.11"
   testImplementation project(':modules:transport-netty4') // for http
   testImplementation project(':plugins:transport-nio') // for http
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest").configure {

@@ -7,7 +7,8 @@
         "unsupported" : { "type" : "ip_range" },
         "date" : { "type" : "date" },
         "date_nanos" : { "type" : "date_nanos" },
-        "shape": { "type" : "geo_shape" },
+        "shape": { "type" : "shape" },
+        "geo_shape": { "type" : "geo_shape" },
         "binary": {"type" : "binary", "doc_values": false },
         "binary_stored": {"type" : "binary", "doc_values": true },
         "x" : {

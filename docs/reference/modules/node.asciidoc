@@ -97,8 +97,8 @@ phases which are coordinated by the node which receives the client request --
 the _coordinating node_.
 
 In the _scatter_ phase, the coordinating node forwards the request to the data
-nodes which hold the data.  Each data node executes the request locally and
-returns its results to the coordinating node. In the _gather_  phase, the
+nodes which hold the data. Each data node executes the request locally and
+returns its results to the coordinating node. In the _gather_ phase, the
 coordinating node reduces each data node's results into a single global
 result set.
 
@@ -275,10 +275,11 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store searchable snapshots mounted with the `shared_cache`
-option exclusively.
+The frozen tier stores <<partially-mounted,partially mounted indices>>
+exclusively. We recommend you use dedicated nodes in the frozen tier.
 
 To create a dedicated frozen node, set:
+
 [source,yaml]
 ----
 node.roles: [ data_frozen ]
@@ -308,7 +309,7 @@ can only route requests, handle the search reduce phase, and distribute bulk
 indexing. Essentially, coordinating only nodes behave as smart load balancers.
 
 Coordinating only nodes can benefit large clusters by offloading the
-coordinating node role from data and master-eligible nodes.  They join the
+coordinating node role from data and master-eligible nodes. They join the
 cluster and receive the full <<cluster-state,cluster state>>, like every other
 node, and they use the cluster state to route requests directly to the
 appropriate place(s).
@@ -363,6 +364,10 @@ xpack.ml.enabled: true <2>
 <1> The `remote_cluster_client` role is optional but strongly recommended.
 Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 <2> The `xpack.ml.enabled` setting is enabled by default.
+
+NOTE: If you use {ccs} in your {anomaly-jobs}, the `remote_cluster_client` role 
+is also required on all master-eligible nodes. Otherwise, the {dfeed} cannot 
+start.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#

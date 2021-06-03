@@ -48,7 +48,7 @@ You can use the create snapshot API to create a <<snapshot-restore,snapshot>>, w
 backup taken from a running {es} cluster.
 
 By default, a snapshot includes all data streams and open indices in the
-cluster, as well as the cluster state.  You can change this behavior by
+cluster, as well as the cluster state. You can change this behavior by
 specifying a list of data streams and indices to back up in the body of the
 snapshot request.
 

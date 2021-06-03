@@ -1,14 +1,24 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
 esplugin {
   name 'x-pack-logstash'
   description 'Elasticsearch Expanded Pack Plugin - Logstash'
   classname 'org.elasticsearch.xpack.logstash.Logstash'
   extendedPlugins = ['x-pack-core']
 }
+
 archivesBaseName = 'x-pack-logstash'
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation(project(path: xpackModule('core')))
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'x_pack_rest_user', password: 'x-pack-test-password', role: 'superuser'
+}

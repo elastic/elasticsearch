@@ -353,6 +353,9 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (false == FiltersAggregator.canUseFilterByFilter(parent, null)) {
             return null;
         }
+        if (false == context.enableRewriteToFilterByFilter()) {
+            return null;
+        }
         boolean wholeNumbersOnly = false == ((ValuesSource.Numeric) valuesSourceConfig.getValuesSource()).isFloatingPoint();
         List<QueryToFilterAdapter<?>> filters = new ArrayList<>(ranges.length);
         for (int i = 0; i < ranges.length; i++) {
@@ -745,7 +748,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         }
     }
 
-    private static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
+    static class FromFilters<B extends InternalRange.Bucket> extends AdaptingAggregator {
         private final DocValueFormat format;
         private final Range[] ranges;
         private final boolean keyed;

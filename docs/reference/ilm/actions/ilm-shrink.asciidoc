@@ -71,8 +71,11 @@ PUT _ilm/policy/my_policy
 --------------------------------------------------
 
 [[ilm-shrink-size-ex]]
-===== Calculate the number of shards of the new shrunken index based on the storage of the
-source index and the `max_primary_shard_size` parameter
+===== Calculate the optimal number of primary shards for a shrunken index
+
+The following policy uses the `max_primary_shard_size` parameter to
+automatically calculate the new shrunken index's primary shard count based on
+the source index's storage size.
 
 [source,console]
 --------------------------------------------------

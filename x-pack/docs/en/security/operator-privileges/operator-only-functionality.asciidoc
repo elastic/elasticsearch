@@ -3,7 +3,7 @@
 [[operator-only-functionality]]
 === Operator-only functionality
 
-include::operator-privileges-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Operator privileges provide protection for APIs and dynamic cluster settings.
 Any API or cluster setting that is protected by operator privileges is known as 

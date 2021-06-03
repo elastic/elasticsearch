@@ -97,7 +97,7 @@ to. The `mode` option can have the following values:
         number based array fields.
 `avg`:: Use the average of all values as sort value. Only applicable
         for number based array fields.
-`median`:: Use the median of all values as sort value.  Only applicable
+`median`:: Use the median of all values as sort value. Only applicable
            for number based array fields.
 
 The default sort mode in the ascending sort order is `min` -- the lowest value

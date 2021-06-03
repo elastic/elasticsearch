@@ -68,18 +68,6 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
-    public EqlSpec withSensitivity(boolean caseSensitive) {
-        EqlSpec spec = new EqlSpec();
-        spec.name = name;
-        spec.description = description;
-        spec.note = note;
-        spec.tags = tags;
-        spec.query = query;
-        spec.expectedEventIds = expectedEventIds;
-
-        return spec;
-    }
-
     @Override
     public String toString() {
         String str = "";

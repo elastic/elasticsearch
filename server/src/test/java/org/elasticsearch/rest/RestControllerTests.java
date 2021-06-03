@@ -8,7 +8,6 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -41,6 +40,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -143,6 +143,10 @@ public class RestControllerTests extends ESTestCase {
         assertEquals("true", threadContext.getHeader("header.1"));
         assertEquals("true", threadContext.getHeader("header.2"));
         assertNull(threadContext.getHeader("header.3"));
+        List<String> expectedProductResponseHeader = new ArrayList<>();
+        expectedProductResponseHeader.add(RestController.ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
+        assertEquals(expectedProductResponseHeader, threadContext.getResponseHeaders()
+            .getOrDefault(RestController.ELASTIC_PRODUCT_HTTP_HEADER, null));
     }
 
     public void testRequestWithDisallowedMultiValuedHeader() {
@@ -630,7 +634,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = RestApiVersion.minimumSupported().major;
+        final RestApiVersion version = RestApiVersion.minimumSupported();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -654,7 +658,7 @@ public class RestControllerTests extends ESTestCase {
 
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = RestApiVersion.minimumSupported().major;
+        final RestApiVersion version = RestApiVersion.minimumSupported();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -690,7 +694,7 @@ public class RestControllerTests extends ESTestCase {
     public void testCurrentVersionVNDMediaTypeIsNotUsingCompatibility() {
         RestController restController = new RestController(Collections.emptySet(), null, client, circuitBreakerService, usageService);
 
-        final byte version = Version.CURRENT.major;
+        final RestApiVersion version = RestApiVersion.current();
 
         final String mediaType = randomCompatibleMediaType(version);
         FakeRestRequest fakeRestRequest = requestWithContent(mediaType);
@@ -781,7 +785,12 @@ public class RestControllerTests extends ESTestCase {
 
         @Override
         public void sendResponse(RestResponse response) {
-            throw new IllegalStateException("always throwing an exception for testing");
+            try {
+                throw new IllegalStateException("always throwing an exception for testing");
+            } finally {
+                // the production implementation in DefaultRestChannel always releases the output buffer, so we must too
+                releaseOutputBuffer();
+            }
         }
     }
 

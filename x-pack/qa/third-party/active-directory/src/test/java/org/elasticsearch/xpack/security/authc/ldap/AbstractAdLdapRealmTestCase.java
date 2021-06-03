@@ -112,10 +112,10 @@ public abstract class AbstractAdLdapRealmTestCase extends SecurityIntegTestCase 
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         final RealmConfig realm = AbstractAdLdapRealmTestCase.realmConfig;
         Settings.Builder builder = Settings.builder();
-        builder.put(super.nodeSettings(nodeOrdinal), true);
+        builder.put(super.nodeSettings(nodeOrdinal, otherSettings), true);
         builder.put(buildRealmSettings(realm, roleMappings, getNodeTrustedCertificates()));
         return builder.build();
     }

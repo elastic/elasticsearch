@@ -202,7 +202,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
             return;
         }
 
-        if (event.state().nodes().getLocalNode().isDataNode() && event.metadataChanged()) {
+        if (event.state().nodes().getLocalNode().canContainData() && event.metadataChanged()) {
             try {
                 IndexMetadata metadata = WatchStoreUtils.getConcreteIndex(Watch.INDEX, event.state().metadata());
                 if (metadata == null) {

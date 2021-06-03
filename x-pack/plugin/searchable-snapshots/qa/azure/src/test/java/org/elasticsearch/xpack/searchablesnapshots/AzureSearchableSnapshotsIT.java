@@ -15,12 +15,12 @@ import static org.hamcrest.Matchers.not;
 public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return "azure";
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         final String container = System.getProperty("test.azure.container");
         assertThat(container, not(blankOrNullString()));
 

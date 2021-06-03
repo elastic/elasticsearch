@@ -50,7 +50,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
     private final long[] eventIds;
 
     @Before
-    private void setup() throws Exception {
+    public void setup() throws Exception {
         if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
             DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
         }
@@ -179,7 +179,6 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
         return sj.toString();
     }
 
-    @SuppressWarnings("unchecked")
     private long[] extractIds(List<Event> events) {
         final int len = events.size();
         final long[] ids = new long[len];
@@ -220,7 +219,7 @@ public abstract class BaseEqlSpecTestCase extends ESRestTestCase {
 
     protected String timestamp() {
         return "@timestamp";
-    };
+    }
 
     protected String eventCategory() {
         return "event.category";

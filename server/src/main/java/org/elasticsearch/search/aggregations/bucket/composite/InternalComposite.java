@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +30,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.PriorityQueue;
 import java.util.Set;
 
 public class InternalComposite
@@ -149,7 +149,12 @@ public class InternalComposite
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
-        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size());
+        PriorityQueue<BucketIterator> pq = new PriorityQueue<>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(BucketIterator a, BucketIterator b) {
+                return a.compareTo(b) < 0;
+            }
+        };
         boolean earlyTerminated = false;
         for (InternalAggregation agg : aggregations) {
             InternalComposite sortedAgg = (InternalComposite) agg;
@@ -163,7 +168,7 @@ public class InternalComposite
         List<InternalBucket> buckets = new ArrayList<>();
         List<InternalBucket> result = new ArrayList<>();
         while (pq.size() > 0) {
-            BucketIterator bucketIt = pq.poll();
+            BucketIterator bucketIt = pq.top();
             if (lastBucket != null && bucketIt.current.compareKey(lastBucket) != 0) {
                 InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                 buckets.clear();
@@ -175,7 +180,9 @@ public class InternalComposite
             lastBucket = bucketIt.current;
             buckets.add(bucketIt.current);
             if (bucketIt.next() != null) {
-                pq.add(bucketIt);
+                pq.updateTop();
+            } else {
+                pq.pop();
             }
         }
         if (buckets.size() > 0) {

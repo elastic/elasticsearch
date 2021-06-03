@@ -133,8 +133,8 @@ M                    |10096.2232            |10092.362             |15.350877192
 sum
 SELECT SUM(salary) FROM test_emp;
 
-  SUM(salary)
----------------
+  SUM(salary):l
+----------------
 4824855
 ;
 
@@ -193,7 +193,7 @@ SELECT MAX(languages) max, MIN(languages) min, SUM(languages) sum, AVG(languages
        KURTOSIS(languages) kurtosis, SKEWNESS(languages) skewness  
        FROM test_emp GROUP BY languages ORDER BY languages ASC LIMIT 5;
 
-      max:bt   |      min:bt   |      sum:bt   |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d    
+      max:bt   |      min:bt   |      sum:l    |      avg:d   |    percent:d  | percent_rank:d|   kurtosis:d  |   skewness:d
 ---------------+---------------+---------------+--------------+---------------+---------------+---------------+---------------
 null           |null           |null           |null          |null           |null           |null           |null           
 1              |1              |15             |1             |1.0            |100.0          |NaN            |NaN            
@@ -205,7 +205,7 @@ null           |null           |null           |null          |null           |n
 aggSumWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY gender;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -214,7 +214,7 @@ M    |M          |2671054|2671054        |2671054
 aggSumWithAliasWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY g;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -223,7 +223,7 @@ M    |M          |2671054|2671054        |2671054
 aggSumWithNumericRefWithColumnRepeated
 SELECT gender AS g, gender, SUM(salary) AS s3, SUM(salary), SUM(salary) AS s5 FROM test_emp GROUP BY 2;
 
-g:s  | gender:s  | s3:i  | SUM(salary):i | s5:i
+g:s  | gender:s  | s3:l  | SUM(salary):l | s5:l
 null |null       |487605 |487605         |487605
 F    |F          |1666196|1666196        |1666196
 M    |M          |2671054|2671054        |2671054
@@ -232,7 +232,7 @@ M    |M          |2671054|2671054        |2671054
 sumLiteralWithTrueConditionAndHavingWithCount
 SELECT SUM(1) AS c FROM test_emp WHERE 'a'='a' HAVING COUNT(1) > 0;
 
-      c:i       
+      c:l
 ---------------
 100     
 ;       
@@ -272,7 +272,7 @@ Bezalel        |1
 sumFieldWithSumLiteralAsCondition
 SELECT first_name, last_name, SUM(salary) AS s, birth_date AS y, COUNT(1) FROM test_emp GROUP BY 1, 2, 4 HAVING ((SUM(1) >= 1) AND (SUM(1) <= 577)) AND ((SUM(salary) >= 35000) AND (SUM(salary) <= 45000));
 
-  first_name:s |   last_name:s |       s:i     |           y:ts         |   COUNT(1):l    
+  first_name:s |   last_name:s |       s:l     |           y:ts         |   COUNT(1):l
 ---------------+---------------+---------------+------------------------+---------------
 null           |Brender        |36051          |1959-10-01T00:00:00.000Z|1              
 null           |Joslin         |37716          |1959-01-27T00:00:00.000Z|1              
@@ -308,7 +308,7 @@ Zvonko         |Nyanchama      |42716          |null                    |1
 mirrorIifForNumericAggregate
 SELECT IIF(COUNT(1)=0, NULL, 123)+5, AVG(123), MIN(123)+5, IIF(COUNT(1)=0, NULL, 30*COUNT(1)), SUM(30) FROM test_emp;
 
-IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l    
+IIF(COUNT(1)=0, NULL, 123)+5:i|   AVG(123):d    |  MIN(123)+5:i   |IIF(COUNT(1)=0, NULL, 30*COUNT(1)):l|    SUM(30):l
 ------------------------------+-----------------+-----------------+------------------------------------+---------------
 128                           |123              |128              |3000                                |3000           
 ;
@@ -1452,7 +1452,7 @@ null
 
 
 allZerosWithSum
-schema::SUM_AllZeros:i
+schema::SUM_AllZeros:l
 SELECT SUM(bytes_in) as "SUM_AllZeros" FROM logs WHERE bytes_in = 0;
 
  SUM_AllZeros  
@@ -1462,7 +1462,7 @@ SELECT SUM(bytes_in) as "SUM_AllZeros" FROM logs WHERE bytes_in = 0;
 
 
 allNullsWithSum
-schema::SUM_AllNulls:i
+schema::SUM_AllNulls:l
 SELECT SUM(bytes_out) as "SUM_AllNulls" FROM logs WHERE bytes_out IS NULL;
 
  SUM_AllNulls  
@@ -1671,7 +1671,7 @@ null
 ;
 
 nullsAndZerosCombined
-schema::COUNT(*):l|COUNT_AllZeros:l|COUNT_AllNulls:l|FIRST_AllZeros:i|FIRST_AllNulls:i|SUM_AllZeros:i|SUM_AllNulls:i
+schema::COUNT(*):l|COUNT_AllZeros:l|COUNT_AllNulls:l|FIRST_AllZeros:i|FIRST_AllNulls:i|SUM_AllZeros:l|SUM_AllNulls:l
 SELECT
     COUNT(*), 
     COUNT(bytes_in) AS "COUNT_AllZeros", 
@@ -1690,7 +1690,7 @@ WHERE bytes_in = 0 AND bytes_out IS NULL;
 
 
 groupedByNullsAndZeros
-schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):i|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
+schema::bytes_in:i|COUNT(*):l|SUM(bytes_in):l|MIN(bytes_in):i|MAX(bytes_in):i|AVG(bytes_in):d
 SELECT
     bytes_in, 
     COUNT(*), 
@@ -1710,7 +1710,7 @@ null           |1              |null           |null           |null           |
 ;
 
 groupedByMultipleSumsWithNullsAndZeros
-schema::SUM(bytes_in):i|SUM(bytes_out):i|client_ip:s|c:l
+schema::SUM(bytes_in):l|SUM(bytes_out):l|client_ip:s|c:l
 SELECT
   SUM(bytes_in),
   SUM(bytes_out),

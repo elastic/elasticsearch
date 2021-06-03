@@ -378,7 +378,7 @@ The API returns the following result:
 // TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Field values fetched from the document itself are always returned as an array.
-Since the `counter` field is not stored, the get request  ignores it.
+Since the `counter` field is not stored, the get request ignores it.
 
 You can also retrieve metadata fields like the `_routing` field:
 

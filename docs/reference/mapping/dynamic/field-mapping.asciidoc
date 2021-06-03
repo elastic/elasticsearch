@@ -49,7 +49,7 @@ fields, use <<dynamic-templates,`dynamic_templates`>>.
 
 If `date_detection` is enabled (default), then new string fields are checked
 to see whether their contents match any of the date patterns specified in
-`dynamic_date_formats`.  If a match is found, a new <<date,`date`>> field is
+`dynamic_date_formats`. If a match is found, a new <<date,`date`>> field is
 added with the corresponding format.
 
 The default value for `dynamic_date_formats` is:

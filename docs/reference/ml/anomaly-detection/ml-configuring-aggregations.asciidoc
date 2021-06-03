@@ -53,13 +53,6 @@ Viewer** nor the **Anomaly Explorer** can plot and display an anomaly
 chart for the job. In these cases, the charts are not visible and an explanatory
 message is shown.
 
-When the aggregation interval of the {dfeed} and the bucket span of the job
-don't match, the values of the chart plotted in both the **Single Metric
-Viewer** and the **Anomaly Explorer** differ from the actual values of the job.
-To avoid this behavior, make sure that the aggregation interval in the {dfeed}
-configuration and the bucket span in the {anomaly-job} configuration have the
-same values.
-
 Your {dfeed} can contain multiple aggregations, but only the ones with names
 that match values in the job configuration are fed to the job.
 

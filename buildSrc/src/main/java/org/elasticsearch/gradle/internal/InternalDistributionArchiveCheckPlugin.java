@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal;
 
+import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;

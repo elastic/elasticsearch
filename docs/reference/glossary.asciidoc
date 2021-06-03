@@ -15,7 +15,7 @@ https://github.com/elastic/stack-docs/tree/master/docs/en/glossary
 // tag::alias-def[]
 An alias is a secondary name for a group of <<glossary-data-stream,data
 streams>> or <<glossary-index,indices>>. Most {es} APIs accept an alias in place
-of a data stream or index name.
+of a data stream or index name. See {ref}/alias.html[Aliases].
 // end::alias-def[]
 
 [[glossary-analysis]] analysis::
@@ -182,7 +182,7 @@ hold time series data that is accessed rarely and not normally updated. See
 // tag::hidden-index-def[]
 <<glossary-data-stream,Data stream>> or <<glossary-index,index>> excluded from
 most <<glossary-index-pattern,index patterns>> by default. See
-{ref}/multi-index.html#hidden-indices[Hidden data streams and indices].
+{ref}/multi-index.html#hidden[Hidden data streams and indices].
 // end::hidden-index-def[]
 
 [[glossary-hot-phase]] hot phase::

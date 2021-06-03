@@ -41,6 +41,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
@@ -174,9 +175,20 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
             assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
-            for (int i = 0; i < 10; i++) {
-                assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            }
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> frozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.frozen")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.search.throttled")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
+
+            final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
+            assertOK(client().performRequest(unfreezeRequest));
+            ensureGreen(restoredIndexName);
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> unfrozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(extractValue(unfrozenIndexSettings, "index.frozen"), nullValue());
+            assertThat(extractValue(unfrozenIndexSettings, "index.search.throttled"), nullValue());
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
         });
     }
 

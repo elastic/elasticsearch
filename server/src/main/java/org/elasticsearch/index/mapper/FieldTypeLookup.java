@@ -11,12 +11,10 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.TypeFieldMapper.TypeFieldType;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -82,9 +80,15 @@ final class FieldTypeLookup {
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
+            if (runtimeField instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(runtimeField.name(), (DynamicFieldType) runtimeField);
+            }
             MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
-            //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            assert runtimeFieldType != null || runtimeField instanceof DynamicFieldType;
+            if (runtimeFieldType != null) {
+                //this will override concrete fields with runtime fields that have the same name
+                fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            }
         }
     }
 
@@ -149,38 +153,24 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns all the mapped field types that match a pattern
-     *
-     * Note that if a field is aliased and both its actual name and its alias
-     * match the pattern, the returned collection will contain the field type
-     * twice.
-     */
-    Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.values();
-        }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            MappedFieldType ft = get(pattern);
-            return ft == null ? Collections.emptySet() : Collections.singleton(ft);
-        }
-        List<MappedFieldType> matchingFields = new ArrayList<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(fullNameToFieldType.get(field));
-            }
-        }
-        return matchingFields;
-    }
-
-    /**
      * Returns a set of field names that match a regex-like pattern
      *
      * All field names in the returned set are guaranteed to resolve to a field
      */
     Set<String> getMatchingFieldNames(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.keySet();
+        if (Regex.isMatchAllPattern(pattern)) {
+            if (dynamicFieldTypes.isEmpty()) {
+                return fullNameToFieldType.keySet();
+            }
+            Set<String> fieldNames = new HashSet<>(fullNameToFieldType.keySet());
+            for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+                String parentName = dynamicFieldTypeEntry.getKey();
+                DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
+                for (String subfield : dynamicFieldType.getKnownSubfields()) {
+                    fieldNames.add(parentName + "." + subfield);
+                }
+            }
+            return Collections.unmodifiableSet(fieldNames);
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
@@ -190,6 +180,15 @@ final class FieldTypeLookup {
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
                 matchingFields.add(field);
+            }
+        }
+        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+            String parentName = dynamicFieldTypeEntry.getKey();
+            for (String subfield : dynamicFieldTypeEntry.getValue().getKnownSubfields()) {
+                String fullPath = parentName + "." + subfield;
+                if (Regex.simpleMatch(pattern, fullPath)) {
+                    matchingFields.add(fullPath);
+                }
             }
         }
         return matchingFields;

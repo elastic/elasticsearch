@@ -70,6 +70,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -110,7 +111,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -464,9 +464,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     // Add all resolved indices from the feature states to the list of indices
                     for (String feature : featureStatesSet) {
-                        for (String pattern : systemIndexDescriptorMap.get(feature).getAssociatedIndexPatterns()) {
-                            Collections.addAll(indexNames, indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(
-                                    currentState, LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern));
+                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
+                            indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
                     }
                     indices = Collections.unmodifiableList(new ArrayList<>(indexNames));
@@ -2782,8 +2781,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         updatedAssignmentsBuilder.put(shardId, updated);
                                     }
                                 }
-                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                                snapshotEntries.add(updatedEntry);
                                 changed = true;
+                                if (updatedEntry.state().completed()) {
+                                    newFinalizations.add(entry);
+                                }
                             }
                         }
                     } else {
@@ -2997,7 +3000,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> intersectingDataStreams = alias.getDataStreams().stream()
                     .filter(dataStreams::containsKey)
                     .collect(Collectors.toList());
-                return new DataStreamAlias(alias.getName(), intersectingDataStreams);
+                String writeDataStream = alias.getWriteDataStream();
+                if (intersectingDataStreams.contains(writeDataStream) == false) {
+                    writeDataStream = null;
+                }
+                return new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDataStream);
             }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
@@ -3066,8 +3073,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     static final ClusterStateTaskExecutor<ShardSnapshotUpdate> SHARD_STATE_EXECUTOR = (currentState, tasks) ->
             ClusterStateTaskExecutor.ClusterTasksResult.<ShardSnapshotUpdate>builder().successes(tasks).build(
-                    new SnapshotShardsUpdateContext(currentState, tasks).applyToEntries(
-                            currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries()).updatedState());
+                    new SnapshotShardsUpdateContext(currentState, tasks).computeUpdatedState());
 
     private static boolean isQueued(@Nullable ShardSnapshotStatus status) {
         return status != null && status.state() == ShardState.QUEUED;
@@ -3088,9 +3094,6 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // current cluster state
         private final ClusterState currentState;
 
-        // snapshot entries computed by applying tasks to existing snapshot entries
-        private final List<SnapshotsInProgress.Entry> entries = new ArrayList<>();
-
         // updates outstanding to be applied to existing snapshot entries
         private final List<ShardSnapshotUpdate> unconsumedUpdates;
 
@@ -3102,20 +3105,20 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             unconsumedUpdates = new ArrayList<>(updates);
         }
 
-        public ClusterState updatedState() {
+        ClusterState computeUpdatedState() {
+            final List<SnapshotsInProgress.Entry> oldEntries
+                    = currentState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries();
+            final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(oldEntries.size());
+            for (SnapshotsInProgress.Entry entry : oldEntries) {
+                newEntries.add(applyToEntry(entry));
+            }
+
             if (changedCount > 0) {
                 logger.trace("changed cluster state triggered by [{}] snapshot state updates and resulted in starting " +
                         "[{}] shard snapshots", changedCount, startedCount);
-                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(entries)).build();
+                return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.of(newEntries)).build();
             }
             return currentState;
-        }
-
-        SnapshotShardsUpdateContext applyToEntries(List<SnapshotsInProgress.Entry> snapshots) {
-            for (SnapshotsInProgress.Entry entry : snapshots) {
-                entries.add(applyToEntry(entry));
-            }
-            return this;
         }
 
         private SnapshotsInProgress.Entry applyToEntry(SnapshotsInProgress.Entry entry) {
@@ -3124,7 +3127,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (entry.state().completed() || unconsumedUpdates.isEmpty()) {
                 return entry;
             }
-            return new EntryContext(entry, unconsumedUpdates.iterator()).updatedEntry();
+            return new EntryContext(entry).computeUpdatedEntry();
         }
 
         // Per snapshot entry state
@@ -3141,12 +3144,14 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             // builder for updated shard clone status mappings if any could be computed
             private ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clonesBuilder = null;
 
-            EntryContext(SnapshotsInProgress.Entry entry, Iterator<ShardSnapshotUpdate> iterator) {
+            EntryContext(SnapshotsInProgress.Entry entry) {
                 this.entry = entry;
-                this.iterator = iterator;
+                this.iterator = unconsumedUpdates.iterator();
             }
 
-            SnapshotsInProgress.Entry updatedEntry() {
+            SnapshotsInProgress.Entry computeUpdatedEntry() {
+                assert shardsBuilder == null && clonesBuilder == null : "update context was already used";
+
                 // loop over all the shard updates that are potentially applicable to the current snapshot entry
                 while (iterator.hasNext()) {
                     final ShardSnapshotUpdate update = iterator.next();

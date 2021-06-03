@@ -235,7 +235,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "test_match_all");
         assertNotNull(transformConfig.getSource().getQueryConfig());
-        assertTrue(transformConfig.getSource().getQueryConfig().isValid());
+        assertNotNull(transformConfig.getSource().getQueryConfig().getQuery());
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = transformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -545,7 +545,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
     }
 
-    public void testGetAdditionalValidations_WithNoRuntimeMappings() throws IOException {
+    public void testGetAdditionalSourceDestValidations_WithNoRuntimeMappings() throws IOException {
         String transformWithRuntimeMappings = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {\"index\":\"src\"},"
@@ -563,10 +563,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
-        assertThat(transformConfig.getAdditionalValidations(), is(empty()));
+        assertThat(transformConfig.getAdditionalSourceDestValidations(), is(empty()));
     }
 
-    public void testGetAdditionalValidations_WithRuntimeMappings() throws IOException {
+    public void testGetAdditionalSourceDestValidations_WithRuntimeMappings() throws IOException {
         String json = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {"
@@ -587,7 +587,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
-        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalValidations();
+        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalSourceDestValidations();
         assertThat(additiionalValidations, hasSize(1));
         assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
         RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =

@@ -588,7 +588,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), badVersion);
 
         final Version goodVersion =
-            randomFrom(allVersions().stream().filter(v -> v.major >= Version.CURRENT.major).collect(Collectors.toList()));
+            randomFrom(allVersions().stream().filter(v -> v.onOrAfter(Version.CURRENT)).collect(Collectors.toList()));
         final DiscoveryNode goodNode = new DiscoveryNode("goodNode", buildNewFakeTransportAddress(), emptyMap(),
             new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES)), goodVersion);
 
@@ -623,7 +623,9 @@ public class NodeJoinControllerTests extends ESTestCase {
         goodJoin.get();
         ExecutionException e = expectThrows(ExecutionException.class, badJoin::get);
         assertThat(e.getCause(), instanceOf(IllegalStateException.class));
-        assertThat(e.getCause().getMessage(), allOf(containsString("node version"), containsString("not supported")));
+        assertThat(e.getCause().getMessage(), allOf(
+            containsString("node version"),
+            containsString("may not join a cluster comprising only nodes of version")));
     }
 
     public void testRejectingJoinWithIncompatibleVersionWithUnrecoveredState() throws InterruptedException, ExecutionException {

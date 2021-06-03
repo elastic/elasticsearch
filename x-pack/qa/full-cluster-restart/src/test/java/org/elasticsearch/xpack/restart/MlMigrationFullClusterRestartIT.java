@@ -70,7 +70,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
                 templatesToWaitFor = XPackRestTestConstants.ML_POST_V660_TEMPLATES;
             }
         }
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        boolean clusterUnderstandsComposableTemplates =
+            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     private void createTestIndex() throws IOException {

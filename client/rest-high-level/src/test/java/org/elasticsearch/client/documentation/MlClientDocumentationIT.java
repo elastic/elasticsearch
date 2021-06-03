@@ -588,14 +588,13 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setDescription("My description") // <2>
                 .setAnalysisLimits(new AnalysisLimits(1000L, null)) // <3>
                 .setBackgroundPersistInterval(TimeValue.timeValueHours(3)) // <4>
-                .setCategorizationFilters(Arrays.asList("categorization-filter")) // <5>
-                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <6>
-                .setGroups(Arrays.asList("job-group-1")) // <7>
-                .setResultsRetentionDays(10L) // <8>
-                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <9>
-                .setModelSnapshotRetentionDays(7L) // <10>
-                .setCustomSettings(customSettings) // <11>
-                .setRenormalizationWindowDays(3L) // <12>
+                .setDetectorUpdates(Arrays.asList(detectorUpdate)) // <5>
+                .setGroups(Arrays.asList("job-group-1")) // <6>
+                .setResultsRetentionDays(10L) // <7>
+                .setModelPlotConfig(new ModelPlotConfig(true, null, true)) // <8>
+                .setModelSnapshotRetentionDays(7L) // <9>
+                .setCustomSettings(customSettings) // <10>
+                .setRenormalizationWindowDays(3L) // <11>
                 .build();
             // end::update-job-options
 

@@ -16,6 +16,16 @@ with a `NOT IN` operator.
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
 
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
+
 [[bug-7.9.3]]
 [float]
 === Bug fixes
@@ -93,6 +103,16 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[deprecation-7.9.2]]
 [float]
@@ -202,6 +222,16 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[feature-7.9.1]]
 [float]
@@ -359,6 +389,16 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[breaking-7.9.0]]
 [discrete]

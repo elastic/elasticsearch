@@ -162,7 +162,7 @@ public class PolicyStepsRegistry {
             if (phaseExecutionInfo.getPhase() != null) {
                 phaseMap.put(currentPhase, phaseExecutionInfo.getPhase());
             }
-            policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap);
+            policyToExecute = new LifecyclePolicy(currentPolicy.getType(), currentPolicy.getName(), phaseMap, currentPolicy.getMetadata());
         }
         LifecyclePolicySecurityClient policyClient = new LifecyclePolicySecurityClient(client,
             ClientHelper.INDEX_LIFECYCLE_ORIGIN, lifecyclePolicyMap.get(policy).getHeaders());

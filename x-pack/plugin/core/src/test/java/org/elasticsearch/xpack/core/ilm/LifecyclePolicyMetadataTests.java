@@ -23,6 +23,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.ilm.LifecyclePolicyTests.randomMeta;
+
 public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<LifecyclePolicyMetadata> {
 
     private String lifecycleName;
@@ -110,7 +112,7 @@ public class LifecyclePolicyMetadataTests extends AbstractSerializingTestCase<Li
         switch (between(0, 3)) {
         case 0:
             policy = new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, policy.getName() + randomAlphaOfLengthBetween(1, 5),
-                    policy.getPhases());
+                    policy.getPhases(), randomMeta());
             break;
         case 1:
             headers = new HashMap<>(headers);

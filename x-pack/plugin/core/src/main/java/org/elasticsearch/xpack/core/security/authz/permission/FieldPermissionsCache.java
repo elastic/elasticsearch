@@ -76,14 +76,16 @@ public final class FieldPermissionsCache {
         return allowAllFieldPermissions.orElseGet(() -> {
             final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups = new HashSet<>();
             for (FieldPermissions fieldPermissions : fieldPermissionsCollection) {
-                final FieldPermissionsDefinition[] definitions = fieldPermissions.getFieldPermissionsDefinitions();
-                if (definitions == null) {
-                    throw new IllegalArgumentException("Expected field permission with single definition, but found null");
-                } else if (definitions.length != 1) {
-                    throw new IllegalArgumentException("Expected field permission with single definition, but found ["
-                        + definitions.length + "]");
+                final FieldPermissionsDefinition definition = fieldPermissions.getFieldPermissionsDefinition();
+                final FieldPermissionsDefinition limitedByDefinition =
+                    fieldPermissions.getLimitedByFieldPermissionsDefinition();
+                if (definition == null) {
+                    throw new IllegalArgumentException("Expected field permission definition, but found null");
+                } else if (limitedByDefinition != null) {
+                    throw new IllegalArgumentException("Expected no limited-by field permission definition, but found ["
+                        + limitedByDefinition + "]");
                 }
-                fieldGrantExcludeGroups.addAll(definitions[0].getFieldGrantExcludeGroups());
+                fieldGrantExcludeGroups.addAll(definition.getFieldGrantExcludeGroups());
             }
             final FieldPermissionsDefinition combined = new FieldPermissionsDefinition(fieldGrantExcludeGroups);
             try {

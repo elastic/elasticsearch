@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.core.security.authz.permission;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -18,6 +19,7 @@ import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Set;
 
@@ -73,5 +75,34 @@ public class DocumentPermissionsTests extends ESTestCase {
         Exception e = expectThrows(IllegalStateException.class,
                 () -> DocumentPermissions.failIfQueryUsesClient(queryBuilder2, context));
         assertThat(e.getMessage(), equalTo("role queries are not allowed to execute additional requests"));
+    }
+
+    public void testWriteCacheKeyWillDistinguishBetweenQueriesAndLimitedByQueries() throws IOException {
+        final BytesStreamOutput out0 = new BytesStreamOutput();
+        final DocumentPermissions documentPermissions0 =
+            new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")), null);
+        documentPermissions0.writeCacheKey(out0);
+
+        final BytesStreamOutput out1 = new BytesStreamOutput();
+        final DocumentPermissions documentPermissions1 =
+            new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2")), Set.of(new BytesArray("q3")));
+        documentPermissions1.writeCacheKey(out1);
+
+        final BytesStreamOutput out2 = new BytesStreamOutput();
+        final DocumentPermissions documentPermissions2 =
+            new DocumentPermissions(Set.of(new BytesArray("q1")), Set.of(new BytesArray("q2"), new BytesArray("q3")));
+        documentPermissions2.writeCacheKey(out2);
+
+        final BytesStreamOutput out3 = new BytesStreamOutput();
+        final DocumentPermissions documentPermissions3 =
+            new DocumentPermissions(null, Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")));
+        documentPermissions3.writeCacheKey(out3);
+
+        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
+        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
+        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
+        assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
+        assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
+        assertThat(Arrays.equals(BytesReference.toBytes(out2.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
     }
 }

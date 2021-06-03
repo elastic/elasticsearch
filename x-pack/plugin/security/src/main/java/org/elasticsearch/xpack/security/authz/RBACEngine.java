@@ -484,10 +484,10 @@ public class RBACEngine implements AuthorizationEngine {
             final Set<BytesReference> queries = group.getQuery() == null ? Collections.emptySet() : group.getQuery();
             final Set<FieldPermissionsDefinition.FieldGrantExcludeGroup> fieldSecurity;
             if (group.getFieldPermissions().hasFieldLevelSecurity()) {
-                final FieldPermissionsDefinition[] definitions = group.getFieldPermissions().getFieldPermissionsDefinitions();
-                // TODO: This only prints out the first definition, which is all we can do in this response, but it's inaccurate
-                // when field security has a series of limited-by groups
-                fieldSecurity = definitions[0].getFieldGrantExcludeGroups();
+                final FieldPermissionsDefinition definition = group.getFieldPermissions().getFieldPermissionsDefinition();
+                assert group.getFieldPermissions().getLimitedByFieldPermissionsDefinition() == null
+                    : "limited-by field must not exist since we do not support reporting user privileges for limited roles";
+                fieldSecurity = definition.getFieldGrantExcludeGroups();
             } else {
                 fieldSecurity = Collections.emptySet();
             }

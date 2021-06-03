@@ -18,10 +18,14 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
+import java.util.Arrays;
 import java.util.SortedMap;
+
+import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
 public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
+    public static final Version VERSION_SHARD_SEARCH_INTERCEPTOR = Version.V_7_11_2;
     private final ClusterService clusterService;
 
     public SearchRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, ClusterService clusterService) {
@@ -34,7 +38,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                          SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchRequest request = (SearchRequest) indicesRequest;
-        if (clusterService.state().nodes().getMinNodeVersion().before(Version.V_7_11_2)) {
+        if (clusterService.state().nodes().getMinNodeVersion().before(VERSION_SHARD_SEARCH_INTERCEPTOR) || hasRemoteIndices(request)) {
             request.requestCache(false);
         }
 
@@ -58,5 +62,10 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     @Override
     public boolean supports(IndicesRequest request) {
         return request instanceof SearchRequest;
+    }
+
+    // package private for test
+    boolean hasRemoteIndices(SearchRequest request) {
+        return Arrays.stream(request.indices()).anyMatch(name -> name.indexOf(REMOTE_CLUSTER_INDEX_SEPARATOR) >= 0);
     }
 }

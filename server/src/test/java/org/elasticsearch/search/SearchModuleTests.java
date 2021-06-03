@@ -9,6 +9,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -76,6 +78,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class SearchModuleTests extends ESTestCase {
@@ -294,6 +297,17 @@ public class SearchModuleTests extends ESTestCase {
                         entry.name.match("test", LoggingDeprecationHandler.INSTANCE))
                     .collect(toList()),
                 hasSize(1));
+    }
+
+    public void testRegisterRequestCacheKeyDifferentiator() {
+        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator = (r, o) -> { };
+        final SearchModule module = new SearchModule(Settings.EMPTY, List.of(new SearchPlugin() {
+            @Override
+            public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
+                return List.of(requestCacheKeyDifferentiator);
+            }
+        }));
+        assertThat(module.getRequestCacheKeyDifferentiators(), equalTo(List.of(requestCacheKeyDifferentiator)));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

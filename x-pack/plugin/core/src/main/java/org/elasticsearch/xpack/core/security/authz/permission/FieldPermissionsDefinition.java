@@ -16,6 +16,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static java.util.Comparator.comparingInt;
 
@@ -33,11 +35,11 @@ public final class FieldPermissionsDefinition implements CacheKey {
     }
 
     public FieldPermissionsDefinition(Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups) {
-        this.fieldGrantExcludeGroups = Collections.unmodifiableSet(fieldGrantExcludeGroups);
+        this.fieldGrantExcludeGroups = new TreeSet<>(fieldGrantExcludeGroups);
     }
 
     public Set<FieldGrantExcludeGroup> getFieldGrantExcludeGroups() {
-        return fieldGrantExcludeGroups;
+        return Set.copyOf(fieldGrantExcludeGroups);
     }
 
     @Override
@@ -52,24 +54,20 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
     @Override
     public int hashCode() {
-        return fieldGrantExcludeGroups != null ? fieldGrantExcludeGroups.hashCode() : 0;
+        return fieldGrantExcludeGroups.hashCode();
+    }
+
+    @Override
+    public String toString() {
+        return "FieldPermissionsDefinition{" + "fieldGrantExcludeGroups=" + fieldGrantExcludeGroups + '}';
     }
 
     @Override
     public void writeCacheKey(StreamOutput out) throws IOException {
-        if (fieldGrantExcludeGroups != null) {
-            if (1 == fieldGrantExcludeGroups.size()) {
-                fieldGrantExcludeGroups.iterator().next().writeCacheKey(out);
-            } else {
-                for (Iterator<FieldGrantExcludeGroup> i = fieldGrantExcludeGroups.stream()
-                        .sorted(comparingInt(FieldGrantExcludeGroup::hashCode)).iterator(); i.hasNext();) {
-                    i.next().writeCacheKey(out);
-                }
-            }
-        }
+        out.writeCollection(fieldGrantExcludeGroups, (o, g) -> g.writeCacheKey(o));
     }
 
-    public static final class FieldGrantExcludeGroup implements CacheKey {
+    public static final class FieldGrantExcludeGroup implements CacheKey, Comparable<FieldGrantExcludeGroup> {
         private final String[] grantedFields;
         private final String[] excludedFields;
 
@@ -116,6 +114,11 @@ public final class FieldPermissionsDefinition implements CacheKey {
         public void writeCacheKey(StreamOutput out) throws IOException {
             out.writeOptionalStringArray(grantedFields);
             out.writeOptionalStringArray(excludedFields);
+        }
+
+        @Override
+        public int compareTo(FieldGrantExcludeGroup o) {
+            return Integer.compare(hashCode(), o.hashCode());
         }
     }
 }

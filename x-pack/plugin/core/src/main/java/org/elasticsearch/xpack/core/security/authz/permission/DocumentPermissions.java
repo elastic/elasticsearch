@@ -26,10 +26,10 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
@@ -59,16 +59,16 @@ public final class DocumentPermissions implements CacheKey {
         if (queries == null && scopedByQueries == null) {
             throw new IllegalArgumentException("one of the queries or scoped queries must be provided");
         }
-        this.queries = (queries != null) ? Collections.unmodifiableSet(queries) : queries;
-        this.limitedByQueries = (scopedByQueries != null) ? Collections.unmodifiableSet(scopedByQueries) : scopedByQueries;
+        this.queries = (queries != null) ? new TreeSet<>(queries) : null;
+        this.limitedByQueries = (scopedByQueries != null) ? new TreeSet<>(scopedByQueries) : null;
     }
 
     public Set<BytesReference> getQueries() {
-        return queries;
+        return queries == null ? null : Set.copyOf(queries);
     }
 
     public Set<BytesReference> getLimitedByQueries() {
-        return limitedByQueries;
+        return limitedByQueries == null ? null : Set.copyOf(limitedByQueries);
     }
 
     /**
@@ -109,6 +109,7 @@ public final class DocumentPermissions implements CacheKey {
                 filter = new BooleanQuery.Builder();
                 buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, filter);
             } else {
+                assert false : "one of queries and limited-by queries must be non-null";
                 return null;
             }
             return filter.build();
@@ -209,8 +210,19 @@ public final class DocumentPermissions implements CacheKey {
     }
 
     public void writeCacheKey(StreamOutput out) throws IOException {
-        out.writeCollection(queries == null ? List.of() : queries, (o, q) -> q.writeTo(o));
-        out.writeCollection(limitedByQueries == null ? List.of() : limitedByQueries, (o, q) -> q.writeTo(o));
+        assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
+        if (queries != null) {
+            out.writeBoolean(true);
+            out.writeCollection(queries, (o, q) -> q.writeTo(o));
+        } else {
+            out.writeBoolean(false);
+        }
+        if (limitedByQueries != null) {
+            out.writeBoolean(true);
+            out.writeCollection(limitedByQueries, (o, q) -> q.writeTo(o));
+        } else {
+            out.writeBoolean(false);
+        }
     }
 
     @Override

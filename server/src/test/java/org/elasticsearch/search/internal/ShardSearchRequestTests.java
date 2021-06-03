@@ -13,10 +13,12 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -36,12 +38,16 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ShardSearchRequestTests extends AbstractSearchTestCase {
     private static final IndexMetadata BASE_METADATA = IndexMetadata.builder("test").settings(Settings.builder()
@@ -198,5 +204,20 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 request = new ShardSearchRequest(request);
             }
         }
+    }
+
+    public void testWillCallRequestCacheKeyDifferentiators() throws IOException {
+        final ShardSearchRequest shardSearchRequest = createShardSearchRequest();
+        final int n = randomIntBetween(1, 3);
+        final AtomicInteger count = new AtomicInteger();
+        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators
+            = IntStream.range(0, n)
+            .mapToObj(i -> (CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>) (r, o) -> {
+                assertThat(r, sameInstance(shardSearchRequest));
+                count.incrementAndGet();
+            })
+            .collect(Collectors.toUnmodifiableList());
+        shardSearchRequest.cacheKey(differentiators);
+        assertThat(count.get(), equalTo(n));
     }
 }

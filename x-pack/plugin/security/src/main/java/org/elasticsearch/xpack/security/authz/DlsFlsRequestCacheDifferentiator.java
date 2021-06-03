@@ -47,7 +47,7 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
             final boolean flsEnabled = indexAccessControl.getFieldPermissions().hasFieldLevelSecurity();
             final boolean dlsEnabled = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
             if ((flsEnabled || dlsEnabled) && licenseChecker.get()) {
-                logger.trace("index [{}] with field level access controls [{}] " +
+                logger.debug("index [{}] with field level access controls [{}] " +
                         "document level access controls [{}]. Differentiating request cache key",
                     indexName, flsEnabled, dlsEnabled);
                 indexAccessControl.writeCacheKey(out);

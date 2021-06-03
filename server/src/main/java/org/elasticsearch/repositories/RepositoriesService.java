@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,11 +53,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -321,6 +325,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                                 ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
+                                ensureNoSearchableSnapshotsIndicesInUse(currentState, repositoryMetadata);
                                 deletedRepositories.add(repositoryMetadata.name());
                                 changed = true;
                             } else {
@@ -625,45 +630,70 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        if (isRepositoryInUse(clusterState, repository)) {
-            throw new IllegalStateException("trying to modify or unregister repository that is currently used");
-        }
-    }
-
-    /**
-     * Checks if a repository is currently in use by one of the snapshots
-     *
-     * @param clusterState cluster state
-     * @param repository   repository id
-     * @return true if repository is currently in use by one of the running snapshots
-     */
-    private static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
             if (repository.equals(snapshot.snapshot().getRepository())) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot is in progress");
             }
         }
         for (SnapshotDeletionsInProgress.Entry entry :
             clusterState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries()) {
             if (entry.repository().equals(repository)) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot deletion is in progress");
             }
         }
         for (RepositoryCleanupInProgress.Entry entry :
             clusterState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).entries()) {
             if (entry.repository().equals(repository)) {
-                return true;
+                throw newRepositoryInUseException(repository, "repository clean up is in progress");
             }
         }
         for (RestoreInProgress.Entry entry : clusterState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
             if (repository.equals(entry.snapshot().getRepository())) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot restore is in progress");
             }
+        }
+    }
+
+    private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
+        long count = 0L;
+        List<Index> indices = null;
+        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+            if (indexSettingsMatchRepositoryMetadata(indexMetadata.getSettings(), repositoryMetadata)) {
+                if (indices == null) {
+                    indices = new ArrayList<>();
+                }
+                if (indices.size() < 5) {
+                    indices.add(indexMetadata.getIndex());
+                }
+                count += 1L;
+            }
+        }
+        if (indices != null && indices.isEmpty() == false) {
+            throw newRepositoryInUseException(repositoryMetadata.name(),"found " + count
+                + " searchable snapshots indices that use the repository: "
+                + Strings.collectionToCommaDelimitedString(indices)
+                + (count > indices.size() ? ",..." : "")
+            );
+        }
+    }
+
+    private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
+        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
+            return Objects.equals(repositoryMetadata.uuid(), indexSettings.get("index.store.snapshot.repository_uuid"))
+                || Objects.equals(repositoryMetadata.name(), indexSettings.get("index.store.snapshot.repository_name"));
         }
         return false;
     }
 
+    private static IllegalStateException newRepositoryInUseException(String repository, String reason) {
+        return new IllegalStateException("trying to modify or unregister repository ["
+            + repository
+            + "] that is currently used ("
+            + reason
+            + ')'
+        );
+    }
 
     @Override
     protected void doStart() {

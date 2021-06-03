@@ -625,9 +625,12 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testLimitNestedDocsDefaultSettings() throws Exception {
-        Settings settings = Settings.builder().build();
+        Settings settings = Settings.builder()
+            // make sure we're not hitting the total field limit
+            .put(MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), Long.MAX_VALUE)
+            .build();
         DocumentMapper docMapper
-            = createDocumentMapper(mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
+            = createMapperService(settings, mapping(b -> b.startObject("nested1").field("type", "nested").endObject())).documentMapper();
 
         long defaultMaxNoNestedDocs = MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING.get(settings);
 

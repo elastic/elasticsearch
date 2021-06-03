@@ -753,14 +753,33 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".ds-ilm-history-*"
         };
 
-        // delete system indices
-        final Request postRequest = new Request("POST", "/_features/_reset");
-        adminClient().performRequest(postRequest);
-
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
             final Request deleteRequest = new Request("DELETE", "*,-" + String.join(",-", indicesToIgnore));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+
+            if (minimumNodeVersion().onOrAfter(Version.CURRENT)) {
+                // feature reset deletes system indices
+                final Request postRequest = new Request("POST", "/_features/_reset");
+                adminClient().performRequest(postRequest);
+            } else {
+                RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
+                    .setWarningsHandler(warnings -> {
+                        if (warnings.size() == 0) {
+                            return false;
+                        } else if (warnings.size() > 1) {
+                            return true;
+                        }
+                        // We don't know exactly which indices we're cleaning up in advance,
+                        // so just accept all system index access warnings.
+                        final String warning = warnings.get(0);
+                        final boolean isSystemIndexWarning = warning.contains("this request accesses system indices") &&
+                            warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                        return isSystemIndexWarning == false;
+                    }).build();
+                deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
+            }
+
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));

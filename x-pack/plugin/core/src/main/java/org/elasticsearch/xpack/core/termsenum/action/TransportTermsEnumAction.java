@@ -180,7 +180,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 if (fastNodeBundles.containsKey(nodeId)) {
                     bundle = fastNodeBundles.get(nodeId);
                 } else {
-                    bundle = new HashSet<ShardId>();
+                    bundle = new HashSet<>();
                     fastNodeBundles.put(nodeId, bundle);
                 }
                 if (bundle != null) {
@@ -201,27 +201,20 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
     protected TermsEnumResponse mergeResponses(
         TermsEnumRequest request,
-        AtomicReferenceArray<?> nodesResponses,
+        AtomicReferenceArray<?> atomicResponses,
         boolean complete,
         Map<String, Set<ShardId>> nodeBundles
     ) {
         int successfulShards = 0;
         int failedShards = 0;
         List<DefaultShardOperationFailedException> shardFailures = null;
-        List<List<TermCount>> nodesTerms = new ArrayList<>();
-        for (int i = 0; i < nodesResponses.length(); i++) {
-            Object nodeResponse = nodesResponses.get(i);
-            if (nodeResponse == null) {
-                // simply ignore non active shards
-            } else if (nodeResponse instanceof BroadcastShardOperationFailedException) {
-                complete = false;
-                failedShards++;
-                if (shardFailures == null) {
-                    shardFailures = new ArrayList<>();
-                }
-                shardFailures.add(new DefaultShardOperationFailedException((BroadcastShardOperationFailedException) nodeResponse));
-            } else if (nodeResponse instanceof NodeTermsEnumResponse) {
-                NodeTermsEnumResponse str = (NodeTermsEnumResponse) nodeResponse;
+        List<List<TermCount>> termsList = new ArrayList<>();
+        for (int i = 0; i < atomicResponses.length(); i++) {
+            Object atomicResponse = atomicResponses.get(i);
+            if (atomicResponse == null) {
+                // simply ignore non active operations
+            } else if (atomicResponse instanceof NodeTermsEnumResponse) {
+                NodeTermsEnumResponse str = (NodeTermsEnumResponse) atomicResponse;
                 // Only one node response has to be incomplete for the entire result to be labelled incomplete.
                 if (str.isComplete() == false) {
                     complete = false;
@@ -247,51 +240,58 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 } else {
                     successfulShards += shards.size();
                 }
-                nodesTerms.add(str.terms());
-            } else if (nodeResponse instanceof RemoteTermsEnumResponse) {
-                RemoteTermsEnumResponse remote = (RemoteTermsEnumResponse) nodeResponse;
+                termsList.add(str.terms());
+            } else if (atomicResponse instanceof RemoteClusterTermsEnumResponse) {
+                RemoteClusterTermsEnumResponse rc = (RemoteClusterTermsEnumResponse) atomicResponse;
                 // Only one node response has to be incomplete for the entire result to be labelled incomplete.
-                if (remote.resp.isComplete() == false || remote.resp.getFailedShards() > 0) {
+                if (rc.resp.isComplete() == false || rc.resp.getFailedShards() > 0) {
                     complete = false;
                 }
-                successfulShards = remote.resp.getSuccessfulShards();
-                failedShards = remote.resp.getFailedShards();
-                for (DefaultShardOperationFailedException exc : remote.resp.getShardFailures()) {
-                    shardFailures.add(new DefaultShardOperationFailedException(remote.clusterAlias + ":" + exc.index(),
+                successfulShards = rc.resp.getSuccessfulShards();
+                failedShards = rc.resp.getFailedShards();
+                for (DefaultShardOperationFailedException exc : rc.resp.getShardFailures()) {
+                    shardFailures.add(new DefaultShardOperationFailedException(rc.clusterAlias + ":" + exc.index(),
                         exc.shardId(), exc.getCause()));
                 }
-                List<TermCount> terms = remote.resp.getTerms().stream()
+                List<TermCount> terms = rc.resp.getTerms().stream()
                     .map(a -> new TermCount(a, 1))
                     .collect(Collectors.toList());
-                nodesTerms.add(terms);
+                termsList.add(terms);
             } else {
-                throw new AssertionError("Unknown node response type: " + nodeResponse.getClass().getName());
+                throw new AssertionError("Unknown atomic response type: " + atomicResponse.getClass().getName());
             }
         }
 
-        final PriorityQueue<TermCountIterator> pq = new PriorityQueue<>(nodesTerms.size()) {
+        List<String> ans = termsList.size() == 1 ? termsList.get(0).stream()
+            .map(TermCount::getTerm)
+            .collect(Collectors.toList()) : mergeResponses(termsList, request.size());
+        return new TermsEnumResponse(ans, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
+    }
+
+    private List<String> mergeResponses(List<List<TermCount>> termsList, int size) {
+        final PriorityQueue<TermCountIterator> pq = new PriorityQueue<>(termsList.size()) {
             @Override
             protected boolean lessThan(TermCountIterator a, TermCountIterator b) {
                 return a.compareTo(b) < 0;
             }
         };
 
-        for (List<TermCount> nodeTerms : nodesTerms) {
-            Iterator<TermCount> it = nodeTerms.iterator();
+        for (List<TermCount> terms : termsList) {
+            Iterator<TermCount> it = terms.iterator();
             if (it.hasNext()) {
                 pq.add(new TermCountIterator(it));
             }
         }
 
         TermCount lastTerm = null;
-        final List<String> results = new ArrayList<>();
+        final List<String> ans = new ArrayList<>();
         while (pq.size() != 0) {
             TermCountIterator it = pq.top();
             String term = it.term();
             long docCount = it.docCount();
             if (lastTerm != null && lastTerm.getTerm().compareTo(term) != 0) {
-                results.add(lastTerm.getTerm());
-                if (results.size() == request.size()) {
+                ans.add(lastTerm.getTerm());
+                if (ans.size() == size) {
                     break;
                 }
                 lastTerm = null;
@@ -309,11 +309,10 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 pq.pop();
             }
         }
-        if (lastTerm != null && results.size() < request.size()) {
-            results.add(lastTerm.getTerm());
+        if (lastTerm != null && ans.size() < size) {
+            ans.add(lastTerm.getTerm());
         }
-
-        return new TermsEnumResponse(results, (failedShards + successfulShards), successfulShards, failedShards, shardFailures, complete);
+        return ans;
     }
 
     protected NodeTermsEnumResponse dataNodeOperation(NodeTermsEnumRequest request, Task task) throws IOException {
@@ -469,7 +468,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         private final DiscoveryNodes nodes;
         private final int expectedOps;
         private final AtomicInteger counterOps = new AtomicInteger();
-        private final AtomicReferenceArray<Object> nodesResponses;
+        private final AtomicReferenceArray<Object> atomicResponses;
         private final Map<String, Set<ShardId>> nodeBundles;
         private final Map<String, OriginalIndices> remoteClusterIndices;
 
@@ -501,7 +500,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             nodeBundles = getNodeBundles(clusterState, request, concreteIndices);
             expectedOps = nodeBundles.size() + remoteClusterIndices.size();
 
-            nodesResponses = new AtomicReferenceArray<>(expectedOps);
+            atomicResponses = new AtomicReferenceArray<>(expectedOps);
         }
 
         public void start() {
@@ -516,24 +515,24 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 return;
             }
             // count the local operations, and perform the non local ones
-            int nodeIndex = 0;
+            int numOps = 0;
             for (final String nodeId : nodeBundles.keySet()) {
                 if (checkForEarlyFinish()) {
                     return;
                 }
                 Set<ShardId> shardIds = nodeBundles.get(nodeId);
                 if (shardIds.size() > 0) {
-                    performOperation(nodeId, shardIds, nodeIndex);
+                    performOperation(nodeId, shardIds, numOps);
                 } else {
                     // really, no shards active in this group
-                    onNodeFailure(nodeId, nodeIndex, null);
+                    onNodeFailure(nodeId, numOps, null);
                 }
-                ++ nodeIndex;
+                ++ numOps;
             }
             // handle remote clusters
             for (String clusterAlias : remoteClusterIndices.keySet()) {
-                performRemoteClusterOperation(clusterAlias, remoteClusterIndices.get(clusterAlias), nodeIndex);
-                ++ nodeIndex;
+                performRemoteClusterOperation(clusterAlias, remoteClusterIndices.get(clusterAlias), numOps);
+                ++ numOps;
             }
         }
 
@@ -547,10 +546,10 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             return false;
         }
 
-        protected void performOperation(final String nodeId, final Set<ShardId> shardIds, final int nodeIndex) {
+        protected void performOperation(final String nodeId, final Set<ShardId> shardIds, final int opsIndex) {
             if (shardIds.size() == 0) {
                 // no more active shards... (we should not really get here, just safety)
-                onNodeFailure(nodeId, nodeIndex, null);
+                onNodeFailure(nodeId, opsIndex, null);
             } else {
                 try {
                     final NodeTermsEnumRequest nodeRequest = newNodeRequest(nodeId, shardIds, request, task.getStartTime());
@@ -558,7 +557,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     DiscoveryNode node = nodes.get(nodeId);
                     if (node == null) {
                         // no node connected, act as failure
-                        onNodeFailure(nodeId, nodeIndex, null);
+                        onNodeFailure(nodeId, opsIndex, null);
                     } else if (checkForEarlyFinish() == false) {
                         transportService.sendRequest(
                             node,
@@ -572,49 +571,50 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
 
                                 @Override
                                 public void handleResponse(NodeTermsEnumResponse response) {
-                                    onNodeResponse(nodeId, nodeIndex, response);
+                                    onNodeResponse(nodeId, opsIndex, response);
                                 }
 
                                 @Override
                                 public void handleException(TransportException exc) {
-                                    onNodeFailure(nodeId, nodeIndex, exc);
+                                    onNodeFailure(nodeId, opsIndex, exc);
                                 }
                             }
                         );
                     }
                 } catch (Exception exc) {
-                    onNodeFailure(nodeId, nodeIndex, exc);
+                    onNodeFailure(nodeId, opsIndex, exc);
                 }
             }
         }
 
         void performRemoteClusterOperation(final String clusterAlias,
                                            final OriginalIndices remoteIndices,
-                                           final int nodeIndex) {
+                                           final int opsIndex) {
             try {
                 TermsEnumRequest req = new TermsEnumRequest(request)
                     .indices(remoteIndices.indices());
 
                 Client remoteClient = remoteClusterService.getRemoteClusterClient(transportService.getThreadPool(), clusterAlias);
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<TermsEnumResponse>() {
+                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
-                        onNodeResponse(clusterAlias, nodeIndex, new RemoteTermsEnumResponse(clusterAlias, termsEnumResponse));
+                        onRemoteClusterResponse(clusterAlias, opsIndex,
+                            new RemoteClusterTermsEnumResponse(clusterAlias, termsEnumResponse));
                     }
 
                     @Override
                     public void onFailure(Exception exc) {
-                        onNodeFailure(clusterAlias, nodeIndex, exc);
+                        onRemoteClusterFailure(clusterAlias, opsIndex, exc);
                     }
                 });
             } catch (Exception exc) {
-                onNodeFailure(clusterAlias, nodeIndex, null);
+                onRemoteClusterFailure(clusterAlias, opsIndex, null);
             }
         }
 
-        private void onNodeResponse(String nodeId, int nodeIndex, Object response) {
+        private void onNodeResponse(String nodeId, int opsIndex, NodeTermsEnumResponse response) {
             logger.trace("received response for node {}", nodeId);
-            nodesResponses.set(nodeIndex, response);
+            atomicResponses.set(opsIndex, response);
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim(true);
             } else {
@@ -622,8 +622,28 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
             }
         }
 
-        private void onNodeFailure(String nodeId, int nodeIndex, Exception exc) {
+        private void onRemoteClusterResponse(String clusterAlias,
+                                             int opsIndex,
+                                             RemoteClusterTermsEnumResponse response) {
+            logger.trace("received response for cluster {}", clusterAlias);
+            atomicResponses.set(opsIndex, response);
+            if (expectedOps == counterOps.incrementAndGet()) {
+                finishHim(true);
+            } else {
+                checkForEarlyFinish();
+            }
+        }
+
+        private void onNodeFailure(String nodeId, int opsIndex, Exception exc) {
             logger.trace("received failure {} for node {}", exc, nodeId);
+            // TODO: Handle exceptions in the atomic response array
+            if (expectedOps == counterOps.incrementAndGet()) {
+                finishHim(true);
+            }
+        }
+
+        private void onRemoteClusterFailure(String clusterAlias, int opsIndex, Exception exc) {
+            logger.trace("received failure {} for cluster {}", exc, clusterAlias);
             // TODO: Handle exceptions in the atomic response array
             if (expectedOps == counterOps.incrementAndGet()) {
                 finishHim(true);
@@ -636,7 +656,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 return;
             }
             try {
-                listener.onResponse(mergeResponses(request, nodesResponses, complete, nodeBundles));
+                listener.onResponse(mergeResponses(request, atomicResponses, complete, nodeBundles));
             } catch (Exception e) {
                 listener.onFailure(e);
             } finally {
@@ -700,11 +720,11 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         }
     }
 
-    private static class RemoteTermsEnumResponse {
+    private static class RemoteClusterTermsEnumResponse {
         final String clusterAlias;
         final TermsEnumResponse resp;
 
-        private RemoteTermsEnumResponse(String clusterAlias, TermsEnumResponse resp) {
+        private RemoteClusterTermsEnumResponse(String clusterAlias, TermsEnumResponse resp) {
             this.clusterAlias = clusterAlias;
             this.resp = resp;
         }

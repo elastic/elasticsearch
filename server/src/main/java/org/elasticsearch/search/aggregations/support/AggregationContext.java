@@ -43,9 +43,9 @@ import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -114,9 +114,10 @@ public abstract class AggregationContext implements Releasable {
     public abstract MappedFieldType getFieldType(String path);
 
     /**
-     * Returns the registered mapped field types.
+     * Returns a set of field names that match a regex-like pattern
+     * All field names in the returned set are guaranteed to resolve to a field
      */
-    public abstract Collection<MappedFieldType> getMatchingFieldTypes(String pattern);
+    public abstract Set<String> getMatchingFieldNames(String pattern);
 
     /**
      * Returns true if the field identified by the provided name is mapped, false otherwise
@@ -363,8 +364,8 @@ public abstract class AggregationContext implements Releasable {
         }
 
         @Override
-        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-            return context.getMatchingFieldTypes(pattern);
+        public Set<String> getMatchingFieldNames(String pattern) {
+            return context.getMatchingFieldNames(pattern);
         }
 
         @Override

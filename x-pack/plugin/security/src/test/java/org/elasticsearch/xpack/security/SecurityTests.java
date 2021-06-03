@@ -92,10 +92,10 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -597,8 +597,8 @@ public class SecurityTests extends ESTestCase {
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
                 threadPool, Arrays.asList(security, secPlugin), null, null, usageService, null)
             );
-            assertThat(e.getMessage(), is("The org.elasticsearch.xpack.security.SecurityTests$3 plugin tried to install a custom REST" +
-                " wrapper. This functionality is not available anymore."));
+            assertThat(e.getMessage(), endsWith("plugin tried to install a custom REST wrapper. This functionality is not available " +
+                "anymore."));
         } finally {
             threadPool.shutdown();
         }

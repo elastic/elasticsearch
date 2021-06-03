@@ -441,8 +441,9 @@ public class ActionModule extends AbstractModule {
             UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
             if (newRestWrapper != null) {
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                if (plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack.") == false) {
-                    logger.warn("The " + plugin.getClass().getName() + " plugin tried to install a custom REST wrapper. This " +
+                if (plugin.getClass().getCanonicalName() == null ||
+                    plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
+                    logger.error("The " + plugin.getClass().getName() + " plugin tried to install a custom REST wrapper. This " +
                         "functionality is not available anymore.");
                     throw new IllegalArgumentException("The " + plugin.getClass().getName() + " plugin tried to install a custom REST " +
                         "wrapper. This functionality is not available anymore.");

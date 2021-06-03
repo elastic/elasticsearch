@@ -68,10 +68,11 @@ Here is a summary of the steps:
 
 1. Connect to the https://console.cloud.google.com/[Google Cloud Platform Console].
 2. Select your project.
-3. Go to the https://console.cloud.google.com/permissions[Permission] tab.
-4. Select the https://console.cloud.google.com/permissions/serviceaccounts[Service Accounts] tab.
-5. Click *Create service account*.
-6. After the account is created, select it and download a JSON key file.
+3. Select the https://console.cloud.google.com/iam-admin/serviceaccounts[Service Accounts] tab.
+4. Click *Create service account*.
+5. After the account is created, select it and go to *Keys*.
+6. Select *Add Key* and then *Create new key*.
+7. Select Key Type *JSON* as P12 is unsupported.
 
 A JSON service account file looks like this:
 

@@ -270,7 +270,7 @@ public class RestoreService implements ClusterStateApplier {
 
                 // Get data stream metadata for requested data streams
                 Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result =
-                    getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata, requestIndices);
+                    getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata, requestIndices, request.includeAliases());
                 Map<String, DataStream> dataStreamsToRestore = result.v1();
                 Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
@@ -524,7 +524,11 @@ public class RestoreService implements ClusterStateApplier {
                                     List<String> renamedDataStreams = alias.getDataStreams().stream()
                                         .map(s -> s.replaceAll(request.renamePattern(), request.renameReplacement()))
                                         .collect(Collectors.toList());
-                                    return new DataStreamAlias(alias.getName(), renamedDataStreams);
+                                    String writeDataStream = alias.getWriteDataStream();
+                                    if (writeDataStream != null) {
+                                        writeDataStream = writeDataStream.replaceAll(request.renamePattern(), request.renameReplacement());
+                                    }
+                                    return new DataStreamAlias(alias.getName(), renamedDataStreams, writeDataStream);
                                 } else {
                                     return alias;
                                 }
@@ -534,7 +538,16 @@ public class RestoreService implements ClusterStateApplier {
                                     // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
                                     Set<String> mergedDataStreams = new HashSet<>(current.getDataStreams());
                                     mergedDataStreams.addAll(alias.getDataStreams());
-                                    DataStreamAlias newInstance = new DataStreamAlias(alias.getName(), mergedDataStreams);
+
+                                    String writeDataStream = alias.getWriteDataStream();
+                                    if (writeDataStream == null) {
+                                        if (current.getWriteDataStream() != null &&
+                                            mergedDataStreams.contains(current.getWriteDataStream())) {
+                                            writeDataStream = current.getWriteDataStream();
+                                        }
+                                    }
+
+                                    DataStreamAlias newInstance = new DataStreamAlias(alias.getName(), mergedDataStreams, writeDataStream);
                                     updatedDataStreamAliases.put(alias.getName(), newInstance);
                                 }
                             });
@@ -804,7 +817,8 @@ public class RestoreService implements ClusterStateApplier {
                                                                                                  SnapshotId snapshotId,
                                                                                                  SnapshotInfo snapshotInfo,
                                                                                                  Metadata globalMetadata,
-                                                                                                 List<String> requestIndices) {
+                                                                                                 List<String> requestIndices,
+                                                                                                 boolean includeAliases) {
         Map<String, DataStream> dataStreams;
         Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(new String[]{}),
@@ -817,22 +831,30 @@ public class RestoreService implements ClusterStateApplier {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-            final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
             dataStreams = new HashMap<>(requestedDataStreams.size());
-            dataStreamAliases = new HashMap<>();
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
                 dataStreams.put(requestedDataStream, dataStreamInSnapshot);
-
             }
-            for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                    .filter(requestedDataStreams::contains)
-                    .collect(Collectors.toList());
-                if (intersectingDataStreams.isEmpty() == false) {
-                    dataStreamAliases.put(alias.getName(), new DataStreamAlias(alias.getName(), intersectingDataStreams));
+            if (includeAliases) {
+                dataStreamAliases = new HashMap<>();
+                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
+                for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
+                    List<String> intersectingDataStreams = alias.getDataStreams().stream()
+                        .filter(requestedDataStreams::contains)
+                        .collect(Collectors.toList());
+                    String writeDateStream = alias.getWriteDataStream();
+                    if (intersectingDataStreams.contains(writeDateStream) == false) {
+                        writeDateStream = null;
+                    }
+                    if (intersectingDataStreams.isEmpty() == false) {
+                        DataStreamAlias copy = new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDateStream);
+                        dataStreamAliases.put(alias.getName(), copy);
+                    }
                 }
+            } else {
+                dataStreamAliases = Collections.emptyMap();
             }
         }
         return new Tuple<>(dataStreams, dataStreamAliases);

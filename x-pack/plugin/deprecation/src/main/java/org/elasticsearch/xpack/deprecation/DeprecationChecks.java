@@ -100,7 +100,9 @@ public class DeprecationChecks {
             IndexDeprecationChecks::deprecatedDateTimeFormat,
             IndexDeprecationChecks::translogRetentionSettingCheck,
             IndexDeprecationChecks::fieldNamesDisabledCheck,
-            IndexDeprecationChecks::checkIndexDataPath
+            IndexDeprecationChecks::checkIndexDataPath,
+            IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
+            IndexDeprecationChecks::searchSlowLogLevelSettingCheck
         ));
 
     /**

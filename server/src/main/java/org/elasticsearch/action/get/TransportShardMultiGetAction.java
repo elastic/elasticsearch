@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,14 +35,16 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private static final String ACTION_NAME = MultiGetAction.NAME + "[shard]";
 
     private final IndicesService indicesService;
+    private final ExecutorSelector executorSelector;
 
     @Inject
     public TransportShardMultiGetAction(ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
+                                        IndexNameExpressionResolver indexNameExpressionResolver, ExecutorSelector executorSelector) {
         super(ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
                 MultiGetShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
+        this.executorSelector = executorSelector;
     }
 
     @Override
@@ -117,7 +120,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     protected String getExecutor(MultiGetShardRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
         if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
-            return ThreadPool.Names.SYSTEM_READ;
+            return executorSelector.executorForGet(shardId.getIndexName());
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return ThreadPool.Names.SEARCH_THROTTLED;
         } else {

@@ -216,8 +216,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "load_seq_no":
             case "load_version":
                 assert false : "this is a read-only engine";
-            case "doc_stats":
-                assert false : "doc_stats are overwritten";
+            case DOC_STATS_SOURCE:
+                assert false : "doc stats are eagerly loaded";
             case "refresh_needed":
                 assert false : "refresh_needed is always false";
             case "segments":

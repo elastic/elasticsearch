@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.VersionProperties;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -42,7 +42,7 @@ public class RestTestUtil {
     /**
      * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
-    static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
+    public static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
         // lazily create the test task
         Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
@@ -51,7 +51,7 @@ public class RestTestUtil {
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
             // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
-            project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
+            project.getPluginManager().withPlugin("elasticsearch.internal-es-plugin", plugin -> {
                 TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
                 testTask.dependsOn(bundle);
                 if (GradleUtils.isModuleProject(project.getPath())) {
@@ -68,7 +68,7 @@ public class RestTestUtil {
     /**
      * Setup the dependencies needed for the REST tests.
      */
-    static void setupDependencies(Project project, SourceSet sourceSet) {
+    public static void setupDependencies(Project project, SourceSet sourceSet) {
         BuildParams.withInternalBuild(
             () -> { project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework")); }
         ).orElse(() -> {

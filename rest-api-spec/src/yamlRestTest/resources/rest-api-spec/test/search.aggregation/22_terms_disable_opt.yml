@@ -1,0 +1,49 @@
+setup:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: false
+
+---
+teardown:
+  - do:
+      cluster.put_settings:
+        body:
+          persistent:
+            search.aggs.rewrite_to_filter_by_filter: null
+
+---
+does not use optimization:
+  - skip:
+      version: " - 7.13.1"
+      reason: setting to disable optimization added in 7.13.2
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep" }
+          { "index": {} }
+          { "str": "sheep" }
+          { "index": {} }
+          { "str": "cow" }
+          { "index": {} }
+          { "str": "pig" }
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+          size: 0
+          aggs:
+            str_terms:
+              terms:
+                field: str.keyword
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { profile.shards.0.aggregations.0.type: GlobalOrdinalsStringTermsAggregator }
+  - match: { profile.shards.0.aggregations.0.description: str_terms }

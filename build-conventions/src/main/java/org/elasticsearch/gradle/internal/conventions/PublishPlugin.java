@@ -16,6 +16,7 @@ import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
+import org.gradle.api.Task;
 import org.gradle.api.Project;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.plugins.BasePlugin;
@@ -54,8 +55,8 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private void configurePublications(Project project) {
-        var publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
-        var publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
+        PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
+        MavenPublication publication = publishingExtension.getPublications().create("elastic", MavenPublication.class);
 
         project.afterEvaluate(project1 -> {
             if (project1.getPlugins().hasPlugin(ShadowPlugin.class)) {
@@ -65,17 +66,17 @@ public class PublishPlugin implements Plugin<Project> {
             }
         });
         publication.getPom().withXml(xml -> {
-            var node = xml.asNode();
+            Node node = xml.asNode();
             node.appendNode("inceptionYear", "2009");
-            var licensesNode = node.appendNode("licenses");
-            var projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
+            Node licensesNode = node.appendNode("licenses");
+            MapProperty<String, String> projectLicenses = (MapProperty<String, String>) project.getExtensions().getExtraProperties().get("projectLicenses");
             projectLicenses.get().entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(entry -> {
                 Node license = licensesNode.appendNode("license");
                 license.appendNode("name", entry.getKey());
                 license.appendNode("url", entry.getValue());
                 license.appendNode("distribution", "repo");
             });
-            var developer = node.appendNode("developers").appendNode("developer");
+            Node developer = node.appendNode("developers").appendNode("developer");
             developer.appendNode("name", "Elastic");
             developer.appendNode("url", "https://www.elastic.co");
         });
@@ -95,7 +96,7 @@ public class PublishPlugin implements Plugin<Project> {
     private static void configurePomGeneration(Project project) {
         Property<GitInfo> gitInfo = project.getRootProject().getPlugins().apply(GitInfoPlugin.class).getGitInfo();
 
-        var generatePomTask = project.getTasks().register("generatePom");
+        TaskProvider<Task> generatePomTask = project.getTasks().register("generatePom");
         project.getTasks().named(LifecycleBasePlugin.ASSEMBLE_TASK_NAME).configure(assemble -> assemble.dependsOn(generatePomTask));
         project.getTasks()
                 .withType(GenerateMavenPom.class)
@@ -109,8 +110,8 @@ public class PublishPlugin implements Plugin<Project> {
                                 )
                         )
                 );
-        var publishing = project.getExtensions().getByType(PublishingExtension.class);
-        final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
+        PublishingExtension publishing = project.getExtensions().getByType(PublishingExtension.class);
+        final NamedDomainObjectSet<MavenPublication> mavenPublications = publishing.getPublications().withType(MavenPublication.class);
         addNameAndDescriptiontoPom(project, mavenPublications);
 
         mavenPublications.all(publication -> {
@@ -124,9 +125,9 @@ public class PublishPlugin implements Plugin<Project> {
 
     private static void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
         mavenPublications.all(p -> p.getPom().withXml(xml -> {
-            var root = xml.asNode();
+            Node root = xml.asNode();
             root.appendNode("name", project.getName());
-            var description = project.getDescription() != null ? project.getDescription() : "";
+            String description = project.getDescription() != null ? project.getDescription() : "";
             root.appendNode("description", description);
         }));
     }
@@ -137,9 +138,9 @@ public class PublishPlugin implements Plugin<Project> {
     }
 
     private static void addScmInfo(XmlProvider xml, GitInfo gitInfo) {
-        var root = xml.asNode();
+        Node root = xml.asNode();
         root.appendNode("url", gitInfo.urlFromOrigin());
-        var scmNode = root.appendNode("scm");
+        Node scmNode = root.appendNode("scm");
         scmNode.appendNode("url", gitInfo.getOrigin());
     }
 
@@ -148,7 +149,7 @@ public class PublishPlugin implements Plugin<Project> {
      */
     private static void configureJavadocJar(Project project) {
         project.getPlugins().withType(JavaLibraryPlugin.class, p -> {
-            var javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
+            TaskProvider<Jar> javadocJarTask = project.getTasks().register("javadocJar", Jar.class);
             javadocJarTask.configure(jar -> {
                 jar.getArchiveClassifier().set("javadoc");
                 jar.setGroup("build");

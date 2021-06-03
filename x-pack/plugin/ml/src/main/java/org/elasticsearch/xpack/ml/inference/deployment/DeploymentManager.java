@@ -163,6 +163,11 @@ public class DeploymentManager {
                       ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
 
+        if (processContext == null) {
+            listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
+            return;
+        }
+
         final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
 
         executorServiceForProcess.execute(new AbstractRunnable() {

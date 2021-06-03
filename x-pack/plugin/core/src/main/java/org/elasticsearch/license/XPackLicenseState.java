@@ -97,7 +97,11 @@ public class XPackLicenseState {
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
-            this.feature = new LicensedFeature(name().toLowerCase(Locale.ROOT), minimumOperationMode, needsActive);
+            if (needsActive) {
+                this.feature = LicensedFeature.momentary(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+            } else {
+                this.feature = LicensedFeature.momentaryLenient(name().toLowerCase(Locale.ROOT), minimumOperationMode);
+            }
         }
     }
 

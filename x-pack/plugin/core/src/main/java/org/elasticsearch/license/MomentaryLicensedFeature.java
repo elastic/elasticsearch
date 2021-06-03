@@ -13,7 +13,7 @@ package org.elasticsearch.license;
  */
 public class MomentaryLicensedFeature extends LicensedFeature {
 
-    public MomentaryLicensedFeature(License.OperationMode minimumOperationMode, boolean needsActive) {
-        super(minimumOperationMode, needsActive);
+    public MomentaryLicensedFeature(String name, License.OperationMode minimumOperationMode, boolean needsActive) {
+        super(name, minimumOperationMode, needsActive);
     }
 }

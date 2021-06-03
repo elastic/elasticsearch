@@ -335,21 +335,24 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 
-    public static final LicensedFeature IP_FILTERING_FEATURE =
-        new LicensedFeature("security_ip_filtering", License.OperationMode.GOLD, false);
+    public static final LicensedFeature.Momentary IP_FILTERING_FEATURE =
+        LicensedFeature.momentaryLenient("security_ip_filtering", License.OperationMode.GOLD);
     public static final LicensedFeature AUDITING_FEATURE =
-        new LicensedFeature("security_auditing", License.OperationMode.GOLD, false);
+        LicensedFeature.momentaryLenient("security_auditing", License.OperationMode.GOLD);
     public static final LicensedFeature DLS_FLS_FEATURE =
-        new LicensedFeature("security_dls_fls", License.OperationMode.PLATINUM, false);
+        LicensedFeature.momentaryLenient("security_dls_fls", License.OperationMode.PLATINUM);
     public static final LicensedFeature ALL_REALMS_FEATURE =
-        new LicensedFeature("security_all_realms", License.OperationMode.PLATINUM, false);
+        LicensedFeature.momentaryLenient("security_all_realms", License.OperationMode.PLATINUM);
     public static final LicensedFeature STANDARD_REALMS_FEATURE =
-        new LicensedFeature("security_standard_realms", License.OperationMode.GOLD, false);
-    public static final LicensedFeature CUSTOM_ROLE_FEATURE = LicensedFeature.platinum("security_custom_role_providers");
+        LicensedFeature.momentaryLenient("security_standard_realms", License.OperationMode.GOLD);
+    public static final LicensedFeature CUSTOM_ROLE_FEATURE =
+        LicensedFeature.momentary("security_custom_role_providers", License.OperationMode.PLATINUM);
     public static final LicensedFeature TOKEN_SERVICE_FEATURE =
-        new LicensedFeature("security_token_service", License.OperationMode.STANDARD, false);
-    public static final LicensedFeature AUTH_REALM_FEATURE = LicensedFeature.platinum("security_authorization_realm");
-    public static final LicensedFeature AUTH_ENGINE_FEATURE = LicensedFeature.platinum("security_authorization_engine");
+        LicensedFeature.momentaryLenient("security_token_service", License.OperationMode.STANDARD);
+    public static final LicensedFeature AUTH_REALM_FEATURE =
+        LicensedFeature.momentary("security_authorization_realm", License.OperationMode.PLATINUM);
+    public static final LicensedFeature AUTH_ENGINE_FEATURE =
+        LicensedFeature.momentary("security_authorization_engine", License.OperationMode.PLATINUM);
 
     private static final Logger logger = LogManager.getLogger(Security.class);
 

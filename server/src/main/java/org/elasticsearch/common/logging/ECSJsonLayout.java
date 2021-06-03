@@ -55,7 +55,7 @@ public class ECSJsonLayout {
         private KeyValuePair[] additionalFields() {
             return new KeyValuePair[] {
                 new KeyValuePair("event.dataset", dataset),
-                new KeyValuePair("trace.id", "${ctx:traceparent}"),
+                new KeyValuePair("trace.id", "%trace_parent"),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),

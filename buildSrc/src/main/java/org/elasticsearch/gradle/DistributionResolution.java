@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle;
 
-import org.elasticsearch.gradle.internal.DistributionDependency;
 import org.gradle.api.Project;
 
 public class DistributionResolution {

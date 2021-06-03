@@ -59,6 +59,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
+    private final Provider<File> runtimeJava;
     private int nodeIndex = 0;
 
     public ElasticsearchCluster(
@@ -69,7 +70,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
-        Jdk bwcJdk
+        Jdk bwcJdk,
+        Provider<File> runtimeJava
     ) {
         this.path = project.getPath();
         this.clusterName = clusterName;
@@ -79,6 +81,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
         this.workingDirBase = workingDirBase;
+        this.runtimeJava = runtimeJava;
         this.nodes = project.container(ElasticsearchNode.class);
         this.bwcJdk = bwcJdk;
 
@@ -93,7 +96,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
-                bwcJdk
+                bwcJdk,
+                runtimeJava
             )
         );
 
@@ -125,7 +129,8 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
-                    bwcJdk
+                    bwcJdk,
+                    runtimeJava
                 )
             );
         }

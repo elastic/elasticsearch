@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.info.BuildParams

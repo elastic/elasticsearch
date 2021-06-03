@@ -1196,7 +1196,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
                 alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream);
             } else {
-                alias = alias.addDataStream(dataStream, isWriteDataStream);
+                DataStreamAlias copy = alias.addDataStream(dataStream, isWriteDataStream);
+                if (copy == alias) {
+                    return false;
+                }
+                alias = copy;
             }
             dataStreamAliases.put(aliasName, alias);
 

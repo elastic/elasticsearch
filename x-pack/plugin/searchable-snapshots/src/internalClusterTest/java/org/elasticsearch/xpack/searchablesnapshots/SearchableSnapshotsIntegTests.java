@@ -21,6 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -1067,6 +1068,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             }
 
             fail(description);
+        });
+
+        assertBusy(() -> {
+            final RestoreInProgress restoreInProgress = client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setCustoms(true)
+                .get()
+                .getState()
+                .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            assertTrue(
+                Strings.toString(restoreInProgress, true, true),
+                StreamSupport.stream(restoreInProgress.spliterator(), false).allMatch(e -> e.state().completed())
+            );
         });
 
         // Re-register the repository containing the actual data & verify that the shards are now allocated

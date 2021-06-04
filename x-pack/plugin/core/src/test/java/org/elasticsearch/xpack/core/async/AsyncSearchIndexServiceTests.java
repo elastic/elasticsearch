@@ -7,17 +7,24 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
 
 // TODO: test CRUD operations
 public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
@@ -76,11 +83,24 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry());
     }
 
+
     public void testEncodeSearchResponse() throws IOException {
         for (int i = 0; i < 10; i++) {
             TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10), randomLong());
-            String encoded = indexService.encodeResponse(response);
-            TestAsyncResponse same = indexService.decodeResponse(encoded);
+            Map<String, Object> fields = new HashMap<>();
+            int numFields = randomIntBetween(0, 100);
+            for (int f = 0; f < numFields; f++) {
+                fields.put("field-" + f, randomFrom(randomInt(), randomAlphaOfLength(100)));
+            }
+            BytesReference bytes = BytesReference.bytes(indexService.buildSourceForUpdateRequest(response, fields));
+            Map<String, Object> maps = XContentHelper.convertToMap(bytes, randomBoolean()).v2();
+            assertThat(maps, aMapWithSize(numFields + 1));
+            for (Map.Entry<String, Object> e : fields.entrySet()) {
+                assertThat(maps, hasEntry(e.getKey(), e.getValue()));
+            }
+            assertThat(maps, hasKey(AsyncTaskIndexService.RESULT_FIELD));
+            final String encodedValue = (String) maps.get(AsyncTaskIndexService.RESULT_FIELD);
+            TestAsyncResponse same = indexService.decodeResponse(encodedValue);
             assertThat(same, equalTo(response));
         }
     }

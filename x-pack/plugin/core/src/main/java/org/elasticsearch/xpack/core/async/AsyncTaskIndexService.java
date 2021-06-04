@@ -54,6 +54,7 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -186,8 +187,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                R response,
                                ActionListener<IndexResponse> listener) throws IOException {
         try {
-            final XContentBuilder source = buildSourceForUpdateRequest(response,
-                Map.of(HEADERS_FIELD, headers, EXPIRATION_TIME_FIELD, response.getExpirationTime()));
+            final Map<String, Object> fields = new HashMap<>();
+            if (headers != null) {
+                fields.put(HEADERS_FIELD, headers);
+            }
+            fields.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
+            final XContentBuilder source = buildSourceForUpdateRequest(response, fields);
             final IndexRequest indexRequest = new IndexRequest(index)
                 .create(true)
                 .id(docId)
@@ -206,7 +211,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             R response,
                             ActionListener<UpdateResponse> listener) {
         try {
-            final XContentBuilder source = buildSourceForUpdateRequest(response, Map.of(RESPONSE_HEADERS_FIELD, responseHeaders));
+            final Map<String, Object> fields = new HashMap<>();
+            if (responseHeaders != null) {
+                fields.put(RESPONSE_HEADERS_FIELD, responseHeaders);
+            }
+            final XContentBuilder source = buildSourceForUpdateRequest(response, fields);
             UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)

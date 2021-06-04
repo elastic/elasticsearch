@@ -10,6 +10,8 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

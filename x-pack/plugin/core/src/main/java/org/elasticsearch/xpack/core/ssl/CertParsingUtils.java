@@ -11,7 +11,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslKeyConfig;
-import org.elasticsearch.common.ssl.StoreTrustConfig;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.KeyManagerFactory;

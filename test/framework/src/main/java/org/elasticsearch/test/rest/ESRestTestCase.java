@@ -845,8 +845,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
         if (indices != null) {
             for (String index : indices.keySet()) {
-                assertAcked("Failed to delete searchable snapshot index [" + index + ']',
-                    adminClient().performRequest(new Request("DELETE", index)));
+                try {
+                    assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                        adminClient().performRequest(new Request("DELETE", index)));
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
+                }
             }
         }
     }
@@ -1789,5 +1795,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         });
         request.setOptions(options);
+    }
+
+    protected static boolean isNotFoundResponseException(IOException ioe) {
+        if (ioe instanceof ResponseException) {
+            Response response = ((ResponseException) ioe).getResponse();
+            return response.getStatusLine().getStatusCode() == 404;
+        }
+        return false;
     }
 }

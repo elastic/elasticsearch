@@ -16,6 +16,7 @@ tasks.named("assemble").configure { enabled = false }
 archivesBaseName = 'elasticsearch-benchmarks'
 
 tasks.named("test").configure { enabled = false }
+tasks.named("splitPackagesAudit").configure { enabled = false }
 
 configurations {
   expression

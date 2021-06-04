@@ -18,13 +18,11 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 
 import javax.net.ssl.TrustManagerFactory;
-import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -36,33 +34,31 @@ public class SSLConfigurationSettings {
 
     final X509KeyPairSettings x509KeyPair;
 
-    public final Setting<List<String>> ciphers;
-    public final Setting<List<String>> supportedProtocols;
+    final Setting<List<String>> ciphers;
+    final Setting<List<String>> supportedProtocols;
 
-    public final Setting<Optional<String>> truststorePath;
-    public final Setting<SecureString> truststorePassword;
-    public final Setting<String> truststoreAlgorithm;
-    public final Setting<Optional<String>> truststoreType;
-    public final Setting<Optional<String>> trustRestrictionsPath;
-    public final Setting<List<String>> caPaths;
-    public final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
-    public final Setting<Optional<SslVerificationMode>> verificationMode;
+    final Setting<Optional<String>> truststorePath;
+    final Setting<SecureString> truststorePassword;
+    final Setting<String> truststoreAlgorithm;
+    final Setting<Optional<String>> truststoreType;
+    final Setting<Optional<String>> trustRestrictionsPath;
+    final Setting<List<String>> caPaths;
+    final Setting<Optional<SslClientAuthenticationMode>> clientAuth;
+    final Setting<Optional<SslVerificationMode>> verificationMode;
 
     // public for PKI realm
-    public final Setting<SecureString> legacyTruststorePassword;
+    private final Setting<SecureString> legacyTruststorePassword;
 
     private final List<Setting<?>> enabledSettings;
     private final List<Setting<?>> disabledSettings;
 
-    /**
-     * We explicitly default to "jks" here (rather than {@link KeyStore#getDefaultType()}) for backwards compatibility.
-     * Older versions of X-Pack only supported JKS and never looked at the JVM's configured default.
-     */
-    private static final String DEFAULT_KEYSTORE_TYPE = "jks";
-    private static final String PKCS12_KEYSTORE_TYPE = "PKCS12";
-
-    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE
-        = key -> Setting.listSetting(key, List.of(), Function.identity(), Property.NodeScope, Property.Filtered);
+    private static final Function<String, Setting<List<String>>> CIPHERS_SETTING_TEMPLATE = key -> Setting.listSetting(
+        key,
+        List.of(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Filtered
+    );
     private static final SslSetting<List<String>> CIPHERS = SslSetting.setting(SslConfigurationKeys.CIPHERS, CIPHERS_SETTING_TEMPLATE);
 
     private static final SslSetting<List<String>> SUPPORTED_PROTOCOLS = SslSetting.setting(
@@ -70,28 +66,40 @@ public class SSLConfigurationSettings {
         key -> Setting.listSetting(key, List.of(), Function.identity(), Property.NodeScope, Property.Filtered)
     );
 
-    private static final SslSetting<Optional<String>> KEYSTORE_PATH
-        = SslSetting.setting(SslConfigurationKeys.KEYSTORE_PATH, X509KeyPairSettings.KEYSTORE_PATH_TEMPLATE);
+    private static final SslSetting<Optional<String>> KEYSTORE_PATH = SslSetting.setting(
+        SslConfigurationKeys.KEYSTORE_PATH,
+        X509KeyPairSettings.KEYSTORE_PATH_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> LEGACY_KEYSTORE_PASSWORD
-        = SslSetting.setting(SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD, X509KeyPairSettings.LEGACY_KEYSTORE_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> LEGACY_KEYSTORE_PASSWORD = SslSetting.setting(
+        SslConfigurationKeys.KEYSTORE_LEGACY_PASSWORD,
+        X509KeyPairSettings.LEGACY_KEYSTORE_PASSWORD_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> KEYSTORE_PASSWORD
-        = SslSetting.secureSetting(SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD, X509KeyPairSettings.KEYSTORE_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEYSTORE_PASSWORD = SslSetting.secureSetting(
+        SslConfigurationKeys.KEYSTORE_SECURE_PASSWORD,
+        X509KeyPairSettings.KEYSTORE_PASSWORD_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> LEGACY_KEYSTORE_KEY_PASSWORD
-        = SslSetting.setting(SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD, X509KeyPairSettings.LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> LEGACY_KEYSTORE_KEY_PASSWORD = SslSetting.setting(
+        SslConfigurationKeys.KEYSTORE_LEGACY_KEY_PASSWORD,
+        X509KeyPairSettings.LEGACY_KEYSTORE_KEY_PASSWORD_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> KEYSTORE_KEY_PASSWORD
-        = SslSetting.secureSetting(SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD, X509KeyPairSettings.KEYSTORE_KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEYSTORE_KEY_PASSWORD = SslSetting.secureSetting(
+        SslConfigurationKeys.KEYSTORE_SECURE_KEY_PASSWORD,
+        X509KeyPairSettings.KEYSTORE_KEY_PASSWORD_TEMPLATE
+    );
 
     public static final SslSetting<Optional<String>> TRUSTSTORE_PATH = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_PATH,
         key -> new Setting<>(key, s -> null, Optional::ofNullable, Property.NodeScope, Property.Filtered)
     );
 
-    private static final SslSetting<Optional<String>> KEY_PATH
-        = SslSetting.setting(SslConfigurationKeys.KEY, X509KeyPairSettings.KEY_PATH_TEMPLATE);
+    private static final SslSetting<Optional<String>> KEY_PATH = SslSetting.setting(
+        SslConfigurationKeys.KEY,
+        X509KeyPairSettings.KEY_PATH_TEMPLATE
+    );
 
     public static final SslSetting<SecureString> LEGACY_TRUSTSTORE_PASSWORD = SslSetting.setting(
         SslConfigurationKeys.TRUSTSTORE_LEGACY_PASSWORD,
@@ -106,56 +114,100 @@ public class SSLConfigurationSettings {
         )
     );
 
-    private static final SslSetting<String> KEY_STORE_ALGORITHM
-        = SslSetting.setting(SslConfigurationKeys.KEYSTORE_ALGORITHM, X509KeyPairSettings.KEY_STORE_ALGORITHM_TEMPLATE);
+    private static final SslSetting<String> KEY_STORE_ALGORITHM = SslSetting.setting(
+        SslConfigurationKeys.KEYSTORE_ALGORITHM,
+        X509KeyPairSettings.KEY_STORE_ALGORITHM_TEMPLATE
+    );
 
-    public static final Function<String, Setting<String>> TRUST_STORE_ALGORITHM_TEMPLATE = key ->
-        new Setting<>(key, s -> TrustManagerFactory.getDefaultAlgorithm(),
-            Function.identity(), Property.NodeScope, Property.Filtered);
-    public static final SslSetting<String> TRUSTSTORE_ALGORITHM
-        = SslSetting.setting(SslConfigurationKeys.TRUSTSTORE_ALGORITHM, TRUST_STORE_ALGORITHM_TEMPLATE);
+    public static final Function<String, Setting<String>> TRUST_STORE_ALGORITHM_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> TrustManagerFactory.getDefaultAlgorithm(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Filtered
+    );
+    public static final SslSetting<String> TRUSTSTORE_ALGORITHM = SslSetting.setting(
+        SslConfigurationKeys.TRUSTSTORE_ALGORITHM,
+        TRUST_STORE_ALGORITHM_TEMPLATE
+    );
 
-    private static final SslSetting<Optional<String>> KEY_STORE_TYPE
-        = SslSetting.setting(SslConfigurationKeys.KEYSTORE_TYPE, X509KeyPairSettings.KEY_STORE_TYPE_TEMPLATE);
+    private static final SslSetting<Optional<String>> KEY_STORE_TYPE = SslSetting.setting(
+        SslConfigurationKeys.KEYSTORE_TYPE,
+        X509KeyPairSettings.KEY_STORE_TYPE_TEMPLATE
+    );
 
-    public static final Function<String, Setting<Optional<String>>> TRUST_STORE_TYPE_TEMPLATE =
-        X509KeyPairSettings.KEY_STORE_TYPE_TEMPLATE;
-    public static final SslSetting<Optional<String>> TRUSTSTORE_TYPE
-        = SslSetting.setting(SslConfigurationKeys.TRUSTSTORE_TYPE, TRUST_STORE_TYPE_TEMPLATE);
+    public static final Function<String, Setting<Optional<String>>> TRUST_STORE_TYPE_TEMPLATE = X509KeyPairSettings.KEY_STORE_TYPE_TEMPLATE;
+    public static final SslSetting<Optional<String>> TRUSTSTORE_TYPE = SslSetting.setting(
+        SslConfigurationKeys.TRUSTSTORE_TYPE,
+        TRUST_STORE_TYPE_TEMPLATE
+    );
 
-    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(key, s -> null,
-        Optional::ofNullable, Property.NodeScope, Property.Filtered);
-    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS
-        = SslSetting.setting("trust_restrictions.path", TRUST_RESTRICTIONS_TEMPLATE);
+    private static final Function<String, Setting<Optional<String>>> TRUST_RESTRICTIONS_TEMPLATE = key -> new Setting<>(
+        key,
+        s -> null,
+        Optional::ofNullable,
+        Property.NodeScope,
+        Property.Filtered
+    );
+    private static final SslSetting<Optional<String>> TRUST_RESTRICTIONS = SslSetting.setting(
+        "trust_restrictions.path",
+        TRUST_RESTRICTIONS_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD
-        = SslSetting.setting(SslConfigurationKeys.KEY_LEGACY_PASSPHRASE, X509KeyPairSettings.LEGACY_KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> LEGACY_KEY_PASSWORD = SslSetting.setting(
+        SslConfigurationKeys.KEY_LEGACY_PASSPHRASE,
+        X509KeyPairSettings.LEGACY_KEY_PASSWORD_TEMPLATE
+    );
 
-    private static final SslSetting<SecureString> KEY_PASSWORD
-        = SslSetting.secureSetting(SslConfigurationKeys.KEY_SECURE_PASSPHRASE, X509KeyPairSettings.KEY_PASSWORD_TEMPLATE);
+    private static final SslSetting<SecureString> KEY_PASSWORD = SslSetting.secureSetting(
+        SslConfigurationKeys.KEY_SECURE_PASSPHRASE,
+        X509KeyPairSettings.KEY_PASSWORD_TEMPLATE
+    );
 
-    private static final SslSetting<Optional<String>> CERT
-        = SslSetting.setting(SslConfigurationKeys.CERTIFICATE, X509KeyPairSettings.CERT_TEMPLATE);
+    private static final SslSetting<Optional<String>> CERT = SslSetting.setting(
+        SslConfigurationKeys.CERTIFICATE,
+        X509KeyPairSettings.CERT_TEMPLATE
+    );
 
-    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.listSetting(key, Collections
-        .emptyList(), Function.identity(), Property.NodeScope, Property.Filtered);
-    public static final SslSetting<List<String>> CERT_AUTH_PATH
-        = SslSetting.setting(SslConfigurationKeys.CERTIFICATE_AUTHORITIES, CAPATH_SETTING_TEMPLATE);
+    public static final Function<String, Setting<List<String>>> CAPATH_SETTING_TEMPLATE = key -> Setting.listSetting(
+        key,
+        Collections.emptyList(),
+        Function.identity(),
+        Property.NodeScope,
+        Property.Filtered
+    );
+    public static final SslSetting<List<String>> CERT_AUTH_PATH = SslSetting.setting(
+        SslConfigurationKeys.CERTIFICATE_AUTHORITIES,
+        CAPATH_SETTING_TEMPLATE
+    );
     public static final Function<String, Setting.AffixSetting<List<String>>> CAPATH_SETTING_REALM = CERT_AUTH_PATH::realm;
 
     private static final Function<String, Setting<Optional<SslClientAuthenticationMode>>> CLIENT_AUTH_SETTING_TEMPLATE =
-        key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SslClientAuthenticationMode.parse(s)),
-            Property.NodeScope, Property.Filtered);
-    private static final SslSetting<Optional<SslClientAuthenticationMode>> CLIENT_AUTH_SETTING
-        = SslSetting.setting(SslConfigurationKeys.CLIENT_AUTH, CLIENT_AUTH_SETTING_TEMPLATE);
+        key -> new Setting<>(
+            key,
+            (String) null,
+            s -> s == null ? Optional.empty() : Optional.of(SslClientAuthenticationMode.parse(s)),
+            Property.NodeScope,
+            Property.Filtered
+        );
+    private static final SslSetting<Optional<SslClientAuthenticationMode>> CLIENT_AUTH_SETTING = SslSetting.setting(
+        SslConfigurationKeys.CLIENT_AUTH,
+        CLIENT_AUTH_SETTING_TEMPLATE
+    );
 
-    private static final Function<String, Setting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE =
-        key -> new Setting<>(key, (String) null, s -> s == null ? Optional.empty() : Optional.of(SslVerificationMode.parse(s)),
-            Property.NodeScope, Property.Filtered);
-    private static final SslSetting<Optional<SslVerificationMode>> VERIFICATION_MODE
-        = SslSetting.setting(SslConfigurationKeys.VERIFICATION_MODE, VERIFICATION_MODE_SETTING_TEMPLATE);
-    public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM
-        = VERIFICATION_MODE::realm;
+    private static final Function<String, Setting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_TEMPLATE = key -> new Setting<>(
+        key,
+        (String) null,
+        s -> s == null ? Optional.empty() : Optional.of(SslVerificationMode.parse(s)),
+        Property.NodeScope,
+        Property.Filtered
+    );
+    private static final SslSetting<Optional<SslVerificationMode>> VERIFICATION_MODE = SslSetting.setting(
+        SslConfigurationKeys.VERIFICATION_MODE,
+        VERIFICATION_MODE_SETTING_TEMPLATE
+    );
+    public static final Function<String, Setting.AffixSetting<Optional<SslVerificationMode>>> VERIFICATION_MODE_SETTING_REALM =
+        VERIFICATION_MODE::realm;
 
     /**
      * @param prefix The prefix under which each setting should be defined. Must be either the empty string (<code>""</code>) or a string
@@ -180,9 +232,18 @@ public class SSLConfigurationSettings {
         clientAuth = CLIENT_AUTH_SETTING.withPrefix(prefix);
         verificationMode = VERIFICATION_MODE.withPrefix(prefix);
 
-        final List<Setting<? extends Object>> enabled = CollectionUtils.arrayAsArrayList(ciphers, supportedProtocols,
-                truststorePath, truststorePassword, truststoreAlgorithm, truststoreType, trustRestrictionsPath,
-                caPaths, clientAuth, verificationMode);
+        final List<Setting<? extends Object>> enabled = CollectionUtils.arrayAsArrayList(
+            ciphers,
+            supportedProtocols,
+            truststorePath,
+            truststorePassword,
+            truststoreAlgorithm,
+            truststoreType,
+            trustRestrictionsPath,
+            caPaths,
+            clientAuth,
+            verificationMode
+        );
         final List<Setting<?>> disabled = new ArrayList<>();
         if (acceptNonSecurePasswords) {
             enabled.add(legacyTruststorePassword);
@@ -197,19 +258,6 @@ public class SSLConfigurationSettings {
         this.disabledSettings = Collections.unmodifiableList(disabled);
     }
 
-    public static String getKeyStoreType(Setting<Optional<String>> setting, Settings settings, String path) {
-        return setting.get(settings).orElseGet(() -> inferKeyStoreType(path));
-    }
-
-    public static String inferKeyStoreType(String path) {
-        String name = path == null ? "" : path.toLowerCase(Locale.ROOT);
-        if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
-            return PKCS12_KEYSTORE_TYPE;
-        } else {
-            return DEFAULT_KEYSTORE_TYPE;
-        }
-    }
-
     public List<Setting<?>> getEnabledSettings() {
         return enabledSettings;
     }
@@ -217,7 +265,6 @@ public class SSLConfigurationSettings {
     public List<Setting<?>> getDisabledSettings() {
         return disabledSettings;
     }
-
 
     /**
      * Construct settings that are un-prefixed. That is, they can be used to read from a {@link Settings} object where the configuration
@@ -241,13 +288,30 @@ public class SSLConfigurationSettings {
     }
 
     private static Collection<SslSetting<?>> settings() {
-        return Arrays.asList(CIPHERS, SUPPORTED_PROTOCOLS, KEYSTORE_PATH,
-            LEGACY_KEYSTORE_PASSWORD, KEYSTORE_PASSWORD, LEGACY_KEYSTORE_KEY_PASSWORD,
-            KEYSTORE_KEY_PASSWORD, TRUSTSTORE_PATH, LEGACY_TRUSTSTORE_PASSWORD,
-            TRUSTSTORE_PASSWORD, KEY_STORE_ALGORITHM, TRUSTSTORE_ALGORITHM,
-            KEY_STORE_TYPE, TRUSTSTORE_TYPE, TRUST_RESTRICTIONS,
-            KEY_PATH, LEGACY_KEY_PASSWORD, KEY_PASSWORD, CERT, CERT_AUTH_PATH,
-            CLIENT_AUTH_SETTING, VERIFICATION_MODE);
+        return Arrays.asList(
+            CIPHERS,
+            SUPPORTED_PROTOCOLS,
+            KEYSTORE_PATH,
+            LEGACY_KEYSTORE_PASSWORD,
+            KEYSTORE_PASSWORD,
+            LEGACY_KEYSTORE_KEY_PASSWORD,
+            KEYSTORE_KEY_PASSWORD,
+            TRUSTSTORE_PATH,
+            LEGACY_TRUSTSTORE_PASSWORD,
+            TRUSTSTORE_PASSWORD,
+            KEY_STORE_ALGORITHM,
+            TRUSTSTORE_ALGORITHM,
+            KEY_STORE_TYPE,
+            TRUSTSTORE_TYPE,
+            TRUST_RESTRICTIONS,
+            KEY_PATH,
+            LEGACY_KEY_PASSWORD,
+            KEY_PASSWORD,
+            CERT,
+            CERT_AUTH_PATH,
+            CLIENT_AUTH_SETTING,
+            VERIFICATION_MODE
+        );
     }
 
     public static Collection<Setting<?>> getProfileSettings() {
@@ -259,17 +323,14 @@ public class SSLConfigurationSettings {
     }
 
     public List<Setting<? extends SecureString>> getSecureSettingsInUse(Settings settings) {
-        return getSecureSettings()
-            .stream()
-            .filter(s -> s.exists(settings))
-            .collect(Collectors.toList());
+        return getSecureSettings().stream().filter(s -> s.exists(settings)).collect(Collectors.toList());
     }
 
     List<Setting<? extends SecureString>> getSecureSettings() {
         return List.of(truststorePassword, x509KeyPair.keyPassword, x509KeyPair.keystorePassword, x509KeyPair.keystoreKeyPassword);
     }
 
-    public  static class SslSetting<T> {
+    public static class SslSetting<T> {
         protected final String name;
         protected final Function<String, Setting<T>> template;
 

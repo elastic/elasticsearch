@@ -90,9 +90,6 @@ public class SSLConfigurationSettingsTests extends ESTestCase {
         assertThat(ssl.truststorePath.get(settings).isPresent(), is(false));
         assertThat(ssl.trustRestrictionsPath.get(settings).isPresent(), is(false));
         assertThat(ssl.verificationMode.get(settings).isPresent(), is(false));
-
-        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.x509KeyPair.keystoreType, settings, null), is("jks"));
-        assertThat(SSLConfigurationSettings.getKeyStoreType(ssl.truststoreType, settings, null), is("jks"));
     }
 
     public void testRealmSettingPrefixes() {

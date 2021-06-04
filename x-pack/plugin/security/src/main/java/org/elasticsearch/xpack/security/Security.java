@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -1009,8 +1010,9 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 "revisit [" + keystoreTypeSettings.toDelimitedString(',') + "] settings");
         }
         Settings keystorePathSettings = settings.filter(k -> k.endsWith("keystore.path"))
-            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false);
-        if (keystorePathSettings.isEmpty() == false && SSLConfigurationSettings.inferKeyStoreType(null).equals("jks")) {
+            .filter(k -> settings.hasValue(k.replace(".path", ".type")) == false)
+            .filter(k -> KeyStoreUtil.inferKeyStoreType(settings.get(k)).equals("jks"));
+        if (keystorePathSettings.isEmpty() == false) {
             validationErrors.add("JKS Keystores cannot be used in a FIPS 140 compliant JVM. Please " +
                 "revisit [" + keystorePathSettings.toDelimitedString(',') + "] settings");
         }

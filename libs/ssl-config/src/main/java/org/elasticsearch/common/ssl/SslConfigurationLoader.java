@@ -316,7 +316,7 @@ public abstract class SslConfigurationLoader {
         }
         if (trustStorePath != null) {
             final char[] password = resolvePasswordSetting(TRUSTSTORE_SECURE_PASSWORD, TRUSTSTORE_LEGACY_PASSWORD);
-            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath.toString()));
+            final String storeType = resolveSetting(TRUSTSTORE_TYPE, Function.identity(), inferKeyStoreType(trustStorePath));
             final String algorithm = resolveSetting(TRUSTSTORE_ALGORITHM, Function.identity(), TrustManagerFactory.getDefaultAlgorithm());
             return new StoreTrustConfig(trustStorePath, password, storeType, algorithm, true, basePath);
         }

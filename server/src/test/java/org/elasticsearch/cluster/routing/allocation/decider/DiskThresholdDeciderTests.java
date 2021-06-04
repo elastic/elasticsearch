@@ -53,7 +53,6 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 
 import java.util.Arrays;

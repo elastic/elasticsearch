@@ -876,6 +876,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteAutoFollowPattern(client, autoFollowPattern);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern), e);
             }
         }
@@ -883,6 +886,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteDataStream(client, dataStream);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete data stream [{}] after test", dataStream), e);
             }
         }
@@ -890,6 +896,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteIndex(client, index);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete index [{}] after test", index), e);
             }
         }

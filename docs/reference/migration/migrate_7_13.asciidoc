@@ -76,7 +76,7 @@ LDAP authentication or access to snapshot repositories.
 Most {es} deployments will not be affected by this change, as these older
 TLS versions have known vulnerabilities and are no longer heavily used.
 
-For instructions on how to enable these TLS versions in your {es} cluster,
+For instructions on how to enable these older TLS versions in your {es} cluster,
 see <<jdk-enable-tls-protocol>>
 ====
 

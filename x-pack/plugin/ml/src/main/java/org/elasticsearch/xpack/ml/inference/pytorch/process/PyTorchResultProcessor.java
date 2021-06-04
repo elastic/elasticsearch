@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 
 import java.util.Iterator;
 import java.util.Objects;
@@ -38,7 +38,7 @@ public class PyTorchResultProcessor {
             Iterator<PyTorchResult> iterator = process.readResults();
             while (iterator.hasNext()) {
                 PyTorchResult result = iterator.next();
-                logger.debug(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
+                logger.trace(() -> new ParameterizedMessage("[{}] Parsed result with id [{}]", deploymentId, result.getRequestId()));
                 PendingResult pendingResult = pendingResults.get(result.getRequestId());
                 if (pendingResult == null) {
                     logger.warn(() -> new ParameterizedMessage("[{}] no pending result for [{}]", deploymentId, result.getRequestId()));

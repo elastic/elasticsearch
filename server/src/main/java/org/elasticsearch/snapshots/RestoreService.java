@@ -466,15 +466,8 @@ public class RestoreService implements ClusterStateApplier {
                 dataStreamAliases = new HashMap<>();
                 final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
                 for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                    List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                        .filter(requestedDataStreams::contains)
-                        .collect(Collectors.toList());
-                    String writeDateStream = alias.getWriteDataStream();
-                    if (intersectingDataStreams.contains(writeDateStream) == false) {
-                        writeDateStream = null;
-                    }
-                    if (intersectingDataStreams.isEmpty() == false) {
-                        DataStreamAlias copy = new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDateStream);
+                    DataStreamAlias copy = alias.intersect(requestedDataStreams::contains);
+                    if (copy.getDataStreams().isEmpty() == false) {
                         dataStreamAliases.put(alias.getName(), copy);
                     }
                 }
@@ -1199,14 +1192,7 @@ public class RestoreService implements ClusterStateApplier {
                 // Optionally rename the data stream names for each alias
                 .map(alias -> {
                     if (request.renamePattern() != null && request.renameReplacement() != null) {
-                        List<String> renamedDataStreams = alias.getDataStreams().stream()
-                            .map(s -> s.replaceAll(request.renamePattern(), request.renameReplacement()))
-                            .collect(Collectors.toList());
-                        String writeDataStream = alias.getWriteDataStream();
-                        if (writeDataStream != null) {
-                            writeDataStream = writeDataStream.replaceAll(request.renamePattern(), request.renameReplacement());
-                        }
-                        return new DataStreamAlias(alias.getName(), renamedDataStreams, writeDataStream);
+                        return alias.renameDataStreams(request.renamePattern(), request.renameReplacement());
                     } else {
                         return alias;
                     }
@@ -1214,18 +1200,7 @@ public class RestoreService implements ClusterStateApplier {
                     final DataStreamAlias current = updatedDataStreamAliases.putIfAbsent(alias.getName(), alias);
                     if (current != null) {
                         // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
-                        Set<String> mergedDataStreams = new HashSet<>(current.getDataStreams());
-                        mergedDataStreams.addAll(alias.getDataStreams());
-
-                        String writeDataStream = alias.getWriteDataStream();
-                        if (writeDataStream == null) {
-                            if (current.getWriteDataStream() != null && mergedDataStreams.contains(current.getWriteDataStream())) {
-                                writeDataStream = current.getWriteDataStream();
-                            }
-                        }
-
-                        DataStreamAlias newInstance =
-                            new DataStreamAlias(alias.getName(), List.copyOf(mergedDataStreams), writeDataStream);
+                        DataStreamAlias newInstance = alias.merge(current);
                         updatedDataStreamAliases.put(alias.getName(), newInstance);
                     }
                 });

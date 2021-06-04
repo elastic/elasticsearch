@@ -14,6 +14,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.fs.FsRepository;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -45,7 +46,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             .getTotalHits();
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createSnapshot(repositoryName, snapshotName, List.of(indexName));
+        createSnapshot(repositoryName, snapshotName, Collections.singletonList(indexName));
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final int nbMountedIndices = 1;

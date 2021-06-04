@@ -15,7 +15,7 @@ import org.elasticsearch.geometry.Geometry;
 
 import java.io.IOException;
 
-public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
+public class GeoJsonGeometryFormat implements GeometryFormat, GeometrySerializer {
     public static final String NAME = "geojson";
 
     private final GeoJson geoJsonParser;

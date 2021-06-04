@@ -17,7 +17,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import java.io.IOException;
 import java.text.ParseException;
 
-public class WKTGeometryFormat implements GeometryFormat<Geometry> {
+public class WKTGeometryFormat implements GeometryFormat, GeometrySerializer {
     public static final String NAME = "wkt";
 
     private final WellKnownText wellKnownTextParser;

@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.spatial.ingest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometrySerializer;
+import org.elasticsearch.common.geo.GeometrySerializerFactory;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -81,7 +83,8 @@ public final class CircleProcessor extends AbstractProcessor {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
             parser.nextToken(); // shape value
-            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(parser);
+            GeometryFormat geometryFormat = PARSER.geometryFormat(parser);
+            GeometrySerializer geometrySerializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(geometryFormat.name());
             Geometry geometry = geometryFormat.fromXContent(parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
@@ -98,7 +101,7 @@ public final class CircleProcessor extends AbstractProcessor {
                         throw new IllegalStateException("invalid shape_type [" + circleShapeFieldType + "]");
                 }
                 XContentBuilder newValueBuilder = XContentFactory.jsonBuilder().startObject().field("val");
-                geometryFormat.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
+                geometrySerializer.toXContent(polygonizedCircle, newValueBuilder, ToXContent.EMPTY_PARAMS);
                 newValueBuilder.endObject();
                 Map<String, Object> newObj = XContentHelper.convertToMap(
                     BytesReference.bytes(newValueBuilder), true, XContentType.JSON).v2();

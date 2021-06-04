@@ -44,7 +44,8 @@ public class GeometryParserTests extends ESTestCase {
             GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
             assertEquals(new Point(100, 0), format.fromXContent(parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
-            format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
+            GeometrySerializer serializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(format.name());
+            serializer.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             assertEquals("{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
         }
 
@@ -105,7 +106,8 @@ public class GeometryParserTests extends ESTestCase {
             GeometryFormat format = new GeometryParser(true, randomBoolean(), randomBoolean()).geometryFormat(parser);
             assertEquals(new Point(100, 0), format.fromXContent(parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
-            format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
+            GeometrySerializer serializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(format.name());
+            serializer.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
             assertEquals("{\"val\":\"POINT (100.0 10.0)\"}", Strings.toString(newGeoJson));
         }
@@ -140,12 +142,13 @@ public class GeometryParserTests extends ESTestCase {
 
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             // if we serialize non-null value - it should be serialized as geojson
-            format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
+            GeometrySerializer serializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(format.name());
+            serializer.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
             assertEquals("{\"val\":{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}}", Strings.toString(newGeoJson));
 
             newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
-            format.toXContent(null, newGeoJson, ToXContent.EMPTY_PARAMS);
+            serializer.toXContent(null, newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
             assertEquals("{\"val\":null}", Strings.toString(newGeoJson));
 

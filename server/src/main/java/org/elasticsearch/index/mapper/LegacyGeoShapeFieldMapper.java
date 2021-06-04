@@ -21,6 +21,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometrySerializerFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -335,8 +336,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public Object format(ShapeBuilder<?, ?, ?> value, String format) {
-            Geometry geometry = value.buildGeometry();
-            return geometryParser.geometryFormat(format).toXContentAsObject(geometry);
+            return GeometrySerializerFactory.INSTANCE.geometrySerializer(format).toXContentAsObject(value.buildGeometry());
         }
     }
 

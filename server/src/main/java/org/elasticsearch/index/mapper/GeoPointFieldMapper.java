@@ -22,8 +22,8 @@ import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometrySerializer;
+import org.elasticsearch.common.geo.GeometrySerializerFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -220,8 +220,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
-
-        private static final GeometryParser PARSER = new GeometryParser(true, true, true);
         private final FieldValues<GeoPoint> scriptValues;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
@@ -245,10 +243,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return super.valueFetcher(context, format);
             }
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(geoFormat);
+            GeometrySerializer geometrySerializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(geoFormat);
             return FieldValues.valueFetcher(scriptValues, v -> {
                 GeoPoint p = (GeoPoint) v;
-                return geometryFormat.toXContentAsObject(new Point(p.lon(), p.lat()));
+                return geometrySerializer.toXContentAsObject(new Point(p.lon(), p.lat()));
             }, context);
         }
 
@@ -291,8 +289,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     /** GeoPoint parser implementation */
     private static class GeoPointParser extends PointParser<GeoPoint> {
-         // Note that this parser is only used for formatting values.
-        private final GeometryParser geometryParser;
 
         GeoPointParser(String field,
                            Supplier<GeoPoint> pointSupplier,
@@ -301,7 +297,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                            boolean ignoreZValue,
                            boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         protected GeoPoint validate(GeoPoint in) {
@@ -333,8 +328,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public Object format(GeoPoint point, String format) {
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(new Point(point.lon(), point.lat()));
+            GeometrySerializer geometrySerializer = GeometrySerializerFactory.INSTANCE.geometrySerializer(format);
+            return geometrySerializer.toXContentAsObject(new Point(point.lon(), point.lat()));
         }
     }
 

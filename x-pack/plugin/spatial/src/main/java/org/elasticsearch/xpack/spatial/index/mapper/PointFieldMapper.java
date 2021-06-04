@@ -12,8 +12,7 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometrySerializerFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -181,8 +180,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
     /** CartesianPoint parser implementation */
     private static class CartesianPointParser extends PointParser<CartesianPoint> {
-        // Note that this parser is only used for formatting values.
-        private final GeometryParser geometryParser;
 
         CartesianPointParser(String field,
                              Supplier<CartesianPoint> pointSupplier,
@@ -191,7 +188,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                              boolean ignoreZValue,
                              boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         @Override
@@ -214,8 +210,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         public Object format(CartesianPoint value, String format) {
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(new Point(value.getX(), value.getY()));
+            return GeometrySerializerFactory.INSTANCE.geometrySerializer(format).toXContentAsObject(new Point(value.getX(), value.getY()));
         }
     }
 }

@@ -116,11 +116,6 @@ PUT _ml/datafeeds/datafeed-test1
   "indices": [
     "my-index-000001"
   ],
-  "query": {
-    "match_all": {
-      "boost": 1
-    }
-  },
   "runtime_mappings": {
     "total_error_count": { <2>
       "type": "long",
@@ -205,11 +200,6 @@ PUT _ml/datafeeds/datafeed-test2
 {
   "job_id": "test2",
   "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
   "runtime_mappings": {
     "my_runtime_field": {
       "type": "keyword",
@@ -435,7 +425,7 @@ The preview {dfeed} API returns the following results, which show that
 
 [source,console]
 --------------------------------------------------
-PUT _ml/anomaly_detectors/test4
+PUT _ml/anomaly_detectors/test3
 {
   "analysis_config":{
     "bucket_span": "10m",
@@ -451,15 +441,10 @@ PUT _ml/anomaly_detectors/test4
   }
 }
 
-PUT _ml/datafeeds/datafeed-test4
+PUT _ml/datafeeds/datafeed-test3
 {
-  "job_id": "test4",
+  "job_id": "test3",
   "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
   "runtime_mappings": {
     "my_coordinates": {
       "type": "keyword",
@@ -470,7 +455,7 @@ PUT _ml/datafeeds/datafeed-test4
   }
 }
 
-GET _ml/datafeeds/datafeed-test4/_preview
+GET _ml/datafeeds/datafeed-test3/_preview
 --------------------------------------------------
 // TEST[skip:needs-licence]
 
@@ -499,7 +484,7 @@ The preview {dfeed} API returns the following results, which show that
 
 [source,console]
 --------------------------------------------------
-PUT _ml/anomaly_detectors/test3
+PUT _ml/anomaly_detectors/test4
 {
   "description":"DNS tunneling",
   "analysis_config":{
@@ -519,15 +504,10 @@ PUT _ml/anomaly_detectors/test3
   }
 }
 
-PUT _ml/datafeeds/datafeed-test3
+PUT _ml/datafeeds/datafeed-test4
 {
-  "job_id": "test3",
+  "job_id": "test4",
   "indices": ["my-index-000001"],
-  "query": {
-    "match_all": {
-          "boost": 1
-    }
-  },
   "script_fields":{
     "sub":{
       "script":"return domainSplit(doc['query'].value).get(0);"
@@ -538,7 +518,7 @@ PUT _ml/datafeeds/datafeed-test3
   }
 }
 
-GET _ml/datafeeds/datafeed-test3/_preview
+GET _ml/datafeeds/datafeed-test4/_preview
 --------------------------------------------------
 // TEST[skip:needs-licence]
 

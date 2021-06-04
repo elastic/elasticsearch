@@ -34,12 +34,12 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             .setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());
     }
 
-    public abstract static class AbstractShapeGeometryFieldType extends AbstractGeometryFieldType {
+    public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {
 
         private final Orientation orientation;
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 boolean parsesArrayValue, Parser<?> parser,
+                                                 boolean parsesArrayValue, Parser<T> parser,
                                                  Orientation orientation, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, parser, meta);
             this.orientation = orientation;

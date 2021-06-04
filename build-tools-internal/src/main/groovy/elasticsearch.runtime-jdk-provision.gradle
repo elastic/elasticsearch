@@ -16,7 +16,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 // apply plugin: 'elasticsearch.jdk-download'
 
 if (BuildParams.getIsRuntimeJavaHomeSet()) {
-  configure(allprojects - project(':build-tools')) {
+  configure(allprojects) {
     project.tasks.withType(Test).configureEach { Test test ->
       if (BuildParams.getIsRuntimeJavaHomeSet()) {
         test.executable = "${BuildParams.runtimeJavaHome}/bin/java"

@@ -1079,10 +1079,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .get()
                 .getState()
                 .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
-            assertTrue(
-                Strings.toString(restoreInProgress, true, true),
-                restoreInProgress.isEmpty()
-            );
+            assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
         });
 
         // Re-register the repository containing the actual data & verify that the shards are now allocated

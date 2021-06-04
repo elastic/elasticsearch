@@ -69,6 +69,11 @@ The setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_no
 should never be explicitly set to false. In 8.0, the only legal value will be
 true. In a future release, the setting will be removed completely, with same
 behavior as if the setting was `true`.
+
+If the old behavior is desired for a single data node cluster, disk based
+allocation can be disabled by setting
+`cluster.routing.allocation.disk.threshold_enabled: false`
+
 ====
 
 // end::notable-breaking-changes[]

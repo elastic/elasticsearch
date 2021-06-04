@@ -35,6 +35,21 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
+tasks.named("transformV7RestTests").configure({ task ->
+  task.replaceKeyInDo("watcher.ack_watch", "xpack-watcher.ack_watch")
+  task.replaceKeyInDo("watcher.activate_watch", "xpack-watcher.activate_watch")
+  task.replaceKeyInDo("watcher.deactivate_watch", "xpack-watcher.deactivate_watch")
+  task.replaceKeyInDo("watcher.delete_watch", "xpack-watcher.delete_watch")
+  task.replaceKeyInDo("watcher.execute_watch", "xpack-watcher.execute_watch")
+  task.replaceKeyInDo("watcher.get_watch", "xpack-watcher.get_watch")
+  task.replaceKeyInDo("watcher.put_watch", "xpack-watcher.put_watch")
+  task.replaceKeyInDo("watcher.start", "xpack-watcher.start")
+  task.replaceKeyInDo("watcher.stats", "xpack-watcher.stats")
+  task.replaceKeyInDo("watcher.stop", "xpack-watcher.stop")
+
+  task.addAllowedWarningRegex(".*_xpack/watcher/.* is deprecated.*")
+})
+
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'mustache/10_webhook/Test webhook action with mustache integration',

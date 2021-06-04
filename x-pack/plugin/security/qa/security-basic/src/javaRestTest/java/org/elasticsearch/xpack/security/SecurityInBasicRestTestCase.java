@@ -15,8 +15,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-
 public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
     private RestHighLevelClient highLevelAdminClient;
 

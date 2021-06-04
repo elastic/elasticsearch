@@ -10,7 +10,7 @@ final File repoDir = file("$buildDir/testclusters/repo")
 
 restResources {
   restApi {
-    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster'
+    include 'indices', 'search', 'bulk', 'snapshot', 'nodes', '_common', 'searchable_snapshots', 'cluster', 'open_point_in_time', 'close_point_in_time'
   }
 }
 

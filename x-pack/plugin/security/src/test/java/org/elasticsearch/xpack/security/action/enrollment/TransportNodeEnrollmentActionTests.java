@@ -65,6 +65,8 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDoExecute() throws Exception {
+        assumeFalse("NodeEnrollment is not supported on FIPS because it requires a KeyStore", inFipsJvm());
+
         final Environment env = mock(Environment.class);
         Path tempDir = createTempDir();
         Path httpCaPath = tempDir.resolve("httpCa.p12");
@@ -140,6 +142,9 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
         assertThat(nodesInfoRequests.size(), equalTo(1));
+
+        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+            "See the breaking changes documentation for the next major version.");
     }
 
     private void assertSameCertificate(String cert, Path original, char[] originalPassword, boolean isCa) throws Exception{

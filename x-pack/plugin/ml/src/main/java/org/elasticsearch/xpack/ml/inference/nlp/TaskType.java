@@ -19,6 +19,11 @@ public enum TaskType {
             return new NerProcessor(tokenizer);
         }
     },
+    SENTIMENT_ANALYSIS {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+            return new SentimentAnalysisProcessor(tokenizer);
+        }
+    },
     FILL_MASK {
         public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new FillMaskProcessor(tokenizer);

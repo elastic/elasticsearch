@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -136,52 +137,57 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
         // TODO: cancel and jump to better available allocations?
-        if (shardRouting.primary()
-            && (shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
-                || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE)) {
-            // we always force snapshot recovery source to use the snapshot-based recovery process on the node
-            final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
-            final IndexId indexId = new IndexId(
-                SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
-                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
-            );
-            final SnapshotId snapshotId = new SnapshotId(
-                SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
-                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
-            );
+        if (shardRouting.primary()) {
+            final String recoveryUuid = getRecoverySourceRestoreUuid(shardRouting, allocation);
+            if (recoveryUuid != null) {
 
-            final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings);
-            final String repositoryName;
-            if (Strings.hasLength(repositoryUuid) == false) {
-                repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
-            } else {
-                final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
-                final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
-                repositoryName = repositories.stream()
-                    .filter(r -> repositoryUuid.equals(r.uuid()))
-                    .map(RepositoryMetadata::name)
-                    .findFirst()
-                    .orElse(null);
-            }
+                // we always force snapshot recovery source to use the snapshot-based recovery process on the node
+                final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
+                final IndexId indexId = new IndexId(
+                    SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
+                    SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+                );
+                final SnapshotId snapshotId = new SnapshotId(
+                    SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
+                    SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
+                );
 
-            if (repositoryName == null) {
-                // TODO if the repository we seek appears later, we will need to get its UUID (usually automatic) and then reroute
-                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
-                return;
-            }
+                final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings);
+                final String repositoryName;
+                if (Strings.hasLength(repositoryUuid) == false) {
+                    repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
+                } else {
+                    final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
+                    final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
+                    repositoryName = repositories.stream()
+                        .filter(r -> repositoryUuid.equals(r.uuid()))
+                        .map(RepositoryMetadata::name)
+                        .findFirst()
+                        .orElse(null);
+                }
 
-            final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+                if (repositoryName == null) {
+                    unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                    return;
+                }
 
-            shardRouting = unassignedAllocationHandler.updateUnassigned(
-                shardRouting.unassignedInfo(),
-                new RecoverySource.SnapshotRecoverySource(
-                    RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID,
+                final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
+
+                final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
+                    recoveryUuid,
                     snapshot,
                     Version.CURRENT,
                     indexId
-                ),
-                allocation.changes()
-            );
+                );
+
+                assert shardRouting.recoverySource().equals(recoverySource) == false : "unexpected no-op update of " + shardRouting;
+
+                shardRouting = unassignedAllocationHandler.updateUnassigned(
+                    shardRouting.unassignedInfo(),
+                    recoverySource,
+                    allocation.changes()
+                );
+            }
         }
 
         final AllocateUnassignedDecision allocateUnassignedDecision = decideAllocation(allocation, shardRouting);
@@ -204,6 +210,97 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             } else {
                 unassignedAllocationHandler.removeAndIgnore(allocateUnassignedDecision.getAllocationStatus(), allocation.changes());
             }
+        }
+    }
+
+    /**
+     * @return the restore UUID to use when adjusting the recovery source of the shard to be a snapshot recovery source from a
+     * repository of the correct name. Returns {@code null} if the recovery source should not be adjusted.
+     */
+    @Nullable
+    private static String getRecoverySourceRestoreUuid(ShardRouting shardRouting, RoutingAllocation allocation) {
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case EMPTY_STORE:
+                // this shard previously failed and/or was force-allocated, so the recovery source must be changed to reflect that it will
+                // be recovered from the snapshot again
+                return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+            case SNAPSHOT:
+                // the recovery source may be correct, or we may be recovering it from a real snapshot (i.e. a backup)
+
+                final RecoverySource.SnapshotRecoverySource recoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
+                    .recoverySource();
+                if (recoverySource.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
+                    // this shard already has the right recovery source, no need to fix it up
+                    return null;
+                }
+
+                // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
+                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore.
+
+                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+                if (restoreInProgress == null) {
+                    // no ongoing restores, so this shard definitely completed
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                }
+
+                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
+                if (entry == null) {
+                    // this specific restore is not ongoing, so this shard definitely completed
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                }
+
+                // else this specific restore is still ongoing, so check whether this shard has completed its attempt yet
+                final RestoreInProgress.ShardRestoreStatus shardRestoreStatus = entry.shards().get(shardRouting.shardId());
+                if (shardRestoreStatus == null || shardRestoreStatus.state().completed()) {
+                    // this shard is not still pending in its specific restore so we can fix up its restore UUID
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
+                } else {
+                    // this shard is still pending in its specific restore so we must preserve its restore UUID
+                    return recoverySource.restoreUUID();
+                }
+            default:
+                return null;
+        }
+    }
+
+    private static boolean fixRecoverySource(ShardRouting shardRouting, RoutingAllocation allocation) {
+        switch (shardRouting.recoverySource().getType()) {
+            case EXISTING_STORE:
+            case EMPTY_STORE:
+                // this shard previously failed and/or was force-allocated, so the recovery source must be changed to reflect that it will
+                // be recovered from the snapshot again
+                return true;
+            case SNAPSHOT:
+                // the recovery source may be correct, or we may be recovering it from a real snapshot (i.e. a backup)
+
+                final RecoverySource.SnapshotRecoverySource recoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
+                    .recoverySource();
+                if (recoverySource.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
+                    // this shard already has the right recovery source, no need to fix it up
+                    return false;
+                }
+
+                // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
+                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore.
+
+                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
+                if (restoreInProgress == null) {
+                    // no ongoing restores, so this shard definitely completed
+                    return true;
+                }
+
+                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
+                if (entry == null) {
+                    // this specific restore is not ongoing, so this shard definitely completed
+                    return true;
+                }
+
+                // else this specific restore is still ongoing, so check whether this shard has completed its attempt yet
+                final RestoreInProgress.ShardRestoreStatus shardRestoreStatus = entry.shards().get(shardRouting.shardId());
+                return shardRestoreStatus == null || shardRestoreStatus.state().completed();
+            default:
+                return false;
         }
     }
 

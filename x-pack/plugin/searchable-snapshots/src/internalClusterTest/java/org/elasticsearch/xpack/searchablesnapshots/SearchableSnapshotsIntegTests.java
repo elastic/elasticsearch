@@ -1081,7 +1081,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
             assertTrue(
                 Strings.toString(restoreInProgress, true, true),
-                StreamSupport.stream(restoreInProgress.spliterator(), false).allMatch(e -> e.state().completed())
+                restoreInProgress.isEmpty()
             );
         });
 

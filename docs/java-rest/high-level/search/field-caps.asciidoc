@@ -6,8 +6,7 @@ The field capabilities API allows for retrieving the capabilities of fields acro
 [[java-rest-high-field-caps-request]]
 ==== Field Capabilities Request
 
-A `FieldCapabilitiesRequest` contains a list of fields to get capabilities for,
-should be returned, plus an optional list of target indices. If no indices
+A `FieldCapabilitiesRequest` contains a list of fields to get capabilities for, plus an optional list of target indices. If no indices
 are provided, the request will be executed on all indices.
 
 Note that fields parameter supports wildcard notation. For example, providing `text_*`

@@ -241,7 +241,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 }
 
                 // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
-                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore.
+                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore to bypass
+                // the RestoreInProgressAllocationDecider
 
                 final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
                 if (restoreInProgress == null) {

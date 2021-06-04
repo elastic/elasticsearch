@@ -15,7 +15,6 @@ import org.elasticsearch.common.ssl.StoreTrustConfig;
 import org.elasticsearch.env.Environment;
 
 import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.TrustManagerFactory;
 import javax.net.ssl.X509ExtendedKeyManager;
 import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
@@ -40,6 +39,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
+/** Miscellaneous utulity methods for reading certificates and keystores.
+ * @see KeyStoreUtil
+ * @see PemUtils
+  */
 public class CertParsingUtils {
 
     private CertParsingUtils() {
@@ -94,7 +97,7 @@ public class CertParsingUtils {
         return readKeyPairsFromKeystore(store, keyPassword);
     }
 
-    public static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
+    private static Map<Certificate, Key> readKeyPairsFromKeystore(KeyStore store, Function<String, char[]> keyPassword)
         throws KeyStoreException, NoSuchAlgorithmException, UnrecoverableKeyException {
         final Enumeration<String> enumeration = store.aliases();
         final Map<Certificate, Key> map = new HashMap<>(store.size());
@@ -138,35 +141,7 @@ public class CertParsingUtils {
      */
     public static X509ExtendedTrustManager getTrustManagerFromPEM(List<Path> caPaths) throws GeneralSecurityException, IOException {
         final List<Certificate> certificates = PemUtils.readCertificates(caPaths);
-        return trustManager(certificates);
-    }
-
-    /**
-     * Loads the truststore and creates a {@link X509ExtendedTrustManager}
-     *
-     * @param trustStorePath      the path to the truststore
-     * @param trustStorePassword  the password to the truststore
-     * @param trustStoreAlgorithm the algorithm to use for the truststore
-     * @param env                 the environment to use for file resolution. May be {@code null}
-     * @return a trust manager with the trust material from the store
-     */
-    public static X509ExtendedTrustManager getTrustManagerFromTrustStore(String trustStorePath, String trustStoreType,
-                                                                         char[] trustStorePassword, String trustStoreAlgorithm,
-                                                                         Environment env)
-        throws GeneralSecurityException, IOException {
-        var config = new StoreTrustConfig(trustStorePath, trustStorePassword, trustStoreType, trustStoreAlgorithm, false, env.configFile());
-        return config.createTrustManager();
-    }
-
-    /**
-     * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
-     *
-     * @param certificates the certificates to trust
-     * @return a trust manager that trusts the provided certificates
-     */
-    private static X509ExtendedTrustManager trustManager(Collection<Certificate> certificates) throws GeneralSecurityException {
-        KeyStore store = KeyStoreUtil.buildTrustStore(certificates);
-        return KeyStoreUtil.createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+        return KeyStoreUtil.createTrustManager(certificates);
     }
 
     /**

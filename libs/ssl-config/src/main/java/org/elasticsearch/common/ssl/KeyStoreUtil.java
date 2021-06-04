@@ -159,6 +159,17 @@ public final class KeyStoreUtil {
             + "] and truststore [" + trustStore + "]");
     }
 
+    /**
+     * Creates a {@link X509ExtendedTrustManager} based on the provided certificates
+     *
+     * @param certificates the certificates to trust
+     * @return a trust manager that trusts the provided certificates
+     */
+    public static X509ExtendedTrustManager createTrustManager(Collection<Certificate> certificates) throws GeneralSecurityException {
+        KeyStore store = buildTrustStore(certificates);
+        return createTrustManager(store, TrustManagerFactory.getDefaultAlgorithm());
+    }
+
     static Stream<KeyStoreEntry> stream(KeyStore keyStore,
                                         Function<GeneralSecurityException, ? extends RuntimeException> exceptionHandler) {
         try {

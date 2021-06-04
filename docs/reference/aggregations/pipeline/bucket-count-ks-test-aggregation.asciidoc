@@ -1,101 +1,84 @@
 [role="xpack"]
 [testenv="basic"]
-[[search-aggregations-bucket-correlation-aggregation]]
-=== Bucket correlation aggregation
+[[search-aggregations-bucket-count-ks-test-aggregation]]
+=== Bucket count K-S test correlation aggregation
 ++++
-<titleabbrev>Bucket correlation aggregation</titleabbrev>
+<titleabbrev>Bucket count K-S test aggregation</titleabbrev>
 ++++
 
 experimental::[]
 
-A sibling pipeline aggregation which executes a correlation function on the
-configured sibling multi-bucket aggregation.
+A sibling pipeline aggregation which executes a two sample Kolmogorov–Smirnov test
+(referred to as a "K-S test" from now on) against a provided distribution, and the
+distribution implied by the documents counts in the configured sibling aggregation.
+Specifically, for some metric, assuming that the percentile intervals of the metric are
+known beforehand or have been computed by an aggregation, then one would use range
+aggregation for the sibling to compute the p-value of the distribution difference between
+the metric and the restriction of that metric to a subset of the documents. A natural use
+case is if the sibling aggregation range aggregation nested in a terms aggregation, in
+which case one compares the overall distribution of metric to its restriction to each term.
 
 
-[[bucket-correlation-agg-syntax]]
+[[bucket-count-ks-test-agg-syntax]]
 ==== Parameters
 
 `buckets_path`::
 (Required, string)
-Path to the buckets that contain one set of values to correlate.
+Path to the buckets that contain one set of values to correlate. Must be a `_count` path
 For syntax, see <<buckets-path-syntax>>.
 
-`function`::
-(Required, object)
-The correlation function to execute.
-+
-.Properties of `function`
-[%collapsible%open]
-====
-`count_correlation`:::
-(Required^*^, object)
-The configuration to calculate a count correlation. This function is designed for
-determining the correlation of a term value and a given metric. Consequently, it
-needs to meet the following requirements.
+`alternative`::
+(Optional, list)
+A list of string values indicating which K-S test alternative to calculate.
+The valid values are: "greater", "less", "two_sided". This parameter is key for
+determining the K-S statistic used when calculating the K-S test. Default value is
+all possible alternative hypotheses.
 
-* The `buckets_path` must point to a `_count` metric.
-* The total count of all the `bucket_path` count values must be less than or equal to `indicator.doc_count`.
-* When utilizing this function, an initial calculation to gather the required `indicator` values is required.
+`fractions`::
+(Optional, list)
+A list of doubles indicating the distribution of the samples with which to compare to the
+`buckets_path` results. In typical usage this is the overall proportion of documents in
+each bucket, which is compared with the actual document proportions in each bucket
+from the sibling aggregation counts. The default is to assume that overall documents
+are uniformly distributed on these buckets, which they would be if one used equal
+percentiles of a metric to define the bucket end points.
 
-.Properties of `count_correlation`
-[%collapsible%open]
-=====
-`indicator`:::
-(Required, object)
-The indicator with which to correlate the configured `bucket_path` values.
-
-.Properties of `indicator`
-[%collapsible%open]
-=====
-`expectations`:::
-(Required, array)
-An array of numbers with which to correlate the configured `bucket_path` values. The length of this value must always equal
-the number of buckets returned by the `bucket_path`.
-
-`fractions`:::
-(Optional, array)
-An array of fractions to use when averaging and calculating variance. This should be used if the pre-calculated data and the
-`buckets_path` have known gaps. The length of `fractions`, if provided, must equal `expectations`.
-
-`doc_count`:::
-(Required, integer)
-The total number of documents that initially created the `expectations`. It's required to be greater than or equal to the sum
-of all values in the `buckets_path` as this is the originating superset of data to which the term values are correlated.
-=====
-=====
-====
+`sampling_method`::
+(Optional, string)
+Indicates the sampling methodology when calculating the K-S test. Note, this is sampling
+of the returned values. This determines the cumulative distribution function (CDF) points
+used comparing the two samples. Default is `upper_tail`, which emphasizes the upper
+end of the CDF points. Valid options are: `upper_tail`, `uniform`, and `lower_tail`.
 
 ==== Syntax
 
-A `bucket_correlation` aggregation looks like this in isolation:
+A `bucket_count_ks_test` aggregation looks like this in isolation:
 
 [source,js]
 --------------------------------------------------
 {
-  "bucket_correlation": {
+  "bucket_count_ks_test": {
     "buckets_path": "range_values>_count", <1>
-    "function": {
-      "count_correlation": { <2>
-        "expectations": [...],
-        "doc_count": 10000
-      }
-    }
+    "alternative": ["less", "greater", "two_sided"], <2>
+    "sampling_method": "upper_tail" <3>
   }
 }
 --------------------------------------------------
 // NOTCONSOLE
-<1> The buckets containing the values to correlate against.
-<2> The correlation function definition.
+<1> The buckets containing the values to test against.
+<2> The alternatives to calculate.
+<3> The sampling method for the K-S statistic.
 
 
-[[bucket-correlation-agg-example]]
+[[bucket-count-ks-test-agg-example]]
 ==== Example
 
-The following snippet correlates the individual terms in the field `version` with the `latency` metric. Not shown
-is the pre-calculation of the `latency` indicator values, which was done utilizing the
+The following snippet runs the `bucket_count_ks_test` on the individual terms in the field `version` against a uniform distribution.
+The uniform distribution reflects the `latency` percentile buckets. Not shown is the pre-calculation of the `latency` indicator values,
+which was done utilizing the
 <<search-aggregations-metrics-percentile-aggregation,percentiles>> aggregation.
 
-This example is only using the 10s percentiles.
+This example is only using the deciles of `latency`.
 
 [source,console]
 -------------------------------------------------
@@ -112,7 +95,7 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
           "range": { <2>
             "field": "latency",
             "ranges": [
-              { "to": 0.0 },
+              { "to": 0 },
               { "from": 0, "to": 105 },
               { "from": 105, "to": 225 },
               { "from": 225, "to": 445 },
@@ -126,17 +109,10 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
             ]
           }
         },
-        "bucket_correlation": { <3>
-          "bucket_correlation": {
+        "ks_test": { <3>
+          "bucket_count_ks_test": {
             "buckets_path": "latency_ranges>_count",
-            "function": {
-              "count_correlation": {
-                "indicator": {
-                   "expectations": [0, 52.5, 165, 335, 555, 775, 1000, 1225, 1445, 1665, 1775],
-                   "doc_count": 200
-                }
-              }
-            }
+            "alternative": ["less", "greater", "two_sided"]
           }
         }
       }
@@ -149,8 +125,8 @@ POST correlate_latency/_search?size=0&filter_path=aggregations
 <1> The term buckets containing a range aggregation and the bucket correlation aggregation. Both are utilized to calculate
     the correlation of the term values with the latency.
 <2> The range aggregation on the latency field. The ranges were created referencing the percentiles of the latency field.
-<3> The bucket correlation aggregation that calculates the correlation of the number of term values within each range
-    and the previously calculated indicator values.
+<3> The bucket count K-S test aggregation that tests if the bucket counts comes from the same distribution as `fractions`;
+    where `fractions` is a uniform distribution.
 
 And the following may be the response:
 
@@ -233,8 +209,10 @@ And the following may be the response:
               }
             ]
           },
-          "bucket_correlation" : {
-            "value" : 0.8402398981360937
+          "ks_test" : {
+            "less" : 2.248673241788478E-4,
+            "greater" : 1.0,
+            "two_sided" : 5.791639181800257E-4
           }
         },
         {
@@ -308,8 +286,10 @@ And the following may be the response:
               }
             ]
           },
-          "bucket_correlation" : {
-            "value" : -0.5759855613334943
+          "ks_test" : {
+            "less" : 0.9642895789647244,
+            "greater" : 4.58718174664754E-9,
+            "two_sided" : 5.916656831139733E-9
           }
         }
       ]

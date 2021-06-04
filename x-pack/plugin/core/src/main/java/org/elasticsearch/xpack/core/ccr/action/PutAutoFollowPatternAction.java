@@ -182,7 +182,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 settings = Settings.readSettingsFromStream(in);
             }
             parameters = new FollowParameters(in);
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 leaderIndexExclusionPatterns = in.readStringList();
             }
         }
@@ -198,7 +198,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
                 Settings.writeSettingsToStream(settings, out);
             }
             parameters.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

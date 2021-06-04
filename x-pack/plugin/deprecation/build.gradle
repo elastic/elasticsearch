@@ -12,5 +12,5 @@ addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
-  compileOnly project(path: xpackModule('monitoring'))
+  implementation project(path: xpackModule('monitoring'))
 }

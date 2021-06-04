@@ -74,6 +74,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public static final Setting<Integer> REPOSITORIES_STATS_ARCHIVE_MAX_ARCHIVED_STATS =
         Setting.intSetting("repositories.stats.archive.max_archived_stats", 100, 0, Setting.Property.NodeScope);
 
+    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY = "index.store.snapshot.repository_name";
+    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY = "index.store.snapshot.repository_uuid";
+
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
 
@@ -680,8 +683,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
         if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
-            return Objects.equals(repositoryMetadata.uuid(), indexSettings.get("index.store.snapshot.repository_uuid"))
-                || Objects.equals(repositoryMetadata.name(), indexSettings.get("index.store.snapshot.repository_name"));
+            return Objects.equals(repositoryMetadata.uuid(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY))
+                || Objects.equals(repositoryMetadata.name(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY));
         }
         return false;
     }

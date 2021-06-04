@@ -1293,6 +1293,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
         logger.info("Starting machine learning feature reset");
 
+        if (enabled == false) {
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, finalListener);
+            return;
+        }
+
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
                 resetSuccess -> finalListener.onResponse(success),

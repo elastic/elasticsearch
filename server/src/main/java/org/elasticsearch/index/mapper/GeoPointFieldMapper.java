@@ -16,6 +16,7 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -64,7 +66,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         final Parameter<Explicit<Boolean>> ignoreMalformed;
         final Parameter<Explicit<Boolean>> ignoreZValue = ignoreZValueParam(m -> builder(m).ignoreZValue.get());
-        final Parameter<ParsedPoint> nullValue;
+        final Parameter<GeoPoint> nullValue;
         final Parameter<Boolean> indexed = Parameter.indexParam(m -> builder(m).indexed.get(), true);
         final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> builder(m).hasDocValues.get(), true);
         final Parameter<Boolean> stored = Parameter.storeParam(m -> builder(m).stored.get(), false);
@@ -96,11 +98,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return this;
         }
 
-        private static ParsedGeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
+        private static GeoPoint parseNullValue(Object nullValue, boolean ignoreZValue, boolean ignoreMalformed) {
             if (nullValue == null) {
                 return null;
             }
-            ParsedGeoPoint point = new ParsedGeoPoint();
+            GeoPoint point = new GeoPoint();
             GeoUtils.parseGeoPoint(nullValue, point, ignoreZValue);
             if (ignoreMalformed == false) {
                 if (point.lat() > 90.0 || point.lat() < -90.0) {
@@ -128,14 +130,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         public FieldMapper build(ContentPath contentPath) {
-            Parser<ParsedGeoPoint> geoParser = new PointParser<>(
+            Parser<GeoPoint> geoParser = new GeoPointParser(
                 name,
-                ParsedGeoPoint::new,
+                GeoPoint::new,
                 (parser, point) -> {
                     GeoUtils.parseGeoPoint(parser, point, ignoreZValue.get().value());
                     return point;
                 },
-                (ParsedGeoPoint) nullValue.get(),
+                nullValue.get(),
                 ignoreZValue.get().value(),
                 ignoreMalformed.get().value());
             GeoPointFieldType ft = new GeoPointFieldType(
@@ -163,7 +165,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                MultiFields multiFields, CopyTo copyTo,
-                               Parser<ParsedGeoPoint> parser,
+                               Parser<GeoPoint> parser,
                                Builder builder) {
         super(simpleName, mappedFieldType, multiFields,
             builder.ignoreMalformed.get(), builder.ignoreZValue.get(), builder.nullValue.get(),
@@ -173,7 +175,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public GeoPointFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                               Parser<ParsedGeoPoint> parser, Builder builder) {
+                               Parser<GeoPoint> parser, Builder builder) {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty(), parser, builder.onScriptError.get());
         this.builder = builder;
         this.scriptValues = builder.scriptValues();
@@ -217,13 +219,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         return CONTENT_TYPE;
     }
 
-    public static class GeoPointFieldType extends AbstractGeometryFieldType implements GeoShapeQueryable {
+    public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
         private static final GeometryParser PARSER = new GeometryParser(true, true, true);
         private final FieldValues<GeoPoint> scriptValues;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                  Parser<ParsedGeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
+                                  Parser<GeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, true, parser, meta);
             this.scriptValues = scriptValues;
         }
@@ -287,62 +289,52 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
     }
 
-    // Eclipse requires the AbstractPointGeometryFieldMapper prefix or it can't find ParsedPoint
-    // See https://bugs.eclipse.org/bugs/show_bug.cgi?id=565255
-    protected static class ParsedGeoPoint extends GeoPoint implements AbstractPointGeometryFieldMapper.ParsedPoint {
-        @Override
-        public void validate(String fieldName) {
-            if (lat() > 90.0 || lat() < -90.0) {
-                throw new IllegalArgumentException("illegal latitude value [" + lat() + "] for " + fieldName);
-            }
-            if (lon() > 180.0 || lon() < -180) {
-                throw new IllegalArgumentException("illegal longitude value [" + lon() + "] for " + fieldName);
-            }
+    /** GeoPoint parser implementation */
+    private static class GeoPointParser extends PointParser<GeoPoint> {
+         // Note that this parser is only used for formatting values.
+        private final GeometryParser geometryParser;
+
+        GeoPointParser(String field,
+                           Supplier<GeoPoint> pointSupplier,
+                           CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
+                           GeoPoint nullValue,
+                           boolean ignoreZValue,
+                           boolean ignoreMalformed) {
+            super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
+            this.geometryParser = new GeometryParser(true, true, true);
         }
 
-        @Override
-        public void normalize(String name) {
-            if (isNormalizable(lat()) && isNormalizable(lon())) {
-                GeoUtils.normalizePoint(this);
+        protected GeoPoint validate(GeoPoint in) {
+            if (ignoreMalformed == false) {
+                if (in.lat() > 90.0 || in.lat() < -90.0) {
+                    throw new IllegalArgumentException("illegal latitude value [" + in.lat() + "] for " + field);
+                }
+                if (in.lon() > 180.0 || in.lon() < -180) {
+                    throw new IllegalArgumentException("illegal longitude value [" + in.lon() + "] for " + field);
+                }
             } else {
-                throw new ElasticsearchParseException("cannot normalize the point - not a number");
+                if (isNormalizable(in.lat()) && isNormalizable(in.lon())) {
+                    GeoUtils.normalizePoint(in);
+                } else {
+                    throw new ElasticsearchParseException("cannot normalize the point - not a number");
+                }
             }
+            return in;
         }
 
-        @Override
-        public boolean isNormalizable(double coord) {
+        private boolean isNormalizable(double coord) {
             return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
 
         @Override
-        public void resetCoords(double x, double y) {
-            this.reset(y, x);
-        }
-
-        public Point asGeometry() {
-            return new Point(lon(), lat());
+        protected void reset(GeoPoint in, double x, double y) {
+            in.reset(y, x);
         }
 
         @Override
-        public boolean equals(Object other) {
-            double oLat;
-            double oLon;
-            if (other instanceof GeoPoint) {
-                GeoPoint o = (GeoPoint)other;
-                oLat = o.lat();
-                oLon = o.lon();
-            } else {
-                return false;
-            }
-            if (Double.compare(oLat, lat) != 0) return false;
-            if (Double.compare(oLon, lon) != 0) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return super.hashCode();
+        public Object format(GeoPoint point, String format) {
+            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
+            return geometryFormat.toXContentAsObject(new Point(point.lon(), point.lat()));
         }
     }
 

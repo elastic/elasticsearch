@@ -356,8 +356,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
-        new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
-        clusterService.addListener(new RepositoryUuidWatcher(clusterService.getRerouteService()));
+        if (clusterService.localNode().isMasterNode()) {
+            new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
+            clusterService.addListener(new RepositoryUuidWatcher(clusterService.getRerouteService()));
+        }
         return Collections.unmodifiableList(components);
     }
 

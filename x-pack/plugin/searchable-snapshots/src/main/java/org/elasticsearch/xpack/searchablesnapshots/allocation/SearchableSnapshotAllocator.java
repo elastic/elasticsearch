@@ -180,13 +180,13 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     indexId
                 );
 
-                assert shardRouting.recoverySource().equals(recoverySource) == false : "unexpected no-op update of " + shardRouting;
-
-                shardRouting = unassignedAllocationHandler.updateUnassigned(
-                    shardRouting.unassignedInfo(),
-                    recoverySource,
-                    allocation.changes()
-                );
+                if (shardRouting.recoverySource().equals(recoverySource) == false) {
+                    shardRouting = unassignedAllocationHandler.updateUnassigned(
+                        shardRouting.unassignedInfo(),
+                        recoverySource,
+                        allocation.changes()
+                    );
+                }
             }
         }
 
@@ -231,8 +231,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 final RecoverySource.SnapshotRecoverySource recoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
                     .recoverySource();
                 if (recoverySource.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
-                    // this shard already has the right recovery source, no need to fix it up
-                    return null;
+                    // this shard already has the right recovery ID, but maybe the repository name is now different, so check if it needs
+                    // fixing up again
+                    return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
                 }
 
                 // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
@@ -256,7 +257,8 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     // this shard is not still pending in its specific restore so we can fix up its restore UUID
                     return RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID;
                 } else {
-                    // this shard is still pending in its specific restore so we must preserve its restore UUID
+                    // this shard is still pending in its specific restore so we must preserve its restore UUID, but we can fix up
+                    // the repository name anyway
                     return recoverySource.restoreUUID();
                 }
             default:

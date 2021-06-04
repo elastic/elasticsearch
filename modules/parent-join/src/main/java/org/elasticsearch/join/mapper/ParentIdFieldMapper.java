@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -73,7 +74,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+            // Although this is an internal field, we return it in the list of all field types. So we
+            // provide an empty value fetcher here of throwing an error.
+            return lookup -> List.of();
         }
 
         @Override

@@ -293,3 +293,5 @@ behavior as if the setting was `true`.
 
 *Impact* +
 Discontinue use of the deprecated setting.
+====
+

@@ -90,12 +90,13 @@ public class DiskThresholdDecider extends AllocationDecider {
                 Setting.Property.IndexScope, Setting.Property.PrivateIndex);
 
     private final DiskThresholdSettings diskThresholdSettings;
-    private final boolean enableForSingleDataNode;
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         assert Version.CURRENT.major < 9 : "remove enable_for_single_data_node in 9";
-        this.enableForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        // get deprecation warnings.
+        boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
+        assert enabledForSingleDataNode;
     }
 
     /**
@@ -443,21 +444,12 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Decision YES_DISABLED = Decision.single(Decision.Type.YES, NAME, "the disk threshold decider is disabled");
 
-    private static final Decision YES_SINGLE_DATA_NODE =
-            Decision.single(Decision.Type.YES, NAME, "there is only a single data node present");
-
     private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
 
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
             return YES_DISABLED;
-        }
-
-        // Allow allocation regardless if only a single data node is available
-        if (enableForSingleDataNode == false && allocation.nodes().getDataNodes().size() <= 1) {
-            logger.trace("only a single data node is present, allowing allocation");
-            return YES_SINGLE_DATA_NODE;
         }
 
         // Fail open if there are no disk usages available

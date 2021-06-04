@@ -116,6 +116,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
 
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        final String excludedIndex = "metrics-20210102";
         try {
             int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
             Request request = new Request("PUT", "/_ccr/auto_follow/" + autoFollowPatternName);
@@ -126,6 +127,11 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     bodyBuilder.startArray("leader_index_patterns");
                     {
                         bodyBuilder.value("metrics-*");
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.startArray("leader_index_exclusion_patterns");
+                    {
+                        bodyBuilder.value(excludedIndex);
                     }
                     bodyBuilder.endArray();
                     bodyBuilder.field("remote_cluster", "leader_cluster");
@@ -141,6 +147,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 request.setJsonEntity(Strings.toString(bodyBuilder));
             }
             assertOK(client().performRequest(request));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/" + excludedIndex);
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+            }
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 request = new Request("PUT", "/metrics-20210101");
@@ -162,6 +174,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 } else {
                     assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "1"));
                 }
+                assertThat(indexExists(excludedIndex), is(false));
             });
 
             assertBusy(() -> {
@@ -170,6 +183,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }, 30, TimeUnit.SECONDS);
 
         } finally {
+            cleanUpLeader(List.of("metrics-20210101", excludedIndex), List.of(), List.of());
             cleanUpFollower(List.of("metrics-20210101"), List.of(), List.of(autoFollowPatternName));
         }
     }

@@ -21,7 +21,8 @@ memory pressure if usage consistently exceeds 85%.
 
 **Error messages**
 
-If a request triggers a circuit breaker, {es} returns an error.
+If a request triggers a circuit breaker, {es} returns an error with a `429` HTTP
+status code.
 
 [source,js]
 ----

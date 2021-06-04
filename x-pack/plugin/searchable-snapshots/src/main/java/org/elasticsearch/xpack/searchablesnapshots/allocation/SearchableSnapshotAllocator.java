@@ -14,6 +14,8 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -31,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -59,12 +62,14 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 
 public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
@@ -144,8 +149,28 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
                 SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
             );
-            final String repository = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
-            final Snapshot snapshot = new Snapshot(repository, snapshotId);
+
+            final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings);
+            final String repositoryName;
+            if (Strings.hasLength(repositoryUuid) == false) {
+                repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings);
+            } else {
+                final RepositoriesMetadata repoMetadata = allocation.metadata().custom(RepositoriesMetadata.TYPE);
+                final List<RepositoryMetadata> repositories = repoMetadata == null ? emptyList() : repoMetadata.repositories();
+                repositoryName = repositories.stream()
+                    .filter(r -> repositoryUuid.equals(r.uuid()))
+                    .map(RepositoryMetadata::name)
+                    .findFirst()
+                    .orElse(null);
+            }
+
+            if (repositoryName == null) {
+                // TODO if the repository we seek appears later, we will need to get its UUID (usually automatic) and then reroute
+                unassignedAllocationHandler.removeAndIgnore(UnassignedInfo.AllocationStatus.DECIDERS_NO, allocation.changes());
+                return;
+            }
+
+            final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
             shardRouting = unassignedAllocationHandler.updateUnassigned(
                 shardRouting.unassignedInfo(),

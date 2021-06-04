@@ -54,8 +54,8 @@ setup:
 ---
 "Delete repository when a snapshot is mounted as an index":
   - skip:
-      version: " - 7.99.99"
-      reason: "starting 8.0, an error occurs when a repository used by snapshot backed indices is deleted"
+      version: " - 7.13.99"
+      reason: "starting 7.14.0, an error occurs when a repository used by snapshot backed indices is deleted"
 
   - do:
       searchable_snapshots.mount:

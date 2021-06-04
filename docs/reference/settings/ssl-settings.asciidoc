@@ -19,7 +19,7 @@ from client connections. Valid values are `required`, `optional`, and `none`.
 `required` forces a client to present a certificate, while `optional`
 requests a client certificate but the client is not required to present one.
 ifndef::client-auth-default[]
-Defaults to `none`.
+Defaults to `required`.
 endif::client-auth-default[]
 ifdef::client-auth-default[]
 Defaults to +{client-auth-default}+.

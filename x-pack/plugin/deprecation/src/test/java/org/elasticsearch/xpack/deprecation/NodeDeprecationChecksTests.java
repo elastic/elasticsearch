@@ -612,7 +612,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                 "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(issues, contains(
+        assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
                     " will not be available in a future version",

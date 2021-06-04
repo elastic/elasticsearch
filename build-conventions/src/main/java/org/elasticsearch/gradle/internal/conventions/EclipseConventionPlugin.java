@@ -24,9 +24,12 @@ import org.gradle.plugins.ide.eclipse.model.EclipseModel;
 import org.gradle.plugins.ide.eclipse.model.EclipseProject;
 import org.gradle.plugins.ide.eclipse.model.ProjectDependency;
 import org.gradle.plugins.ide.eclipse.model.SourceFolder;
+import org.gradle.plugins.ide.eclipse.model.ClasspathEntry;
 
 import java.io.File;
+import java.util.List;
 import java.io.IOException;
+import static java.util.stream.Collectors.toList;
 
 import static org.apache.commons.io.FileUtils.readFileToString;
 
@@ -106,9 +109,10 @@ public class EclipseConventionPlugin implements Plugin<Project> {
                      * if we delete it. Which `gradlew clean` does all the time.
                      */
                     int i = 0;
-                    classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(it ->
-                            ((SourceFolder) it).setOutput("out/eclipse/"+i)
-                    );
+                    List<ClasspathEntry> sourceFolderList = classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).collect(toList());
+                    for (ClasspathEntry sourceFolder : sourceFolderList) {
+                        ((SourceFolder)sourceFolder).setOutput("out/eclipse/" + i++);
+                    }
 
                     // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
                     // projects by default. This breaks project dependencies using the `java-test-fixtures` plugin

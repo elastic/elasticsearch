@@ -161,6 +161,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
+
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
     }

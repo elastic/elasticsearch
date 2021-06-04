@@ -40,9 +40,7 @@ public class PyTorchPassThroughResults implements InferenceResults {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
         builder.field(INFERENCE.getPreferredName(), inference);
-        builder.endObject();
         return builder;
     }
 

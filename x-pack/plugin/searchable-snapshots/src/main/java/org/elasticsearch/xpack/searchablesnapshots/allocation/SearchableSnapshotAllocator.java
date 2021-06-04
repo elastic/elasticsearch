@@ -173,10 +173,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
                 final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);
 
+                final Version version = shardRouting.recoverySource().getType() == RecoverySource.Type.SNAPSHOT
+                    ? ((RecoverySource.SnapshotRecoverySource) shardRouting.recoverySource()).version()
+                    : Version.CURRENT;
+
                 final RecoverySource.SnapshotRecoverySource recoverySource = new RecoverySource.SnapshotRecoverySource(
                     recoveryUuid,
                     snapshot,
-                    Version.CURRENT,
+                    version,
                     indexId
                 );
 

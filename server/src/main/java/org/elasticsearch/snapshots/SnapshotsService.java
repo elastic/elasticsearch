@@ -2996,16 +2996,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         return dataStreamAliases.values().stream()
             .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
-            .map(alias -> {
-                List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                    .filter(dataStreams::containsKey)
-                    .collect(Collectors.toList());
-                String writeDataStream = alias.getWriteDataStream();
-                if (intersectingDataStreams.contains(writeDataStream) == false) {
-                    writeDataStream = null;
-                }
-                return new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDataStream);
-            }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
+            .map(alias -> alias.intersect(dataStreams::containsKey))
+            .collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
     /**

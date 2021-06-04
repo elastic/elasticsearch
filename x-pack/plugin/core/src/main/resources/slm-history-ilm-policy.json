@@ -14,5 +14,9 @@
         "delete": {}
       }
     }
+  },
+  "_meta": {
+    "description": "default policy for the SLM history indices",
+    "managed": true
   }
 }

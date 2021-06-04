@@ -76,7 +76,6 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             final String snapshotWithMountedIndices = snapshotName + "-with-mounted-indices";
             createSnapshot(repositoryName, snapshotWithMountedIndices, Arrays.asList(mountedIndices));
             assertAcked(client().admin().indices().prepareDelete(mountedIndices));
-
             assertAcked(clusterAdmin().prepareDeleteRepository(repositoryName));
 
             updatedRepositoryName = repositoryName + "-with-mounted-indices";

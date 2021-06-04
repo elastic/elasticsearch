@@ -155,18 +155,18 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // When verification has completed, get the repository data for the first time
             final StepListener<RepositoryData> getRepositoryDataStep = new StepListener<>();
             verifyStep.whenComplete(ignored -> threadPool.generic().execute(
-                    ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
+                ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
 
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
             final StepListener<Void> updateRepoUuidStep = new StepListener<>();
             getRepositoryDataStep.whenComplete(
-                    repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
-                    listener::onFailure);
+                repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
+                listener::onFailure);
 
             // Finally respond to the outer listener with the response from the original cluster state update
             updateRepoUuidStep.whenComplete(
-                    ignored -> acknowledgementStep.addListener(listener),
-                    listener::onFailure);
+                ignored -> acknowledgementStep.addListener(listener),
+                listener::onFailure);
 
         } else {
             acknowledgementStep.addListener(listener);
@@ -254,10 +254,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      *                 thread
      */
     public static void updateRepositoryUuidInMetadata(
-            ClusterService clusterService,
-            final String repositoryName,
-            RepositoryData repositoryData,
-            ActionListener<Void> listener) {
+        ClusterService clusterService,
+        final String repositoryName,
+        RepositoryData repositoryData,
+        ActionListener<Void> listener) {
 
         final String repositoryUuid = repositoryData.getUuid();
         if (repositoryUuid.equals(RepositoryData.MISSING_UUID)) {
@@ -266,7 +266,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         final RepositoriesMetadata currentReposMetadata
-                = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
         final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
         if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
             listener.onResponse(null);
@@ -274,33 +274,33 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
 
         clusterService.submitStateUpdateTask("update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
-                new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        final RepositoriesMetadata currentReposMetadata
-                                = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+            new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final RepositoriesMetadata currentReposMetadata
+                        = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
-                        final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
-                        if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
-                            return currentState;
-                        } else {
-                            final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
-                            final Metadata.Builder metadata
-                                    = Metadata.builder(currentState.metadata()).putCustom(RepositoriesMetadata.TYPE, newReposMetadata);
-                            return ClusterState.builder(currentState).metadata(metadata).build();
-                        }
+                    final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
+                    if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
+                        return currentState;
+                    } else {
+                        final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
+                        final Metadata.Builder metadata
+                            = Metadata.builder(currentState.metadata()).putCustom(RepositoriesMetadata.TYPE, newReposMetadata);
+                        return ClusterState.builder(currentState).metadata(metadata).build();
                     }
+                }
 
-                    @Override
-                    public void onFailure(String source, Exception e) {
-                        listener.onFailure(e);
-                    }
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(null);
-                    }
-                });
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(null);
+                }
+            });
     }
 
     /**
@@ -403,8 +403,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     public static boolean isDedicatedVotingOnlyNode(Set<DiscoveryNodeRole> roles) {
         return roles.contains(DiscoveryNodeRole.MASTER_ROLE)
-                && roles.stream().noneMatch(DiscoveryNodeRole::canContainData)
-                && roles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
+            && roles.stream().noneMatch(DiscoveryNodeRole::canContainData)
+            && roles.contains(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE);
     }
 
     /**
@@ -418,7 +418,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         try {
             final ClusterState state = event.state();
             final RepositoriesMetadata oldMetadata =
-                    event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+                event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
             final RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
             // Check if repositories got changed
@@ -463,7 +463,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
                             logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]",
-                                    repositoryMetadata.name()), ex);
+                                repositoryMetadata.name()), ex);
                         }
                     }
                 } else {
@@ -491,7 +491,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
         assert updatedMetadata.name().equals(repository.getMetadata().name());
         return repository.getMetadata().type().equals(updatedMetadata.type())
-                && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
+            && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
     }
 
     /**
@@ -581,7 +581,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    /** Closes the given repository. */
+    /**
+     * Closes the given repository.
+     */
     private void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
@@ -673,7 +675,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             }
         }
         if (indices != null && indices.isEmpty() == false) {
-            throw newRepositoryInUseException(repositoryMetadata.name(),"found " + count
+            throw newRepositoryInUseException(repositoryMetadata.name(), "found " + count
                 + " searchable snapshots indices that use the repository: "
                 + Strings.collectionToCommaDelimitedString(indices)
                 + (count > indices.size() ? ",..." : "")
@@ -683,8 +685,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
         if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
-            return Objects.equals(repositoryMetadata.uuid(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY))
-                || Objects.equals(repositoryMetadata.name(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY));
+            final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+            if (Strings.hasLength(indexRepositoryUuid)) {
+                return Objects.equals(repositoryMetadata.uuid(), indexRepositoryUuid);
+            } else {
+                return Objects.equals(repositoryMetadata.name(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY));
+            }
         }
         return false;
     }

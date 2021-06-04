@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatsFactory;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
@@ -47,6 +48,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -240,6 +242,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
+        protected Function<GeoPoint, Object> getFormatter(String format) {
+            Function<Geometry, Object> formatter = GeoFormatsFactory.getFormat(format);
+            return (point) -> formatter.apply(new Point(point.lon(), point.lat()));
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
@@ -291,8 +299,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     /** GeoPoint parser implementation */
     private static class GeoPointParser extends PointParser<GeoPoint> {
-         // Note that this parser is only used for formatting values.
-        private final GeometryParser geometryParser;
 
         GeoPointParser(String field,
                            Supplier<GeoPoint> pointSupplier,
@@ -301,7 +307,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                            boolean ignoreZValue,
                            boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         protected GeoPoint validate(GeoPoint in) {
@@ -329,12 +334,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         @Override
         protected void reset(GeoPoint in, double x, double y) {
             in.reset(y, x);
-        }
-
-        @Override
-        public Object format(GeoPoint point, String format) {
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(new Point(point.lon(), point.lat()));
         }
     }
 

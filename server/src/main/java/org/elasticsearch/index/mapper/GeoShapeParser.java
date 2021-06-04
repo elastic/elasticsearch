@@ -37,10 +37,4 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
             onMalformed.accept(e);
         }
     }
-
-    @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
-    }
-
 }

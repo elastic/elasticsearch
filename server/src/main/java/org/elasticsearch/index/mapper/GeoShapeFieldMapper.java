@@ -13,6 +13,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatsFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -136,6 +138,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 return new MatchNoDocsQuery();
             }
             return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+        }
+
+        @Override
+        protected Function<Geometry, Object> getFormatter(String format) {
+            return GeoFormatsFactory.getFormat(format);
         }
     }
 

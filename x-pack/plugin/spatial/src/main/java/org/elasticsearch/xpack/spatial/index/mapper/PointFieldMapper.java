@@ -12,8 +12,6 @@ import org.apache.lucene.document.XYPointField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -27,6 +25,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.spatial.common.CartesianFormatsFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
@@ -34,6 +33,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -177,12 +177,16 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
+
+        @Override
+        protected Function<CartesianPoint, Object> getFormatter(String format) {
+            Function<Geometry, Object> formatter = CartesianFormatsFactory.getFormat(format);
+            return (point) -> formatter.apply(new Point(point.getX(), point.getY()));
+        }
     }
 
     /** CartesianPoint parser implementation */
     private static class CartesianPointParser extends PointParser<CartesianPoint> {
-        // Note that this parser is only used for formatting values.
-        private final GeometryParser geometryParser;
 
         CartesianPointParser(String field,
                              Supplier<CartesianPoint> pointSupplier,
@@ -191,7 +195,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
                              boolean ignoreZValue,
                              boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         @Override
@@ -210,12 +213,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         @Override
         protected void reset(CartesianPoint in, double x, double y) {
            in.reset(x, y);
-        }
-
-        @Override
-        public Object format(CartesianPoint value, String format) {
-            GeometryFormat<Geometry> geometryFormat = geometryParser.geometryFormat(format);
-            return geometryFormat.toXContentAsObject(new Point(value.getX(), value.getY()));
         }
     }
 }

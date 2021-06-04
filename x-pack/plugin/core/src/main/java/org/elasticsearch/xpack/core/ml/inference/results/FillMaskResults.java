@@ -42,7 +42,7 @@ public class FillMaskResults implements InferenceResults {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray();
+        builder.startArray(DEFAULT_RESULTS_FIELD);
         for (Prediction prediction : predictions) {
             prediction.toXContent(builder, params);
         }

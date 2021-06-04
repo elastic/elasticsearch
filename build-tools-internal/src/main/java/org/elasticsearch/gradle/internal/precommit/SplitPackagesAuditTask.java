@@ -152,7 +152,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 String packageName = entry.getKey();
                 List<File> deps = dependencyPackages.get(packageName);
                 List<String> msg = new ArrayList<>();
-                msg.add("Project " + projectPath + " defines classes in packages exposed by dependencies");
+                msg.add("Project " + projectPath + " defines classes in package " + packageName + " exposed by dependencies");
                 msg.add("  Dependencies:");
                 deps.forEach(f -> msg.add("    " + formatDependency(f)));
                 msg.add("  Classes:");

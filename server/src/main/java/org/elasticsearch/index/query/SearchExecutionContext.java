@@ -58,8 +58,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -302,21 +300,30 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Returns all the fields that match a given pattern. If prefixed with a
-     * type then the fields will be returned with a type prefix.
+     * Returns the names of all mapped fields that match a given pattern
+     *
+     * All names returned by this method are guaranteed to resolve to a
+     * MappedFieldType if passed to {@link #getFieldType(String)}
+     *
+     * @param pattern the field name pattern
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public Set<String> getMatchingFieldNames(String pattern) {
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.simpleMatchToFullName(pattern);
+            return mappingLookup.getMatchingFieldNames(pattern);
         }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.simpleMatchToFullName(pattern));
-        for (String name : runtimeMappings.keySet()) {
-            if (Regex.simpleMatch(pattern, name)) {
-                matches.add(name);
+        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern)) {
+                matches.add(pattern);
+            }
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    matches.add(name);
+                }
             }
         }
         return matches;
@@ -333,15 +340,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
-    }
-
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> getFieldTypes() {
-        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
-        fields.addAll(runtimeMappings.values());
-        return fields;
     }
 
     /**

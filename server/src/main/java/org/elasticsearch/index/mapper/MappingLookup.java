@@ -158,9 +158,7 @@ public final class MappingLookup {
         }
 
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
-        this.indexTimeLookup = indexTimeScriptMappers.isEmpty()
-            ? null
-            : new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+        this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -199,13 +197,6 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
-    }
-
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> fieldTypes() {
-        return fieldTypeLookup.get();
     }
 
     void checkLimits(IndexSettings settings) {
@@ -296,8 +287,15 @@ public final class MappingLookup {
         return field.substring(0, lastDot);
     }
 
-    public Set<String> simpleMatchToFullName(String pattern) {
-        return fieldTypesLookup().simpleMatchToFullName(pattern);
+    /**
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
+     *
+     * @param pattern the pattern to match field names against
+     */
+    public Set<String> getMatchingFieldNames(String pattern) {
+        return fieldTypeLookup.getMatchingFieldNames(pattern);
     }
 
     /**

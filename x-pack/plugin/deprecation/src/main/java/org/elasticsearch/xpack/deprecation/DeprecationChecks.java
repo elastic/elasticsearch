@@ -32,10 +32,15 @@ public class DeprecationChecks {
     static List<Function<ClusterState, DeprecationIssue>> CLUSTER_SETTINGS_CHECKS =
         Collections.emptyList();
 
-    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of();
+    static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
+        NodeDeprecationChecks::checkSharedDataPathSetting
+    );
 
-    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS =
-            List.of(IndexDeprecationChecks::oldIndicesCheck, IndexDeprecationChecks::translogRetentionSettingCheck);
+    static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(
+        IndexDeprecationChecks::oldIndicesCheck,
+        IndexDeprecationChecks::translogRetentionSettingCheck,
+        IndexDeprecationChecks::checkIndexDataPath
+        );
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.
@@ -48,4 +53,5 @@ public class DeprecationChecks {
     static <T> List<DeprecationIssue> filterChecks(List<T> checks, Function<T, DeprecationIssue> mapper) {
         return checks.stream().map(mapper).filter(Objects::nonNull).collect(Collectors.toList());
     }
+
 }

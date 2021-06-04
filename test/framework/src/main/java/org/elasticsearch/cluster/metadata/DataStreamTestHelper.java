@@ -16,6 +16,9 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -31,6 +34,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.test.ESTestCase.generateRandomStringArray;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 
 public final class DataStreamTestHelper {
 
@@ -147,9 +151,11 @@ public final class DataStreamTestHelper {
     }
 
     public static DataStreamAlias randomAliasInstance() {
+        List<String> dataStreams = List.of(generateRandomStringArray(5, 5, false, false));
         return new DataStreamAlias(
             randomAlphaOfLength(5),
-            List.of(generateRandomStringArray(5, 5, false))
+            dataStreams,
+            randomBoolean() ? randomFrom(dataStreams) : null
         );
     }
 
@@ -211,6 +217,46 @@ public final class DataStreamTestHelper {
 
     public static String backingIndexPattern(String dataStreamName, long generation) {
         return String.format(Locale.ROOT, "\\.ds-%s-(\\d{4}\\.\\d{2}\\.\\d{2}-)?%06d",dataStreamName, generation);
+    }
+
+    public static Matcher<String> backingIndexEqualTo(String dataStreamName, int generation) {
+        return new TypeSafeMatcher<>() {
+
+            @Override
+            protected boolean matchesSafely(String backingIndexName) {
+                if (backingIndexName == null) {
+                    return false;
+                }
+
+                int indexOfLastDash = backingIndexName.lastIndexOf('-');
+                String actualDataStreamName = parseDataStreamName(backingIndexName, indexOfLastDash);
+                int actualGeneration = parseGeneration(backingIndexName, indexOfLastDash);
+                return actualDataStreamName.equals(dataStreamName) && actualGeneration == generation;
+            }
+
+            @Override
+            protected void describeMismatchSafely(String backingIndexName, Description mismatchDescription) {
+                int indexOfLastDash = backingIndexName.lastIndexOf('-');
+                String dataStreamName = parseDataStreamName(backingIndexName, indexOfLastDash);
+                int generation = parseGeneration(backingIndexName, indexOfLastDash);
+                mismatchDescription.appendText(" was data stream name ").appendValue(dataStreamName)
+                    .appendText(" and generation ").appendValue(generation);
+            }
+
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("expected data stream name ").appendValue(dataStreamName)
+                    .appendText(" and expected generation ").appendValue(generation);
+            }
+
+            private String parseDataStreamName(String backingIndexName, int indexOfLastDash) {
+                return backingIndexName.substring(4, backingIndexName.lastIndexOf('-', indexOfLastDash - 1));
+            }
+
+            private int parseGeneration(String backingIndexName, int indexOfLastDash) {
+                return Integer.parseInt(backingIndexName.substring(indexOfLastDash + 1));
+            }
+        };
     }
 
 }

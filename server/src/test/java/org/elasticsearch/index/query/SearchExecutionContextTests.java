@@ -344,18 +344,19 @@ public class SearchExecutionContextTests extends ESTestCase {
         SearchExecutionContext context = createSearchExecutionContext(
             "uuid",
             null,
-            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                List.of(new TestRuntimeField("runtime", "long"))),
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertThat(context.getMatchingFieldNames("cat"), equalTo(Set.of("cat")));
         assertTrue(context.isFieldMapped("dog"));
         assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertThat(context.getMatchingFieldNames("dog"), equalTo(Set.of("dog")));
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
-        assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+        assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
+        assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

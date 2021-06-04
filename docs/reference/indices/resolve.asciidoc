@@ -4,9 +4,8 @@
 <titleabbrev>Resolve index</titleabbrev>
 ++++
 
-Resolves the specified name(s) and/or index patterns for indices, index
-aliases, and data streams. Multiple patterns and remote clusters are
-supported.
+Resolves the specified name(s) and/or index patterns for indices, aliases, and
+data streams. Multiple patterns and remote clusters are supported.
 
 ////
 [source,console]
@@ -50,6 +49,7 @@ DELETE /_index_template/foo_data_stream
 ----
 GET /_resolve/index/my-index-*
 ----
+// TEST[skip:unable to ignore deprecation warning]
 
 [[resolve-index-api-request]]
 ==== {api-request-title}
@@ -70,7 +70,7 @@ for the target data stream, index, or index alias.
 +
 --
 (Required, string) Comma-separated name(s) or index pattern(s) of the
-indices, index aliases, and data streams to resolve. Resources on
+indices, aliases, and data streams to resolve. Resources on
 <<modules-remote-clusters,remote clusters>> can be specified using the
 `<cluster>:<name>` syntax.
 --

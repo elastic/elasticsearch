@@ -77,9 +77,15 @@ final class FieldTypeLookup {
         }
 
         for (RuntimeField runtimeField : runtimeFields) {
+            if (runtimeField instanceof DynamicFieldType) {
+                dynamicFieldTypes.put(runtimeField.name(), (DynamicFieldType) runtimeField);
+            }
             MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
-            //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            assert runtimeFieldType != null || runtimeField instanceof DynamicFieldType;
+            if (runtimeFieldType != null) {
+                //this will override concrete fields with runtime fields that have the same name
+                fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            }
         }
     }
 
@@ -140,27 +146,45 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns all the mapped field types.
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
      */
-    Collection<MappedFieldType> get() {
-        return fullNameToFieldType.values();
-    }
-
-    /**
-     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
-     */
-    Set<String> simpleMatchToFullName(String pattern) {
+    Set<String> getMatchingFieldNames(String pattern) {
+        if (Regex.isMatchAllPattern(pattern)) {
+            if (dynamicFieldTypes.isEmpty()) {
+                return fullNameToFieldType.keySet();
+            }
+            Set<String> fieldNames = new HashSet<>(fullNameToFieldType.keySet());
+            for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+                String parentName = dynamicFieldTypeEntry.getKey();
+                DynamicFieldType dynamicFieldType = dynamicFieldTypeEntry.getValue();
+                for (String subfield : dynamicFieldType.getKnownSubfields()) {
+                    fieldNames.add(parentName + "." + subfield);
+                }
+            }
+            return Collections.unmodifiableSet(fieldNames);
+        }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singleton(pattern);
+            return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
-        Set<String> fields = new HashSet<>();
+        Set<String> matchingFields = new HashSet<>();
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
-                fields.add(field);
+                matchingFields.add(field);
             }
         }
-        return fields;
+        for (Map.Entry<String, DynamicFieldType> dynamicFieldTypeEntry : dynamicFieldTypes.entrySet()) {
+            String parentName = dynamicFieldTypeEntry.getKey();
+            for (String subfield : dynamicFieldTypeEntry.getValue().getKnownSubfields()) {
+                String fullPath = parentName + "." + subfield;
+                if (Regex.simpleMatch(pattern, fullPath)) {
+                    matchingFields.add(fullPath);
+                }
+            }
+        }
+        return matchingFields;
     }
 
     /**

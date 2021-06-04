@@ -266,46 +266,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         }
     }
 
-    private static boolean fixRecoverySource(ShardRouting shardRouting, RoutingAllocation allocation) {
-        switch (shardRouting.recoverySource().getType()) {
-            case EXISTING_STORE:
-            case EMPTY_STORE:
-                // this shard previously failed and/or was force-allocated, so the recovery source must be changed to reflect that it will
-                // be recovered from the snapshot again
-                return true;
-            case SNAPSHOT:
-                // the recovery source may be correct, or we may be recovering it from a real snapshot (i.e. a backup)
-
-                final RecoverySource.SnapshotRecoverySource recoverySource = (RecoverySource.SnapshotRecoverySource) shardRouting
-                    .recoverySource();
-                if (recoverySource.restoreUUID().equals(RecoverySource.SnapshotRecoverySource.NO_API_RESTORE_UUID)) {
-                    // this shard already has the right recovery source, no need to fix it up
-                    return false;
-                }
-
-                // else we're recovering from a real snapshot, in which case we can only fix up the recovery source once the "real"
-                // recovery attempt has completed. It might succeed, but if it doesn't then we replace it with a dummy restore.
-
-                final RestoreInProgress restoreInProgress = allocation.custom(RestoreInProgress.TYPE);
-                if (restoreInProgress == null) {
-                    // no ongoing restores, so this shard definitely completed
-                    return true;
-                }
-
-                final RestoreInProgress.Entry entry = restoreInProgress.get(recoverySource.restoreUUID());
-                if (entry == null) {
-                    // this specific restore is not ongoing, so this shard definitely completed
-                    return true;
-                }
-
-                // else this specific restore is still ongoing, so check whether this shard has completed its attempt yet
-                final RestoreInProgress.ShardRestoreStatus shardRestoreStatus = entry.shards().get(shardRouting.shardId());
-                return shardRestoreStatus == null || shardRestoreStatus.state().completed();
-            default:
-                return false;
-        }
-    }
-
     private AllocateUnassignedDecision decideAllocation(RoutingAllocation allocation, ShardRouting shardRouting) {
         assert shardRouting.unassigned();
         assert ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.get(

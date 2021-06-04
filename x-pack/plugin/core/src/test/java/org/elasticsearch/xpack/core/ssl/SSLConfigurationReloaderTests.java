@@ -507,10 +507,11 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     }
 
     /**
-     * Tests that the reloader doesn't throw an exception if a file is configured to be outside of the config/ directory.
-     * These errors are handled correctly by the
+     * Tests that the reloader doesn't throw an exception if a file is unreadable or configured to be outside of the config/ directory.
+     * These errors are handled correctly by the relevant {@link KeyConfig} and {@link TrustConfig} classes, so the reloader should
+     * simply log and continue.
      */
-    public void testReadingOutsideConfigDirectoryDoesntFail() throws Exception {
+    public void testFailureToReadFileDoesntFail() throws Exception {
         Path tempDir = createTempDir();
         Path clientCertPath = tempDir.resolve("testclient.crt");
         Settings settings = baseKeystoreSettings(tempDir, null)
@@ -518,13 +519,16 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         Environment env = TestEnvironment.newEnvironment(settings);
-        final AtomicReference<Exception> exceptionRef = new AtomicReference<>();
 
         final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
-        Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any())).thenThrow(new AccessControlException("access denied in test"));
+        Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any()))
+            .thenThrow(randomBoolean() ? new AccessControlException("access denied in test") : new IOException("file error for testing"));
         final Collection<SSLConfiguration> configurations = SSLService.getSSLConfigurations(settings).values();
-        final SSLConfigurationReloader reloader = new SSLConfigurationReloader(env, null, mockResourceWatcher, configurations);
-        assertNotNull(reloader);
+        try {
+            new SSLConfigurationReloader(env, null, mockResourceWatcher, configurations);
+        } catch (Exception e) {
+            fail("SSLConfigurationReloader threw exception, but is expected to catch and log file access errors instead:" + e);
+        }
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {

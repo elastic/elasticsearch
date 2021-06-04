@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -74,7 +75,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                 "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(issues, contains(
+        assertThat(issues, hasItem(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and" +
                     " will not be available in a future version",

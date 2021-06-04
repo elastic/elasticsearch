@@ -111,7 +111,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
         Set<String> dataStreams = new HashSet<>(this.dataStreams);
         boolean added = dataStreams.add(dataStream);
         if (added || Objects.equals(this.writeDataStream, writeDataStream) == false) {
-            return new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream);
+            return new DataStreamAlias(name, dataStreams, writeDataStream);
         } else {
             return this;
         }
@@ -136,7 +136,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
             if (dataStream.equals(writeDataStream)) {
                 writeDataStream = null;
             }
-            return new DataStreamAlias(name, List.copyOf(dataStreams), writeDataStream);
+            return new DataStreamAlias(name, dataStreams, writeDataStream);
         }
     }
 
@@ -174,7 +174,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
             }
         }
 
-        return new DataStreamAlias(this.name, List.copyOf(mergedDataStreams), writeDataStream);
+        return new DataStreamAlias(this.name, mergedDataStreams, writeDataStream);
     }
 
     /**

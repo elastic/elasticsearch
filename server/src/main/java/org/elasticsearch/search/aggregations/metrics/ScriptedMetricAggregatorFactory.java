@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
@@ -22,6 +23,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class ScriptedMetricAggregatorFactory extends AggregatorFactory {
 
@@ -83,6 +85,17 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
             parent,
             metadata
         );
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        // scripts might use some fields, but we don't know which
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 
     private static Script deepCopyScript(Script script, Map<String, Object> aggParams) {

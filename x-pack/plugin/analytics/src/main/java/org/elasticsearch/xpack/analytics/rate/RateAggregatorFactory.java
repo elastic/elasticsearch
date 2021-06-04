@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -84,5 +86,18 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     ) throws IOException {
         return aggregatorSupplier
             .build(name, config, rateUnit, rateMode, context, parent, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

@@ -14,6 +14,7 @@ import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.core.Releasables;
@@ -47,6 +48,7 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.LongConsumer;
 
@@ -155,6 +157,20 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
             cardinality,
             metadata
         );
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (fieldType != null) {
+            return Set.of(fieldType.name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        // TODO: backgroundFilter?
+        return Set.of();
     }
 
     /**

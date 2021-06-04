@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.stats.ShardFieldUsageStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -96,6 +97,7 @@ public class AggConstructionContentionBenchmark {
         new IndexFieldDataCache.Listener() {
         }
     );
+    private final ShardFieldUsageStats fieldUsageStats = new ShardFieldUsageStats();
 
     private CircuitBreakerService breakerService;
     private BigArrays bigArrays;
@@ -335,6 +337,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return true;
+        }
+
+        @Override
+        public ShardFieldUsageStats getFieldUsageStats() {
+            return fieldUsageStats;
         }
 
         @Override

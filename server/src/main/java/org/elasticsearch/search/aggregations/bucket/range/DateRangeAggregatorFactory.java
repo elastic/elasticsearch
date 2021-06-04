@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -15,6 +16,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
     public DateRangeAggregatorFactory(
@@ -45,4 +47,16 @@ public class DateRangeAggregatorFactory extends AbstractRangeAggregatorFactory<R
         );
     }
 
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
+    }
 }

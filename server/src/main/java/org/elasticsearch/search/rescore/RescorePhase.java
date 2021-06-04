@@ -35,6 +35,12 @@ public class RescorePhase {
             }
             context.queryResult().topDocs(new TopDocsAndMaxScore(topDocs, topDocs.scoreDocs[0].score),
                     context.queryResult().sortValueFormats());
+
+            for (RescoreContext ctx : context.rescore()) {
+                if (ctx instanceof QueryRescorer.QueryRescoreContext) {
+                    context.indexShard().fieldUsageStats().onQuery(((QueryRescorer.QueryRescoreContext) ctx).query());
+                }
+            }
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         }

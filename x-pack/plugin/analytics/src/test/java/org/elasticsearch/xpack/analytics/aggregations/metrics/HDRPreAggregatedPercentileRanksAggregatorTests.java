@@ -38,6 +38,9 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
 
@@ -108,6 +111,9 @@ public class HDRPreAggregatedPercentileRanksAggregatorTests extends AggregatorTe
                 assertFalse(rankIterator.hasNext());
                 assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
             }
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
         }
     }
 }

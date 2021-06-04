@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,6 +24,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -97,5 +99,18 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         return precisionThreshold == null
                 ? HyperLogLogPlusPlus.DEFAULT_PRECISION
                 : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

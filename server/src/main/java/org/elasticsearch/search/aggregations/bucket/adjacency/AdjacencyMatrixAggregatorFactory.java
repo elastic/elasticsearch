@@ -20,8 +20,11 @@ import org.elasticsearch.search.aggregations.bucket.adjacency.AdjacencyMatrixAgg
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
 
@@ -49,6 +52,16 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         return new AdjacencyMatrixAggregator(name, factories, separator, keys, weights, context, parent, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Arrays.stream(weights).map(Weight::getQuery).collect(Collectors.toSet());
     }
 
 }

@@ -20,6 +20,9 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public abstract class MovingPercentilesAbstractAggregatorTests extends AggregatorTestCase {
@@ -69,6 +72,10 @@ public abstract class MovingPercentilesAbstractAggregatorTests extends Aggregato
         aggBuilder.subAggregation(builder);
 
         executeTestCase(window, shift, query, aggBuilder);
+
+        assertEquals(Set.of(DATE_FIELD, VALUE_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(DATE_FIELD).getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get(VALUE_FIELD).getAggregationCount(), greaterThan(0L));
     }
 
     protected abstract PercentilesConfig getPercentileConfig();

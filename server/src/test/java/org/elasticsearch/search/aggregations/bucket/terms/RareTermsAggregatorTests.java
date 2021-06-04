@@ -66,6 +66,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
@@ -112,6 +113,9 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }
         );
+        assertEquals(Set.of(LONG_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        fieldUsageStats.clear();
+
         testSearchCase(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> {
@@ -121,6 +125,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }
         );
+
+        assertEquals(Set.of(KEYWORD_FIELD), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testManyDocsOneRare() throws IOException {
@@ -265,6 +271,8 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
+
+                        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
                     }
                 }
             }

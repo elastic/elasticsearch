@@ -42,9 +42,11 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoLineAggregatorTests extends AggregatorTestCase {
 
@@ -394,6 +396,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             Terms terms = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder,
                 fieldType, fieldType2, groupFieldType);
             verify.accept(terms);
+
+            assertEquals(Set.of("value_field", "group_id", "sort_field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("value_field").getAggregationCount(), greaterThan(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get("group_id").getAggregationCount(), greaterThan(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get("sort_field").getAggregationCount(), greaterThan(0L));
         } finally {
             indexReader.close();
             directory.close();

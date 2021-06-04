@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -127,6 +128,12 @@ public abstract class AbstractAggregationBuilder<AB extends AbstractAggregationB
     public final AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException {
         AggregatorFactory factory = doBuild(context, parent, factoriesBuilder);
         context.getUsageService().incAggregationUsage(getType(), factory.getStatsSubtype());
+        for (String field : factory.fieldsUsed()) {
+            context.getFieldUsageStats().onFieldAggregation(field);
+        }
+        for (Query query : factory.queriesUsed()) {
+            context.getFieldUsageStats().onQuery(query);
+        }
         return factory;
     }
 

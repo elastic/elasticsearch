@@ -61,12 +61,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -113,6 +115,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
             aggregation -> aggregation.setNumBuckets(8).field(DATE_FIELD),
             result -> assertThat(bucketCountsAsMap(result), equalTo(expectedDocCount))
         );
+        assertEquals(Set.of(DATE_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(DATE_FIELD).getAggregationCount(), greaterThan(0L));
     }
 
     public void testSubAggregations() throws IOException {
@@ -401,6 +405,8 @@ public class AutoDateHistogramAggregatorTests extends DateHistogramAggregatorTes
                 assertEquals(0, histogram.getBuckets().size());
                 assertFalse(AggregationInspectionHelper.hasValue(histogram));
             }, fieldType);
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testBooleanFieldDeprecated() throws IOException {

@@ -47,11 +47,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -163,6 +165,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field(AGGREGABLE_DATE).minDocCount(1L),
             histogram -> assertEquals(6, histogram.getBuckets().size()), false
         );
+
+        assertEquals(Set.of(AGGREGABLE_DATE), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(AGGREGABLE_DATE).getAggregationCount(), greaterThan(0L));
     }
 
     public void testAsSubAgg() throws IOException {
@@ -243,6 +248,9 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         testSearchCase(query, dates, aggregation,
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
+
+        assertEquals(Set.of(AGGREGABLE_DATE), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(AGGREGABLE_DATE).getAggregationCount(), greaterThan(0L));
     }
 
     public void testAggregateWrongFieldDeprecated() throws IOException {
@@ -265,6 +273,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             aggregation -> aggregation.fixedInterval(new DateHistogramInterval("365d")).field("wrong_field"),
             histogram -> assertEquals(0, histogram.getBuckets().size()), false
         );
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testIntervalYearDeprecated() throws IOException {

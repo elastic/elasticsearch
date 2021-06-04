@@ -90,6 +90,7 @@ import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardFieldUsageStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesModule;
@@ -158,6 +159,7 @@ import static org.mockito.Mockito.when;
 public abstract class AggregatorTestCase extends ESTestCase {
     private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
+    protected ShardFieldUsageStats fieldUsageStats = new ShardFieldUsageStats();
 
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
@@ -294,7 +296,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> 0L,
             () -> false,
             q -> q,
-            true
+            true,
+            fieldUsageStats
         );
         releasables.add(context);
         return context;
@@ -530,7 +533,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             indexWriter.close();
 
             try (DirectoryReader unwrapped = DirectoryReader.open(directory);
-                    IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                 IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
                 IndexSearcher indexSearcher = newIndexSearcher(indexReader);
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
@@ -1107,6 +1110,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
                             throw new UnsupportedOperationException();
                         }
                     };
+                }
+
+                @Override
+                public Set<String> fieldsUsed() {
+                    return Set.of();
+                }
+
+                @Override
+                public Set<Query> queriesUsed() {
+                    return Set.of();
                 }
             };
         }

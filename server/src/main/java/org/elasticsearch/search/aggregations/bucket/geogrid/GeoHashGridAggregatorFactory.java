@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 
@@ -114,5 +116,18 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                     metadata
                 );
             }, true);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

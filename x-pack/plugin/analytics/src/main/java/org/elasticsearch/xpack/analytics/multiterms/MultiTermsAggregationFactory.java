@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -22,6 +24,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class MultiTermsAggregationFactory extends AggregatorFactory {
 
@@ -66,5 +71,15 @@ public class MultiTermsAggregationFactory extends AggregatorFactory {
         bucketCountThresholds.ensureValidity();
         return new MultiTermsAggregator(name, factories, context, parent, configs, formats, showTermDocCountError, order,
             collectMode, bucketCountThresholds, cardinality, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return configs.stream().map(vsc -> vsc.fieldType()).filter(Objects::nonNull).map(MappedFieldType::name).collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

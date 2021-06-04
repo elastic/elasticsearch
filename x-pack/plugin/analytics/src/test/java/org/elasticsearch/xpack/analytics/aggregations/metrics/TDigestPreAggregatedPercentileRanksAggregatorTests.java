@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.hamcrest.Matchers;
 
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TDigestPreAggregatedPercentileRanksAggregatorTests extends AggregatorTestCase {
 
@@ -92,6 +94,9 @@ public class TDigestPreAggregatedPercentileRanksAggregatorTests extends Aggregat
                 assertFalse(rankIterator.hasNext());
                 assertTrue(AggregationInspectionHelper.hasValue(((InternalTDigestPercentileRanks)ranks)));
             }
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
         }
     }
 }

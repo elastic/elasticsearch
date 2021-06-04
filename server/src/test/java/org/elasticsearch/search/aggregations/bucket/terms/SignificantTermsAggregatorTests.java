@@ -46,9 +46,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantTerms;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SignificantTermsAggregatorTests extends AggregatorTestCase {
     @Override
@@ -157,6 +159,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             }
         }
+
+        assertEquals(Set.of("text"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("text").getAggregationCount(), greaterThan(0L));
     }
 
     /**
@@ -217,6 +222,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             }
         }
+
+        assertEquals(Set.of("long_field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("long_field").getAggregationCount(), greaterThan(0L));
     }
 
     /**
@@ -250,6 +258,8 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
 
             }
         }
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     /**
@@ -335,6 +345,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                 assertEquals(oddTerms, aliasOddTerms);
             }
         }
+
+        assertEquals(Set.of("text"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("text").getAggregationCount(), greaterThan(0L));
     }
 
     public void testAllDocsWithoutStringFieldviaGlobalOrds() throws IOException {
@@ -361,6 +374,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                         .executionHint(executionHint);
                     SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
+
+                    assertEquals(Set.of("f"), fieldUsageStats.getPerFieldStats().keySet());
+                    assertThat(fieldUsageStats.getPerFieldStats().get("f").getAggregationCount(), greaterThan(0L));
                 }
             }
         }
@@ -381,6 +397,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                     SignificantTermsAggregationBuilder request = new SignificantTermsAggregationBuilder("f").field("f");
                     SignificantLongTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, longField("f"));
                     assertThat(result.getSubsetSize(), equalTo(1L));
+
+                    assertEquals(Set.of("f"), fieldUsageStats.getPerFieldStats().keySet());
+                    assertThat(fieldUsageStats.getPerFieldStats().get("f").getAggregationCount(), greaterThan(0L));
                 }
             }
         }
@@ -413,6 +432,9 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
                         .executionHint(executionHint);
                     SignificantStringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), request, keywordField("f"));
                     assertThat(result.getSubsetSize(), equalTo(2L));
+
+                    assertEquals(Set.of("f"), fieldUsageStats.getPerFieldStats().keySet());
+                    assertThat(fieldUsageStats.getPerFieldStats().get("f").getAggregationCount(), greaterThan(0L));
                 }
             }
         }

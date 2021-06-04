@@ -53,6 +53,7 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class StatsAggregatorTests extends AggregatorTestCase {
 
@@ -108,6 +109,9 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             },
             ft
         );
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testRandomLongs() throws IOException {
@@ -123,6 +127,9 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             }
         );
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testSummationAccuracy() throws IOException {
@@ -224,6 +231,8 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertFalse(AggregationInspectionHelper.hasValue(stats));
             }
         );
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testPartiallyUnmapped() throws IOException {

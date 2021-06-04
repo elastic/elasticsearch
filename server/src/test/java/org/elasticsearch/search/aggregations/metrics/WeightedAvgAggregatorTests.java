@@ -32,11 +32,13 @@ import java.io.IOException;
 import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class WeightedAvgAggregatorTests extends AggregatorTestCase {
 
@@ -466,6 +468,10 @@ public class WeightedAvgAggregatorTests extends AggregatorTestCase {
             indexSearcher.search(query, aggregator);
             aggregator.postCollection();
             verify.accept((InternalWeightedAvg) aggregator.buildAggregation(0L));
+
+            assertEquals(Set.of("value_field", "weight_field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("value_field").getAggregationCount(), greaterThan(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get("weight_field").getAggregationCount(), greaterThan(0L));
         } finally {
             indexReader.close();
             directory.close();

@@ -44,6 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.stats.ShardFieldUsageStats;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -326,6 +327,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return new AggregationContext() {
             private final CircuitBreaker breaker = mock(CircuitBreaker.class);
             private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+            private final ShardFieldUsageStats fieldUsageStats = new ShardFieldUsageStats();
 
             @Override
             public IndexSearcher searcher() {
@@ -480,6 +482,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             @Override
             public boolean enableRewriteToFilterByFilter() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public ShardFieldUsageStats getFieldUsageStats() {
+                return fieldUsageStats;
             }
 
             @Override

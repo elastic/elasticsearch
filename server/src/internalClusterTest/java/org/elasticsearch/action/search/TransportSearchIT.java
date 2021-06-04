@@ -9,6 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -63,6 +64,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -498,6 +500,16 @@ public class TransportSearchIT extends ESIntegTestCase {
                 protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
                     throws IOException {
                     return new TestAggregator(name, parent);
+                }
+
+                @Override
+                public Set<String> fieldsUsed() {
+                    return Set.of();
+                }
+
+                @Override
+                public Set<Query> queriesUsed() {
+                    return Set.of();
                 }
             };
         }

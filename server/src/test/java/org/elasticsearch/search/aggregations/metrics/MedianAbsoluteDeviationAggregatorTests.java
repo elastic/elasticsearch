@@ -41,6 +41,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
@@ -50,6 +51,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.ExactMedianAbsoluteDeviation.calculateMAD;
 import static org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregatorTests.IsCloseToRelative.closeToRelative;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
 
@@ -172,6 +174,8 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             assertEquals(Double.NaN,  agg.getMedianAbsoluteDeviation(),0);
             assertFalse(AggregationInspectionHelper.hasValue(agg));
         });
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -245,6 +249,9 @@ public class MedianAbsoluteDeviationAggregatorTests extends AggregatorTestCase {
             = new NumberFieldMapper.NumberFieldType(FIELD_NAME, NumberFieldMapper.NumberType.LONG);
 
         testAggregation(builder, query, buildIndex, verify, fieldType);
+
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(

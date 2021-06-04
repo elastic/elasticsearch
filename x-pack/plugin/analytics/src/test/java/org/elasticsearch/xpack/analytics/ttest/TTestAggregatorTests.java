@@ -49,11 +49,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TTestAggregatorTests extends AggregatorTestCase {
 
@@ -291,6 +293,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
                 }
             }
         }, fieldType1, fieldType2);
+
+        if (missA && missB) {
+            assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
+        }
     }
 
     public void testUnsupportedType() {
@@ -658,6 +664,10 @@ public class TTestAggregatorTests extends AggregatorTestCase {
             aggregationBuilder.testType(type);
         }
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType1, fieldType2);
+
+        assertEquals(Set.of("a", "b"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("a").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("b").getAggregationCount(), greaterThan(0L));
     }
 
     @Override

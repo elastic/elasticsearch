@@ -30,12 +30,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
 
@@ -186,6 +188,9 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 indexSearcher.search(query, aggregator);
                 aggregator.postCollection();
                 verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
+
+                assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+                assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
             }
         }
     }

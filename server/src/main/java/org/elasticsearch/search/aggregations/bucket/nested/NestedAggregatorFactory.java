@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -19,6 +20,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class NestedAggregatorFactory extends AggregatorFactory {
 
@@ -40,6 +42,17 @@ public class NestedAggregatorFactory extends AggregatorFactory {
             return new Unmapped(name, context, parent, factories, metadata);
         }
         return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, cardinality, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        // TODO: parent / nested filter?
+        return Set.of();
     }
 
     private static final class Unmapped extends NonCollectingAggregator {

@@ -44,11 +44,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BoxplotAggregatorTests extends AggregatorTestCase {
 
@@ -187,6 +189,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(10, boxplot.getQ2(), 0);
             assertEquals(10, boxplot.getQ3(), 0);
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -205,6 +209,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(0, boxplot.getQ2(), 0);
             assertEquals(0, boxplot.getQ3(), 0);
         }, fieldType);
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnsupportedType() {
@@ -368,6 +373,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(5, boxplot.getQ2(), 0);
             assertEquals(8, boxplot.getQ3(), 0);
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     public void testValueScriptUnmapped() throws IOException {
@@ -387,6 +394,7 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
             assertEquals(Double.NaN, boxplot.getQ2(), 0);
             assertEquals(Double.NaN, boxplot.getQ3(), 0);
         }, fieldType);
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testValueScriptUnmappedMissing() throws IOException {
@@ -416,6 +424,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder("boxplot").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
 }

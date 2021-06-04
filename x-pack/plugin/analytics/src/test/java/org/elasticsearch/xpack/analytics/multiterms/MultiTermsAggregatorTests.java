@@ -55,6 +55,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -62,6 +63,7 @@ import static org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregation
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class MultiTermsAggregatorTests extends AggregatorTestCase {
@@ -163,6 +165,11 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             assertThat(h.getBuckets().get(3).getKey(), contains(equalTo("b"), equalTo(3L), equalTo(1.0)));
             assertThat(h.getBuckets().get(3).getDocCount(), equalTo(1L));
         });
+
+        assertEquals(Set.of(KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(KEYWORD_FIELD).getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get(INT_FIELD).getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get(FLOAT_FIELD).getAggregationCount(), greaterThan(0L));
     }
 
     public void testNullFields() throws IOException {

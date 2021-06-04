@@ -35,6 +35,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class RangeHistogramAggregatorTests extends AggregatorTestCase {
@@ -86,6 +87,9 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(1, histogram.getBuckets().get(6).getDocCount());
             }
         }
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testLongs() throws Exception {
@@ -136,6 +140,9 @@ public class RangeHistogramAggregatorTests extends AggregatorTestCase {
                 assertEquals(1, histogram.getBuckets().get(6).getDocCount());
             }
         }
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testMultipleRanges() throws Exception {

@@ -37,12 +37,14 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentiles;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
 
@@ -179,6 +181,8 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
                           Consumer<InternalHDRPercentiles> verify) throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         testCase(query, buildIndex, verify, fieldType, "number");
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,

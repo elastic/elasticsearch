@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -17,6 +18,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class GlobalAggregatorFactory extends AggregatorFactory {
 
@@ -39,5 +41,15 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
             throw new AggregationExecutionException("Aggregation [" + name() + "] must have cardinality 1 but was [" + cardinality + "]");
         }
         return new GlobalAggregator(name, factories, context, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

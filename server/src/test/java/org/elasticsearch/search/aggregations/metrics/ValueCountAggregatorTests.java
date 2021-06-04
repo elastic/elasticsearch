@@ -58,6 +58,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ValueCountAggregatorTests extends AggregatorTestCase {
 
@@ -372,7 +373,12 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }
         aggregationBuilder.field(FIELD_NAME);
 
+        fieldUsageStats.clear();
+
         testAggregation(aggregationBuilder, query, indexer, verify, fieldType);
+
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(

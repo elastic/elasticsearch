@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -24,9 +25,11 @@ import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 class TopHitsAggregatorFactory extends AggregatorFactory {
 
@@ -113,6 +116,35 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.highlight(highlightBuilder.build(subSearchContext.getSearchExecutionContext()));
         }
         return new TopHitsAggregator(subSearchContext, name, context, parent, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        Set<String> fieldsUsed = new HashSet<>();
+        // TODO: what to do about sort, fetch, ...?
+//        if (sort.isPresent()) {
+//            Arrays.stream(sort.get().sort.getSort()).map(SortField::getField).filter(Objects::nonNull).forEach(fieldsUsed::add);
+//        }
+//        if (storedFieldsContext != null && storedFieldsContext.fieldNames() != null) {
+//            fieldsUsed.addAll(storedFieldsContext.fieldNames());
+//        }
+//        if (docValueFields != null) {
+//            docValueFields.stream().map(f -> f.field).forEach(fieldsUsed::add);
+//        }
+//        if (fetchFields != null) {
+//            fetchFields.stream().map(f -> f.field).forEach(fieldsUsed::add);
+//        }
+        // TODO: fetchSourceContext
+        // TODO: highlightBuilder
+        // TODO: scriptFields
+        // scripts might use some fields, but we don't know which
+        return fieldsUsed;
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        // perhaps the sort part?
+        return Set.of();
     }
 
 }

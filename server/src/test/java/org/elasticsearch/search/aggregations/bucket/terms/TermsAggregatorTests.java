@@ -120,6 +120,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -828,6 +829,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         }
                         assertEquals(expected.getValue().longValue(), actual.getDocCount());
                     }
+                    assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+                    assertEquals(1L, fieldUsageStats.getPerFieldStats().get("field").getAggregationCount());
 
                     if (multiValued == false) {
                         MappedFieldType filterFieldType = new KeywordFieldMapper.KeywordFieldType("include");
@@ -999,6 +1002,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 }
             }
         }
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissing() throws Exception {

@@ -21,9 +21,11 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
     private static final double TOLERANCE = 1e-5;
@@ -249,6 +251,8 @@ public class ExtendedStatsAggregatorTests extends AggregatorTestCase {
             .sigma(randomDoubleBetween(0, 10, true));
 
         testCase(aggBuilder, new MatchAllDocsQuery(), buildIndex, verify, ft);
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     static class ExtendedSimpleStatsAggregator extends StatsAggregatorTests.SimpleStatsAggregator {

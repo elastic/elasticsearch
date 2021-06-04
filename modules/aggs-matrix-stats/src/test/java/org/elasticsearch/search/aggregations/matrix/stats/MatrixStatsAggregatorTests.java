@@ -26,6 +26,9 @@ import org.elasticsearch.search.aggregations.matrix.MatrixAggregationPlugin;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
@@ -66,6 +69,8 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(0L, stats.getDocCount());
             }
         }
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testTwoFields() throws Exception {
@@ -101,6 +106,10 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));
             }
         }
+
+        assertEquals(Set.of("a", "b"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("a").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("b").getAggregationCount(), greaterThan(0L));
     }
 
     @Override

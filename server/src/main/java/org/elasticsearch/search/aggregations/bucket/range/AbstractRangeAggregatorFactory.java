@@ -22,12 +22,11 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.Map;
 
-public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
+public abstract class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
 
     private final InternalRange.Factory<?, ?> rangeFactory;
     private final R[] ranges;
     private final boolean keyed;
-    private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
 
     public AbstractRangeAggregatorFactory(String name,
@@ -45,7 +44,6 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
-        this.registryKey = registryKey;
         this.aggregatorSupplier = aggregatorSupplier;
     }
 
@@ -74,4 +72,5 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                 metadata
             );
     }
+
 }

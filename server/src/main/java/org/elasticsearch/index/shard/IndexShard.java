@@ -112,6 +112,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -192,6 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
+    private final ShardFieldUsageStats fieldUsageStats = new ShardFieldUsageStats();
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
@@ -323,7 +325,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
         this.searchOperationListener =
-                new SearchOperationListener.CompositeListener(CollectionUtils.appendToCopy(searchOperationListener, searchStats), logger);
+                new SearchOperationListener.CompositeListener(
+                    CollectionUtils.appendToCopy(
+                        CollectionUtils.appendToCopy(searchOperationListener, searchStats), fieldUsageStats), logger);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
@@ -1062,6 +1066,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public SearchStats searchStats(String... groups) {
         return searchStats.stats(groups);
+    }
+
+    public ShardFieldUsageStats fieldUsageStats() {
+        return fieldUsageStats;
     }
 
     public GetStats getStats() {

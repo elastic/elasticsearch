@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongPredicate;
 
@@ -300,6 +302,19 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         } else {
             return -1;
         }
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 
     public enum ExecutionMode {

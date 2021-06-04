@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.support;
 
+import org.apache.lucene.search.Query;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -16,6 +18,9 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public abstract class ArrayValuesSourceAggregatorFactory
     extends AggregatorFactory {
@@ -68,4 +73,14 @@ public abstract class ArrayValuesSourceAggregatorFactory
         Map<String, Object> metadata
     ) throws IOException;
 
+    @Override
+    public Set<String> fieldsUsed() {
+        return configs.values().stream().filter(Objects::nonNull).map(ValuesSourceConfig::fieldType)
+            .filter(Objects::nonNull).map(MappedFieldType::name).collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
+    }
 }

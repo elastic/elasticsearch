@@ -33,10 +33,12 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
 
@@ -803,6 +805,8 @@ public class DateRangeHistogramAggregatorTests extends AggregatorTestCase {
             configure.accept(aggregationBuilder);
         }
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void testCase(DateHistogramAggregationBuilder aggregationBuilder, Query query,

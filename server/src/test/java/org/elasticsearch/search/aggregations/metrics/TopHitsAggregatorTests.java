@@ -42,9 +42,11 @@ import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TopHitsAggregatorTests extends AggregatorTestCase {
     public void testTopLevel() throws Exception {
@@ -114,6 +116,9 @@ public class TopHitsAggregatorTests extends AggregatorTestCase {
         assertEquals(1L, searchHits.getTotalHits().value);
         assertEquals("3", searchHits.getAt(0).getId());
         assertTrue(AggregationInspectionHelper.hasValue(((InternalTopHits) terms.getBucketByKey("d").getAggregations().get("top"))));
+
+        assertEquals(Set.of("string"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("string").getAggregationCount(), greaterThan(0L));
     }
 
     private static final MappedFieldType STRING_FIELD_TYPE = new KeywordFieldMapper.KeywordFieldType("string");

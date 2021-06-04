@@ -53,12 +53,14 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -751,6 +753,15 @@ public class RateAggregatorTests extends AggregatorTestCase {
         }
         dateHistogramAggregationBuilder.subAggregation(rateAggregationBuilder);
         testCase(dateHistogramAggregationBuilder, query, buildIndex, verify, dateType, numType);
+
+        if (field != null && field instanceof Script == false) {
+            assertEquals(Set.of(DATE_FIELD, field), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get(DATE_FIELD).getAggregationCount(), greaterThan(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get(field).getAggregationCount(), greaterThan(0L));
+        } else {
+            assertEquals(Set.of(DATE_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get(DATE_FIELD).getAggregationCount(), greaterThan(0L));
+        }
     }
 
     @Override

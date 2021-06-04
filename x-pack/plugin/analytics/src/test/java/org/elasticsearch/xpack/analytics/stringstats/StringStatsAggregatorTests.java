@@ -55,6 +55,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class StringStatsAggregatorTests extends AggregatorTestCase {
 
@@ -94,6 +95,8 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.0, stats.getEntropy(), 0);
 
         });
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -390,6 +393,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
 
         AggregationBuilder aggregationBuilder = new StringStatsAggregationBuilder("_name").field("text");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
+
+        assertEquals(Set.of("text"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("text").getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(

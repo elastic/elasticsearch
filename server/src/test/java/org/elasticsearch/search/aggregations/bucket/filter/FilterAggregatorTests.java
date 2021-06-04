@@ -28,6 +28,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Set;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
@@ -57,6 +58,10 @@ public class FilterAggregatorTests extends AggregatorTestCase {
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), equalTo(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getQueryCount(), greaterThan(0L));
     }
 
     public void testRandom() throws Exception {
@@ -94,6 +99,10 @@ public class FilterAggregatorTests extends AggregatorTestCase {
             } else {
                 assertFalse(AggregationInspectionHelper.hasValue(response));
             }
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), equalTo(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getQueryCount(), greaterThan(0L));
         } finally {
             indexReader.close();
             directory.close();

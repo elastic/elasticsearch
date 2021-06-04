@@ -72,6 +72,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -80,6 +81,7 @@ import java.util.function.Supplier;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
@@ -248,6 +250,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(0.0, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnsupportedType() {
@@ -437,6 +441,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(-10.0, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     public void testSingleValuedFieldWithValueScriptAndMissing() throws IOException {
@@ -475,6 +481,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(6.0, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     public void testScript() throws IOException {
@@ -492,6 +500,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(19.0, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testMultiValuedField() throws IOException {
@@ -511,6 +520,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertEquals(2.0, min.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     public void testMultiValuedFieldWithScript() throws IOException {
@@ -726,5 +737,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 }

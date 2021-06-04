@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -19,6 +20,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FiltersAggregatorFactory extends AggregatorFactory {
 
@@ -46,5 +49,15 @@ public class FiltersAggregatorFactory extends AggregatorFactory {
                                         Map<String, Object> metadata) throws IOException {
         return FiltersAggregator.build(name, factories, filters, keyed,
             otherBucket ? otherBucketKey : null, context, parent, cardinality, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return filters.stream().map(QueryToFilterAdapter::query).collect(Collectors.toSet());
     }
 }

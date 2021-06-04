@@ -75,6 +75,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -82,6 +83,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -406,6 +408,11 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         assertThat(result.getTopMetrics(), equalTo(singletonList(
                 new InternalTopMetrics.TopMetric(DocValueFormat.RAW, SortValue.from(1.0), metricValues(
                         SortValue.from(12.0), SortValue.from(22), SortValue.from(32.0))))));
+
+        assertEquals(Set.of("m1", "m2", "m3"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("m1").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("m2").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("m3").getAggregationCount(), greaterThan(0L));
     }
 
     private TopMetricsAggregationBuilder simpleBuilder() {

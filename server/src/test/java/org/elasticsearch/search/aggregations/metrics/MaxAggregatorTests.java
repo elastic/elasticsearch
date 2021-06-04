@@ -74,6 +74,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -83,6 +84,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
 
@@ -231,6 +233,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -243,6 +246,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(max.getValue(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testMissingFieldOptimization() throws IOException {
@@ -273,6 +277,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             assertEquals(max.getValue(), SCRIPT_VALUE, 0); // Note this is the script value (19L), not the doc values above
             assertTrue(AggregationInspectionHelper.hasValue(max));
         }, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(Query query,
@@ -281,6 +287,8 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(

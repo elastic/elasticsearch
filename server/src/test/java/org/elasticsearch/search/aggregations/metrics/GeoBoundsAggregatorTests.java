@@ -30,10 +30,12 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.metrics.InternalGeoBoundsTests.GEOHASH_TOLERANCE;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.startsWith;
 
 public class GeoBoundsAggregatorTests extends AggregatorTestCase {
@@ -54,6 +56,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertTrue(Double.isInfinite(bounds.negLeft));
                 assertTrue(Double.isInfinite(bounds.negRight));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
+
+                assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+                assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
             }
         }
     }
@@ -81,6 +86,8 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertTrue(Double.isInfinite(bounds.negLeft));
                 assertTrue(Double.isInfinite(bounds.negRight));
                 assertFalse(AggregationInspectionHelper.hasValue(bounds));
+
+                assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
             }
         }
     }
@@ -113,6 +120,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                     assertThat(bounds.posRight, equalTo(lon >= 0 ? lon : Double.NEGATIVE_INFINITY));
                     assertThat(bounds.negLeft, equalTo(lon >= 0 ? Double.POSITIVE_INFINITY : lon));
                     assertThat(bounds.negRight, equalTo(lon >= 0 ? Double.NEGATIVE_INFINITY : lon));
+
+                    assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+                    assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
                 }
             }
         }
@@ -192,6 +202,9 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
                 assertThat(bounds.negLeft, closeTo(negLeft, GEOHASH_TOLERANCE));
                 assertTrue(AggregationInspectionHelper.hasValue(bounds));
             }
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
         }
     }
 

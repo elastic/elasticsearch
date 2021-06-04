@@ -27,6 +27,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.search.stats.ShardFieldUsageStats;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -256,6 +257,8 @@ public abstract class AggregationContext implements Releasable {
      */
     public abstract boolean enableRewriteToFilterByFilter();
 
+    public abstract ShardFieldUsageStats getFieldUsageStats();
+
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
      * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
@@ -277,6 +280,7 @@ public abstract class AggregationContext implements Releasable {
         private final Supplier<Boolean> isCancelled;
         private final Function<Query, Query> filterQuery;
         private final boolean enableRewriteToFilterByFilter;
+        private final ShardFieldUsageStats fieldUsageStats;
 
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
@@ -293,7 +297,8 @@ public abstract class AggregationContext implements Releasable {
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled,
             Function<Query, Query> filterQuery,
-            boolean enableRewriteToFilterByFilter
+            boolean enableRewriteToFilterByFilter,
+            ShardFieldUsageStats fieldUsageStats
         ) {
             this.context = context;
             if (bytesToPreallocate == 0) {
@@ -325,6 +330,7 @@ public abstract class AggregationContext implements Releasable {
             this.isCancelled = isCancelled;
             this.filterQuery = filterQuery;
             this.enableRewriteToFilterByFilter = enableRewriteToFilterByFilter;
+            this.fieldUsageStats = fieldUsageStats;
         }
 
         @Override
@@ -484,6 +490,11 @@ public abstract class AggregationContext implements Releasable {
         @Override
         public boolean enableRewriteToFilterByFilter() {
             return enableRewriteToFilterByFilter;
+        }
+
+        @Override
+        public ShardFieldUsageStats getFieldUsageStats() {
+            return fieldUsageStats;
         }
 
         @Override

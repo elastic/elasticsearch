@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
 
@@ -128,6 +129,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedMissingNumber() throws IOException {
@@ -142,6 +144,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -156,6 +159,7 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
             assertEquals(1, card.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(card));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     private void testAggregation(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
@@ -163,6 +167,8 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         final CardinalityAggregationBuilder aggregationBuilder = new CardinalityAggregationBuilder("_name").field("number");
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
     }
 
     private void testAggregation(

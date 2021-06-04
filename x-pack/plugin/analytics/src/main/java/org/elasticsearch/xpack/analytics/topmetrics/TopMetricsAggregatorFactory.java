@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -22,8 +25,13 @@ import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregator.MetricV
 import org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregator.MetricValuesSupplier;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.analytics.topmetrics.TopMetricsAggregationBuilder.REGISTRY_KEY;
 
@@ -38,7 +46,7 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
 
     private final List<SortBuilder<?>> sortBuilders;
     private final int size;
-    private final List<MultiValuesSourceFieldConfig> metricFields;
+    private final List<Tuple<String, ValuesSourceConfig>> configs;
 
     public TopMetricsAggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
             Builder subFactoriesBuilder, Map<String, Object> metadata, List<SortBuilder<?>> sortBuilders,
@@ -46,7 +54,21 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.sortBuilders = sortBuilders;
         this.size = size;
-        this.metricFields = metricFields;
+        List<Tuple<String, ValuesSourceConfig>> configs = new ArrayList<>(metricFields.size());
+        for (MultiValuesSourceFieldConfig config : metricFields) {
+            ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
+                context,
+                null,
+                config.getFieldName(),
+                config.getScript(),
+                config.getMissing(),
+                config.getTimeZone(),
+                null,
+                CoreValuesSourceType.NUMERIC
+            );
+            configs.add(Tuple.tuple(config.getFieldName(), vsConfig));
+        }
+        this.configs = Collections.unmodifiableList(configs);
     }
 
     @Override
@@ -58,22 +80,24 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
                     + "]. This limit can be set by changing the [" + MAX_BUCKET_SIZE.getKey()
                     + "] index level setting.");
         }
-        MetricValues[] metricValues = new MetricValues[metricFields.size()];
-        for (int i = 0; i < metricFields.size(); i++) {
-            MultiValuesSourceFieldConfig config = metricFields.get(i);
-            ValuesSourceConfig vsConfig = ValuesSourceConfig.resolve(
-                context,
-                null,
-                config.getFieldName(),
-                config.getScript(),
-                config.getMissing(),
-                config.getTimeZone(),
-                null,
-                CoreValuesSourceType.NUMERIC
-            );
-            MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, vsConfig);
-            metricValues[i] = supplier.build(size, context.bigArrays(), config.getFieldName(), vsConfig);
+        MetricValues[] metricValues = new MetricValues[configs.size()];
+        for (int i = 0; i < configs.size(); i++) {
+            Tuple<String, ValuesSourceConfig> config = configs.get(i);
+            MetricValuesSupplier supplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config.v2());
+            metricValues[i] = supplier.build(size, context.bigArrays(), config.v1(), config.v2());
         }
         return new TopMetricsAggregator(name, context, parent, metadata, size, sortBuilders.get(0), metricValues);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return configs.stream().map(Tuple::v2).map(ValuesSourceConfig::fieldType).filter(Objects::nonNull).map(MappedFieldType::name)
+            .collect(Collectors.toSet());
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        //TODO: sortBuilders?
+        return Set.of();
     }
 }

@@ -42,10 +42,12 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class DateRangeAggregatorTests extends AggregatorTestCase {
@@ -262,6 +264,7 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             assertEquals(2, ranges.get(0).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, fieldType);
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissingDate() throws IOException {
@@ -360,7 +363,10 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.field(DATE_FIELD_NAME);
         aggregationBuilder.addRange("2015-01-01", "2015-12-31");
         aggregationBuilder.addRange("2019-01-01", "2019-12-31");
+        fieldUsageStats.clear();
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of(DATE_FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(DATE_FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void testCase(DateRangeAggregationBuilder aggregationBuilder,

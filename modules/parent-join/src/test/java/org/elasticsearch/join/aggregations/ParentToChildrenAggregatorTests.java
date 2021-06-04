@@ -46,10 +46,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.join.aggregations.ChildrenToParentAggregatorTests.withJoinFields;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
@@ -220,6 +222,10 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalChildren result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
         verify.accept(result);
+
+        assertEquals(Set.of("number", "join_field#parent_type"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("join_field#parent_type").getAggregationCount(), greaterThan(0L));
     }
 
     @Override

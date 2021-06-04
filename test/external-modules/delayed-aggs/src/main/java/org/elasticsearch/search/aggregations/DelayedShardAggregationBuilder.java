@@ -8,12 +8,13 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.ParseField;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -21,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<DelayedShardAggregationBuilder> {
     public static final String NAME = "shard_delay";
@@ -107,6 +109,16 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
                     }
                 } while (context.getRelativeTimeInMillis() - start < delay.getMillis());
                 return factory.create(parent, cardinality);
+            }
+
+            @Override
+            public Set<String> fieldsUsed() {
+                return factory.fieldsUsed();
+            }
+
+            @Override
+            public Set<Query> queriesUsed() {
+                return factory.queriesUsed();
             }
         };
     }

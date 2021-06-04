@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -20,6 +21,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.sameInstance;
@@ -77,6 +79,16 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
                 factories,
                 subAggs -> new DummyAggregator(name, subAggs, context, parent, CardinalityUpperBound.ONE, metadata)
             );
+        }
+
+        @Override
+        public Set<String> fieldsUsed() {
+            return Set.of();
+        }
+
+        @Override
+        public Set<Query> queriesUsed() {
+            return Set.of();
         }
     }
 

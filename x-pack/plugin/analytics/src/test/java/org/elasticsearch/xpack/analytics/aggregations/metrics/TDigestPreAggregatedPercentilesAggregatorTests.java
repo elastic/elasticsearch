@@ -8,10 +8,12 @@ package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import static java.util.Collections.singleton;
 import static org.elasticsearch.xpack.analytics.AnalyticsTestsUtils.histogramFieldDocValues;
+import static org.hamcrest.Matchers.greaterThan;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.apache.lucene.index.DirectoryReader;
@@ -130,6 +132,8 @@ public class TDigestPreAggregatedPercentilesAggregatorTests extends AggregatorTe
                 aggregator.postCollection();
                 verify.accept((InternalTDigestPercentiles) aggregator.buildTopLevel());
 
+                assertEquals(Set.of("number"), fieldUsageStats.getPerFieldStats().keySet());
+                assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
             }
         }
     }

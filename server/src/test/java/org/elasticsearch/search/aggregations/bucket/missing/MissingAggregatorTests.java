@@ -53,6 +53,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.common.lucene.search.Queries.newMatchAllQuery;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class MissingAggregatorTests extends AggregatorTestCase {
 
@@ -111,6 +112,9 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             },
             List.of(aggFieldType, anotherFieldType)
         );
+
+        assertEquals(Set.of("agg_field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("agg_field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testMatchSparse() throws IOException {
@@ -203,6 +207,8 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             },
             singleton(aggFieldType)
         );
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissingParam() throws IOException {

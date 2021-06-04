@@ -26,6 +26,9 @@ import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class GeoCentroidAggregatorTests extends AggregatorTestCase {
 
@@ -44,6 +47,9 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
         }
     }
 
@@ -68,6 +74,9 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 assertNull(result.centroid());
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
+
+            assertEquals(Set.of("another_field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("another_field").getAggregationCount(), greaterThan(0L));
         }
     }
 
@@ -90,6 +99,9 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
                 assertEquals(result.centroid(), expectedCentroid);
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
+
+            assertEquals(Set.of("another_field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("another_field").getAggregationCount(), greaterThan(0L));
         }
     }
 
@@ -159,6 +171,8 @@ public class GeoCentroidAggregatorTests extends AggregatorTestCase {
             assertEquals(expectedCentroid.getLon(), centroid.getLon(), GEOHASH_TOLERANCE);
             assertTrue(AggregationInspectionHelper.hasValue(result));
         }
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     @Override

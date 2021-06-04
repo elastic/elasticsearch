@@ -21,8 +21,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -49,9 +49,12 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
 
@@ -262,6 +265,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
         verify.accept(result);
+
+        assertEquals(Set.of("number", "join_field#parent_type"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("join_field#parent_type").getAggregationCount(), greaterThan(0L));
     }
 
     private void testCaseTerms(Query query, IndexSearcher indexSearcher, Consumer<InternalParent> verify)
@@ -273,6 +280,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
         InternalParent result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType));
         verify.accept(result);
+
+        assertEquals(Set.of("number", "join_field#parent_type"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("join_field#parent_type").getAggregationCount(), greaterThan(0L));
     }
 
     // run a terms aggregation on the number in child-documents, then a parent aggregation and then terms on the parent-number
@@ -287,6 +298,11 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         MappedFieldType subFieldType = new NumberFieldMapper.NumberFieldType("subNumber", NumberFieldMapper.NumberType.LONG);
         LongTerms result = searchAndReduce(indexSearcher, query, aggregationBuilder, withJoinFields(fieldType, subFieldType));
         verify.accept(result);
+
+        assertEquals(Set.of("number", "join_field#parent_type", "subNumber"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("number").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("join_field#parent_type").getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("subNumber").getAggregationCount(), greaterThan(0L));
     }
 
     @Override

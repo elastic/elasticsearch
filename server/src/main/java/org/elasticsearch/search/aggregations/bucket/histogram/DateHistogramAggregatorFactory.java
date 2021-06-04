@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -25,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class DateHistogramAggregatorFactory extends ValuesSourceAggregatorFactory {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateHistogramAggregatorFactory.class);
@@ -144,5 +146,18 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
             config, context, parent, CardinalityUpperBound.NONE, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

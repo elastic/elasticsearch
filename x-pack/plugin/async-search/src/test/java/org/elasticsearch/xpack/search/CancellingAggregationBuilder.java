@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An aggregation builder that blocks shard search action until the task is cancelled.
@@ -90,6 +92,16 @@ public class CancellingAggregationBuilder extends AbstractAggregationBuilder<Can
                     }
                 }
                 return factory.create(parent, cardinality);
+            }
+
+            @Override
+            public Set<String> fieldsUsed() {
+                return factory.fieldsUsed();
+            }
+
+            @Override
+            public Set<Query> queriesUsed() {
+                return factory.queriesUsed();
             }
         };
     }

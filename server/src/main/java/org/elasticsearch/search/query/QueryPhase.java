@@ -303,6 +303,11 @@ public class QueryPhase {
                     queryResult.serviceTimeEWMA((long) rExecutor.getTaskExecutionEWMA());
                 }
 
+                if (searchContext.parsedPostFilter() != null) {
+                    searchContext.indexShard().fieldUsageStats().onQuery(searchContext.parsedPostFilter().query());
+                }
+                searchContext.indexShard().fieldUsageStats().onQuery(query);
+
                 return shouldRescore;
             } finally {
                 // Search phase has finished, no longer need to check for timeout

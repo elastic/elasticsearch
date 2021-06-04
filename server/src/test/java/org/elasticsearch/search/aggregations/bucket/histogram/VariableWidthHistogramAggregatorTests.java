@@ -40,12 +40,14 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -89,6 +91,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     assertEquals(expectedMins.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.min(), doubleError);
                 });
             });
+
+        assertEquals(Set.of(NUMERIC_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(NUMERIC_FIELD).getAggregationCount(), greaterThan(0L));
     }
 
     public void testLongs() throws Exception {
@@ -124,6 +129,9 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
                     assertEquals(expectedMaxes.getOrDefault(bucket.getKey(), 0d).doubleValue(), bucket.max(), doubleError);
                 });
             });
+
+        assertEquals(Set.of(NUMERIC_FIELD), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(NUMERIC_FIELD).getAggregationCount(), greaterThan(0L));
     }
 
     public void testDoubles() throws Exception {

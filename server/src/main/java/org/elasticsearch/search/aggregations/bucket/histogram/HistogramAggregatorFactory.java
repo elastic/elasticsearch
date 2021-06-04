@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -22,6 +23,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Constructs the per-shard aggregator instance for histogram aggregation.  Selects the numeric or range field implementation based on the
@@ -104,5 +106,18 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
             hardBounds, config, context, parent, CardinalityUpperBound.NONE, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of();
     }
 }

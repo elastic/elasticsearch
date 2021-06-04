@@ -25,7 +25,9 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregator
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.A_FIELD;
 
@@ -61,6 +63,18 @@ class TTestAggregatorFactory extends MultiValuesSourceAggregatorFactory {
             default:
                 throw new IllegalArgumentException("Unsupported t-test type " + testType);
         }
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        final Set<Query> queries = new HashSet<>();
+        if (filterA != null) {
+            queries.add(filterA);
+        }
+        if (filterB != null) {
+            queries.add(filterB);
+        }
+        return queries;
     }
 
     @Override

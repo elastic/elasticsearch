@@ -51,6 +51,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket> extends AggregatorTestCase {
 
@@ -109,6 +110,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
         }, iw -> {
             iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D)));
         });
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedMissing() throws IOException {
@@ -117,7 +119,7 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             .missing("53.69437,6.475031");
         testCase(new MatchAllDocsQuery(), randomPrecision(), null, geoGrid -> assertEquals(1, geoGrid.getBuckets().size()),
             iw -> iw.addDocument(Collections.singleton(new LatLonDocValuesField(FIELD_NAME, 10D, 10D))), builder);
-
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testWithSeveralDocs() throws IOException {
@@ -151,6 +153,8 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 iw.addDocument(points);
             }
         });
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     public void testAsSubAgg() throws IOException {
@@ -192,6 +196,9 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
             assertThat(actual, equalTo(expectedCountPerTPerGeoHash));
         };
         testCase(aggregationBuilder, new MatchAllDocsQuery(), buildIndex, verify, keywordField("t"), geoPointField(FIELD_NAME));
+        assertEquals(Set.of(FIELD_NAME, "t"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("t").getAggregationCount(), greaterThan(0L));
     }
 
     private double[] randomLatLng() {
@@ -273,6 +280,8 @@ public abstract class GeoGridAggregatorTestCase<T extends InternalGeoGridBucket>
                 iw.addDocument(Collections.singletonList(docField));
             }
         });
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void testCase(Query query, String field, int precision, GeoBoundingBox geoBoundingBox,

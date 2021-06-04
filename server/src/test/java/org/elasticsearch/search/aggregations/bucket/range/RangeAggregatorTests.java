@@ -43,12 +43,14 @@ import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -294,6 +296,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             assertEquals(2, ranges.get(0).getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(range));
         }, fieldType);
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testUnmappedWithMissingDate() throws IOException {
@@ -474,6 +477,8 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         aggregationBuilder.addRange(0d, 5d);
         aggregationBuilder.addRange(10d, 20d);
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        assertEquals(Set.of(NUMBER_FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(NUMBER_FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     private void simpleTestCase(RangeAggregationBuilder aggregationBuilder,

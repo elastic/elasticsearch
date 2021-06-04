@@ -96,6 +96,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests.nestedObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
@@ -217,6 +218,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(2).getDocCount());
             }
         );
+
+        assertEquals(Set.of("keyword"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("keyword").getAggregationCount(), greaterThan(0L));
     }
 
     public void testUnmappedFieldWithGeopoint() throws Exception {
@@ -597,6 +601,9 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 assertEquals(1L, result.getBuckets().get(1).getDocCount());
             }
         );
+
+        assertEquals(Set.of("keyword"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("keyword").getAggregationCount(), greaterThan(0L));
     }
 
     /**

@@ -60,6 +60,7 @@ import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SumAggregatorTests extends AggregatorTestCase {
 
@@ -108,6 +109,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
             assertEquals(24L, count.getValue(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
         });
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     public void testSortedNumericDocValues() throws IOException {
@@ -121,6 +124,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
             assertEquals(15L, count.getValue(), 0d);
             assertTrue(AggregationInspectionHelper.hasValue(count));
         });
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     public void testQueryFiltering() throws IOException {
@@ -214,6 +219,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 assertFalse(AggregationInspectionHelper.hasValue(result));
             }
         );
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testPartiallyUnmapped() throws IOException {
@@ -250,6 +256,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }
         }
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     public void testValueScriptSingleValuedField() throws IOException {
@@ -262,6 +270,8 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
+        assertEquals(Set.of(FIELD_NAME), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get(FIELD_NAME).getAggregationCount(), greaterThan(0L));
     }
 
     public void testValueScriptMultiValuedField() throws IOException {
@@ -286,6 +296,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue(result));
             }
         );
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testFieldScriptMultiValuedField() throws IOException {

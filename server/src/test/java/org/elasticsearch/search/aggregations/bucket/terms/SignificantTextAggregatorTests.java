@@ -42,9 +42,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sampler;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.significantText;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class SignificantTextAggregatorTests extends AggregatorTestCase {
     @Override
@@ -113,6 +115,9 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 assertNotNull(terms.getBucketByKey("even"));
 
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
+
+                assertEquals(Set.of("text"), fieldUsageStats.getPerFieldStats().keySet());
+                assertThat(fieldUsageStats.getPerFieldStats().get("text").getAggregationCount(), greaterThan(0L));
             }
         }
     }
@@ -196,9 +201,11 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 InternalSampler sampler = searchAndReduce(searcher, new TermQuery(new Term("text", "odd")), aggBuilder, textFieldType);
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
-                assertTrue(terms.getBuckets().isEmpty()); 
+                assertTrue(terms.getBuckets().isEmpty());
             }
         }
+
+        assertEquals(Set.of(), fieldUsageStats.getPerFieldStats().keySet());
     }
 
     public void testFieldAlias() throws IOException {

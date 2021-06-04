@@ -991,7 +991,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
                 context::buildFilteredQuery,
-                enableRewriteAggsToFilterByFilter
+                enableRewriteAggsToFilterByFilter,
+                context.indexShard().fieldUsageStats()
             );
             context.addReleasable(aggContext);
             try {

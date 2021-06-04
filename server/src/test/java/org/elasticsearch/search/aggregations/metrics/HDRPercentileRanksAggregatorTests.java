@@ -29,6 +29,9 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.greaterThan;
 
 
 public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
@@ -61,6 +64,9 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
             assertEquals(0.5, rank.getValue(), 0d);
             assertFalse(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
         }
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testSimple() throws IOException {
@@ -95,6 +101,9 @@ public class HDRPercentileRanksAggregatorTests extends AggregatorTestCase {
                 assertTrue(AggregationInspectionHelper.hasValue((InternalHDRPercentileRanks)ranks));
             }
         }
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), greaterThan(0L));
     }
 
     public void testNullValues() throws IOException {

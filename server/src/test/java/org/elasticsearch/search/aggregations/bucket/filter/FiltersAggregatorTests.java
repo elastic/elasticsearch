@@ -119,6 +119,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         assertFalse(AggregationInspectionHelper.hasValue(response));
         indexReader.close();
         directory.close();
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), equalTo(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getQueryCount(), greaterThan(0L));
     }
 
     public void testBuildEmpty() throws IOException {
@@ -228,6 +232,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
         indexReader.close();
         directory.close();
+
+        assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), equalTo(0L));
+        assertThat(fieldUsageStats.getPerFieldStats().get("field").getQueryCount(), greaterThan(0L));
     }
 
     public void testRandom() throws Exception {
@@ -291,6 +299,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
             // Always true because we include 'other' in the agg
             assertTrue(AggregationInspectionHelper.hasValue(response));
+
+            assertEquals(Set.of("field"), fieldUsageStats.getPerFieldStats().keySet());
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getAggregationCount(), equalTo(0L));
+            assertThat(fieldUsageStats.getPerFieldStats().get("field").getQueryCount(), greaterThan(0L));
         } finally {
             indexReader.close();
             directory.close();

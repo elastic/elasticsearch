@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public class FilterAggregatorFactory extends AggregatorFactory {
 
@@ -59,6 +60,16 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException {
         return new FilterAggregator(name, () -> this.getWeight(), factories, context, parent, cardinality, metadata);
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        return Set.of();
+    }
+
+    @Override
+    public Set<Query> queriesUsed() {
+        return Set.of(filter);
     }
 
 }

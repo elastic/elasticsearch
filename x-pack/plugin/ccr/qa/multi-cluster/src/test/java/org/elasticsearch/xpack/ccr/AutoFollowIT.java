@@ -922,7 +922,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         for (String index : indices) {
             try {
                 deleteIndex(client, index);
-                deleteIndex(client, index);
             } catch (IOException e) {
                 if (isNotFoundResponseException(e)) {
                     continue;

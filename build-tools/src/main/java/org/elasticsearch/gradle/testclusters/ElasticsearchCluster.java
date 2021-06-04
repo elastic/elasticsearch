@@ -8,7 +8,7 @@
 package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.FileSupplier;
-import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.PropertyNormalization;
 import org.elasticsearch.gradle.ReaperService;
 import org.gradle.api.Named;

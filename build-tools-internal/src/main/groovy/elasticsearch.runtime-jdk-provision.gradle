@@ -33,11 +33,7 @@ if (BuildParams.getIsRuntimeJavaHomeSet()) {
     }
   }
 
-<<<<<<< HEAD:buildSrc/src/main/groovy/elasticsearch.runtime-jdk-provision.gradle
-  configure(allprojects - project(':build-tools')) {
-=======
 configure(allprojects) {
->>>>>>> b2a183baf00 (Move public build api into included build (#72861)):build-tools-internal/src/main/groovy/elasticsearch.runtime-jdk-provision.gradle
     project.tasks.withType(Test).configureEach { Test test ->
       test.dependsOn(rootProject.jdks.provisioned_runtime)
       test.executable = rootProject.jdks.provisioned_runtime.getBinJavaPath()

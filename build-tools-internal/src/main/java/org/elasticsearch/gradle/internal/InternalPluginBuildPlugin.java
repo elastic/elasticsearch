@@ -17,6 +17,10 @@ import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.TaskContainer;
+import org.gradle.api.Task;
+import java.io.File;
 
 import java.util.Optional;
 
@@ -32,7 +36,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
         project.getConfigurations().getByName("testImplementation").getDependencies().clear();
 
         project.getPluginManager().apply(RestTestBasePlugin.class);
-        var extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
+        PluginPropertiesExtension extension = project.getExtensions().getByType(PluginPropertiesExtension.class);
 
         // We've ported this from multiple build scripts where we see this pattern into
         // an extension method as a first step of consolidation.
@@ -43,7 +47,7 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
                 public void doCall(Object it) {
                     project.afterEvaluate(project1 -> {
                         // let check depend on check tasks of qa sub-projects
-                        final var checkTaskProvider = project1.getTasks().named("check");
+                        final TaskProvider<Task> checkTaskProvider = project1.getTasks().named("check");
                         Optional<Project> qaSubproject = project1.getSubprojects()
                             .stream()
                             .filter(p -> p.getPath().equals(project1.getPath() + ":qa"))
@@ -84,8 +88,8 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
      * Configure the pom for the main jar of this plugin
      */
     protected static void addNoticeGeneration(final Project project, PluginPropertiesExtension extension) {
-        final var licenseFile = extension.getLicenseFile();
-        var tasks = project.getTasks();
+        final File licenseFile = extension.getLicenseFile();
+        TaskContainer tasks = project.getTasks();
         if (licenseFile != null) {
             tasks.withType(Zip.class).named("bundlePlugin").configure(zip -> zip.from(licenseFile.getParentFile(), copySpec -> {
                 copySpec.include(licenseFile.getName());
@@ -93,9 +97,9 @@ public class InternalPluginBuildPlugin implements InternalPlugin {
             }));
         }
 
-        final var noticeFile = extension.getNoticeFile();
+        final File noticeFile = extension.getNoticeFile();
         if (noticeFile != null) {
-            final var generateNotice = tasks.register("generateNotice", NoticeTask.class, noticeTask -> {
+            final TaskProvider<NoticeTask> generateNotice = tasks.register("generateNotice", NoticeTask.class, noticeTask -> {
                 noticeTask.setInputFile(noticeFile);
                 noticeTask.source(Util.getJavaMainSourceSet(project).get().getAllJava());
             });

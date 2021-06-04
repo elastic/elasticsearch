@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle;
 
 import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform;
 import org.elasticsearch.gradle.transform.UnzipTransform;
@@ -20,7 +20,6 @@ import org.gradle.api.artifacts.repositories.IvyArtifactRepository;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.internal.artifacts.ArtifactAttributes;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Arrays;
 
@@ -170,7 +169,6 @@ public class JdkDownloadPlugin implements Plugin<Project> {
         }
     }
 
-    @NotNull
     private String azulPlatform(Jdk jdk) {
         switch (jdk.getPlatform()) {
             case "linux":

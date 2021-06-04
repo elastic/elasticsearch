@@ -43,6 +43,8 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.jvm.tasks.Jar;
+import org.gradle.api.artifacts.dsl.DependencyHandler;
+import org.gradle.api.tasks.SourceSet;
 
 import java.io.File;
 import java.io.IOException;
@@ -63,10 +65,10 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(CompileOnlyResolvePlugin.class);
         project.getPluginManager().apply(JarHellPlugin.class);
 
-        var extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
+        PluginPropertiesExtension extension = project.getExtensions().create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension.class, project);
         configureDependencies(project);
 
-        final var bundleTask = createBundleTasks(project, extension);
+        final TaskProvider<Zip> bundleTask = createBundleTasks(project, extension);
         project.afterEvaluate(project1 -> {
             project1.getExtensions().getByType(PluginPropertiesExtension.class).getExtendedPlugins().forEach(pluginName -> {
                 // Auto add dependent modules to the test cluster
@@ -75,9 +77,9 @@ public class PluginBuildPlugin implements Plugin<Project> {
                     testClusters.all(elasticsearchCluster -> elasticsearchCluster.module(":modules:" + pluginName));
                 }
             });
-            final var extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
+            final PluginPropertiesExtension extension1 = project1.getExtensions().getByType(PluginPropertiesExtension.class);
             configurePublishing(project1, extension1);
-            var name = extension1.getName();
+            String name = extension1.getName();
             project1.setProperty("archivesBaseName", name);
             project1.setDescription(extension1.getDescription());
 
@@ -114,8 +116,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
 
         // allow running ES with this plugin in the foreground of a build
-        var testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
-        final var runCluster = testClusters.create("runTask", cluster -> {
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = testClusters(project, TestClustersPlugin.EXTENSION_NAME);
+        final ElasticsearchCluster runCluster = testClusters.create("runTask", cluster -> {
             if (GradleUtils.isModuleProject(project.getPath())) {
                 cluster.module(bundleTask.flatMap((Transformer<Provider<RegularFile>, Zip>) zip -> zip.getArchiveFile()));
             } else {
@@ -156,7 +158,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
     }
 
     private static void configureDependencies(final Project project) {
-        var dependencies = project.getDependencies();
+        DependencyHandler dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
 
@@ -174,11 +176,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
      * metadata, properties, and packaging files
      */
     private static TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
-        final var pluginMetadata = project.file("src/main/plugin-metadata");
-        final var templateFile = new File(project.getBuildDir(), "templates/plugin-descriptor.properties");
+        final File pluginMetadata = project.file("src/main/plugin-metadata");
+        final File templateFile = new File(project.getBuildDir(), "templates/plugin-descriptor.properties");
 
         // create tasks to build the properties file for this plugin
-        final var copyPluginPropertiesTemplate = project.getTasks().register("copyPluginPropertiesTemplate", new Action<Task>() {
+        final TaskProvider<Task> copyPluginPropertiesTemplate = project.getTasks().register("copyPluginPropertiesTemplate", new Action<Task>() {
             @Override
             public void execute(Task task) {
                 task.getOutputs().file(templateFile);
@@ -197,20 +199,20 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 });
             }
         });
-        final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
+        final TaskProvider<Copy> buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);
             copy.into(new File(project.getBuildDir(), "generated-resources"));
         });
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
-        var testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
+        SourceSet testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
         Map<String, Object> map = Map.of("builtBy", buildProperties);
         testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
         testSourceSet.getResources().srcDir(pluginMetadata);
 
         // create the actual bundle task, which zips up all the files for the plugin
-        final var bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> {
+        final TaskProvider<Zip> bundle = project.getTasks().register("bundlePlugin", Zip.class, zip -> {
             zip.from(buildProperties);
             zip.from(pluginMetadata, copySpec -> {
                 // metadata (eg custom security policy)

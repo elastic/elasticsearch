@@ -9,8 +9,8 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.Jdk;
-import org.elasticsearch.gradle.internal.JdkDownloadPlugin;
+import org.elasticsearch.gradle.Jdk;
+import org.elasticsearch.gradle.JdkDownloadPlugin;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.ReaperPlugin;
 import org.elasticsearch.gradle.ReaperService;

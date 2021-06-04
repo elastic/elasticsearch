@@ -360,107 +360,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         return _defaultParallel;
     }
 
-<<<<<<< HEAD:buildSrc/src/main/java/org/elasticsearch/gradle/internal/info/GlobalBuildInfoPlugin.java
-    public static GitInfo gitInfo(File rootDir) {
-        try {
-            /*
-             * We want to avoid forking another process to run git rev-parse HEAD. Instead, we will read the refs manually. The
-             * documentation for this follows from https://git-scm.com/docs/gitrepository-layout and https://git-scm.com/docs/git-worktree.
-             *
-             * There are two cases to consider:
-             *  - a plain repository with .git directory at the root of the working tree
-             *  - a worktree with a plain text .git file at the root of the working tree
-             *
-             * In each case, our goal is to parse the HEAD file to get either a ref or a bare revision (in the case of being in detached
-             * HEAD state).
-             *
-             * In the case of a plain repository, we can read the HEAD file directly, resolved directly from the .git directory.
-             *
-             * In the case of a worktree, we read the gitdir from the plain text .git file. This resolves to a directory from which we read
-             * the HEAD file and resolve commondir to the plain git repository.
-             */
-            final Path dotGit = rootDir.toPath().resolve(".git");
-            final String revision;
-            if (Files.exists(dotGit) == false) {
-                return new GitInfo("unknown", "unknown");
-            }
-            final Path head;
-            final Path gitDir;
-            if (Files.isDirectory(dotGit)) {
-                // this is a git repository, we can read HEAD directly
-                head = dotGit.resolve("HEAD");
-                gitDir = dotGit;
-            } else {
-                // this is a git worktree, follow the pointer to the repository
-                final Path workTree = Paths.get(readFirstLine(dotGit).substring("gitdir:".length()).trim());
-                if (Files.exists(workTree) == false) {
-                    return new GitInfo("unknown", "unknown");
-                }
-                head = workTree.resolve("HEAD");
-                final Path commonDir = Paths.get(readFirstLine(workTree.resolve("commondir")));
-                if (commonDir.isAbsolute()) {
-                    gitDir = commonDir;
-                } else {
-                    // this is the common case
-                    gitDir = workTree.resolve(commonDir);
-                }
-            }
-            final String ref = readFirstLine(head);
-            if (ref.startsWith("ref:")) {
-                String refName = ref.substring("ref:".length()).trim();
-                Path refFile = gitDir.resolve(refName);
-                if (Files.exists(refFile)) {
-                    revision = readFirstLine(refFile);
-                } else if (Files.exists(gitDir.resolve("packed-refs"))) {
-                    // Check packed references for commit ID
-                    Pattern p = Pattern.compile("^([a-f0-9]{40}) " + refName + "$");
-                    try (Stream<String> lines = Files.lines(gitDir.resolve("packed-refs"))) {
-                        revision = lines.map(p::matcher)
-                            .filter(Matcher::matches)
-                            .map(m -> m.group(1))
-                            .findFirst()
-                            .orElseThrow(() -> new IOException("Packed reference not found for refName " + refName));
-                    }
-                } else {
-                    throw new GradleException("Can't find revision for refName " + refName);
-                }
-            } else {
-                // we are in detached HEAD state
-                revision = ref;
-            }
-            return new GitInfo(revision, findOriginUrl(gitDir.resolve("config")));
-        } catch (final IOException e) {
-            // for now, do not be lenient until we have better understanding of real-world scenarios where this happens
-            throw new GradleException("unable to read the git revision", e);
-        }
-    }
-
-    private static String findOriginUrl(final Path configFile) throws IOException {
-        Map<String, String> props = new HashMap<>();
-
-        try (Stream<String> stream = Files.lines(configFile, StandardCharsets.UTF_8)) {
-            Iterator<String> lines = stream.iterator();
-            boolean foundOrigin = false;
-            while (lines.hasNext()) {
-                String line = lines.next().trim();
-                if (line.startsWith(";") || line.startsWith("#")) {
-                    // ignore comments
-                    continue;
-                }
-                if (foundOrigin) {
-                    if (line.startsWith("[")) {
-                        // we're on to the next config item so stop looking
-                        break;
-                    }
-                    String[] pair = line.trim().split("=");
-                    props.put(pair[0].trim(), pair[1].trim());
-                } else {
-                    if (line.equals("[remote \"origin\"]")) {
-                        foundOrigin = true;
-                    }
-=======
-
-    public static String getResourceContents(String resourcePath) {
+  public static String getResourceContents(String resourcePath) {
         try (
                 BufferedReader reader = new BufferedReader(new InputStreamReader(GlobalBuildInfoPlugin.class.getResourceAsStream(resourcePath)))
         ) {
@@ -468,7 +368,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             for (String line = reader.readLine(); line != null; line = reader.readLine()) {
                 if (b.length() != 0) {
                     b.append('\n');
->>>>>>> b2a183baf00 (Move public build api into included build (#72861)):build-tools-internal/src/main/java/org/elasticsearch/gradle/internal/info/GlobalBuildInfoPlugin.java
                 }
                 b.append(line);
             }

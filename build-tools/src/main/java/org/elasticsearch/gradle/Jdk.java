@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle;
 
 import org.gradle.api.Buildable;
 import org.gradle.api.artifacts.Configuration;

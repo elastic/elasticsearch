@@ -12,7 +12,7 @@ import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.DistributionDownloadPlugin;
 import org.elasticsearch.gradle.ElasticsearchDistribution;
 import org.elasticsearch.gradle.FileSupplier;
-import org.elasticsearch.gradle.internal.Jdk;
+import org.elasticsearch.gradle.Jdk;
 import org.elasticsearch.gradle.LazyPropertyList;
 import org.elasticsearch.gradle.LazyPropertyMap;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;

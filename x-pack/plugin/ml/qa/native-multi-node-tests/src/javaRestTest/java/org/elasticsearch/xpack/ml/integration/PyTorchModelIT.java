@@ -83,6 +83,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73769")
     public void testEvaluate() throws IOException {
         createModelStoreIndex();
         putTaskConfig();

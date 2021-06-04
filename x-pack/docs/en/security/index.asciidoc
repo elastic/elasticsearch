@@ -92,6 +92,8 @@ See <<enable-audit-logging,Enable audit logging>>.
 
 include::configuring-stack-security.asciidoc[]
 
+include::securing-communications/update-tls-certificates.asciidoc[]
+
 include::authentication/overview.asciidoc[]
 
 include::authorization/overview.asciidoc[]

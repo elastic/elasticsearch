@@ -128,10 +128,6 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         this.builder = builder;
     }
 
-    ParsedPoint nullValue() {
-        return builder.nullValue.get();
-    }
-
     @Override
     protected void index(ParseContext context, CartesianPoint point) throws IOException {
         if (fieldType().isSearchable()) {

@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -38,4 +39,9 @@ tasks.named("processTestResources").configure {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
+}
+
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
+tasks.named("integTest").configure {
+  onlyIf { OS.current() != OS.WINDOWS }
 }

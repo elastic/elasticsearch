@@ -79,7 +79,7 @@ public class DataStreamAlias extends AbstractDiffable<DataStreamAlias> implement
      * Write requests targeting this instance will resolve the write index
      * of the write data stream this alias is referring to.
      *
-     * Note that the write data stream is also included in @{link {@link #getDataStreams()}}.
+     * Note that the write data stream is also included in {@link #getDataStreams()}.
      */
     public String getWriteDataStream() {
         return writeDataStream;

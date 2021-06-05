@@ -12,6 +12,7 @@ import org.elasticsearch.common.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
+import java.io.FilterOutputStream;
 import java.io.Flushable;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,7 @@ import java.math.BigInteger;
 import java.nio.file.Path;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Date;
@@ -1047,6 +1049,32 @@ public final class XContentBuilder implements Closeable, Flushable {
         return this;
     }
 
+    /**
+     * Used in {@link #writableFieldAsBase64(String, WritableValue)}
+     */
+    public interface WritableValue {
+        void writeTo(OutputStream os) throws IOException;
+    }
+
+    /**
+     * Write the serialization of a {@link WritableValue} via {@link WritableValue#writeTo(OutputStream)} as a string encoded in
+     * Base64 format. This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     */
+    public XContentBuilder writableFieldAsBase64(String name, WritableValue value) throws IOException {
+        generator.writeFieldDirectly(name, os -> {
+            os.write('\"');
+            try (OutputStream encoded = Base64.getEncoder().wrap(new FilterOutputStream(os) {
+                @Override
+                public void close() {
+                    // do not close the output
+                }
+            })) {
+                value.writeTo(encoded);
+            }
+            os.write('\"');
+        });
+        return this;
+    }
 
     /**
      * Returns a version used for serialising a response.

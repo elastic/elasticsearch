@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.internal.BuildPlugin
+import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin
 
 /*
  * This script plugin configures formatting for Java source using Spotless
@@ -154,7 +154,7 @@ def projectPathsToExclude = [
 ]
 
 subprojects {
-  plugins.withType(BuildPlugin).whenPluginAdded {
+  plugins.withType(ElasticsearchJavaPlugin).whenPluginAdded {
     if (projectPathsToExclude.contains(project.path) == false) {
       project.apply plugin: "com.diffplug.spotless"
 

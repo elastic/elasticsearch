@@ -24,6 +24,9 @@ import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkAction;
 import org.gradle.workers.WorkParameters;
@@ -33,7 +36,6 @@ import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
@@ -45,6 +47,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -78,6 +82,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
             params.getProjectBuildDirs().set(getProjectBuildDirs());
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
+            params.getIgnoreClasses().set(ignoreClasses);
             params.getMarkerFile().set(markerFile);
         });
     }
@@ -101,17 +106,15 @@ public class SplitPackagesAuditTask extends DefaultTask {
     }
 
     @InputFiles
-    public Set<File> getSrcDirs() {
-        return srcDirs.get();
-    }
-
-    public void setSrcDirs(Set<File> srcDirs) {
-        this.srcDirs.set(srcDirs);
+    @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public SetProperty<File> getSrcDirs() {
+        return srcDirs;
     }
 
     @Input
-    public Set<String> getIgnoreClasses() {
-        return ignoreClasses.get();
+    public SetProperty<String> getIgnoreClasses() {
+        return ignoreClasses;
     }
 
     /**
@@ -160,7 +163,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 LOGGER.error(String.join(System.lineSeparator(), msg));
             }
             if (splitPackages.isEmpty() == false) {
-                throw new GradleException("Split packages found! See errors above for details.\n" +
+                throw new GradleException("Verification failed: Split packages found! See errors above for details.\n" +
                     "DO NOT ADD THESE SPLIT PACKAGES TO THE IGNORE LIST! Choose a new package name for the classes added.");
             }
 
@@ -174,9 +177,6 @@ public class SplitPackagesAuditTask extends DefaultTask {
         private Map<String, List<File>> getDependencyPackages() {
             Map<String, List<File>> packages = new HashMap<>();
             for (File classpathElement : getParameters().getClasspath().getFiles()) {
-                if (classpathElement.exists() == false) {
-                    continue;
-                }
                 for (String packageName : readPackages(classpathElement)) {
                     packages.computeIfAbsent(packageName, k -> new ArrayList<>()).add(classpathElement);
                 }
@@ -184,7 +184,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (LOGGER.isInfoEnabled()) {
                 List<String> msg = new ArrayList<>();
                 msg.add("Packages from dependencies:");
-                packages.entrySet().stream().sorted().forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
+                packages.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
                 LOGGER.info(String.join(System.lineSeparator(), msg));
             }
             return packages;
@@ -194,16 +194,15 @@ public class SplitPackagesAuditTask extends DefaultTask {
             Map<String, Set<String>> splitPackages = new HashMap<>();
             for (File srcDir : getParameters().getSrcDirs().get()) {
                 try {
-                    walkJavaFiles(srcDir.toPath(), ".java", classfile -> {
-                        String packageName = getPackageName(classfile);
-                        String className = classfile.subpath(classfile.getNameCount() - 1, classfile.getNameCount()).toString();
+                    walkJavaFiles(srcDir.toPath(), ".java", path -> {
+                        String packageName = getPackageName(path);
+                        String className = path.subpath(path.getNameCount() - 1, path.getNameCount()).toString();
                         className = className.substring(0, className.length() - ".java".length());
-                        className = className.replace('$', '.'); // for inner class names
-                        LOGGER.info("Inspecting " + classfile + System.lineSeparator()
+                        LOGGER.info("Inspecting " + path + System.lineSeparator()
                             + "  package: " + packageName + System.lineSeparator()
                             + "  class: " + className);
                         if (dependencyPackages.contains(packageName)) {
-                            splitPackages.computeIfAbsent(packageName, k -> new HashSet<>()).add(packageName + "." + className);
+                            splitPackages.computeIfAbsent(packageName, k -> new TreeSet<>()).add(packageName + "." + className);
                         }
                     });
                 } catch (IOException e) {
@@ -213,7 +212,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
             if (LOGGER.isInfoEnabled()) {
                 List<String> msg = new ArrayList<>();
                 msg.add("Split packages:");
-                splitPackages.entrySet().stream().sorted().forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
+                splitPackages.entrySet().stream().sorted(Map.Entry.comparingByKey()).forEach(e -> msg.add("  -" + e.getKey() + " -> " + e.getValue()));
                 LOGGER.info(String.join(System.lineSeparator(), msg));
             }
             return splitPackages;
@@ -230,8 +229,9 @@ public class SplitPackagesAuditTask extends DefaultTask {
                     filterErrorsFound = true;
                     continue;
                 }
-                String className = fqcn.substring(lastDot + 1);
                 String packageName = fqcn.substring(0, lastDot);
+                String className = fqcn.substring(lastDot + 1);
+                LOGGER.info("IGNORING package: " + packageName + ", class: " + className);
                 if (packageName.equals(lastPackageName) == false) {
                     currentClasses = splitPackages.get(packageName);
                     lastPackageName = packageName;
@@ -294,10 +294,12 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 .forEach(classConsumer);
         }
 
-        private static String getPackageName(Path classfile) {
-            String separator = classfile.getFileSystem().getSeparator();
-            int pathElements = classfile.getNameCount();
-            return classfile.subpath(0, pathElements - 1).toString().replace(separator, ".");
+        private static String getPackageName(Path path) {
+            List<String> subpackages = new ArrayList<>();
+            for (int i = 0; i < path.getNameCount() - 1; ++i) {
+                subpackages.add(path.getName(i).toString());
+            }
+            return String.join(".", subpackages);
         }
 
         private String formatDependency(File dependencyFile) {

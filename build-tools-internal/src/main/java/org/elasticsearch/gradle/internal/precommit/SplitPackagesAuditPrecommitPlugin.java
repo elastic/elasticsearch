@@ -12,17 +12,20 @@ import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
 public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
+    public static final String TASK_NAME = "splitPackagesAudit";
+
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {
-        TaskProvider<SplitPackagesAuditTask> task = project.getTasks().register("splitPackagesAudit", SplitPackagesAuditTask.class);
+        TaskProvider<SplitPackagesAuditTask> task = project.getTasks().register(TASK_NAME, SplitPackagesAuditTask.class);
         task.configure(t -> {
-            t.setClasspath(project.getConfigurations().getByName("compileClasspath"));
+            t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            t.setSrcDirs(mainSourceSet.getAllSource().getSrcDirs());
+            t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
         });
         return task;
     }

@@ -11,6 +11,8 @@ package org.elasticsearch.common.geo;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Geometry;
@@ -28,13 +30,40 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * An utility class with a geometry parser methods supporting different shape representation formats
+ * An utility class with to read  / write geometries using XContentParser.
  */
 public final class GeometryParser {
 
     private final GeoJson geoJsonParser;
     private final WellKnownText wellKnownTextParser;
     private final boolean ignoreZValue;
+
+    public enum PARSER_FORMAT {
+        WKT {
+            @Override
+            public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+                if (geometry != null) {
+                    return builder.value(WellKnownText.INSTANCE.toWKT(geometry));
+                } else {
+                    return builder.nullValue();
+                }
+            };
+
+        },
+        GEOJSON {
+            @Override
+            public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
+                if (geometry != null) {
+                    return GeoJson.toXContent(geometry, builder, params);
+                } else {
+                    return builder.nullValue();
+                }
+            };
+        };
+
+        public abstract XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
+    }
+
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
         GeometryValidator validator = new StandardValidator(ignoreZValue);
@@ -47,19 +76,14 @@ public final class GeometryParser {
      * Parses supplied XContent into Geometry
      */
     public Geometry parse(XContentParser parser) throws IOException, ParseException {
-        return geometryFormat(parser).fromXContent(parser);
-    }
-
-    /**
-     * Returns a geometry format object that can parse and then serialize the object back to the same format.
-     */
-    public GeometryFormat geometryFormat(String format) {
-        if (format.equals(GeoJsonGeometryFormat.NAME)) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
-        } else if (format.equals(WKTGeometryFormat.NAME)) {
-            return new WKTGeometryFormat(wellKnownTextParser);
-        } else {
-            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            return null;
+        }
+        PARSER_FORMAT format = geometryFormat(parser);
+        switch (format) {
+            case WKT: return wellKnownTextParser.fromWKT(parser.text());
+            case GEOJSON: return geoJsonParser.fromXContent(parser);
+            default: throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
         }
     }
 
@@ -67,14 +91,14 @@ public final class GeometryParser {
      * Returns a geometry format object that can parse and then serialize the object back to the same format.
      * This method automatically recognizes the format by examining the provided {@link XContentParser}.
      */
-    public GeometryFormat geometryFormat(XContentParser parser) {
+    public PARSER_FORMAT geometryFormat(XContentParser parser) {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
+            return PARSER_FORMAT.GEOJSON;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new WKTGeometryFormat(wellKnownTextParser);
+            return PARSER_FORMAT.WKT;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             // We don't know the format of the original geometry - so going with default
-            return new GeoJsonGeometryFormat(geoJsonParser);
+            return PARSER_FORMAT.GEOJSON;
         } else {
             throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
         }

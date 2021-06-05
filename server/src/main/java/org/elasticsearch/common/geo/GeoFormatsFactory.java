@@ -20,10 +20,13 @@ import java.util.function.Function;
  */
 public class GeoFormatsFactory {
 
+    public static final String GEOJSON = "geojson";
+    public static final String WKT = "wkt";
+
     private static final Map<String, Function<Geometry, Object>> FORMATS = new HashMap<>();
     static {
-        FORMATS.put(GeoJsonGeometryFormat.NAME, GeoJson::toMap);
-        FORMATS.put(WKTGeometryFormat.NAME, WellKnownText.INSTANCE::toWKT);
+        FORMATS.put(GEOJSON, GeoJson::toMap);
+        FORMATS.put(WKT, WellKnownText.INSTANCE::toWKT);
     }
 
     /**

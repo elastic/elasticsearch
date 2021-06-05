@@ -19,7 +19,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatsFactory;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+//import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -251,7 +251,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+            String geoFormat = format != null ? format : GeoFormatsFactory.GEOJSON;
             Function<GeoPoint, Object> formatter = getFormatter(geoFormat);
             if (formatter == null) {
                 throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");

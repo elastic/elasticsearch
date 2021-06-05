@@ -9,8 +9,6 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.elasticsearch.common.geo.GeoJson;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-import org.elasticsearch.common.geo.WKTGeometryFormat;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
@@ -23,10 +21,13 @@ import java.util.function.Function;
  */
 public class CartesianFormatsFactory {
 
+    public static final String GEOJSON = "geojson";
+    public static final String WKT = "wkt";
+
     private static final Map<String, Function<Geometry, Object>> FORMATS = new HashMap<>();
     static {
-        FORMATS.put(GeoJsonGeometryFormat.NAME, GeoJson::toMap);
-        FORMATS.put(WKTGeometryFormat.NAME, WellKnownText.INSTANCE::toWKT);
+        FORMATS.put(GEOJSON, GeoJson::toMap);
+        FORMATS.put(WKT, WellKnownText.INSTANCE::toWKT);
     }
 
     /**

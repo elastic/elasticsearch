@@ -11,7 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeoFormatsFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -87,7 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
+            String geoFormat = format != null ? format : GeoFormatsFactory.GEOJSON;
 
             Function<T, Object> formatter = getFormatter(geoFormat);
             if (formatter == null) {

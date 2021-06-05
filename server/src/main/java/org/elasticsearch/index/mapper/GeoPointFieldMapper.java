@@ -251,11 +251,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            String geoFormat = format != null ? format : GeoFormatsFactory.GEOJSON;
-            Function<GeoPoint, Object> formatter = getFormatter(geoFormat);
-            if (formatter == null) {
-                throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
-            }
+            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatsFactory.GEOJSON);
             return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
         }
 

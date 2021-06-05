@@ -34,6 +34,10 @@ public class CartesianFormatsFactory {
      * Returns a formatter by name
      */
     public static Function<Geometry, Object> getFormat(String name) {
-        return FORMATS.get(name);
+        Function<Geometry, Object> format = FORMATS.get(name);
+        if (format == null) {
+            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
+        }
+        return format;
     }
 }

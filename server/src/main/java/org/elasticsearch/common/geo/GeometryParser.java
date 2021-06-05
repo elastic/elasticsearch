@@ -64,7 +64,6 @@ public final class GeometryParser {
         public abstract XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
     }
 
-
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
         GeometryValidator validator = new StandardValidator(ignoreZValue);
         geoJsonParser = new GeoJson(rightOrientation, coerce, validator);

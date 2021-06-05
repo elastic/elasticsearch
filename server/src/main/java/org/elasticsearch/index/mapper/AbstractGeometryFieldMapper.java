@@ -87,12 +87,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            String geoFormat = format != null ? format : GeoFormatsFactory.GEOJSON;
-
-            Function<T, Object> formatter = getFormatter(geoFormat);
-            if (formatter == null) {
-                throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
-            }
+            Function<T, Object> formatter = getFormatter(format != null ? format : GeoFormatsFactory.GEOJSON);
             if (parsesArrayValue) {
                 return new ArraySourceValueFetcher(name(), context) {
                     @Override

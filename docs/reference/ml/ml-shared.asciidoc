@@ -774,8 +774,7 @@ working with both over and by fields, then you can set `exclude_frequent` to
 end::exclude-frequent[]
 
 tag::exclude-interim-results[]
-If `true`, the output excludes interim results. By default, interim results are
-included.
+If `true`, the output excludes interim results. Defaults to `false`, which means interim results are included.
 end::exclude-interim-results[]
 
 tag::failed-category-count[]

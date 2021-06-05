@@ -100,13 +100,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
             }
             CartesianPointParser parser
                 = new CartesianPointParser(
-                    name,
-                    CartesianPoint::new,
-                    (p, point) -> {
-                      CartesianPoint.parsePoint(p, point, ignoreZValue.get().value());
-                      return point;
-                    },
-                    nullValue.get(),
+                name,
+                CartesianPoint::new,
+                (p, point) -> {
+                    CartesianPoint.parsePoint(p, point, ignoreZValue.get().value());
+                    return point;
+                },
+                nullValue.get(),
                 ignoreZValue.get().value(), ignoreMalformed.get().value());
             PointFieldType ft
                 = new PointFieldType(buildFullName(contentPath), indexed.get(), stored.get(), hasDocValues.get(), parser, meta.get());
@@ -212,7 +212,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         protected void reset(CartesianPoint in, double x, double y) {
-           in.reset(x, y);
+            in.reset(x, y);
         }
     }
 }

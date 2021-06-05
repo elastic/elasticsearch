@@ -301,11 +301,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     private static class GeoPointParser extends PointParser<GeoPoint> {
 
         GeoPointParser(String field,
-                           Supplier<GeoPoint> pointSupplier,
-                           CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
-                           GeoPoint nullValue,
-                           boolean ignoreZValue,
-                           boolean ignoreMalformed) {
+                       Supplier<GeoPoint> pointSupplier,
+                       CheckedBiFunction<XContentParser, GeoPoint, GeoPoint, IOException> objectParser,
+                       GeoPoint nullValue,
+                       boolean ignoreZValue,
+                       boolean ignoreMalformed) {
             super(field, pointSupplier, objectParser, nullValue, ignoreZValue, ignoreMalformed);
         }
 
@@ -336,5 +336,4 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             in.reset(y, x);
         }
     }
-
 }

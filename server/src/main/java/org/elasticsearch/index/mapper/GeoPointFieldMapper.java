@@ -48,8 +48,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-//import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
-
 /**
  * Field Mapper for geo_point types.
  *

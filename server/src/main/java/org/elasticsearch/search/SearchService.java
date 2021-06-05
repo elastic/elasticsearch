@@ -111,7 +111,9 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -208,9 +210,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
 
+    private final TaskManager taskManager;
+
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService) {
+                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService, TaskManager taskManager) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -222,6 +226,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.taskManager = taskManager;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -1316,18 +1321,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * builder retains a reference to the provided {@link SearchRequest}.
      */
     public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
+        CancellableTask cancellableTask = taskManager.getCancellableTaskForSearchRequest(request);
+
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                return InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
+                ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
                         () -> requestToPipelineTree(request));
+                reduceContext.setCancellableTask(cancellableTask);
+                return reduceContext;
             }
 
             @Override
             public ReduceContext forFinalReduction() {
                 PipelineTree pipelineTree = requestToPipelineTree(request);
-                return InternalAggregation.ReduceContext.forFinalReduction(
+                ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
                         bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
+                reduceContext.setCancellableTask(cancellableTask);
+                return reduceContext;
             }
         };
     }

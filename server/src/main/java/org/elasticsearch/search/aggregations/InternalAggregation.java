@@ -18,6 +18,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -53,6 +55,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
+        private CancellableTask cancellableTask;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -125,9 +128,17 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * the maximum number of buckets allowed in a response
          */
         public void consumeBucketsAndMaybeBreak(int size) {
+            if (cancellableTask != null && cancellableTask.isCancelled()) {
+                String exceptionMessage = String.format(
+                    "Stopping aggregation reduce because search task %d was cancelled", cancellableTask.getId());
+                throw new TaskCancelledException(exceptionMessage);
+            }
             multiBucketConsumer.accept(size);
         }
 
+        public void setCancellableTask(CancellableTask cancellableTask) {
+            this.cancellableTask = cancellableTask;
+        }
     }
 
     protected final String name;

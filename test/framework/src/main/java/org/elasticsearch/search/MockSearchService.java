@@ -20,6 +20,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -69,9 +70,9 @@ public class MockSearchService extends SearchService {
     }
 
     public MockSearchService(ClusterService clusterService,
-            IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
-            BigArrays bigArrays, FetchPhase fetchPhase, CircuitBreakerService circuitBreakerService) {
-        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService);
+           IndicesService indicesService, ThreadPool threadPool, ScriptService scriptService,
+           BigArrays bigArrays, FetchPhase fetchPhase, CircuitBreakerService circuitBreakerService, TaskManager taskManager) {
+        super(clusterService, indicesService, threadPool, scriptService, bigArrays, fetchPhase, null, circuitBreakerService, taskManager);
     }
 
     @Override

@@ -241,7 +241,9 @@ public class SplitPackagesAuditTask extends DefaultTask {
                     LOGGER.error("Package is not split: " + fqcn);
                     filterErrorsFound = true;
                 } else {
-                    if (currentClasses.remove(className) == false) {
+                    if (className.equals("*")) {
+                        currentClasses.clear();
+                    } else if (currentClasses.remove(className) == false) {
                         LOGGER.error("Class does not exist: " + fqcn);
                         filterErrorsFound = true;
                     }

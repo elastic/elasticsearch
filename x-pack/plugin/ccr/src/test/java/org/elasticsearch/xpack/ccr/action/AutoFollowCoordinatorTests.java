@@ -2051,6 +2051,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73797")
     public void testExcludedPatternIndicesAreNotAutoFollowed() {
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);

@@ -19,11 +19,9 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatsFactory;
-//import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -49,6 +47,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+//import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 
 /**
  * Field Mapper for geo_point types.
@@ -222,7 +222,6 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     public static class GeoPointFieldType extends AbstractGeometryFieldType<GeoPoint> implements GeoShapeQueryable {
 
-        private static final GeometryParser PARSER = new GeometryParser(true, true, true);
         private final FieldValues<GeoPoint> scriptValues;
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
@@ -231,6 +230,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             this.scriptValues = scriptValues;
         }
 
+        // only used in test
         public GeoPointFieldType(String name) {
             this(name, true, false, true, null, null, Collections.emptyMap());
         }

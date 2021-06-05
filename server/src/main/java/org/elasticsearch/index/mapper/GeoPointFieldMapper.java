@@ -23,7 +23,6 @@ import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryFormat;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -253,11 +252,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return super.valueFetcher(context, format);
             }
             String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-            GeometryFormat<Geometry> geometryFormat = PARSER.geometryFormat(geoFormat);
-            return FieldValues.valueFetcher(scriptValues, v -> {
-                GeoPoint p = (GeoPoint) v;
-                return geometryFormat.toXContentAsObject(new Point(p.lon(), p.lat()));
-            }, context);
+            Function<GeoPoint, Object> formatter = getFormatter(geoFormat);
+            if (formatter == null) {
+                throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
+            }
+            return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
         }
 
         @Override

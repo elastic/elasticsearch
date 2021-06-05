@@ -53,7 +53,7 @@ public final class GeometryParser {
     /**
      * Returns a geometry format object that can parse and then serialize the object back to the same format.
      */
-    public GeometryFormat<Geometry> geometryFormat(String format) {
+    public GeometryFormat geometryFormat(String format) {
         if (format.equals(GeoJsonGeometryFormat.NAME)) {
             return new GeoJsonGeometryFormat(geoJsonParser);
         } else if (format.equals(WKTGeometryFormat.NAME)) {
@@ -67,7 +67,7 @@ public final class GeometryParser {
      * Returns a geometry format object that can parse and then serialize the object back to the same format.
      * This method automatically recognizes the format by examining the provided {@link XContentParser}.
      */
-    public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
+    public GeometryFormat geometryFormat(XContentParser parser) {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return new GeoJsonGeometryFormat(geoJsonParser);
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {

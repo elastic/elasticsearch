@@ -1060,7 +1060,7 @@ public final class XContentBuilder implements Closeable, Flushable {
             assert false : "writableFieldAsBase64 supports only JSON format";
             throw new UnsupportedOperationException("writableFieldAsBase64 supports only JSON format");
         }
-        generator.directField(name, os -> {
+        generator.writeDirectField(name, os -> {
             os.write('\"');
             final FilterOutputStream noClose = new FilterOutputStream(os) {
                 @Override
@@ -1069,9 +1069,9 @@ public final class XContentBuilder implements Closeable, Flushable {
                     // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
                 }
             };
-            final OutputStream wrapped = Base64.getEncoder().wrap(noClose);
-            writer.accept(wrapped);
-            wrapped.close(); // close to flush the outstanding buffer used in the Base64 Encoder
+            final OutputStream encodedOutput = Base64.getEncoder().wrap(noClose);
+            writer.accept(encodedOutput);
+            encodedOutput.close(); // close to flush the outstanding buffer used in the Base64 Encoder
             os.write('\"');
         });
         return this;

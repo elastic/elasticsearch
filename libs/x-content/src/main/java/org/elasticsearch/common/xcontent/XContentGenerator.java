@@ -109,7 +109,7 @@ public interface XContentGenerator extends Closeable, Flushable {
      * Write a field whose value is written directly to the output stream. As the content is copied as is,
      * the writer must a valid XContent value (e.g., string is properly escaped and quoted)
      */
-    void directField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
+    void writeDirectField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 
     default void copyCurrentEvent(XContentParser parser) throws IOException {
         switch (parser.currentToken()) {

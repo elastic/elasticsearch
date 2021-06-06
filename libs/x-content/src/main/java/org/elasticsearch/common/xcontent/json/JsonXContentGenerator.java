@@ -432,7 +432,7 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     @Override
-    public void directField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+    public void writeDirectField(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         writeStartRaw(name);
         flush();
         writer.accept(os);

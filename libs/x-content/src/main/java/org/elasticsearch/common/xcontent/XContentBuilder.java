@@ -1060,8 +1060,13 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Write the serialization of a {@link WritableValue} via {@link WritableValue#writeTo(OutputStream)} as a string encoded in
      * Base64 format. This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     * Note that this method supports only JSON.
      */
     public XContentBuilder writableFieldAsBase64(String name, WritableValue value) throws IOException {
+        if (contentType() != XContentType.JSON) {
+            assert false : "writableFieldAsBase64 supports only JSON format";
+            throw new UnsupportedOperationException("writableFieldAsBase64 supports only JSON format");
+        }
         generator.writeFieldDirectly(name, os -> {
             os.write('\"');
             final FilterOutputStream noClose = new FilterOutputStream(os) {

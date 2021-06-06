@@ -63,7 +63,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         Line expected = new Line(new double[] { 100.0, 101.0}, new double[] {0.0, 1.0});
         try (XContentParser parser = createParser(lineGeoJson)) {
             parser.nextToken();
-            assertEquals(expected, new GeoJson(false, false, new GeographyValidator(true)).fromXContent(parser));
+            assertEquals(expected, GeoJson.fromXContent(GeographyValidator.get(true), false, false, parser));
         }
     }
 
@@ -115,7 +115,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(false, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, false, parser));
             assertNull(parser.nextToken());
         }
 
@@ -131,7 +131,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(lineGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(false, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, false, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -169,7 +169,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(multilinesGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(false, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, false, parser));
             assertNull(parser.nextToken());
         }
 
@@ -180,7 +180,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(multilinesGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(false, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, false, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -229,7 +229,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
         ));
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            assertEquals(expected, new GeoJson(true, false, new GeographyValidator(true)).fromXContent(parser));
+            assertEquals(expected, GeoJson.fromXContent(GeographyValidator.get(true), false, true, parser));
         }
     }
 
@@ -249,7 +249,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
             .endObject();
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(true)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(true), false, true, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -265,7 +265,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(invalidPoint1)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -278,7 +278,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(invalidPoint2)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -292,7 +292,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(invalidMultipoint1)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -305,7 +305,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(invalidMultipoint2)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -319,7 +319,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject();
         try (XContentParser parser = createParser(invalidMultipoint3)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -360,7 +360,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, multiPolygonGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
    }
@@ -381,7 +381,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
                 .endObject());
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () ->GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -396,7 +396,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -411,7 +411,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -426,7 +426,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -439,7 +439,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -450,7 +450,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -463,7 +463,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, invalidPoly)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -699,7 +699,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(tooLittlePointGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
 
@@ -712,7 +712,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
 
         try (XContentParser parser = createParser(emptyPointGeoJson)) {
             parser.nextToken();
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertNull(parser.nextToken());
         }
     }
@@ -738,7 +738,7 @@ public class GeoJsonParserTests extends BaseGeoParsingTestCase {
             parser.nextToken(); // foo
             parser.nextToken(); // start object
             parser.nextToken(); // start object
-            expectThrows(XContentParseException.class, () -> new GeoJson(true, false, new GeographyValidator(false)).fromXContent(parser));
+            expectThrows(XContentParseException.class, () -> GeoJson.fromXContent(GeographyValidator.get(false), false, true, parser));
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken()); // end of the document
             assertNull(parser.nextToken()); // no more elements afterwards
         }

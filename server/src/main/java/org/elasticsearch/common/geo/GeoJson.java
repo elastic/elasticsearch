@@ -56,20 +56,13 @@ public final class GeoJson {
     private static final ParseField FIELD_ORIENTATION = new ParseField("orientation");
     private static final ParseField FIELD_RADIUS = new ParseField("radius");
 
-    private final boolean rightOrientation;
-    private final boolean coerce;
-    private final GeometryValidator validator;
-
-    public GeoJson(boolean rightOrientation, boolean coerce, GeometryValidator validator) {
-        this.rightOrientation = rightOrientation;
-        this.coerce = coerce;
-        this.validator = validator;
+    private GeoJson() {
     }
 
-    public Geometry fromXContent(XContentParser parser)
+    public static Geometry fromXContent(GeometryValidator validator, boolean coerce, boolean rightOrientation, XContentParser parser)
         throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
-            Geometry geometry = PARSER.apply(subParser, this);
+            Geometry geometry = rightOrientation ? RIGHTPARSER.apply(subParser, coerce) : LEFTPARSER.apply(subParser, coerce);
             validator.validate(geometry);
             return geometry;
         }
@@ -334,23 +327,43 @@ public final class GeoJson {
         return root;
     }
 
-    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER =
+    private static final ConstructingObjectParser<Geometry, Boolean> LEFTPARSER =
         new ConstructingObjectParser<>("geojson", true, (a, c) -> {
             String type = (String) a[0];
             CoordinateNode coordinates = (CoordinateNode) a[1];
             @SuppressWarnings("unchecked") List<Geometry> geometries = (List<Geometry>) a[2];
             Boolean orientation = orientationFromString((String) a[3]);
             DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];
-            return createGeometry(type, geometries, coordinates, orientation, c.rightOrientation, c.coerce, radius);
+            return createGeometry(type, geometries, coordinates, orientation, false, c, radius);
         });
 
     static {
-        PARSER.declareString(constructorArg(), FIELD_TYPE);
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
+        LEFTPARSER.declareString(constructorArg(), FIELD_TYPE);
+        LEFTPARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
             ObjectParser.ValueType.VALUE_ARRAY);
-        PARSER.declareObjectArray(optionalConstructorArg(), PARSER, FIELD_GEOMETRIES);
-        PARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
-        PARSER.declareField(optionalConstructorArg(), p -> DistanceUnit.Distance.parseDistance(p.text()), FIELD_RADIUS,
+        LEFTPARSER.declareObjectArray(optionalConstructorArg(), LEFTPARSER, FIELD_GEOMETRIES);
+        LEFTPARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
+        LEFTPARSER.declareField(optionalConstructorArg(), p -> DistanceUnit.Distance.parseDistance(p.text()), FIELD_RADIUS,
+            ObjectParser.ValueType.STRING);
+    }
+
+    private static final ConstructingObjectParser<Geometry, Boolean> RIGHTPARSER =
+        new ConstructingObjectParser<>("geojson", true, (a, c) -> {
+            String type = (String) a[0];
+            CoordinateNode coordinates = (CoordinateNode) a[1];
+            @SuppressWarnings("unchecked") List<Geometry> geometries = (List<Geometry>) a[2];
+            Boolean orientation = orientationFromString((String) a[3]);
+            DistanceUnit.Distance radius = (DistanceUnit.Distance) a[4];
+            return createGeometry(type, geometries, coordinates, orientation, true, c, radius);
+        });
+
+    static {
+        RIGHTPARSER.declareString(constructorArg(), FIELD_TYPE);
+        RIGHTPARSER.declareField(optionalConstructorArg(), (p, c) -> parseCoordinates(p), FIELD_COORDINATES,
+            ObjectParser.ValueType.VALUE_ARRAY);
+        RIGHTPARSER.declareObjectArray(optionalConstructorArg(), RIGHTPARSER, FIELD_GEOMETRIES);
+        RIGHTPARSER.declareString(optionalConstructorArg(), FIELD_ORIENTATION);
+        RIGHTPARSER.declareField(optionalConstructorArg(), p -> DistanceUnit.Distance.parseDistance(p.text()), FIELD_RADIUS,
             ObjectParser.ValueType.STRING);
     }
 

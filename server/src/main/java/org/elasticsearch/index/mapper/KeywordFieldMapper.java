@@ -13,10 +13,24 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -247,6 +261,56 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(string)
+                : Automata.makeString(string);
+            a = Operations.concatenate(a, Automata.makeAnyString());
+            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+            
+            BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
+            
+            if (automaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum result = terms.iterator();
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(automaton, searchBytes);
+        }
+        
+        // Initialises with a seek to a given term but excludes that term
+        // from any results. The problem it addresses is that termsEnum.seekCeil()
+        // would work but either leaves us positioned on the seek term (if it exists) or the 
+        // term after (if the seek term doesn't exist). That complicates any subsequent 
+        // iteration logic so this class simplifies the pagination use case. 
+        final class SearchAfterTermsEnum extends FilteredTermsEnum {
+            private final BytesRef afterRef;
+
+            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+                super(tenum);
+                afterRef = termText;
+                setInitialSeekTerm(termText);
+            }
+
+            @Override
+            protected AcceptStatus accept(BytesRef term) {
+                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
+            }
+        }          
+
+        @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
@@ -322,6 +386,19 @@ public final class KeywordFieldMapper extends FieldMapper {
             return getTextSearchInfo().getSearchAnalyzer().normalize(name(), value.toString());
         }
 
+        /**
+         * Wildcard queries on keyword fields use the normalizer of the underlying field, regardless of their case sensitivity option
+         */
+        @Override
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
+            return super.wildcardQuery(value, method, caseInsensitive, true, context);
+        }
+
         @Override
         public CollapseType collapseType() {
             return CollapseType.KEYWORD;
@@ -332,6 +409,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         public int ignoreAbove() {
             return ignoreAbove;
         }
+
     }
 
     private final boolean indexed;
@@ -380,15 +458,11 @@ public final class KeywordFieldMapper extends FieldMapper {
     @Override
     protected void parseCreateField(ParseContext context) throws IOException {
         String value;
-        if (context.externalValueSet()) {
-            value = context.externalValue().toString();
+        XContentParser parser = context.parser();
+        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+            value = nullValue;
         } else {
-            XContentParser parser = context.parser();
-            if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-                value = nullValue;
-            } else {
-                value = parser.textOrNull();
-            }
+            value = parser.textOrNull();
         }
 
         indexValue(context, value);
@@ -417,7 +491,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             context.doc().add(field);
 
             if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                createFieldNamesField(context);
+                context.addToFieldNames(fieldType().name());
             }
         }
 
@@ -458,4 +532,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
     }
+    
+    
 }

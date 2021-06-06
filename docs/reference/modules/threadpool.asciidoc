@@ -41,6 +41,11 @@ There are several thread pools, but the important ones include:
     keep-alive of `5m` and a max of `min(5, (`<<node.processors,
     `# of allocated processors`>>`) / 2)`.
 
+`snapshot_meta`::
+    For snapshot repository metadata read operations. Thread pool type is `scaling` with a
+    keep-alive of `5m` and a max of `min(50, (`<<node.processors,
+    `# of allocated processors`>>` pass:[ * ]3))`.
+
 `warmer`::
     For segment warm-up operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a max of `min(5, (`<<node.processors,
@@ -88,6 +93,16 @@ There are several thread pools, but the important ones include:
 
 `system_write`::
     For write operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_read`::
+    For critical read operations on system indices.
+    Thread pool type is `fixed` and a default maximum size of
+    `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
+
+`system_critical_write`::
+    For critical write operations on system indices.
     Thread pool type is `fixed` and a default maximum size of
     `min(5, (`<<node.processors, `# of allocated processors`>>`) / 2)`.
 

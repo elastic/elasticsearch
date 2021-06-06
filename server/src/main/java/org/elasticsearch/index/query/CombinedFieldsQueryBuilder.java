@@ -16,8 +16,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -75,7 +76,13 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }, FIELDS_FIELD);
 
         PARSER.declareString(CombinedFieldsQueryBuilder::operator, Operator::fromString, OPERATOR_FIELD);
-        PARSER.declareString(CombinedFieldsQueryBuilder::minimumShouldMatch, MINIMUM_SHOULD_MATCH_FIELD);
+        PARSER.declareField(
+            CombinedFieldsQueryBuilder::minimumShouldMatch,
+            XContentParser::textOrNull,
+            MINIMUM_SHOULD_MATCH_FIELD,
+            // using INT_OR_NULL (which includes VALUE_NUMBER, VALUE_STRING, VALUE_NULL) to also allow for numeric values and null
+            ValueType.INT_OR_NULL
+        );
         PARSER.declareBoolean(CombinedFieldsQueryBuilder::autoGenerateSynonymsPhraseQuery, GENERATE_SYNONYMS_PHRASE_QUERY);
         PARSER.declareString(CombinedFieldsQueryBuilder::zeroTermsQuery, value -> {
             if ("none".equalsIgnoreCase(value)) {
@@ -315,7 +322,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         }
 
         CombinedFieldsBuilder builder = new CombinedFieldsBuilder(fieldsAndBoosts,
-            sharedAnalyzer, canGenerateSynonymsPhraseQuery);
+            sharedAnalyzer, canGenerateSynonymsPhraseQuery, context);
         Query query = builder.createBooleanQuery(placeholderFieldName, value.toString(), operator.toBooleanClauseOccur());
 
         query = Queries.maybeApplyMinimumShouldMatch(query, minimumShouldMatch);
@@ -353,13 +360,16 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     private static class CombinedFieldsBuilder extends QueryBuilder {
         private final List<FieldAndBoost> fields;
+        private final SearchExecutionContext context;
 
         CombinedFieldsBuilder(List<FieldAndBoost> fields,
                               Analyzer analyzer,
-                              boolean autoGenerateSynonymsPhraseQuery) {
+                              boolean autoGenerateSynonymsPhraseQuery,
+                              SearchExecutionContext context) {
             super(analyzer);
             this.fields = fields;
             setAutoGenerateMultiTermSynonymsPhraseQuery(autoGenerateSynonymsPhraseQuery);
+            this.context = context;
         }
 
         @Override
@@ -385,7 +395,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         @Override
         protected Query newSynonymQuery(TermAndBoost[] terms) {
-            XCombinedFieldQuery.Builder query = new XCombinedFieldQuery.Builder();
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
                 BytesRef bytes = termAndBoost.term.bytes();
@@ -409,7 +419,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             BooleanQuery.Builder builder = new BooleanQuery.Builder();
             for (FieldAndBoost fieldAndBoost : fields) {
-                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                Query query = fieldAndBoost.fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
                 if (fieldAndBoost.boost != 1f) {
                     query = new BoostQuery(query, fieldAndBoost.boost);
                 }

@@ -31,7 +31,7 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, ClusterState currentClusterState, Listener listener) {
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, ActionListener<Boolean> listener) {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {

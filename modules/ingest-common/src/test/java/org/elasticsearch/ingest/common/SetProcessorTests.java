@@ -24,6 +24,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -134,6 +136,18 @@ public class SetProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), Long.class), Matchers.equalTo(ifPrimaryTerm));
+    }
+
+    public void testSetDynamicTemplates() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int iters = between(1, 3);
+        for (int i = 0; i < iters; i++) {
+            Map<String, String> dynamicTemplates = IntStream.range(0, between(0, 3)).boxed()
+                .collect(Collectors.toMap(n -> "field-" + n, n -> randomFrom("int", "geo_point", "keyword")));
+            Processor processor = createSetProcessor(Metadata.DYNAMIC_TEMPLATES.getFieldName(), dynamicTemplates, null, true, false);
+            processor.execute(ingestDocument);
+            assertThat(ingestDocument.getFieldValue(Metadata.DYNAMIC_TEMPLATES.getFieldName(), Map.class), equalTo(dynamicTemplates));
+        }
     }
 
     public void testCopyFromOtherField() throws Exception {

@@ -198,4 +198,66 @@ public abstract class AliasAction {
             throw new UnsupportedOperationException();
         }
     }
+
+    public static class AddDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final String dataStreamName;
+        private final Boolean isWriteDataStream;
+
+        public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.dataStreamName = dataStreamName;
+            this.isWriteDataStream = isWriteDataStream;
+        }
+
+        public String getAliasName() {
+            return aliasName;
+        }
+
+        public String getDataStreamName() {
+            return dataStreamName;
+        }
+
+        public Boolean getWriteDataStream() {
+            return isWriteDataStream;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            aliasValidator.validate(aliasName, null, null, isWriteDataStream);
+            return metadata.put(aliasName, dataStreamName, isWriteDataStream);
+        }
+    }
+
+    public static class RemoveDataStreamAlias extends AliasAction {
+
+        private final String aliasName;
+        private final Boolean mustExist;
+        private final String dataStreamName;
+
+        public RemoveDataStreamAlias(String aliasName, String dataStreamName, Boolean mustExist) {
+            super(dataStreamName);
+            this.aliasName = aliasName;
+            this.mustExist = mustExist;
+            this.dataStreamName = dataStreamName;
+        }
+
+        @Override
+        boolean removeIndex() {
+            return false;
+        }
+
+        @Override
+        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+            boolean mustExist = this.mustExist != null ? this.mustExist : false;
+            return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
+        }
+    }
 }

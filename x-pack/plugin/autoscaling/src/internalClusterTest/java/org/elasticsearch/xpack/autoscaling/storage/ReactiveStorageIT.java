@@ -24,7 +24,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
@@ -190,20 +189,25 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
     }
 
     /**
-     * Verify that the list of roles includes all data roles to ensure we consider adding future data roles.
+     * Verify that the list of roles includes all data roles except frozen to ensure we consider adding future data roles.
      */
     public void testRoles() {
         // this has to be an integration test to ensure roles are available.
         internalCluster().startMasterOnlyNode();
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
         assertThat(
             service.roles().stream().sorted().collect(Collectors.toList()),
             Matchers.equalTo(
-                DiscoveryNodeRole.roles().stream().filter(DiscoveryNodeRole::canContainData).sorted().collect(Collectors.toList())
+                DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(DiscoveryNodeRole::canContainData)
+                    .filter(r -> r != DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)
+                    .sorted()
+                    .collect(Collectors.toList())
             )
         );
     }

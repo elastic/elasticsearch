@@ -40,6 +40,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -279,7 +280,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+        public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
             throw unsupportedException();
         }
 

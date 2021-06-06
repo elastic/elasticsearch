@@ -60,9 +60,9 @@ public class EncryptedRepositoryTests extends ESTestCase {
     public void setUpMocks() throws Exception {
         this.repoPassword = new SecureString(randomAlphaOfLength(20).toCharArray());
         this.delegatedPath = randomFrom(
-            BlobPath.cleanPath(),
-            BlobPath.cleanPath().add(randomAlphaOfLength(8)),
-            BlobPath.cleanPath().add(randomAlphaOfLength(4)).add(randomAlphaOfLength(4))
+            BlobPath.EMPTY,
+            BlobPath.EMPTY.add(randomAlphaOfLength(8)),
+            BlobPath.EMPTY.add(randomAlphaOfLength(4)).add(randomAlphaOfLength(4))
         );
         this.delegatedBlobStore = mock(BlobStore.class);
         this.delegatedRepository = mock(BlobStoreRepository.class);

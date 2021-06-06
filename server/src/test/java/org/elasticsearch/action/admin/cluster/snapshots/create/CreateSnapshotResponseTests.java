@@ -20,6 +20,7 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Predicate;
@@ -65,7 +66,7 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
 
         return new CreateSnapshotResponse(
             new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime
+                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime, Collections.emptyMap()
             ));
     }
 

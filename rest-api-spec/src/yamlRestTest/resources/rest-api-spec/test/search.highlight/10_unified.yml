@@ -38,8 +38,8 @@ setup:
 ---
 "Basic combined_fields query":
   - skip:
-      version: " - 7.99.99"
-      reason: "combined fields query is not yet backported"
+      version: " - 7.12.99"
+      reason: "combined fields query was introduced in 7.13"
   - do:
       search:
         body: {

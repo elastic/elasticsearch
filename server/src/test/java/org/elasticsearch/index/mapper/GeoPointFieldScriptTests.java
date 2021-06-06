@@ -47,24 +47,6 @@ public class GeoPointFieldScriptTests extends FieldScriptTestCase<GeoPointFieldS
         return DUMMY;
     }
 
-    public void testAsDocValues() {
-        GeoPointFieldScript script = new GeoPointFieldScript(
-                "test",
-                Map.of(),
-                new SearchLookup(field -> null, (ft, lookup) -> null),
-                null
-        ) {
-            @Override
-            public void execute() {
-                emit(78.96, 12.12);
-                emit(13.45, 56.78);
-            }
-        };
-        script.execute();
-
-        assertArrayEquals(new long[] {1378381707499043786L, 8091971733044486384L}, script.asDocValues());
-    }
-
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));

@@ -247,8 +247,7 @@ The API returns:
             },
             "name": "Chrome",
             "device": {
-              "name": "Mac",
-              "type": "Desktop"
+              "name": "Mac"
             },
             "version": "52.0.2743.116"
           }

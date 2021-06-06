@@ -180,3 +180,63 @@ setup:
   - length: { hits.hits: 1 }
   - length: { hits.hits.0.fields: 1 }
   - match:  { hits.hits.0.fields.flattened: [ { "some_field": "some_value" } ] }
+
+---
+"Test fetching flattened subfields via fields option":
+  - skip:
+      version: " - 7.12.99"
+      reason:  fetching flattened subfields introduced in 7.13.0
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+  - do:
+      index:
+        index:  test
+        id:     1
+        body:
+          flattened:
+            some_field: some_value
+            some_fields:
+               - value1
+               - value2
+        refresh: true
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some_field" } ]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened\.some_field: [ "some_value" ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some_fields" } ]
+
+  - length: { hits.hits.0.fields: 1 }
+  - match:  { hits.hits.0.fields.flattened\.some_fields: [ "value1", "value2" ] }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.some*" } ]
+
+  - is_false: hits.hits.0.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ { "field" : "flattened.non_existing_field" } ]
+
+  - is_false: hits.hits.0.fields

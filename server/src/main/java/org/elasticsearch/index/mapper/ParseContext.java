@@ -254,16 +254,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public boolean externalValueSet() {
-            return in.externalValueSet();
-        }
-
-        @Override
-        public Object externalValue() {
-            return in.externalValue();
-        }
-
-        @Override
         public void addDynamicMapper(Mapper update) {
             in.addDynamicMapper(update);
         }
@@ -292,10 +282,22 @@ public abstract class ParseContext {
         public Collection<String> getIgnoredFields() {
             return in.getIgnoredFields();
         }
+
+        @Override
+        public void addToFieldNames(String field) {
+            in.addToFieldNames(field);
+        }
+
+        @Override
+        public Collection<String> getFieldNames() {
+            return in.getFieldNames();
+        }
     }
 
     public static class InternalParseContext extends ParseContext {
         private final MappingLookup mappingLookup;
+        private final IndexSettings indexSettings;
+        private final IndexAnalyzers indexAnalyzers;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -307,16 +309,21 @@ public abstract class ParseContext {
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
+        private final Set<String> fieldNameFields = new HashSet<>();
         private Field version;
         private SeqNoFieldMapper.SequenceIDFields seqID;
         private long numNestedDocs;
         private boolean docsReversed = false;
 
         public InternalParseContext(MappingLookup mappingLookup,
+                                    IndexSettings indexSettings,
+                                    IndexAnalyzers indexAnalyzers,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
+            this.indexSettings = indexSettings;
+            this.indexAnalyzers = indexAnalyzers;
             this.parserContextFunction = parserContextFunction;
             this.parser = parser;
             this.document = new Document();
@@ -334,7 +341,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.mappingLookup.getIndexSettings();
+            return this.indexSettings;
         }
 
         @Override
@@ -395,7 +402,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return mappingLookup.getIndexAnalyzers();
+            return this.indexAnalyzers;
         }
 
         @Override
@@ -490,6 +497,16 @@ public abstract class ParseContext {
         public Collection<String> getIgnoredFields() {
             return Collections.unmodifiableCollection(ignoredFields);
         }
+
+        @Override
+        public void addToFieldNames(String field) {
+            fieldNameFields.add(field);
+        }
+
+        @Override
+        public Collection<String> getFieldNames() {
+            return Collections.unmodifiableCollection(fieldNameFields);
+        }
     }
 
     /**
@@ -508,6 +525,19 @@ public abstract class ParseContext {
      * Return the collection of fields that have been ignored so far.
      */
     public abstract Collection<String> getIgnoredFields();
+
+    /**
+     * Add the given {@code field} to the _field_names field
+     *
+     * Use this if an exists query run against the field cannot use docvalues
+     * or norms.
+     */
+    public abstract void addToFieldNames(String field);
+
+    /**
+     * Return the collection of fields to be added to the _field_names field
+     */
+    public abstract Collection<String> getFieldNames();
 
     public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
 
@@ -572,6 +602,20 @@ public abstract class ParseContext {
         };
     }
 
+    /**
+     * @deprecated we are actively deprecating and removing the ability to pass
+     *             complex objects to multifields, so try and avoid using this method
+     */
+    @Deprecated
+    public final ParseContext switchParser(XContentParser parser) {
+        return new FilterParseContext(this) {
+            @Override
+            public XContentParser parser() {
+                return parser;
+            }
+        };
+    }
+
     public boolean isWithinMultiFields() {
         return false;
     }
@@ -605,47 +649,6 @@ public abstract class ParseContext {
     public abstract SeqNoFieldMapper.SequenceIDFields seqID();
 
     public abstract void seqID(SeqNoFieldMapper.SequenceIDFields seqID);
-
-    /**
-     * Return a new context that will have the external value set.
-     */
-    public final ParseContext createExternalValueContext(final Object externalValue) {
-        return new FilterParseContext(this) {
-            @Override
-            public boolean externalValueSet() {
-                return true;
-            }
-            @Override
-            public Object externalValue() {
-                return externalValue;
-            }
-        };
-    }
-
-    public boolean externalValueSet() {
-        return false;
-    }
-
-    public Object externalValue() {
-        throw new IllegalStateException("External value is not set");
-    }
-
-    /**
-     * Try to parse an externalValue if any
-     * @param clazz Expected class for external value
-     * @return null if no external value has been set or the value
-     */
-    public final <T> T parseExternalValue(Class<T> clazz) {
-        if (externalValueSet() == false || externalValue() == null) {
-            return null;
-        }
-
-        if (clazz.isInstance(externalValue()) == false) {
-            throw new IllegalArgumentException("illegal external value class ["
-                    + externalValue().getClass().getName() + "]. Should be " + clazz.getName());
-        }
-        return clazz.cast(externalValue());
-    }
 
     /**
      * Add a new mapper dynamically created while parsing.

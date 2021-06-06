@@ -41,26 +41,8 @@ import static java.util.stream.Collectors.toSet;
 
 public final class KeywordScriptFieldType extends AbstractScriptFieldType<StringFieldScript.LeafFactory> {
 
-    private static final StringFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup) -> (StringFieldScript.LeafFactory) ctx -> new StringFieldScript
-        (
-            field,
-            params,
-            lookup,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                if (v != null) {
-                    emit(v.toString());
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, StringFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, StringFieldScript.CONTEXT, StringFieldScript.PARSE_FROM_SOURCE) {
             @Override
             RuntimeField newRuntimeField(StringFieldScript.Factory scriptFactory) {
                 return new KeywordScriptFieldType(name, scriptFactory, getScript(), meta(), this);
@@ -68,7 +50,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         });
 
     public KeywordScriptFieldType(String name) {
-        this(name, PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
+        this(name, StringFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
     KeywordScriptFieldType(

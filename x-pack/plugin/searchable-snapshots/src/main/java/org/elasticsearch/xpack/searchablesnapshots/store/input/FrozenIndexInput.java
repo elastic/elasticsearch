@@ -159,7 +159,7 @@ public class FrozenIndexInput extends MetadataCachingIndexInput {
                     final long streamStartPosition = rangeToWrite.start() + relativePos;
 
                     try (InputStream input = openInputStreamFromBlobStore(streamStartPosition, len)) {
-                        this.writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
+                        writeCacheFile(channel, input, channelPos, relativePos, len, progressUpdater, startTimeNanos);
                     }
                 },
                 directory.cacheFetchAsyncExecutor()

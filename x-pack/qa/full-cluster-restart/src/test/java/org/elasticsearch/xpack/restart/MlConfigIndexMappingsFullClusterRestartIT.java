@@ -48,7 +48,9 @@ public class MlConfigIndexMappingsFullClusterRestartIT extends AbstractFullClust
         List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
             ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
             : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        boolean clusterUnderstandsComposableTemplates =
+            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     public void testMlConfigIndexMappingsAfterMigration() throws Exception {

@@ -7,32 +7,62 @@
 
 package org.elasticsearch.xpack.fleet;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse.ResetFeatureStateStatus;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.IndicesOptions.Option;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.ExecutorNames;
+import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor.Type;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
+import org.elasticsearch.xpack.core.action.DeleteDataStreamAction.Request;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsAction;
 import org.elasticsearch.xpack.fleet.action.GetGlobalCheckpointsShardAction;
 import org.elasticsearch.xpack.fleet.rest.RestGetGlobalCheckpointsAction;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.FLEET_ORIGIN;
 
@@ -49,6 +79,31 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
     private static final List<String> ALLOWED_PRODUCTS = List.of("kibana", "fleet");
 
     @Override
+    public Collection<Object> createComponents(
+        Client client,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ResourceWatcherService resourceWatcherService,
+        ScriptService scriptService,
+        NamedXContentRegistry xContentRegistry,
+        Environment environment,
+        NodeEnvironment nodeEnvironment,
+        NamedWriteableRegistry namedWriteableRegistry,
+        IndexNameExpressionResolver expressionResolver,
+        Supplier<RepositoriesService> repositoriesServiceSupplier
+    ) {
+        FleetTemplateRegistry registry = new FleetTemplateRegistry(
+            environment.settings(),
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry
+        );
+        registry.initialize();
+        return List.of();
+    }
+
+    @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return List.of(
             fleetActionsSystemIndexDescriptor(),
@@ -59,6 +114,11 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             fleetServersSystemIndexDescriptors(),
             fleetArtifactsSystemIndexDescriptors()
         );
+    }
+
+    @Override
+    public Collection<SystemDataStreamDescriptor> getSystemDataStreamDescriptors() {
+        return List.of(fleetActionsResultsDescriptor());
     }
 
     @Override
@@ -83,7 +143,7 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .setMappings(request.mappings())
             .setSettings(request.settings())
             .setPrimaryIndex(".fleet-actions-" + CURRENT_INDEX_VERSION)
-            .setIndexPattern(".fleet-actions*")
+            .setIndexPattern(".fleet-actions~(-results*)")
             .setAliasName(".fleet-actions")
             .setDescription("Fleet agents")
             .build();
@@ -197,6 +257,68 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
             .build();
     }
 
+    private SystemDataStreamDescriptor fleetActionsResultsDescriptor() {
+        final String source = loadTemplateSource("/fleet-actions-results.json");
+        try (
+            XContentParser parser = XContentType.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source)
+        ) {
+            ComposableIndexTemplate composableIndexTemplate = ComposableIndexTemplate.parse(parser);
+            return new SystemDataStreamDescriptor(
+                ".fleet-actions-results",
+                "Result history of fleet actions",
+                SystemDataStreamDescriptor.Type.EXTERNAL,
+                composableIndexTemplate,
+                Map.of(),
+                ALLOWED_PRODUCTS,
+                ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
+            );
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    @Override
+    public void cleanUpFeature(ClusterService clusterService, Client client, ActionListener<ResetFeatureStateStatus> listener) {
+        Collection<SystemDataStreamDescriptor> dataStreamDescriptors = getSystemDataStreamDescriptors();
+        if (dataStreamDescriptors.isEmpty() == false) {
+            try {
+                Request request = new Request(
+                    dataStreamDescriptors.stream()
+                        .map(SystemDataStreamDescriptor::getDataStreamName)
+                        .collect(Collectors.toList())
+                        .toArray(Strings.EMPTY_ARRAY)
+                );
+                EnumSet<Option> options = request.indicesOptions().getOptions();
+                options.add(Option.IGNORE_UNAVAILABLE);
+                options.add(Option.ALLOW_NO_INDICES);
+                request.indicesOptions(new IndicesOptions(options, request.indicesOptions().getExpandWildcards()));
+
+                client.execute(
+                    DeleteDataStreamAction.INSTANCE,
+                    request,
+                    ActionListener.wrap(response -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener), e -> {
+                        Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                        if (unwrapped instanceof ResourceNotFoundException) {
+                            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                        } else {
+                            listener.onFailure(e);
+                        }
+                    })
+                );
+            } catch (Exception e) {
+                Throwable unwrapped = ExceptionsHelper.unwrapCause(e);
+                if (unwrapped instanceof ResourceNotFoundException) {
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+                } else {
+                    listener.onFailure(e);
+                }
+            }
+        } else {
+            SystemIndexPlugin.super.cleanUpFeature(clusterService, client, listener);
+        }
+    }
+
     private String loadTemplateSource(String resource) {
         return TemplateUtils.loadTemplate(resource, Version.CURRENT.toString(), MAPPING_VERSION_VARIABLE);
     }
@@ -219,6 +341,6 @@ public class Fleet extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return Arrays.asList(new RestGetGlobalCheckpointsAction());
+        return Collections.singletonList(new RestGetGlobalCheckpointsAction());
     }
 }

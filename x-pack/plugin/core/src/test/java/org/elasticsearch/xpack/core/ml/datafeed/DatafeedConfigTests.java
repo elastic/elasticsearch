@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -1017,7 +1018,7 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) throws IOException {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 11)) {
+        switch (between(0, 12)) {
         case 0:
             builder.setId(instance.getId() + randomValidDatafeedId());
             break;
@@ -1095,6 +1096,18 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
                 Boolean.toString(instance.getIndicesOptions().allowNoIndices() == false),
                 Boolean.toString(instance.getIndicesOptions().ignoreThrottled() == false),
                 SearchRequest.DEFAULT_INDICES_OPTIONS));
+            break;
+        case 12:
+                if (instance.getRuntimeMappings() != null && instance.getRuntimeMappings().isEmpty() == false) {
+                    builder.setRuntimeMappings(Collections.emptyMap());
+                } else {
+                    Map<String, Object> settings = new HashMap<>();
+                    settings.put("type", "keyword");
+                    settings.put("script", "");
+                    Map<String, Object> field = new HashMap<>();
+                    field.put("runtime_field_foo", settings);
+                    builder.setRuntimeMappings(field);
+                }
             break;
         default:
             throw new AssertionError("Illegal randomisation branch");

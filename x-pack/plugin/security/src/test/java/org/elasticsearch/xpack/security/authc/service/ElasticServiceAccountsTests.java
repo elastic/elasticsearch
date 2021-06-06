@@ -62,6 +62,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "logs-" + randomAlphaOfLengthBetween(1, 20),
             "metrics-" + randomAlphaOfLengthBetween(1, 20),
             "traces-" + randomAlphaOfLengthBetween(1, 20),
+            "synthetics-" + randomAlphaOfLengthBetween(1, 20),
             ".logs-endpoint.diagnostic.collection-" + randomAlphaOfLengthBetween(1, 20))
             .stream().map(this::mockIndexAbstraction)
             .forEach(index -> {

@@ -335,7 +335,8 @@ end::custom-preprocessor[]
 tag::custom-rules[]
 An array of custom rule objects, which enable you to customize the way detectors
 operate. For example, a rule may dictate to the detector conditions under which
-results should be skipped. For more examples, see
+results should be skipped. {kib} refers to custom rules as _job rules_. For more 
+examples, see
 {ml-docs}/ml-configuring-detector-custom-rules.html[Customizing detectors with custom rules].
 end::custom-rules[]
 
@@ -560,7 +561,7 @@ end::dfas-downsample-factor[]
 tag::dfas-early-stopping-enabled[]
 Advanced configuration option.
 Specifies whether the training process should finish if it is not finding any
-better perfoming models. If disabled, the training process can take significantly
+better performing models. If disabled, the training process can take significantly
 longer and the chance of finding a better performing model is unremarkable.
 By default, early stoppping is enabled.
 end::dfas-early-stopping-enabled[]
@@ -773,8 +774,7 @@ working with both over and by fields, then you can set `exclude_frequent` to
 end::exclude-frequent[]
 
 tag::exclude-interim-results[]
-If `true`, the output excludes interim results. By default, interim results are
-included.
+If `true`, the output excludes interim results. Defaults to `false`, which means interim results are included.
 end::exclude-interim-results[]
 
 tag::failed-category-count[]
@@ -1100,6 +1100,11 @@ Advanced configuration option. Defines the maximum number of decision trees in
 the forest. The maximum value is 2000. By default, this value is calculated 
 during hyperparameter optimization.
 end::max-trees[]
+
+tag::max-trees-trained-models[]
+The maximum number of decision trees in the forest. The maximum value is 2000. 
+By default, this value is calculated during hyperparameter optimization.
+end::max-trees-trained-models[]
 
 tag::method[]
 The method that {oldetection} uses. Available methods are `lof`, `ldof`,
@@ -1586,11 +1591,17 @@ end::timestamp-results[]
 tag::tokenizer[]
 The name or definition of the <<analysis-tokenizers,tokenizer>> to use after
 character filters are applied. This property is compulsory if
-`categorization_analyzer` is specified as an object. Machine learning provides a
-tokenizer called `ml_classic` that tokenizes in the same way as the
-non-customizable tokenizer in older versions of the product. If you want to use
-that tokenizer but change the character or token filters, specify
-`"tokenizer": "ml_classic"` in your `categorization_analyzer`.
+`categorization_analyzer` is specified as an object. Machine learning provides
+a tokenizer called `ml_standard` that tokenizes in a way that has been
+determined to produce good categorization results on a variety of log
+file formats for logs in English. If you want to use that tokenizer but
+change the character or token filters, specify `"tokenizer": "ml_standard"`
+in your `categorization_analyzer`. Additionally, the `ml_classic` tokenizer
+is available, which tokenizes in the same way as the non-customizable
+tokenizer in old versions of the product (before 6.2). `ml_classic` was
+the default categorization tokenizer in versions 6.2 to 7.13, so if you
+need categorization identical to the default for jobs created in these
+versions, specify `"tokenizer": "ml_classic"` in your `categorization_analyzer`.
 end::tokenizer[]
 
 tag::total-by-field-count[]

@@ -10,12 +10,13 @@ package org.elasticsearch.search.lookup;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DynamicFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
-import java.util.Collections;
 import java.util.function.Function;
 
 import static org.mockito.AdditionalAnswers.returnsFirstArg;
@@ -28,6 +29,7 @@ public class LeafDocLookupTests extends ESTestCase {
     private ScriptDocValues<?> docValues;
     private LeafDocLookup docLookup;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -60,28 +62,28 @@ public class LeafDocLookupTests extends ESTestCase {
         ScriptDocValues<?> docValues2 = mock(ScriptDocValues.class);
         IndexFieldData<?> fieldData2 = createFieldData(docValues2);
 
-        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType1
-            = new FlattenedFieldMapper.KeyedFlattenedFieldType("field", true, true, "key1", false, Collections.emptyMap());
-        FlattenedFieldMapper.KeyedFlattenedFieldType fieldType2
-            = new FlattenedFieldMapper.KeyedFlattenedFieldType( "field", true, true, "key2", false, Collections.emptyMap());
+        FlattenedFieldMapper fieldMapper = new FlattenedFieldMapper.Builder("field").build(new ContentPath(1));
+        DynamicFieldType fieldType = fieldMapper.fieldType();
+        MappedFieldType fieldType1 = fieldType.getChildFieldType("key1");
+        MappedFieldType fieldType2 = fieldType.getChildFieldType("key2");
 
-        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = fieldType -> {
-            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) fieldType;
+        Function<MappedFieldType, IndexFieldData<?>> fieldDataSupplier = ft -> {
+            FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) ft;
             return keyedFieldType.key().equals("key1") ? fieldData1 : fieldData2;
         };
 
         LeafDocLookup docLookup = new LeafDocLookup(field -> {
-            if (field.equals("json.key1")) {
+            if (field.equals("flattened.key1")) {
                 return fieldType1;
             }
-            if (field.equals("json.key2")) {
+            if (field.equals("flattened.key2")) {
                 return fieldType2;
             }
             return null;
         }, fieldDataSupplier, null);
 
-        assertEquals(docValues1, docLookup.get("json.key1"));
-        assertEquals(docValues2, docLookup.get("json.key2"));
+        assertEquals(docValues1, docLookup.get("flattened.key1"));
+        assertEquals(docValues2, docLookup.get("flattened.key2"));
     }
 
     private IndexFieldData<?> createFieldData(ScriptDocValues<?> scriptDocValues) {

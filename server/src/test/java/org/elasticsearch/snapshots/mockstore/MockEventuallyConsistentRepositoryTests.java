@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -88,7 +89,7 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             final int lengthWritten = randomIntBetween(1, 100);
             final byte[] blobData = randomByteArrayOfLength(lengthWritten);
             blobContainer.writeBlob(blobName, new ByteArrayInputStream(blobData), lengthWritten, true);
-            blobContainer.deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            blobContainer.deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
             assertThrowsOnInconsistentRead(blobContainer, blobName);
             blobStoreContext.forceConsistent();
             expectThrows(NoSuchFileException.class, () -> blobContainer.readBlob(blobName));
@@ -147,16 +148,38 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             PlainActionFuture.<RepositoryData, Exception>get(f ->
                 // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
                 repository.finalizeSnapshot(ShardGenerations.EMPTY, RepositoryData.EMPTY_REPO_GEN, Metadata.EMPTY_METADATA,
-                    new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                        Collections.emptyList(), null, 1L, 5, Collections.emptyList(), true, Collections.emptyMap(), 0L),
+                    new SnapshotInfo(
+                        snapshotId,
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        null,
+                        1L,
+                        5,
+                        Collections.emptyList(),
+                        true,
+                        Collections.emptyMap(),
+                        0L,
+                        Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), f));
 
             // We try to write another snap- blob for "foo" in the next generation. It fails because the content differs.
             final AssertionError assertionError = expectThrows(AssertionError.class,
                 () -> PlainActionFuture.<RepositoryData, Exception>get(f ->
                     repository.finalizeSnapshot(ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
-                        new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                            Collections.emptyList(), null, 1L, 6, Collections.emptyList(), true, Collections.emptyMap(), 0L),
+                        new SnapshotInfo(
+                            snapshotId,
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            null,
+                            1L,
+                            6,
+                            Collections.emptyList(),
+                            true,
+                            Collections.emptyMap(),
+                            0L,
+                            Collections.emptyMap()),
                         Version.CURRENT, Function.identity(), f)));
             assertThat(assertionError.getMessage(), equalTo("\nExpected: <6>\n     but: was <5>"));
 
@@ -164,8 +187,18 @@ public class MockEventuallyConsistentRepositoryTests extends ESTestCase {
             // It passes cleanly because the content of the blob except for the timestamps.
             PlainActionFuture.<RepositoryData, Exception>get(f ->
                 repository.finalizeSnapshot(ShardGenerations.EMPTY, 0L, Metadata.EMPTY_METADATA,
-                    new SnapshotInfo(snapshotId, Collections.emptyList(), Collections.emptyList(),
-                        Collections.emptyList(), null, 2L, 5, Collections.emptyList(), true, Collections.emptyMap(), 0L),
+                    new SnapshotInfo(snapshotId,
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        Collections.emptyList(),
+                        null,
+                        2L,
+                        5,
+                        Collections.emptyList(),
+                        true,
+                        Collections.emptyMap(),
+                        0L,
+                        Collections.emptyMap()),
                     Version.CURRENT, Function.identity(), f));
         }
     }

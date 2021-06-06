@@ -421,7 +421,7 @@ public class Querier {
 
             if (ref instanceof MetricAggRef) {
                 MetricAggRef r = (MetricAggRef) ref;
-                return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.isDateTimeBased());
+                return new MetricAggExtractor(r.name(), r.property(), r.innerKey(), cfg.zoneId(), r.dataType());
             }
 
             if (ref instanceof TopHitsAggRef) {

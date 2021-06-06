@@ -403,7 +403,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     ) {
         String[] idTokens = ExpandedIdsMatcher.tokenizeExpression(transformIdsExpression);
         QueryBuilder queryBuilder = buildQueryFromTokenizedIds(idTokens, TransformConfig.NAME);
@@ -417,8 +417,6 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             .setTrackTotalHits(true)
             .setSize(pageParams.getSize())
             .setQuery(queryBuilder)
-            // We only care about the `id` field, small optimization
-            .setFetchSource(TransformField.ID.getPreferredName(), "")
             .request();
 
         final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
@@ -431,23 +429,26 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 long totalHits = searchResponse.getHits().getTotalHits().value;
                 // important: preserve order
                 Set<String> ids = new LinkedHashSet<>(searchResponse.getHits().getHits().length);
+                Set<TransformConfig> configs = new LinkedHashSet<>(searchResponse.getHits().getHits().length);
                 for (SearchHit hit : searchResponse.getHits().getHits()) {
                     BytesReference source = hit.getSourceRef();
                     try (
                         InputStream stream = source.streamInput();
                         XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                            .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                            .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, stream)
                     ) {
-                        ids.add((String) parser.map().get(TransformField.ID.getPreferredName()));
+                        TransformConfig config = TransformConfig.fromXContent(parser, null, true);
+                        ids.add(config.getId());
+                        configs.add(config);
                     } catch (IOException e) {
-                        foundIdsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
+                        foundConfigsListener.onFailure(new ElasticsearchParseException("failed to parse search hit for ids", e));
                         return;
                     }
                 }
                 requiredMatches.filterMatchedIds(ids);
                 if (requiredMatches.hasUnmatchedIds()) {
                     // some required Ids were not found
-                    foundIdsListener.onFailure(
+                    foundConfigsListener.onFailure(
                         new ResourceNotFoundException(
                             TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, requiredMatches.unmatchedIdsString())
                         )
@@ -457,11 +458,12 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 // if only exact ids have been given, take the count from docs to avoid potential duplicates
                 // in versioned indexes (like transform)
                 if (requiredMatches.isOnlyExact()) {
-                    foundIdsListener.onResponse(new Tuple<>((long) ids.size(), new ArrayList<>(ids)));
+                    foundConfigsListener.onResponse(
+                        new Tuple<>((long) ids.size(), Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
                 } else {
-                    foundIdsListener.onResponse(new Tuple<>(totalHits, new ArrayList<>(ids)));
+                    foundConfigsListener.onResponse(new Tuple<>(totalHits, Tuple.tuple(new ArrayList<>(ids), new ArrayList<>(configs))));
                 }
-            }, foundIdsListener::onFailure),
+            }, foundConfigsListener::onFailure),
             client::search
         );
     }

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
@@ -1050,35 +1051,27 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     /**
-     * Used in {@link #writableFieldAsBase64(String, WritableValue)}
-     */
-    @FunctionalInterface
-    public interface WritableValue {
-        void writeTo(OutputStream os) throws IOException;
-    }
-
-    /**
-     * Write the serialization of a {@link WritableValue} via {@link WritableValue#writeTo(OutputStream)} as a string encoded in
-     * Base64 format. This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
+     * Write the content that is written to the output stream by the {@code writer} as a string encoded in Base64 format.
+     * This API can be used to generate XContent directly without the intermediate results to reduce memory usage.
      * Note that this method supports only JSON.
      */
-    public XContentBuilder writableFieldAsBase64(String name, WritableValue value) throws IOException {
+    public XContentBuilder directFieldAsBase64(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         if (contentType() != XContentType.JSON) {
             assert false : "writableFieldAsBase64 supports only JSON format";
             throw new UnsupportedOperationException("writableFieldAsBase64 supports only JSON format");
         }
-        generator.writeFieldDirectly(name, os -> {
+        generator.directField(name, os -> {
             os.write('\"');
             final FilterOutputStream noClose = new FilterOutputStream(os) {
                 @Override
                 public void close() {
-                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the encoding buffer,
-                    // but we should not close the underlying output stream of the XContentBuilder.
+                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the outstanding buffer
+                    // of the encoder, but we must not close the underlying output stream of the XContentBuilder.
                 }
             };
             final OutputStream wrapped = Base64.getEncoder().wrap(noClose);
-            value.writeTo(wrapped);
-            wrapped.close(); // need to close to flush the outstanding buffer used in the Base64 Encoder
+            writer.accept(wrapped);
+            wrapped.close(); // close to flush the outstanding buffer used in the Base64 Encoder
             os.write('\"');
         });
         return this;

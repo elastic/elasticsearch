@@ -393,7 +393,7 @@ public class XContentBuilderTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), equalTo("Unclosed object or array found"));
     }
 
-    private static class TestWritableValue implements XContentBuilder.WritableValue {
+    private static class TestWritableValue {
         final Map<String, Byte> values;
 
         static TestWritableValue randomValue() {
@@ -420,12 +420,11 @@ public class XContentBuilderTests extends ESTestCase {
             }
         }
 
-        @Override
         public void writeTo(OutputStream os) throws IOException {
-            os.write((byte)values.size());
+            os.write((byte) values.size());
             for (Map.Entry<String, Byte> e : values.entrySet()) {
                 final String k = e.getKey();
-                os.write((byte)k.length());
+                os.write((byte) k.length());
                 os.write(k.getBytes(StandardCharsets.ISO_8859_1));
                 os.write(e.getValue());
             }
@@ -441,7 +440,7 @@ public class XContentBuilderTests extends ESTestCase {
             String field = "field-" + i;
             if (randomBoolean()) {
                 final TestWritableValue value = TestWritableValue.randomValue();
-                builder.writableFieldAsBase64(field, value);
+                builder.directFieldAsBase64(field, value::writeTo);
                 expectedValues.put(field, value);
             } else {
                 Object value = randomFrom(randomInt(), randomAlphaOfLength(10));

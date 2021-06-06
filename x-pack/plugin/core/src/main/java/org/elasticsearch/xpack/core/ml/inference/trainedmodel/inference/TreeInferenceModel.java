@@ -48,7 +48,6 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHe
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers.decodeFeatureImportances;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree.CLASSIFICATION_LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree.FEATURE_NAMES;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree.TARGET_TYPE;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.Tree.TREE_STRUCTURE;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode.DECISION_TYPE;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree.TreeNode.DEFAULT_LEFT;
@@ -77,7 +76,7 @@ public class TreeInferenceModel implements InferenceModel {
     static {
         PARSER.declareStringArray(constructorArg(), FEATURE_NAMES);
         PARSER.declareObjectArray(constructorArg(), NodeBuilder.PARSER::apply, TREE_STRUCTURE);
-        PARSER.declareString(optionalConstructorArg(), TARGET_TYPE);
+        PARSER.declareString(optionalConstructorArg(), TargetType.TARGET_TYPE);
         PARSER.declareStringArray(optionalConstructorArg(), CLASSIFICATION_LABELS);
     }
 

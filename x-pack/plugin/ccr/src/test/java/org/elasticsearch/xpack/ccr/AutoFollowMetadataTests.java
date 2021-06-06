@@ -43,9 +43,11 @@ public class AutoFollowMetadataTests extends AbstractSerializingTestCase<AutoFol
         Map<String, Map<String, String>> headers = new HashMap<>(numEntries);
         for (int i = 0; i < numEntries; i++) {
             List<String> leaderPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
+            List<String> leaderExclusionPatterns = Arrays.asList(generateRandomStringArray(4, 4, false));
             AutoFollowMetadata.AutoFollowPattern autoFollowPattern = new AutoFollowMetadata.AutoFollowPattern(
                 randomAlphaOfLength(4),
                 leaderPatterns,
+                leaderExclusionPatterns,
                 randomAlphaOfLength(4),
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
                 true,

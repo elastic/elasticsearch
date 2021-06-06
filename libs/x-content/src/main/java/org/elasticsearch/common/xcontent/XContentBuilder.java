@@ -1052,6 +1052,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     /**
      * Used in {@link #writableFieldAsBase64(String, WritableValue)}
      */
+    @FunctionalInterface
     public interface WritableValue {
         void writeTo(OutputStream os) throws IOException;
     }

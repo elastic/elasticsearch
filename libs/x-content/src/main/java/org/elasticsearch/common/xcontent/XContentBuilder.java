@@ -1064,14 +1064,16 @@ public final class XContentBuilder implements Closeable, Flushable {
     public XContentBuilder writableFieldAsBase64(String name, WritableValue value) throws IOException {
         generator.writeFieldDirectly(name, os -> {
             os.write('\"');
-            try (OutputStream encoded = Base64.getEncoder().wrap(new FilterOutputStream(os) {
+            final FilterOutputStream noClose = new FilterOutputStream(os) {
                 @Override
                 public void close() {
-                    // do not close the output
+                    // We need to close the output stream that is wrapped by a Base64 encoder to flush the encoding buffer,
+                    // but we should not close the underlying output stream of the XContentBuilder.
                 }
-            })) {
-                value.writeTo(encoded);
-            }
+            };
+            final OutputStream wrapped = Base64.getEncoder().wrap(noClose);
+            value.writeTo(wrapped);
+            wrapped.close(); // need to close to flush the outstanding buffer used in the Base64 Encoder
             os.write('\"');
         });
         return this;

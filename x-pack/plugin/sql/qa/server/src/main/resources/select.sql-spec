@@ -155,3 +155,5 @@ selectGroupByOrderByOrderByLimit
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC) ORDER BY max DESC NULLS FIRST LIMIT 4;
 selectGroupByOrderByOrderByLimitNulls
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) ORDER BY max DESC NULLS FIRST LIMIT 4;
+selectGroupByWithAliasedSubQuery
+SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;

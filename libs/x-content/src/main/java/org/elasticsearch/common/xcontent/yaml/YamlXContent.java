@@ -99,4 +99,13 @@ public class YamlXContent implements XContent {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), restApiVersion);
     }
 
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                                       DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                                       RestApiVersion restApiVersion) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length),
+            restApiVersion);
+    }
+
+
 }

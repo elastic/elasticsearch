@@ -41,7 +41,6 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.spatial4j.shape.Shape;
@@ -53,10 +52,10 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 
 public class LegacyGeoShapeQueryProcessor  {
 
-    private AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft;
+    private final LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType;
 
-    public LegacyGeoShapeQueryProcessor(AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType ft) {
-        this.ft = ft;
+    public LegacyGeoShapeQueryProcessor(LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType) {
+        this.shapeFieldType = shapeFieldType;
     }
 
     public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy,
@@ -66,7 +65,6 @@ public class LegacyGeoShapeQueryProcessor  {
                     + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        LegacyGeoShapeFieldMapper.GeoShapeFieldType shapeFieldType = (LegacyGeoShapeFieldMapper.GeoShapeFieldType) ft;
         SpatialStrategy spatialStrategy = shapeFieldType.strategy();
         if (strategy != null) {
             spatialStrategy = strategy;
@@ -77,7 +75,7 @@ public class LegacyGeoShapeQueryProcessor  {
             // before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
-            Query exists = ExistsQueryBuilder.newFilter(context, fieldName,false);
+            Query exists = ExistsQueryBuilder.newFilter(context, fieldName, false);
             Query intersects = prefixTreeStrategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);

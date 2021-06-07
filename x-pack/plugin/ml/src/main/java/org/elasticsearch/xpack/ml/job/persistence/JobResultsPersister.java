@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.core.ml.job.results.ForecastRequestStats;
 import org.elasticsearch.xpack.core.ml.job.results.Influencer;
 import org.elasticsearch.xpack.core.ml.job.results.ModelPlot;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
@@ -82,14 +81,11 @@ public class JobResultsPersister {
 
     private final OriginSettingClient client;
     private final ResultsPersisterService resultsPersisterService;
-    private final AnomalyDetectionAuditor auditor;
 
     public JobResultsPersister(OriginSettingClient client,
-                               ResultsPersisterService resultsPersisterService,
-                               AnomalyDetectionAuditor auditor) {
+                               ResultsPersisterService resultsPersisterService) {
         this.client = client;
         this.resultsPersisterService = resultsPersisterService;
-        this.auditor = auditor;
     }
 
     public Builder bulkPersisterBuilder(String jobId) {

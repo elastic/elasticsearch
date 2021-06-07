@@ -443,9 +443,8 @@ public final class DocumentParser {
                 + "] as object, but found a concrete value");
         }
 
-        ObjectMapper.Nested nested = mapper.nested();
-        if (nested.isNested()) {
-            context = nestedContext(context, mapper);
+        if (mapper.isNested()) {
+            context = nestedContext(context, (NestedObjectMapper) mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -459,8 +458,8 @@ public final class DocumentParser {
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
-        if (nested.isNested()) {
-            nested(context, nested);
+        if (mapper.isNested()) {
+            nested(context, (NestedObjectMapper) mapper);
         }
     }
 
@@ -492,7 +491,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
+    private static void nested(ParseContext context, NestedObjectMapper nested) {
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
         if (nested.isIncludeInParent()) {
@@ -515,7 +514,7 @@ public final class DocumentParser {
         }
     }
 
-    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
+    private static ParseContext nestedContext(ParseContext context, NestedObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
@@ -538,7 +537,7 @@ public final class DocumentParser {
         // the type of the nested doc starts with __, so we can identify that its a nested one in filters
         // note, we don't prefix it with the type of the doc since it allows us to execute a nested query
         // across types (for example, with similar nested objects)
-        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePathAsString(), TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
+        nestedDoc.add(new Field(TypeFieldMapper.NAME, mapper.nestedTypePath(), TypeFieldMapper.Defaults.NESTED_FIELD_TYPE));
         return context;
     }
 
@@ -799,7 +798,7 @@ public final class DocumentParser {
                             context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
                     }
                     mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.nested() != ObjectMapper.Nested.NO) {
+                    if (mapper.isNested()) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + currentPath + "]) through `copy_to` or dots in field names");
                     }
@@ -861,7 +860,7 @@ public final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
-            if (objectMapper.nested().isNested()) {
+            if (objectMapper.isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
                         + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
                         + mapper.name() + "]");

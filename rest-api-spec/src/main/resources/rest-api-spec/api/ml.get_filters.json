@@ -1,0 +1,45 @@
+{
+  "ml.get_filters":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-get-filter.html",
+      "description":"Retrieves filters."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/filters",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_ml/filters/{filter_id}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "filter_id":{
+              "type":"string",
+              "description":"The ID of the filter to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "from":{
+        "type":"int",
+        "description":"skips a number of filters"
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of filters to get"
+      }
+    }
+  }
+}

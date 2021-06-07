@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.snapshots.blobstore;
@@ -24,13 +13,14 @@ import org.apache.lucene.store.RateLimiter;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.function.Supplier;
 
 /**
  * Rate limiting wrapper for InputStream
  */
 public class RateLimitingInputStream extends FilterInputStream {
 
-    private final RateLimiter rateLimiter;
+    private final Supplier<RateLimiter> rateLimiterSupplier;
 
     private final Listener listener;
 
@@ -40,19 +30,22 @@ public class RateLimitingInputStream extends FilterInputStream {
         void onPause(long nanos);
     }
 
-    public RateLimitingInputStream(InputStream delegate, RateLimiter rateLimiter, Listener listener) {
+    public RateLimitingInputStream(InputStream delegate, Supplier<RateLimiter> rateLimiterSupplier, Listener listener) {
         super(delegate);
-        this.rateLimiter = rateLimiter;
+        this.rateLimiterSupplier = rateLimiterSupplier;
         this.listener = listener;
     }
 
     private void maybePause(int bytes) throws IOException {
         bytesSinceLastRateLimit += bytes;
-        if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
-            long pause = rateLimiter.pause(bytesSinceLastRateLimit);
-            bytesSinceLastRateLimit = 0;
-            if (pause > 0) {
-                listener.onPause(pause);
+        final RateLimiter rateLimiter = rateLimiterSupplier.get();
+        if (rateLimiter != null) {
+            if (bytesSinceLastRateLimit >= rateLimiter.getMinPauseCheckBytes()) {
+                long pause = rateLimiter.pause(bytesSinceLastRateLimit);
+                bytesSinceLastRateLimit = 0;
+                if (pause > 0) {
+                    listener.onPause(pause);
+                }
             }
         }
     }

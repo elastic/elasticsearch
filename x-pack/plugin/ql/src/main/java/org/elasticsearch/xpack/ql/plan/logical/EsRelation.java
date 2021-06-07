@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ql.plan.logical;
 
@@ -9,12 +10,11 @@ import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
+import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -99,36 +99,8 @@ public class EsRelation extends LeafPlan {
                 && frozen == other.frozen;
     }
 
-    private static final int TO_STRING_LIMIT = 52;
-
-    private static <E> String limitedToString(Collection<E> c) {
-        Iterator<E> it = c.iterator();
-        if (!it.hasNext()) {
-            return "[]";
-        }
-
-        // ..]
-        StringBuilder sb = new StringBuilder(TO_STRING_LIMIT + 4);
-        sb.append('[');
-        for (;;) {
-            E e = it.next();
-            String next = e == c ? "(this Collection)" : String.valueOf(e);
-            if (next.length() + sb.length() > TO_STRING_LIMIT) {
-                sb.append(next.substring(0, Math.max(0, TO_STRING_LIMIT - sb.length())));
-                sb.append('.').append('.').append(']');
-                return sb.toString();
-            } else {
-                sb.append(next);
-            }
-            if (!it.hasNext()) {
-                return sb.append(']').toString();
-            }
-            sb.append(',').append(' ');
-        }
-    }
-
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + limitedToString(attrs);
+        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
     }
 }

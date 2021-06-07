@@ -16,7 +16,7 @@ Most rollup endpoints have the following base:
 ----
 // NOTCONSOLE
 
-[float]
+[discrete]
 [[rollup-api-jobs]]
 ==== /job/
 
@@ -27,14 +27,14 @@ Most rollup endpoints have the following base:
 * {ref}/rollup-stop-job.html[POST /_rollup/job/<job_id>/_stop]: Stop a {rollup-job}
 * {ref}/rollup-delete-job.html[DELETE /_rollup/job/<job_id+++>+++]: Delete a {rollup-job}
 
-[float]
+[discrete]
 [[rollup-api-data]]
 ==== /data/
 
 * {ref}/rollup-get-rollup-caps.html[GET /_rollup/data/<index_pattern+++>/_rollup_caps+++]: Get Rollup Capabilities
 * {ref}/rollup-get-rollup-index-caps.html[GET /<index_name+++>/_rollup/data/+++]: Get Rollup Index Capabilities
 
-[float]
+[discrete]
 [[rollup-api-index]]
 ==== /<index_name>/
 

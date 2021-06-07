@@ -1,7 +1,7 @@
 [[repository-azure]]
 === Azure Repository Plugin
 
-The Azure Repository plugin adds support for using Azure as a repository for
+The Azure Repository plugin adds support for using https://docs.microsoft.com/en-us/azure/storage/blobs/storage-blobs-introduction[Azure Blob storage] as a repository for
 {ref}/modules-snapshots.html[Snapshot/Restore].
 
 :plugin_name: repository-azure
@@ -30,7 +30,7 @@ bin/elasticsearch-keystore add azure.client.secondary.sas_token
 ----------------------------------------------------------------
 
 For more information about these settings, see
-<<repository-azure-client-settings>>. 
+<<repository-azure-client-settings>>.
 
 [IMPORTANT]
 .Supported Azure Storage Account types
@@ -58,10 +58,10 @@ For example:
 ----
 PUT _snapshot/my_backup
 {
-    "type": "azure",
-    "settings": {
-        "client": "secondary"
-    }
+  "type": "azure",
+  "settings": {
+    "client": "secondary"
+  }
 }
 ----
 // TEST[skip:we don't have azure setup while testing this]
@@ -99,7 +99,7 @@ stored in the keystore are marked as "secure"; the other settings belong in the
 
 `account` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
   The Azure account name, which is used by the repository's internal Azure client.
-  
+
 `endpoint_suffix`::
   The Azure endpoint suffix to connect to. The default value is
   `core.windows.net`.
@@ -139,7 +139,7 @@ stored in the keystore are marked as "secure"; the other settings belong in the
   The client side timeout for any single request to Azure. The value should
   specify the time unit. For example, a value of `5s` specifies a 5 second
   timeout. There is no default value, which means that {es} uses the
-  http://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
+  https://azure.github.io/azure-storage-java/com/microsoft/azure/storage/RequestOptions.html#setTimeoutIntervalInMs(java.lang.Integer)[default value]
   set by the Azure client (known as 5 minutes). This setting can be defined
   globally, per account, or both.
 
@@ -164,9 +164,13 @@ The Azure repository supports following settings:
 
 `chunk_size`::
 
-    Big files can be broken down into chunks during snapshotting if needed.
+    Big files can be broken down into multiple smaller blobs in the blob store during snapshotting.
+    It is not recommended to change this value from its default unless there is an explicit reason for limiting the
+    size of blobs in the repository. Setting a value lower than the default can result in an increased number of API
+    calls to the Azure blob store during snapshot create as well as restore operations compared to using the default
+    value and thus make both operations slower as well as more costly.
     Specify the chunk size as a value and unit, for example:
-    `10MB`, `5KB`, `500B`. Defaults to `64MB` (64MB max).
+    `10MB`, `5KB`, `500B`. Defaults to the maximum size of a blob in the Azure blob store which is `5TB`.
 
 `compress`::
 
@@ -188,37 +192,37 @@ Some examples, using scripts:
 # The simplest one
 PUT _snapshot/my_backup1
 {
-    "type": "azure"
+  "type": "azure"
 }
 
 # With some settings
 PUT _snapshot/my_backup2
 {
-    "type": "azure",
-    "settings": {
-        "container": "backup-container",
-        "base_path": "backups",
-        "chunk_size": "32MB",
-        "compress": true
-    }
+  "type": "azure",
+  "settings": {
+    "container": "backup-container",
+    "base_path": "backups",
+    "chunk_size": "32MB",
+    "compress": true
+  }
 }
 
 
 # With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
 PUT _snapshot/my_backup3
 {
-    "type": "azure",
-    "settings": {
-        "client": "secondary"
-    }
+  "type": "azure",
+  "settings": {
+    "client": "secondary"
+  }
 }
 PUT _snapshot/my_backup4
 {
-    "type": "azure",
-    "settings": {
-        "client": "secondary",
-        "location_mode": "primary_only"
-    }
+  "type": "azure",
+  "settings": {
+    "client": "secondary",
+    "location_mode": "primary_only"
+  }
 }
 ----
 // TEST[skip:we don't have azure setup while testing this]
@@ -237,8 +241,10 @@ client.admin().cluster().preparePutRepository("my_backup_java1")
 [[repository-azure-validation]]
 ==== Repository validation rules
 
-According to the http://msdn.microsoft.com/en-us/library/dd135715.aspx[containers naming guide], a container name must
-be a valid DNS name, conforming to the following naming rules:
+According to the
+https://docs.microsoft.com/en-us/rest/api/storageservices/Naming-and-Referencing-Containers--Blobs--and-Metadata[containers
+naming guide], a container name must be a valid DNS name, conforming to the
+following naming rules:
 
 * Container names must start with a letter or number, and can contain only letters, numbers, and the dash (-) character.
 * Every dash (-) character must be immediately preceded and followed by a letter or number; consecutive dashes are not

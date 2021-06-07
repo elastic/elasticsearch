@@ -1,117 +1,53 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.fetch.subphase;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContent;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * All the required context to pull a field from the doc values.
+ * This contains:
+ * <ul>
+ *   <li>a list of field names and its format.
+ * </ul>
  */
 public class FetchDocValuesContext {
 
+    private final List<FieldAndFormat> fields = new ArrayList<>();
+
     /**
-     * Wrapper around a field name and the format that should be used to
-     * display values of this field.
+     * Create a new FetchDocValuesContext using the provided input list.
+     * Field patterns containing wildcards are resolved and unmapped fields are filtered out.
      */
-    public static final class FieldAndFormat implements Writeable {
-
-        private static final ConstructingObjectParser<FieldAndFormat, Void> PARSER = new ConstructingObjectParser<>("docvalues_field",
-                a -> new FieldAndFormat((String) a[0], (String) a[1]));
-        static {
-            PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("field"));
-            PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("format"));
-        }
-
-        /**
-         * Parse a {@link FieldAndFormat} from some {@link XContent}.
-         */
-        public static FieldAndFormat fromXContent(XContentParser parser) throws IOException {
-            Token token = parser.currentToken();
-            if (token.isValue()) {
-                return new FieldAndFormat(parser.text(), null);
-            } else {
-                return PARSER.apply(parser, null);
+    public FetchDocValuesContext(SearchExecutionContext searchExecutionContext, List<FieldAndFormat> fieldPatterns) {
+        for (FieldAndFormat field : fieldPatterns) {
+            Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field.field);
+            for (String fieldName : fieldNames) {
+                fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
 
-        /** The name of the field. */
-        public final String field;
-
-        /** The format of the field, or {@code null} if defaults should be used. */
-        public final String format;
-
-        /** Sole constructor. */
-        public FieldAndFormat(String field, @Nullable String format) {
-            this.field = Objects.requireNonNull(field);
-            this.format = format;
+        int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
+        if (fields.size() > maxAllowedDocvalueFields) {
+            throw new IllegalArgumentException(
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
+                    + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
         }
-
-        /** Serialization constructor. */
-        public FieldAndFormat(StreamInput in) throws IOException {
-            this.field = in.readString();
-            format = in.readOptionalString();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(field);
-            out.writeOptionalString(format);
-        }
-
-        @Override
-        public int hashCode() {
-            int h = field.hashCode();
-            h = 31 * h + Objects.hashCode(format);
-            return h;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj == null || getClass() != obj.getClass()) {
-                return false;
-            }
-            FieldAndFormat other = (FieldAndFormat) obj;
-            return field.equals(other.field) && Objects.equals(format, other.format);
-        }
-
-    }
-
-    private final List<FieldAndFormat> fields;
-
-    public FetchDocValuesContext(List<FieldAndFormat> fields) {
-        this.fields = fields;
     }
 
     /**
-     * Returns the required docvalue fields
+     * Returns the required docvalue fields.
      */
     public List<FieldAndFormat> fields() {
         return this.fields;

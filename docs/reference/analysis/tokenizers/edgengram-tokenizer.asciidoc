@@ -1,9 +1,12 @@
 [[analysis-edgengram-tokenizer]]
 === Edge n-gram tokenizer
+++++
+<titleabbrev>Edge n-gram</titleabbrev>
+++++
 
 The `edge_ngram` tokenizer first breaks text down into words whenever it
 encounters one of a list of specified characters, then it emits
-https://en.wikipedia.org/wiki/N-gram[N-grams] of each word where the start of
+{wikipedia}/N-gram[N-grams] of each word where the start of
 the N-gram is anchored to the beginning of the word.
 
 Edge N-Grams are useful for _search-as-you-type_ queries.
@@ -11,10 +14,10 @@ Edge N-Grams are useful for _search-as-you-type_ queries.
 TIP: When you need _search-as-you-type_ for text which has a widely known
 order, such as movie or song titles, the
 <<completion-suggester,completion suggester>> is a much more efficient
-choice than edge N-grams.  Edge N-grams have the advantage when trying to
+choice than edge N-grams. Edge N-grams have the advantage when trying to
 autocomplete words that can appear in any order.
 
-[float]
+[discrete]
 === Example output
 
 With the default settings, the `edge_ngram` tokenizer treats the initial text as a
@@ -64,28 +67,28 @@ The above sentence would produce the following terms:
 [ Q, Qu ]
 ---------------------------
 
-NOTE: These default gram lengths are almost entirely useless.  You need to
+NOTE: These default gram lengths are almost entirely useless. You need to
 configure the `edge_ngram` before using it.
 
-[float]
+[discrete]
 === Configuration
 
 The `edge_ngram` tokenizer accepts the following parameters:
 
 `min_gram`::
-    Minimum length of characters in a gram.  Defaults to `1`.
+    Minimum length of characters in a gram. Defaults to `1`.
 
 `max_gram`::
 +
 --
-Maximum length of characters in a gram.  Defaults to `2`.
+Maximum length of characters in a gram. Defaults to `2`.
 
 See <<max-gram-limits>>.
 --
 
 `token_chars`::
 
-    Character classes that should be included in a token.  Elasticsearch
+    Character classes that should be included in a token. Elasticsearch
     will split on characters that don't belong to the classes specified.
     Defaults to `[]` (keep all characters).
 +
@@ -103,9 +106,9 @@ Character classes may be any of the following:
 
     Custom characters that should be treated as part of a token. For example,
     setting this to `+-_` will make the tokenizer treat the plus, minus and
-    underscore sign  as part of a token.
+    underscore sign as part of a token.
 
-[float]
+[discrete]
 [[max-gram-limits]]
 === Limitations of the `max_gram` parameter
 
@@ -130,7 +133,7 @@ and `apple`.
 We recommend testing both approaches to see which best fits your
 use case and desired search experience.
 
-[float]
+[discrete]
 === Example configuration
 
 In this example, we configure the `edge_ngram` tokenizer to treat letters and
@@ -139,7 +142,7 @@ length `10`:
 
 [source,console]
 ----------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -163,7 +166,7 @@ PUT my_index
   }
 }
 
-POST my_index/_analyze
+POST my-index-000001/_analyze
 {
   "analyzer": "my_analyzer",
   "text": "2 Quick Foxes."
@@ -259,7 +262,7 @@ search terms longer than 10 characters may not match any indexed terms.
 
 [source,console]
 -----------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -297,14 +300,14 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1
+PUT my-index-000001/_doc/1
 {
   "title": "Quick Foxes" <1>
 }
 
-POST my_index/_refresh
+POST my-index-000001/_refresh
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "match": {
@@ -341,7 +344,7 @@ GET my_index/_search
     "max_score": 0.5753642,
     "hits": [
       {
-        "_index": "my_index",
+        "_index": "my-index-000001",
         "_id": "1",
         "_score": 0.5753642,
         "_source": {

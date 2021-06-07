@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.packaging.test;
@@ -43,11 +32,11 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
-import static org.elasticsearch.packaging.util.FileUtils.getTempDir;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.elasticsearch.packaging.util.Packages.assertInstalled;
 import static org.elasticsearch.packaging.util.Packages.assertRemoved;
@@ -102,7 +91,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     public void test12InstallDockerDistribution() throws Exception {
         assumeTrue(distribution().isDocker());
 
-        installation = Docker.runContainer(distribution());
+        installation = Docker.runContainer(distribution(), builder().envVars(Map.of("ingest.geoip.downloader.enabled", "false")));
 
         try {
             waitForPathToExist(installation.config("elasticsearch.keystore"));
@@ -273,15 +262,15 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), volumes, envVars);
+        Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", password, "ingest.geoip.downloader.enabled", "false");
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
     }
@@ -295,9 +284,9 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Path tempDir = null;
         try {
-            tempDir = Files.createTempDirectory(getTempDir(), DockerTests.class.getSimpleName());
+            tempDir = createTempDir(DockerTests.class.getSimpleName());
 
-            String password = "password";
+            String password = "keystore-password";
             String passwordFilename = "password.txt";
             Files.writeString(tempDir.resolve(passwordFilename), password + "\n");
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
@@ -308,9 +297,14 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
             // restart ES with password and mounted keystore
             Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore, tempDir, Path.of("/run/secrets"));
-            Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
+            Map<String, String> envVars = Map.of(
+                "KEYSTORE_PASSWORD_FILE",
+                "/run/secrets/" + passwordFilename,
+                "ingest.geoip.downloader.enabled",
+                "false"
+            );
 
-            runContainer(distribution(), volumes, envVars);
+            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
@@ -327,7 +321,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
@@ -335,7 +329,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         // restart ES with password and mounted keystore
         Map<Path, Path> volumes = Map.of(localKeystoreFile, dockerKeystore);
         Map<String, String> envVars = Map.of("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -349,7 +343,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
     private Path getKeystoreFileFromDockerContainer(String password, Path dockerKeystore) throws IOException {
         // Mount a temporary directory for copying the keystore
         Path dockerTemp = Path.of("/usr/tmp/keystore-tmp");
-        Path tempDirectory = Files.createTempDirectory(getTempDir(), KeystoreManagementTests.class.getSimpleName());
+        Path tempDirectory = createTempDir(KeystoreManagementTests.class.getSimpleName());
         Map<Path, Path> volumes = Map.of(tempDirectory, dockerTemp);
 
         // It's very tricky to properly quote a pipeline that you're passing to
@@ -363,7 +357,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), volumes, null);
+        runContainer(distribution(), builder().volumes(volumes));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);
@@ -454,6 +448,8 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
+            case DOCKER_UBI:
+            case DOCKER_IRON_BANK:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

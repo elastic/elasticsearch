@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.security.authz.permission;
@@ -14,7 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
@@ -82,27 +83,27 @@ public final class DocumentPermissions {
      * @param user authenticated {@link User}
      * @param scriptService {@link ScriptService} for evaluating query templates
      * @param shardId {@link ShardId}
-     * @param queryShardContextProvider {@link QueryShardContext}
+     * @param searchExecutionContextProvider {@link SearchExecutionContext}
      * @return {@link BooleanQuery} for the filter
      * @throws IOException thrown if there is an exception during parsing
      */
     public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
-                                      Function<ShardId, QueryShardContext> queryShardContextProvider) throws IOException {
+                                      Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
         if (hasDocumentLevelPermissions()) {
             BooleanQuery.Builder filter;
             if (queries != null && limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, scopedFilter);
+                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
+                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
             } else if (queries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, queries, filter);
+                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
             } else if (limitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, queryShardContextProvider, limitedByQueries, filter);
+                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, filter);
             } else {
                 return null;
             }
@@ -112,24 +113,25 @@ public final class DocumentPermissions {
     }
 
     private static void buildRoleQuery(User user, ScriptService scriptService, ShardId shardId,
-                                       Function<ShardId, QueryShardContext> queryShardContextProvider, Set<BytesReference> queries,
+                                       Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
+                                       Set<BytesReference> queries,
                                        BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
-            QueryShardContext queryShardContext = queryShardContextProvider.apply(shardId);
+            SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
             QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
-                queryShardContext.getXContentRegistry(), user);
+                context.getXContentRegistry(), user);
             if (queryBuilder != null) {
-                failIfQueryUsesClient(queryBuilder, queryShardContext);
-                Query roleQuery = queryShardContext.toQuery(queryBuilder).query();
+                failIfQueryUsesClient(queryBuilder, context);
+                Query roleQuery = context.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (queryShardContext.getMapperService().hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(queryShardContext.getMapperService());
+                if (context.hasNested()) {
+                    NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
                             .add(Queries.newNonNestedFilter(), FILTER).build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                    BitSetProducer rootDocs = queryShardContext
+                    BitSetProducer rootDocs = context
                         .bitsetFilter(Queries.newNonNestedFilter());
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);

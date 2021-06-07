@@ -2,20 +2,20 @@
 === `enabled`
 
 Elasticsearch tries to index all of the fields you give it, but sometimes you
-want to just store the field without indexing it.  For instance, imagine that
-you are using Elasticsearch as a web session store.  You may want to index the
+want to just store the field without indexing it. For instance, imagine that
+you are using Elasticsearch as a web session store. You may want to index the
 session ID and last update time, but you don't need to query or run
 aggregations on the session data itself.
 
 The `enabled` setting, which can be applied only to the top-level mapping
 definition and to <<object,`object`>> fields, causes Elasticsearch to skip
-parsing of the contents of the field entirely.  The JSON can still be retrieved
+parsing of the contents of the field entirely. The JSON can still be retrieved
 from the <<mapping-source-field,`_source`>> field, but it is not searchable or
 stored in any other way:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -33,7 +33,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/session_1
+PUT my-index-000001/_doc/session_1
 {
   "user_id": "kimchy",
   "session_data": { <2>
@@ -44,7 +44,7 @@ PUT my_index/_doc/session_1
   "last_updated": "2015-12-06T18:20:22"
 }
 
-PUT my_index/_doc/session_2
+PUT my-index-000001/_doc/session_2
 {
   "user_id": "jpountz",
   "session_data": "none", <3>
@@ -62,14 +62,14 @@ retrieved, but none of its contents are indexed in any way:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "enabled": false <1>
   }
 }
 
-PUT my_index/_doc/session_1
+PUT my-index-000001/_doc/session_1
 {
   "user_id": "kimchy",
   "session_data": {
@@ -80,9 +80,9 @@ PUT my_index/_doc/session_1
   "last_updated": "2015-12-06T18:20:22"
 }
 
-GET my_index/_doc/session_1 <2>
+GET my-index-000001/_doc/session_1 <2>
 
-GET my_index/_mapping <3>
+GET my-index-000001/_mapping <3>
 --------------------------------------------------
 
 <1> The entire mapping is disabled.
@@ -97,7 +97,7 @@ contents, it is possible to add non-object data to a disabled field:
 
 [source,console]
 --------------------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -109,7 +109,7 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/session_1
+PUT my-index-000001/_doc/session_1
 {
   "session_data": "foo bar" <1>
 }

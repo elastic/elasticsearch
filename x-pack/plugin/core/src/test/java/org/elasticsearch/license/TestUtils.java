@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.license;
 
@@ -360,21 +361,23 @@ public class TestUtils {
         public final List<License.OperationMode> modeUpdates = new ArrayList<>();
         public final List<Boolean> activeUpdates = new ArrayList<>();
         public final List<Version> trialVersionUpdates = new ArrayList<>();
+        public final List<Long> expirationDateUpdates = new ArrayList<>();
 
         public AssertingLicenseState() {
-            super(Settings.EMPTY);
+            super(Settings.EMPTY, () -> 0);
         }
 
         @Override
-        void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
+        void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
             modeUpdates.add(mode);
             activeUpdates.add(active);
+            expirationDateUpdates.add(expirationDate);
             trialVersionUpdates.add(mostRecentTrialVersion);
         }
     }
 
     /**
-     * A license state that makes the {@link #update(License.OperationMode, boolean, Version)}
+     * A license state that makes the {@link #update(License.OperationMode, boolean, long, Version)}
      * method public for use in tests.
      */
     public static class UpdatableLicenseState extends XPackLicenseState {
@@ -383,13 +386,17 @@ public class TestUtils {
         }
 
         public UpdatableLicenseState(Settings settings) {
-            super(settings);
+            super(settings, () -> 0);
         }
 
         @Override
-        public void update(License.OperationMode mode, boolean active, Version mostRecentTrialVersion) {
-            super.update(mode, active, mostRecentTrialVersion);
+        public void update(License.OperationMode mode, boolean active, long expirationDate, Version mostRecentTrialVersion) {
+            super.update(mode, active, expirationDate, mostRecentTrialVersion);
         }
+    }
+
+    public static XPackLicenseState newTestLicenseState() {
+        return new XPackLicenseState(Settings.EMPTY, () -> 0);
     }
 
     public static void putLicense(Metadata.Builder builder, License license) {

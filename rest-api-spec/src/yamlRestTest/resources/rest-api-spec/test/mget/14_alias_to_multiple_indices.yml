@@ -1,0 +1,43 @@
+---
+"Multi Get with alias that resolves to multiple indices":
+  - skip:
+      version: " - 7.8.99"
+      reason: "message was changed to fix grammar in 7.9"
+
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index": {"_index": "test_1", "_id": 1}}
+          { "foo": "bar" }
+          {"index": {"_index": "test_2", "_id": 2}}
+          { "foo": "bar" }
+          {"index": {"_index": "test_3", "_id": 3}}
+          { "foo": "bar" }
+
+  - do:
+      indices.put_alias:
+        index: test_2
+        name:  test_two_and_three
+
+  - do:
+      indices.put_alias:
+        index: test_3
+        name:  test_two_and_three
+
+  - do:
+      mget:
+        body:
+          docs:
+            - { _index: test_1, _id: 1}
+            - { _index: test_two_and_three, _id: 2}
+
+  - is_true: docs.0.found
+  - match: { docs.0._index:     test_1      }
+  - match: { docs.0._id:        "1"         }
+
+  - is_false: docs.1.found
+  - match: { docs.1._index:     test_two_and_three      }
+  - match: { docs.1._id:        "2"                     }
+  - match: { docs.1.error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { docs.1.error.root_cause.0.reason: "/[aA]lias.\\[test_two_and_three\\].has.more.than.one.index.associated.with.it.\\[test_[23]{1},.test_[23]{1}\\],.can't.execute.a.single.index.op/" }

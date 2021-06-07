@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.persistent;
@@ -28,9 +17,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -42,7 +35,9 @@ import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * Component that runs only on the master node and is responsible for assigning running tasks to nodes
@@ -57,7 +52,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
 
     private final ClusterService clusterService;
     private final PersistentTasksExecutorRegistry registry;
-    private final EnableAssignmentDecider decider;
+    private final EnableAssignmentDecider enableDecider;
     private final ThreadPool threadPool;
     private final PeriodicRechecker periodicRechecker;
 
@@ -65,10 +60,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                          ThreadPool threadPool) {
         this.clusterService = clusterService;
         this.registry = registry;
-        this.decider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
+        this.enableDecider = new EnableAssignmentDecider(settings, clusterService.getClusterSettings());
         this.threadPool = threadPool;
         this.periodicRechecker = new PeriodicRechecker(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING.get(settings));
-        clusterService.addListener(this);
+        if (DiscoveryNode.isMasterNode(settings)) {
+            clusterService.addListener(this);
+        }
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CLUSTER_TASKS_ALLOCATION_RECHECK_INTERVAL_SETTING,
             this::setRecheckInterval);
     }
@@ -76,6 +73,11 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     // visible for testing only
     public void setRecheckInterval(TimeValue recheckInterval) {
         periodicRechecker.setInterval(recheckInterval);
+    }
+
+    // visible for testing only
+    PeriodicRechecker getPeriodicRechecker() {
+        return periodicRechecker;
     }
 
     @Override
@@ -300,12 +302,37 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                                                                               final ClusterState currentState) {
         PersistentTasksExecutor<Params> persistentTasksExecutor = registry.getPersistentTaskExecutorSafe(taskName);
 
-        AssignmentDecision decision = decider.canAssign();
+        AssignmentDecision decision = enableDecider.canAssign();
         if (decision.getType() == AssignmentDecision.Type.NO) {
             return unassignedAssignment("persistent task [" + taskName + "] cannot be assigned [" + decision.getReason() + "]");
         }
 
-        return persistentTasksExecutor.getAssignment(taskParams, currentState);
+        // Filter all nodes that are marked as shutting down, because we do not
+        // want to assign a persistent task to a node that will shortly be
+        // leaving the cluster
+        final List<DiscoveryNode> candidateNodes = currentState.nodes().getAllNodes().stream()
+            .filter(dn -> isNodeShuttingDown(currentState, dn.getId()) == false)
+            .collect(Collectors.toList());
+        // Task assignment should not rely on node order
+        Randomness.shuffle(candidateNodes);
+
+        final Assignment assignment = persistentTasksExecutor.getAssignment(taskParams, candidateNodes, currentState);
+        assert (assignment == null || isNodeShuttingDown(currentState, assignment.getExecutorNode()) == false) :
+            "expected task [" + taskName + "] to be assigned to a node that is not marked as shutting down, but " +
+                assignment.getExecutorNode() + " is currently marked as shutting down";
+        return assignment;
+    }
+
+    /**
+     * Returns true if the given node is marked as shutting down with any
+     * shutdown type.
+     */
+    static boolean isNodeShuttingDown(final ClusterState state, final String nodeId) {
+        // Right now we make no distinction between the type of shutdown, but maybe in the future we might?
+        return NodesShutdownMetadata.getShutdowns(state)
+            .map(NodesShutdownMetadata::getAllNodeMetadataMap)
+            .map(allNodes -> allNodes.get(nodeId))
+            .isPresent();
     }
 
     @Override
@@ -317,6 +344,8 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
                 logger.trace("checking task reassignment for cluster state {}", event.state().getVersion());
                 reassignPersistentTasks();
             }
+        } else {
+            periodicRechecker.cancel();
         }
     }
 
@@ -333,9 +362,12 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
             @Override
             public void onFailure(String source, Exception e) {
                 logger.warn("failed to reassign persistent tasks", e);
-                // There must be a task that's worth rechecking because there was one
-                // that caused this method to be called and the method failed to assign it
-                periodicRechecker.rescheduleIfNecessary();
+                if (e instanceof NotMasterException == false) {
+                    // There must be a task that's worth rechecking because there was one
+                    // that caused this method to be called and the method failed to assign it,
+                    // but only do this if the node is still the master
+                    periodicRechecker.rescheduleIfNecessary();
+                }
             }
 
             @Override
@@ -450,7 +482,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Class to periodically try to reassign unassigned persistent tasks.
      */
-    private class PeriodicRechecker extends AbstractAsyncTask {
+    class PeriodicRechecker extends AbstractAsyncTask {
 
         PeriodicRechecker(TimeValue recheckInterval) {
             super(logger, threadPool, recheckInterval, false);

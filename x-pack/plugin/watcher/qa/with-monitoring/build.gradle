@@ -1,12 +1,13 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(':x-pack:qa')
+  javaRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')
 }
 
-testClusters.integTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.monitoring.collection.interval', '1s'
@@ -14,4 +15,9 @@ testClusters.integTest {
   setting 'xpack.security.enabled', 'false'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

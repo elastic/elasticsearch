@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.retention;
 
@@ -30,6 +31,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -71,9 +73,9 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     private final AnomalyDetectionAuditor auditor;
     private final ThreadPool threadPool;
 
-    public ExpiredResultsRemover(OriginSettingClient client, Iterator<Job> jobIterator,
+    public ExpiredResultsRemover(OriginSettingClient client, Iterator<Job> jobIterator, TaskId parentTaskId,
                                  AnomalyDetectionAuditor auditor, ThreadPool threadPool) {
-        super(client, jobIterator);
+        super(client, jobIterator, parentTaskId);
         this.auditor = Objects.requireNonNull(auditor);
         this.threadPool = Objects.requireNonNull(threadPool);
     }
@@ -93,6 +95,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
     ) {
         LOGGER.debug("Removing results of job [{}] that have a timestamp before [{}]", job.getId(), cutoffEpochMs);
         DeleteByQueryRequest request = createDBQRequest(job, requestsPerSecond, cutoffEpochMs);
+        request.setParentTask(getParentTaskId());
 
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
             @Override
@@ -121,6 +124,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         request.setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
             // We are deleting old data, we should simply proceed as a version conflict could mean that another deletion is taking place
             .setAbortOnVersionConflict(false)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setRequestsPerSecond(requestsPerSec);
 
         request.indices(AnomalyDetectorsIndex.jobResultsAliasedName(job.getId()));
@@ -167,6 +171,7 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
         SearchRequest searchRequest = new SearchRequest(indexName);
         searchRequest.source(searchSourceBuilder);
         searchRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(SearchRequest.DEFAULT_INDICES_OPTIONS));
+        searchRequest.setParentTask(getParentTaskId());
 
         client.search(searchRequest, ActionListener.wrap(
                 response -> {

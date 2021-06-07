@@ -1,0 +1,103 @@
+// tag::unix[]
+Linux and macOS installations support Unix-style paths:
+
+[source,yaml]
+----
+path:
+  repo:
+    - /mount/backups
+    - /mount/long_term_backups
+----
+
+After restarting each node, use the <<put-snapshot-repo-api,create or update
+snapshot repository>> API to register the file system repository. Specify the
+file system's path in `settings.location`:
+
+[source,console]
+----
+PUT /_snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "/mount/backups/my_fs_backup_location",
+    "compress": true
+  }
+}
+----
+// TEST[skip:no access to path]
+
+If you specify a relative path in `settings.location`, {es} resolves the path
+using the first value in the `path.repo` setting.
+
+[source,console]
+----
+PUT /_snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "my_fs_backup_location",       <1>
+    "compress": true
+  }
+}
+----
+// TEST[skip:no access to path]
+
+<1> The first value in the `path.repo` setting is `/mount/backups`. This
+relative path, `my_fs_backup_location`, resolves to
+`/mount/backups/my_fs_backup_location`.
+// end::unix[]
+
+
+// tag::win[]
+Windows installations support both DOS and Microsoft UNC paths. Escaped any
+backslashes in the paths. For UNC paths, provide the server and share name as a
+prefix.
+
+[source,yaml]
+----
+path:
+  repo:
+    - "E:\\Mount\\Backups"                      <1>
+    - "\\\\MY_SERVER\\Mount\\Long_term_backups" <2>
+----
+
+<1> DOS path
+<2> UNC path
+
+After restarting each node, use the <<put-snapshot-repo-api,create or update
+snapshot repository>> API to register the file system repository. Specify the
+file system's path in `settings.location`:
+
+[source,console]
+----
+PUT /_snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "E:\\Mount\\Backups\\My_fs_backup_location",
+    "compress": true
+  }
+}
+----
+// TEST[skip:no access to path]
+
+If you specify a relative path in `settings.location`, {es} resolves the path
+using the first value in the `path.repo` setting.
+
+[source,console]
+----
+PUT /_snapshot/my_fs_backup
+{
+  "type": "fs",
+  "settings": {
+    "location": "My_fs_backup_location",       <1>
+    "compress": true
+  }
+}
+----
+// TEST[skip:no access to path]
+
+<1> The first value in the `path.repo` setting is `E:\Mount\Backups`. This
+relative path, `My_fs_backup_location`, resolves to
+`E:\Mount\Backups\My_fs_backup_location`.
+// end::win[]

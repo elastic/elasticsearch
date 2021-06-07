@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
@@ -15,6 +16,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -26,7 +28,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 
 public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
@@ -301,13 +305,12 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
     public void testMergeWithJob_GivenRandomUpdates_AssertImmutability() {
         for (int i = 0; i < 100; ++i) {
             Job job = JobTests.createRandomizedJob();
-            JobUpdate update = createRandom(job.getId(), job);
-            while (update.isNoop(job)) {
+            JobUpdate update;
+            do {
                 update = createRandom(job.getId(), job);
-            }
+            } while (update.isNoop(job));
 
             Job updatedJob = update.mergeWithJob(job, new ByteSizeValue(0L));
-
             assertThat(job, not(equalTo(updatedJob)));
         }
     }
@@ -369,5 +372,24 @@ public class JobUpdateTests extends AbstractSerializingTestCase<JobUpdate> {
                 e.getMessage());
 
         updateAboveMaxLimit.mergeWithJob(jobBuilder.build(), new ByteSizeValue(10000L, ByteSizeUnit.MB));
+    }
+
+    public void testUpdate_givenEmptySnapshot() {
+        Job.Builder jobBuilder = new Job.Builder("my_job");
+        Detector.Builder d1 = new Detector.Builder("count", null);
+        AnalysisConfig.Builder ac = new AnalysisConfig.Builder(Collections.singletonList(d1.build()));
+        jobBuilder.setAnalysisConfig(ac);
+        jobBuilder.setDataDescription(new DataDescription.Builder());
+        jobBuilder.setCreateTime(new Date());
+        jobBuilder.setModelSnapshotId("some_snapshot_id");
+        Job job = jobBuilder.build();
+        assertThat(job.getModelSnapshotId(), equalTo("some_snapshot_id"));
+
+        JobUpdate update = new JobUpdate.Builder(job.getId())
+            .setModelSnapshotId(ModelSnapshot.emptySnapshot(job.getId()).getSnapshotId())
+            .build();
+
+        Job updatedJob = update.mergeWithJob(job, ByteSizeValue.ofMb(100));
+        assertThat(updatedJob.getModelSnapshotId(), is(nullValue()));
     }
 }

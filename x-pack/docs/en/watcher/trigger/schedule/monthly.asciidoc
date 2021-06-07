@@ -1,6 +1,9 @@
 [role="xpack"]
 [[schedule-monthly]]
-==== Monthly schedule
+==== {watcher} monthly schedule
+++++
+<titleabbrev>Monthly schedule</titleabbrev>
+++++
 
 A <<trigger-schedule,`schedule`>> that triggers at a specific day and time
 every month. To use the `monthly` schedule, you specify the day of the month and

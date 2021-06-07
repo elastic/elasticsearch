@@ -1,59 +1,38 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 
-/*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
+import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+public class NullValueTests extends MapperServiceTestCase {
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class NullValueTests extends ESSingleNodeTestCase {
     public void testNullNullValue() throws Exception {
-        IndexService indexService = createIndex("test", Settings.builder().build());
+
         String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
 
         for (String type : typesToTest) {
-            String mapping = Strings.toString(XContentFactory.jsonBuilder()
-                    .startObject()
-                        .startObject("type")
-                            .startObject("properties")
-                                .startObject("numeric")
-                                    .field("type", type)
-                                    .field("null_value", (String) null)
-                                .endObject()
-                            .endObject()
-                        .endObject()
-                    .endObject());
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));
 
-            try {
-                indexService.mapperService().documentMapperParser().parse("type", new CompressedXContent(mapping));
-                fail("Test should have failed because [null_value] was null.");
-            } catch (MapperParsingException e) {
-                assertThat(e.getMessage(), equalTo("Property [null_value] cannot be null."));
-            }
+            mapper.parse(source(b -> b.nullField("field")));
+
+            ToXContent.Params params = new ToXContent.MapParams(Map.of("include_defaults", "true"));
+            XContentBuilder b = JsonXContent.contentBuilder().startObject();
+            mapper.mapping().toXContent(b, params);
+            b.endObject();
+            assertThat(Strings.toString(b), containsString("\"null_value\":null"));
         }
     }
 }

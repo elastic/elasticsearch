@@ -20,7 +20,7 @@ Returns configuration and usage information about {anomaly-jobs}.
 
 * If the {es} {security-features} are enabled, you must have `monitor_ml`,
 `monitor`, `manage_ml`, or `manage` cluster privileges to use this API. See
-<<security-privileges>> and {ml-docs}/setup.html[Set up {ml-features}].
+<<security-privileges>> and {ml-docs-setup-privileges}.
 
 
 [[cat-anomaly-detectors-desc]]
@@ -40,8 +40,8 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 [[cat-anomaly-detectors-query-params]]
 ==== {api-query-parms-title}
 
-`allow_no_jobs`::
-(Optional, boolean)
+`allow_no_match`::
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bytes]
@@ -268,7 +268,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v
+GET _cat/ml/anomaly_detectors?h=id,s,dpr,mb&v=true
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

@@ -8,7 +8,7 @@ authenticated until their passwords have been set. The `elastic` user can be
 used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
 `elastic`:: A built-in <<built-in-roles,superuser>>.
-`kibana`:: The user Kibana uses to connect and communicate with {es}.
+`kibana_system`:: The user Kibana uses to connect and communicate with {es}.
 `logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
 `beats_system`:: The user the Beats use when storing monitoring information in {es}.
 `apm_system`:: The user the APM server uses when storing monitoring information in {es}.
@@ -21,7 +21,7 @@ use. In particular, do not use the `elastic` superuser unless full access to
 the cluster is required. Instead, create users that have the minimum necessary
 roles or privileges for their activities.
 
-[float]
+[discrete]
 [[built-in-user-explanation]]
 ==== How the built-in users work
 These built-in users are stored in a special `.security` index, which is managed
@@ -36,7 +36,7 @@ realm will not have any effect on the built-in users. The built-in users can
 be disabled individually, using the
 <<security-api-disable-user,disable users API>>.
 
-[float]
+[discrete]
 [[bootstrap-elastic-passwords]]
 ==== The Elastic bootstrap password
 
@@ -55,7 +55,7 @@ NOTE: After you <<set-built-in-user-passwords,set passwords for the built-in use
 in particular for the `elastic` user, there is no further use for the bootstrap
 password.
 
-[float]
+[discrete]
 [[set-built-in-user-passwords]]
 ==== Setting built-in user passwords
 
@@ -84,7 +84,7 @@ Alternatively, you can set the initial passwords for the built-in users by using
 the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>>. These methods are
 more complex. You must supply the `elastic` user and its bootstrap password to
-log into {kib} or run the API. This requirement means that you cannot use the
+log in to {kib} or run the API. This requirement means that you cannot use the
 default bootstrap password that is derived from the `keystore.seed` setting.
 Instead, you must explicitly set a `bootstrap.password` setting in the keystore
 before you start {es}. For example, the following command prompts you to enter a
@@ -96,14 +96,14 @@ bin/elasticsearch-keystore add "bootstrap.password"
 ----------------------------------------------------
 
 You can then start {es} and {kib} and use the `elastic` user and bootstrap
-password to log into {kib} and change the passwords. Alternatively, you can
+password to log in to {kib} and change the passwords. Alternatively, you can
 submit Change Password API requests for each built-in user. These methods are
 better suited for changing your passwords after the initial setup is complete,
 since at that point the bootstrap password is no longer required.
 
 [[add-built-in-user-passwords]]
 
-[float]
+[discrete]
 [[add-built-in-user-kibana]]
 ==== Adding built-in user passwords to {kib}
 
@@ -118,7 +118,7 @@ elasticsearch.password: kibanapassword
 
 See {kibana-ref}/using-kibana-with-security.html[Configuring security in {kib}].
 
-[float]
+[discrete]
 [[add-built-in-user-logstash]]
 ==== Adding built-in user passwords to {ls}
 
@@ -145,7 +145,7 @@ PUT _security/user/logstash_system/_enable
 
 See {logstash-ref}/ls-security.html#ls-monitoring-user[Configuring credentials for {ls} monitoring].
 
-[float]
+[discrete]
 [[add-built-in-user-beats]]
 ==== Adding built-in user passwords to Beats
 
@@ -172,7 +172,7 @@ the case, then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[add-built-in-user-apm]]
 ==== Adding built-in user passwords to APM
 
@@ -196,7 +196,7 @@ then you should use the *Management > Users* page in {kib} or the
 <<security-api-change-password,change password API>> to set a password
 for these users.
 
-[float]
+[discrete]
 [[disabling-default-password]]
 ==== Disabling default password functionality
 [IMPORTANT]

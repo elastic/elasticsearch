@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.client.documentation;
@@ -34,8 +23,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
@@ -91,6 +83,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.Avg;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -731,6 +724,101 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::search-scroll-example
             assertTrue(succeeded);
         }
+    }
+
+    public void testPointInTime() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        BulkRequest request = new BulkRequest();
+        request.add(new IndexRequest("posts").id("1").source(XContentType.JSON, "lang", "Java"));
+        request.add(new IndexRequest("posts").id("2").source(XContentType.JSON, "lang", "Python"));
+        request.add(new IndexRequest("posts").id("3").source(XContentType.JSON, "lang", "Go"));
+        request.add(new IndexRequest("posts").id("4").source(XContentType.JSON, "lang", "Rust"));
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
+        assertSame(RestStatus.OK, bulkResponse.status());
+        assertFalse(bulkResponse.hasFailures());
+
+        // tag::open-point-in-time
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts"); // <1>
+        openRequest.keepAlive(TimeValue.timeValueMinutes(30)); // <2>
+        OpenPointInTimeResponse openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+        String pitId = openResponse.getPointInTimeId(); // <3>
+        assertNotNull(pitId);
+        // end::open-point-in-time
+
+        // tag::search-point-in-time
+        SearchRequest searchRequest = new SearchRequest();
+        final PointInTimeBuilder pointInTimeBuilder = new PointInTimeBuilder(pitId); // <1>
+        pointInTimeBuilder.setKeepAlive("2m"); // <2>
+        searchRequest.source(new SearchSourceBuilder().pointInTimeBuilder(pointInTimeBuilder)); // <3>
+        SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+        // end::search-point-in-time
+
+        // tag::close-point-in-time
+        ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId); // <1>
+        ClearScrollResponse closeResponse = client.closePointInTime(closeRequest, RequestOptions.DEFAULT);
+        assertTrue(closeResponse.isSucceeded());
+        // end::close-point-in-time
+
+        // Open a point in time with optional arguments
+        {
+            openRequest = new OpenPointInTimeRequest("posts").keepAlive(TimeValue.timeValueMinutes(10));
+            // tag::open-point-in-time-indices-option
+            openRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED); // <1>
+            // end::open-point-in-time-indices-option
+
+            // tag::open-point-in-time-routing
+            openRequest.routing("routing"); // <1>
+            // end::explain-request-routing
+
+            // tag::open-point-in-time-preference
+            openRequest.preference("_local"); // <1>
+            // end::open-point-in-time-preference
+
+            openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
+            pitId = openResponse.getPointInTimeId();
+            client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT);
+        }
+    }
+
+    public void testSearchAfterWithPointInTime() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+        int numDocs = between(50, 100);
+        BulkRequest request = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            request.add(new IndexRequest("posts").id(Integer.toString(i)).source(XContentType.JSON, "field", i));
+        }
+        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
+        assertSame(RestStatus.OK, bulkResponse.status());
+        assertFalse(bulkResponse.hasFailures());
+
+        // tag::search-after-with-point-in-time
+        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts");
+        openRequest.keepAlive(TimeValue.timeValueMinutes(20));
+        String pitId = client.openPointInTime(openRequest, RequestOptions.DEFAULT).getPointInTimeId(); // <1>
+        assertNotNull(pitId);
+
+        SearchResponse searchResponse = null;
+        int totalHits = 0;
+        do {
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("field").size(5)); // <2>
+            if (searchResponse != null) {
+                final SearchHit[] lastHits = searchResponse.getHits().getHits();
+                searchRequest.source().searchAfter(lastHits[lastHits.length - 1].getSortValues()); // <3>
+            }
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId)); // <4>
+            searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
+            assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
+            totalHits += searchResponse.getHits().getHits().length;
+        } while (searchResponse.getHits().getHits().length > 0);
+
+        assertThat(totalHits, equalTo(numDocs));
+
+        ClearScrollResponse closeResponse = client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT); // <5>
+        assertTrue(closeResponse.isSucceeded());
+        // end::search-after-with-point-in-time
     }
 
     public void testSearchTemplateWithInlineScript() throws Exception {

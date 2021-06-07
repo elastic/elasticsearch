@@ -29,7 +29,7 @@ Maximum number of tokens to keep. Once this limit is reached, any remaining
 tokens are excluded from the output. Defaults to `1`.
 
 `consume_all_tokens`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the `limit` filter exhausts the token stream, even if the
 `max_token_count` has already been reached. Defaults to `false`.
 

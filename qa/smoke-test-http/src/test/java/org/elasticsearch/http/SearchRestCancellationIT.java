@@ -1,43 +1,39 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.http;
 
+import org.apache.http.entity.ContentType;
+import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.lookup.LeafFieldsLookup;
+import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -45,6 +41,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.transport.TransportService;
 
+import java.nio.charset.Charset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -68,22 +65,33 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>();
-        plugins.add(ScriptedBlockPlugin.class);
-        plugins.addAll(super.nodePlugins());
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), ScriptedBlockPlugin.class);
     }
 
     public void testAutomaticCancellationDuringQueryPhase() throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
-
-        List<ScriptedBlockPlugin> plugins = initBlockFactory();
-        indexTestData();
-
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().query(scriptQuery(
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
+        verifyCancellationDuringQueryPhase(SearchAction.NAME, searchRequest);
+    }
+
+    public void testAutomaticCancellationMultiSearchDuringQueryPhase() throws Exception {
+        XContentType contentType = XContentType.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(new SearchRequest("test")
+            .source(new SearchSourceBuilder().scriptField("test_field",
+                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
+        Request restRequest = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
+        verifyCancellationDuringQueryPhase(MultiSearchAction.NAME, restRequest);
+    }
+
+    void verifyCancellationDuringQueryPhase(String searchAction, Request searchRequest) throws Exception {
+        Map<String, String> nodeIdToName = readNodesInfo();
+
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -102,7 +110,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
         awaitForBlock(plugins);
         cancellable.cancel();
-        ensureSearchTaskIsCancelled(nodeIdToName::get);
+        ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
         latch.await();
@@ -110,15 +118,29 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
     }
 
     public void testAutomaticCancellationDuringFetchPhase() throws Exception {
-        Map<String, String> nodeIdToName = readNodesInfo();
-
-        List<ScriptedBlockPlugin> plugins = initBlockFactory();
-        indexTestData();
-
         Request searchRequest = new Request("GET", "/test/_search");
         SearchSourceBuilder searchSource = new SearchSourceBuilder().scriptField("test_field",
             new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()));
         searchRequest.setJsonEntity(Strings.toString(searchSource));
+        verifyCancellationDuringFetchPhase(SearchAction.NAME, searchRequest);
+    }
+
+    public void testAutomaticCancellationMultiSearchDuringFetchPhase() throws Exception {
+        XContentType contentType = XContentType.JSON;
+        MultiSearchRequest multiSearchRequest = new MultiSearchRequest().add(new SearchRequest("test")
+            .source(new SearchSourceBuilder().scriptField("test_field",
+                new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap()))));
+        Request restRequest = new Request("POST", "/_msearch");
+        byte[] requestBody = MultiSearchRequest.writeMultiLineFormat(multiSearchRequest, contentType.xContent());
+        restRequest.setEntity(new NByteArrayEntity(requestBody, createContentType(contentType)));
+        verifyCancellationDuringFetchPhase(MultiSearchAction.NAME, restRequest);
+    }
+
+    void verifyCancellationDuringFetchPhase(String searchAction, Request searchRequest) throws Exception {
+        Map<String, String> nodeIdToName = readNodesInfo();
+
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
 
         CountDownLatch latch = new CountDownLatch(1);
         AtomicReference<Exception> error = new AtomicReference<>();
@@ -137,7 +159,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
 
         awaitForBlock(plugins);
         cancellable.cancel();
-        ensureSearchTaskIsCancelled(nodeIdToName::get);
+        ensureSearchTaskIsCancelled(searchAction, nodeIdToName::get);
 
         disableBlocks(plugins);
         latch.await();
@@ -154,11 +176,11 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         return nodeIdToName;
     }
 
-    private static void ensureSearchTaskIsCancelled(Function<String, String> nodeIdToName) throws Exception {
+    private static void ensureSearchTaskIsCancelled(String transportAction, Function<String, String> nodeIdToName) throws Exception {
         SetOnce<TaskInfo> searchTask = new SetOnce<>();
         ListTasksResponse listTasksResponse = client().admin().cluster().prepareListTasks().get();
         for (TaskInfo task : listTasksResponse.getTasks()) {
-            if (task.getAction().equals(SearchAction.NAME)) {
+            if (task.getAction().equals(transportAction)) {
                 searchTask.set(task);
             }
         }
@@ -236,7 +258,7 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Collections.singletonMap(SCRIPT_NAME, params -> {
-                LeafFieldsLookup fieldsLookup = (LeafFieldsLookup) params.get("_fields");
+                LeafStoredFieldsLookup fieldsLookup = (LeafStoredFieldsLookup) params.get("_fields");
                 LogManager.getLogger(SearchRestCancellationIT.class).info("Blocking on the document {}", fieldsLookup.get("_id"));
                 hits.incrementAndGet();
                 try {
@@ -247,5 +269,9 @@ public class SearchRestCancellationIT extends HttpSmokeTestCase {
                 return true;
             });
         }
+    }
+
+    private static ContentType createContentType(final XContentType xContentType) {
+        return ContentType.create(xContentType.mediaTypeWithoutParameters(), (Charset) null);
     }
 }

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.index.engine;
 
@@ -39,7 +40,7 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves());
+                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
                     if (rarely) {
                         assertArrayEquals(PointValues.getMaxPackedValue(reader, "rarely"),
                             PointValues.getMaxPackedValue(cachingDirectoryReader, "rarely"));
@@ -86,7 +87,7 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                 doc.add(new LongPoint("test", 10));
                 writer.addDocument(doc);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves());
+                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
                     DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType("test");
                     QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0);
                     MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 0, 10,

@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -25,7 +14,6 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalAutoDateHistogram.BucketInfo;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
@@ -37,14 +25,12 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
 
-import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.empty;
@@ -73,8 +59,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             long key = startingDate + (intervalMillis * i);
             buckets.add(i, new InternalAutoDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
         }
-        InternalAggregations subAggregations = new InternalAggregations(Collections.emptyList());
-        BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, subAggregations);
+        BucketInfo bucketInfo = new BucketInfo(roundingInfos, roundingIndex, InternalAggregations.EMPTY);
         return new InternalAutoDateHistogram(name, buckets, targetBuckets, bucketInfo, format, metadata, 1);
     }
 
@@ -157,7 +142,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         int roundingIndex = reduced.getBucketInfo().roundingIdx;
         RoundingInfo roundingInfo = AutoDateHistogramAggregationBuilder.buildRoundings(null, null)[roundingIndex];
-        Rounding.Prepared prepared = roundingInfo.rounding.prepare(lowest, highest);
+        Rounding.Prepared prepared = totalBucketConut > 0 ? roundingInfo.rounding.prepare(lowest, highest) : null;
 
         long normalizedDuration = (highest - lowest) / roundingInfo.getRoughEstimateDurationMillis();
         int innerIntervalIndex = 0;
@@ -263,7 +248,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
     }
 
     @Override
-    protected Class<? extends ParsedMultiBucketAggregation> implementationClass() {
+    protected Class<ParsedAutoDateHistogram> implementationClass() {
         return ParsedAutoDateHistogram.class;
     }
 
@@ -360,7 +345,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
 
         ReduceTestBuilder bucket(String key, long docCount) {
             buckets.add(new InternalAutoDateHistogram.Bucket(
-                utcMillis(key), docCount, FORMAT, new InternalAggregations(emptyList())));
+                utcMillis(key), docCount, FORMAT, InternalAggregations.EMPTY));
             return this;
         }
 
@@ -376,7 +361,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
             assertThat("rounding [" + whichRounding + "] should be in " + Arrays.toString(roundings), roundingIdx, greaterThan(-1));
             assertTrue(Arrays.toString(roundings[roundingIdx].innerIntervals) + " must contain " + innerInterval,
                     Arrays.binarySearch(roundings[roundingIdx].innerIntervals, innerInterval) >= 0);
-            BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, new InternalAggregations(emptyList()));
+            BucketInfo bucketInfo = new BucketInfo(roundings, roundingIdx, InternalAggregations.EMPTY);
             results.add(new InternalAutoDateHistogram("test", new ArrayList<>(buckets), targetBuckets, bucketInfo,
                     FORMAT, emptyMap(), innerInterval));
             buckets.clear();

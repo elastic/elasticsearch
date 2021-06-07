@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-valid-detector]]
-=== Validate detectors API
+= Validate detectors API
 ++++
 <titleabbrev>Validate detectors</titleabbrev>
 ++++
@@ -9,25 +9,24 @@
 Validates detector configuration information.
 
 [[ml-valid-detector-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/anomaly_detectors/_validate/detector`
 
 [[ml-valid-detector-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `manage_ml` or
-`manage` cluster privileges to use this API. See
-<<security-privileges>>.
+Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-valid-detector-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API enables you to validate the detector configuration
 before you create an {anomaly-job}.
 
 [[ml-valid-detector-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `by_field_name`::
 (string)
@@ -101,11 +100,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
 `use_null`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=use-null]
 
 [[ml-valid-detector-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

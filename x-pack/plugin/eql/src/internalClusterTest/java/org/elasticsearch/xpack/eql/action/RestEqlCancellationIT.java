@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -17,7 +18,9 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.Netty4Plugin;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.junit.BeforeClass;
 
@@ -39,7 +42,6 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
     private static String nodeHttpTypeKey;
 
-    @SuppressWarnings("unchecked")
     @BeforeClass
     public static void setUpTransport() {
         nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
@@ -51,9 +53,9 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey).build();
     }
 
@@ -98,7 +100,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         // We are cancelling during both mapping and searching but we cancel during mapping so we should never reach the second block
         List<SearchBlockPlugin> plugins = initBlockFactory(true, true);
         org.elasticsearch.client.eql.EqlSearchRequest eqlSearchRequest =
-            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val=1").eventCategoryField("event_type");
+            new org.elasticsearch.client.eql.EqlSearchRequest("test", "my_event where val==1").eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
 
         Request request = new Request("GET", "/test/_eql/search");
@@ -124,9 +126,28 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Waiting for block to be established");
         awaitForBlockedFieldCaps(plugins);
         logger.trace("Block is established");
-        assertThat(getTaskInfoWithXOpaqueId(id, EqlSearchAction.NAME), notNullValue());
+        TaskInfo blockedTaskInfo = getTaskInfoWithXOpaqueId(id, EqlSearchAction.NAME);
+        assertThat(blockedTaskInfo, notNullValue());
         cancellable.cancel();
         logger.trace("Request is cancelled");
+
+        assertBusy(() -> {
+            for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                    if (task != null) {
+                        assertThat(task, instanceOf(EqlSearchTask.class));
+                        EqlSearchTask eqlSearchTask = (EqlSearchTask) task;
+                        logger.trace("Waiting for cancellation to be propagated {} ", eqlSearchTask.isCancelled());
+                        assertThat(eqlSearchTask.isCancelled(), equalTo(true));
+                    }
+                    return;
+                }
+            }
+            fail("Task not found");
+        });
+
+        logger.trace("Disabling field cap blocks");
         disableFieldCapBlocks(plugins);
         // The task should be cancelled before ever reaching search blocks
         assertBusy(() -> {

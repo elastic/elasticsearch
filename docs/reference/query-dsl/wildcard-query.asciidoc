@@ -13,7 +13,7 @@ combine wildcard operators with other characters to create a wildcard pattern.
 [[wildcard-query-ex-request]]
 ==== Example request
 
-The following search returns documents where the `user` field contains a term
+The following search returns documents where the `user.id` field contains a term
 that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
 `kity`, or `kimchy`.
 
@@ -21,15 +21,15 @@ that begins with `ki` and ends with `y`. These matching terms can include `kiy`,
 ----
 GET /_search
 {
-    "query": {
-        "wildcard": {
-            "user": {
-                "value": "ki*y",
-                "boost": 1.0,
-                "rewrite": "constant_score"
-            }
-        }
+  "query": {
+    "wildcard": {
+      "user.id": {
+        "value": "ki*y",
+        "boost": 1.0,
+        "rewrite": "constant_score"
+      }
     }
+  }
 }
 ----
 
@@ -52,7 +52,7 @@ This parameter supports two wildcard operators:
 
 WARNING: Avoid beginning patterns with `*` or `?`. This can increase
 the iterations needed to find matching terms and slow search performance.
--- 
+--
 
 `boost`::
 (Optional, float) Floating point number used to decrease or increase the
@@ -69,6 +69,12 @@ increases the relevance score.
 (Optional, string) Method used to rewrite the query. For valid values and more information, see the
 <<query-dsl-multi-term-rewrite, `rewrite` parameter>>.
 
+`case_insensitive` added:[7.10.0]::
+(Optional, Boolean) Allows case insensitive matching of the
+pattern with the indexed field values when set to true. Default is false which means
+the case sensitivity of matching depends on the underlying field's mapping.
+
+[[wildcard-query-notes]]
 ==== Notes
 ===== Allow expensive queries
 Wildcard queries will not be executed if <<query-dsl-allow-expensive-queries, `search.allow_expensive_queries`>>

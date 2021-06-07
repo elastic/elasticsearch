@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.search;
 
@@ -16,7 +17,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
@@ -60,8 +60,7 @@ public class TransportGetAsyncSearchAction extends HandledTransportAction<GetAsy
         if (node == null || resultsService.isLocalNode(node)) {
             resultsService.retrieveResult(request, listener);
         } else {
-            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            transportService.sendRequest(node, GetAsyncSearchAction.NAME, request, builder.build(),
+            transportService.sendRequest(node, GetAsyncSearchAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AsyncSearchResponse::new, ThreadPool.Names.SAME));
         }
     }

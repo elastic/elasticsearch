@@ -1,0 +1,25 @@
+{
+  "phases": {
+    "hot": {
+      "min_age": "0ms",
+      "actions": {
+        "rollover": {
+          "max_size": "300gb",
+          "max_age": "30d"
+        }
+      }
+    },
+    "delete": {
+      "min_age": "90d",
+      "actions": {
+        "delete": {
+          "delete_searchable_snapshot": true
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default policy for fleet action results indices",
+    "managed": true
+  }
+}

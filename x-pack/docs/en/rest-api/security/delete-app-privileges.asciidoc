@@ -10,7 +10,7 @@ Removes <<application-privileges,application privileges>>.
 [[security-api-delete-privilege-request]]
 ==== {api-request-title}
 
-`DELETE /_security/privilege/<application>/<privilege>` 
+`DELETE /_security/privilege/<application>/<privilege>`
 
 [[security-api-delete-privilege-prereqs]]
 ==== {api-prereq-title}
@@ -34,16 +34,16 @@ To use this API, you must have either:
 [[security-api-delete-privilege-example]]
 ==== {api-examples-title}
 
-The following example deletes the `read` application privilege from the 
+The following example deletes the `read` application privilege from the
 `myapp` application:
 
 [source,console]
 --------------------------------------------------
 DELETE /_security/privilege/myapp/read
 --------------------------------------------------
-// TEST[setup:app0102_privileges] 
+// TEST[setup:app0102_privileges]
 
-If the role is successfully deleted, the request returns `{"found": true}`.
+If the privilege is successfully deleted, the request returns `{"found": true}`.
 Otherwise, `found` is set to false.
 
 [source,console-result]

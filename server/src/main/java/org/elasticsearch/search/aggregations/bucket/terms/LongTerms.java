@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -67,12 +56,20 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         public Object getKey() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
         public Number getKeyAsNumber() {
-            return term;
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                return (Number) format.format(term);
+            } else {
+                return term;
+            }
         }
 
         @Override
@@ -82,8 +79,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
         @Override
         protected final XContentBuilder keyToXContent(XContentBuilder builder) throws IOException {
-            builder.field(CommonFields.KEY.getPreferredName(), term);
-            if (format != DocValueFormat.RAW) {
+            if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                builder.field(CommonFields.KEY.getPreferredName(), format.format(term));
+            } else {
+                builder.field(CommonFields.KEY.getPreferredName(), term);
+            }
+            if (format != DocValueFormat.RAW && format != DocValueFormat.UNSIGNED_LONG_SHIFTED) {
                 builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), format.format(term).toString());
             }
             return builder;
@@ -100,10 +101,10 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         }
     }
 
-    public LongTerms(String name, BucketOrder order, int requiredSize, long minDocCount,
+    public LongTerms(String name, BucketOrder reduceOrder, BucketOrder order, int requiredSize, long minDocCount,
             Map<String, Object> metadata, DocValueFormat format, int shardSize, boolean showTermDocCountError, long otherDocCount,
             List<Bucket> buckets, long docCountError) {
-        super(name, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
+        super(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize, showTermDocCountError,
                 otherDocCount, buckets, docCountError);
     }
 
@@ -121,7 +122,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public LongTerms create(List<Bucket> buckets) {
-        return new LongTerms(name, order, requiredSize, minDocCount, metadata, format, shardSize,
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, metadata, format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -132,8 +133,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
     }
 
     @Override
-    protected LongTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount) {
-        return new LongTerms(name, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
+    protected LongTerms create(String name, List<Bucket> buckets, BucketOrder reduceOrder, long docCountError, long otherDocCount) {
+        return new LongTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
 
@@ -144,16 +145,37 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        boolean unsignedLongFormat = false;
+        boolean rawFormat = false;
         for (InternalAggregation agg : aggregations) {
             if (agg instanceof DoubleTerms) {
                 return agg.reduce(aggregations, reduceContext);
             }
+            if (agg instanceof LongTerms) {
+                if (((LongTerms) agg).format == DocValueFormat.RAW) {
+                    rawFormat = true;
+                } else if (((LongTerms) agg).format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
+                    unsignedLongFormat = true;
+                }
+            }
+        }
+        if (rawFormat && unsignedLongFormat) { // if we have mixed formats, convert results to double format
+            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
+            for (InternalAggregation agg : aggregations) {
+                if (agg instanceof LongTerms) {
+                    DoubleTerms dTerms = LongTerms.convertLongTermsToDouble((LongTerms) agg, format);
+                    newAggs.add(dTerms);
+                } else {
+                    newAggs.add(agg);
+                }
+            }
+            return newAggs.get(0).reduce(newAggs, reduceContext);
         }
         return super.reduce(aggregations, reduceContext);
     }
 
     @Override
-    Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
+    protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
         return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
     }
 
@@ -168,7 +190,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
                 bucket.getDocCount(), (InternalAggregations) bucket.getAggregations(), longTerms.showTermDocCountError,
                 longTerms.showTermDocCountError ? bucket.getDocCountError() : 0, decimalFormat));
         }
-        return new DoubleTerms(longTerms.getName(), longTerms.order, longTerms.requiredSize,
+        return new DoubleTerms(longTerms.getName(), longTerms.reduceOrder, longTerms.order, longTerms.requiredSize,
             longTerms.minDocCount,
             longTerms.metadata, longTerms.format, longTerms.shardSize,
             longTerms.showTermDocCountError, longTerms.otherDocCount,

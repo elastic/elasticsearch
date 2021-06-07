@@ -4,7 +4,11 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams.html",
       "description":"Returns data streams."
     },
-    "stability":"experimental",
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -20,14 +24,26 @@
           ],
           "parts":{
             "name":{
-              "type":"string",
-              "description":"The name or wildcard expression of the requested data streams"
+              "type":"list",
+              "description":"A comma-separated list of data streams to get; use `*` to get all data streams"
             }
           }
         }
       ]
     },
     "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      }
     }
   }
 }

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[start-dfanalytics]]
-=== Start {dfanalytics-jobs} API
+= Start {dfanalytics-jobs} API
 
 [subs="attributes"]
 ++++
@@ -10,31 +10,25 @@
 
 Starts a {dfanalytics-job}.
 
-experimental[]
 
 [[ml-start-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/data_frame/analytics/<data_frame_analytics_id>/_start`
 
 [[ml-start-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-built-in roles and privileges:
+Requires the following privileges:
 
-* `machine_learning_admin`
-* `kibana_admin` (UI only)
-
-
+* cluster: `manage_ml` (the `machine_learning_admin` built-in role grants this 
+  privilege)
 * source indices: `read`, `view_index_metadata`
 * destination index: `read`, `create_index`, `manage` and `index`
-* cluster: `monitor` (UI only)
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+
 
 [[ml-start-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 A {dfanalytics-job} can be started and stopped multiple times throughout its 
 lifecycle.
@@ -56,24 +50,24 @@ provided <<http-clients-secondary-authorization,secondary authorization headers>
 when you created the job, those credentials are used.
 
 [[ml-start-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-define]
 
 [[ml-start-dfanalytics-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `timeout`::
 (Optional, <<time-units,time units>>) 
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
 
 [[ml-start-dfanalytics-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `acknowledged`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 `node`::
@@ -81,7 +75,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=timeout-start]
   If the job is allowed to open lazily and has not yet been assigned to a node, this value is an empty string.
 
 [[ml-start-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 The following example starts the `loganalytics` {dfanalytics-job}:
 

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.groups;
 
@@ -24,7 +25,7 @@ import static org.mockito.Mockito.when;
 
 public class GroupOrJobLookupTests extends ESTestCase {
 
-    public void testEmptyLookup_GivenAllowNoJobs() {
+    public void testEmptyLookup_GivenAllowNoMatch() {
         GroupOrJobLookup lookup = new GroupOrJobLookup(Collections.emptyList());
 
         assertThat(lookup.expandJobIds("_all", true).isEmpty(), is(true));
@@ -33,7 +34,7 @@ public class GroupOrJobLookupTests extends ESTestCase {
         expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("foo", true));
     }
 
-    public void testEmptyLookup_GivenNotAllowNoJobs() {
+    public void testEmptyLookup_GivenNotAllowNoMatch() {
         GroupOrJobLookup lookup = new GroupOrJobLookup(Collections.emptyList());
 
         expectThrows(ResourceNotFoundException.class, () -> lookup.expandJobIds("_all", false));

@@ -1,0 +1,174 @@
+[between]
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", null, "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", null)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between(null, "welcome", "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "village")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "goodbye", "planet")'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "x", false)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "welcome", "x", true)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "x", true)'
+    # expected = null
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "planet", false)'
+    expected = "welcome to the "
+
+    [[between.fold.tests]]
+    expression = 'between("welcome to the planet", "", "", false)'
+    expected = ""
+
+[string_case_insensitive_match_comparison]
+case_insensitive = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" == "Bar"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" != "Bar"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" == "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" != "foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" < "foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" <= "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" >= "foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"Foo" > "foo"'
+    expected = false
+
+    # now flip the order and check
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" < "Foo"'
+    expected = false
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" <= "Foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" >= "Foo"'
+    expected = true
+
+    [[string_case_insensitive_match_comparison.fold.tests]]
+    expression = '"foo" > "Foo"'
+    expected = false
+
+
+[wildcard_case_insensitive]
+case_insensitive = true
+
+    [[wildcard_case_insensitive.fold.tests]]
+    expression = 'wildcard("FOO", "f*o*o*")'
+    expected = true
+
+    [[wildcard_case_insensitive.fold.tests]]
+    expression = 'wildcard("bar", "f*o*o*")'
+    expected = false
+
+
+[complex]
+
+    [[complex.fold.tests]]
+    expression = '(100 * 10) - ("hello":length())'
+    expected = 995
+
+    [[complex.fold.tests]]
+    expression = 'concat((100 * 10) - ("hello":length()) == 995, "...")'
+    expected = "true..."
+
+
+
+[null_comparison]
+
+    [[null_comparison.fold.tests]]
+    expression = "null == null"
+    expected = true
+
+    [[null_comparison.fold.tests]]
+    expression = "null != null"
+    expected = false
+
+
+[substring]
+
+    [[substring.fold.tests]]
+    expression = '''substring("hello world", null, 5)'''
+    expected = "hello"
+
+[match]
+description = "Test the `match` function"
+
+    [match.verifier]
+
+        [[match.verifier.failures]]
+        expression = 'match(1, "*")'
+
+        [[match.verifier.failures]]
+        expression = 'match(1, "*")'
+
+        [[match.verifier.failures]]
+        expression = 'match("eql", 1)'
+
+    [match.fold]
+
+        [[match.fold.tests]]
+        expression = 'match(null, "[a-z]{3}")'
+        # expected = null
+
+        [[match.fold.tests]]
+        expression = 'match("foo", "[a-z]{3}")'
+        expected = true
+
+        [[match.fold.tests]]
+        expression = 'match("foo\nbarbaz", "[a-z]{3}\n[a-z]{6}")'
+        expected = true
+
+        [[match.fold.tests]]
+        expression = 'match("999", "[a-z]{3}")'
+        expected = false
+
+        [[match.fold.tests]]
+        expression = 'match("999", "[a-z]{3}", "[0-9]{5}")'
+        expected = false
+
+        [[match.fold.tests]]
+        expression = 'match("999", "[a-z]{3}", "[0-9]{5}", "[9][9][9]")'
+        expected = true

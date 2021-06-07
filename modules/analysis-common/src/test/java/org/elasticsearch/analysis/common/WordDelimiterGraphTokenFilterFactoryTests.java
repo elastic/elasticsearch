@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.analysis.common;
 
@@ -116,6 +105,38 @@ public class WordDelimiterGraphTokenFilterFactoryTests
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, expectedStartOffsets, expectedEndOffsets, null,
             expectedIncr, expectedPosLen, null);
+    }
+
+    public void testIgnoreKeywords() throws IOException {
+        //test with keywords but ignore is false (default behavior)
+        Settings settings = Settings.builder()
+                .put("index.analysis.filter.my_word_delimiter.type", type)
+                .put("index.analysis.filter.my_word_delimiter.generate_word_parts", "true")
+                .put("index.analysis.filter.my_keyword.type", "keyword_marker")
+                .put("index.analysis.filter.my_keyword.keywords", "PowerHungry")
+                .put("index.analysis.analyzer.my_analyzer.type", "custom")
+                .put("index.analysis.analyzer.my_analyzer.tokenizer", "whitespace")
+                .put("index.analysis.analyzer.my_analyzer.filter", "my_keyword, my_word_delimiter")
+                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+                .build();
+        ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        String source = "PowerShot PowerHungry";
+        int[] expectedStartOffsets = new int[]{0, 5, 10, 15};
+        int[] expectedEndOffsets = new int[]{5, 9, 15, 21};
+        String[] expected = new String[]{"Power", "Shot", "Power", "Hungry"};
+        NamedAnalyzer analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        assertAnalyzesTo(analyzer, source, expected, expectedStartOffsets, expectedEndOffsets);
+
+        //test with keywords but ignore_keywords is set as true
+        settings = Settings.builder().put(settings)
+                .put("index.analysis.filter.my_word_delimiter.ignore_keywords", "true")
+                .build();
+        analysis = AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+        analyzer = analysis.indexAnalyzers.get("my_analyzer");
+        expectedStartOffsets = new int[]{0, 5, 10};
+        expectedEndOffsets = new int[]{5, 9, 21};
+        expected = new String[]{"Power", "Shot", "PowerHungry"};
+        assertAnalyzesTo(analyzer, source, expected, expectedStartOffsets, expectedEndOffsets);
     }
 
     public void testPreconfiguredFilter() throws IOException {

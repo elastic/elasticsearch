@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.common.time.TimeUtils;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.results.ReservedFieldNames;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
@@ -121,7 +123,12 @@ public class CategorizerStats implements ToXContentObject, Writeable {
     }
 
     public String getId() {
-        return documentIdPrefix(jobId) + logTime.toEpochMilli();
+        StringBuilder idBuilder = new StringBuilder(documentIdPrefix(jobId));
+        idBuilder.append(logTime.toEpochMilli());
+        if (partitionFieldName != null) {
+            idBuilder.append('_').append(MachineLearningField.valuesToId(partitionFieldValue));
+        }
+        return idBuilder.toString();
     }
 
     public static String documentIdPrefix(String jobId) {

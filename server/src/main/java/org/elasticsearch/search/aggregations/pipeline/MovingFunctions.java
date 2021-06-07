@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -175,15 +164,6 @@ public class MovingFunctions {
             return Double.NaN;
         }
 
-        return holtForecast(values, alpha, beta, 1)[0];
-    }
-
-    /**
-     * Version of holt that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
-     * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
-     */
-    public static double[] holtForecast(double[] values, double alpha, double beta, int numForecasts) {
-
         // Smoothed value
         double s = 0;
         double last_s = 0;
@@ -213,15 +193,10 @@ public class MovingFunctions {
         }
 
         if (counter == 0) {
-            return emptyPredictions(numForecasts);
+            return Double.NaN;
         }
 
-        double[] forecastValues = new double[numForecasts];
-        for (int i = 0; i < numForecasts; i++) {
-            forecastValues[i] = s + (i * b);
-        }
-
-        return forecastValues;
+        return s;
     }
 
     /**
@@ -252,15 +227,6 @@ public class MovingFunctions {
         }
 
         double padding = multiplicative ? 0.0000000001 : 0.0;
-        return holtWintersForecast(values, alpha, beta, gamma, period, padding, multiplicative, 1)[0];
-    }
-
-    /**
-     * Version of holt-winters that can "forecast", not exposed as a whitelisted function for moving_fn scripts, but
-     * here as compatibility/code sharing for existing moving_avg agg.  Can be removed when moving_avg is gone.
-     */
-    public static double[] holtWintersForecast(double[] values, double alpha, double beta, double gamma,
-                                             int period, double padding, boolean multiplicative, int numForecasts) {
         if (values.length < period * 2) {
             // We need at least two full "seasons" to use HW
             // This should have been caught earlier, we can't do anything now...bail
@@ -289,7 +255,7 @@ public class MovingFunctions {
         }
 
         if (counter == 0) {
-            return emptyPredictions(numForecasts);
+            return Double.NaN;
         }
 
         // Initial level value is average of first season
@@ -331,28 +297,10 @@ public class MovingFunctions {
             last_b = b;
         }
 
-        double[] forecastValues = new double[numForecasts];
-        for (int i = 1; i <= numForecasts; i++) {
-            int idx = values.length - period + ((i - 1) % period);
-
-            // TODO perhaps pad out seasonal to a power of 2 and use a mask instead of modulo?
-            if (multiplicative) {
-                forecastValues[i-1] = (s + (i * b)) * seasonal[idx];
-            } else {
-                forecastValues[i-1] = s + (i * b) + seasonal[idx];
-            }
+        int idx = values.length - period;
+        if (multiplicative) {
+            return (s + b) * seasonal[idx];
         }
-
-        return forecastValues;
-    }
-
-    /**
-     * Returns an empty set of predictions, filled with NaNs
-     * @param numPredictions Number of empty predictions to generate
-     */
-    private static double[] emptyPredictions(int numPredictions) {
-        double[] predictions = new double[numPredictions];
-        Arrays.fill(predictions, Double.NaN);
-        return predictions;
+        return s + b + seasonal[idx];
     }
 }

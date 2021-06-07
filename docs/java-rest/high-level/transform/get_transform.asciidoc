@@ -34,6 +34,9 @@ include-tagged::{doc-tests-file}[{api}-request-options]
 {transforms} to skip. `size` specifies the maximum number of
 {transforms} to get. Defaults to `0` and `100` respectively.
 <2> Whether to ignore if a wildcard expression matches no {transforms}.
+<3> Optional boolean value for requesting the {transform} in a format that can
+then be put into another cluster. Certain fields that can only be set when
+the {transform} is created are removed.
 
 
 include::../execution.asciidoc[]

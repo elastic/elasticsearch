@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[ml-start-datafeed]]
-=== Start {dfeeds} API
+= Start {dfeeds} API
 
 [subs="attributes"]
 ++++
@@ -11,26 +11,25 @@
 Starts one or more {dfeeds}.
 
 [[ml-start-datafeed-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _ml/datafeeds/<feed_id>/_start`
 
 [[ml-start-datafeed-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 * Before you can start a {dfeed}, the {anomaly-job} must be open. Otherwise, an
 error occurs.
-* If {es} {security-features} are enabled, you must have `manage_ml` or `manage`
-cluster privileges to use this API. See
-<<security-privileges>>.
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
 
 [[ml-start-datafeed-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 A {dfeed} must be started in order to retrieve data from {es}.
 A {dfeed} can be started and stopped multiple times throughout its lifecycle.
 
-When you start a {dfeed}, you can specify a start time.  This enables you to
+When you start a {dfeed}, you can specify a start time. This enables you to
 include a training period, providing you have this data available in {es}.
 If you want to analyze from the beginning of a dataset, you can specify any date
 earlier than that beginning date.
@@ -41,7 +40,7 @@ available.
 
 When you start a {dfeed}, you can also specify an end time. If you do so, the
 job analyzes data from the start time until the end time, at which point the
-analysis stops.  This scenario is useful for a one-off batch analysis.  If you
+analysis stops. This scenario is useful for a one-off batch analysis. If you
 do not specify an end time, the {dfeed} runs continuously.
 
 The `start` and `end` times can be specified by using one of the
@@ -73,14 +72,14 @@ creation/update and runs the query using those same roles. If you provided
 you created or updated the {dfeed}, those credentials are used instead.
 
 [[ml-start-datafeed-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<feed_id>`::
 (Required, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 [[ml-start-datafeed-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 `end`::
   (Optional, string) The time that the {dfeed} should end. This value is
@@ -95,7 +94,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
   The default value is 20 seconds.
 
 [[ml-start-datafeed-response-body]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `node`::
   (string) The ID of the node that the {dfeed} was started on.
@@ -103,11 +102,11 @@ If the {dfeed} is allowed to open lazily and has not yet been
   assigned to a node, this value is an empty string.
 
 `started`::
-  (boolean) For a successful response, this value is always `true`. On failure, an
+  (Boolean) For a successful response, this value is always `true`. On failure, an
   exception is returned instead.
 
 [[ml-start-datafeed-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

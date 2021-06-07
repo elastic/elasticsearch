@@ -1,32 +1,17 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.action.admin.indices.close;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse.IndexResult;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -44,9 +29,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -169,53 +151,6 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
                 + "\"reason\":{\"type\":\"action_not_found_transport_exception\","
                 + "\"reason\":\"No handler for action [test]\"}}]}}}}}",
                 Strings.toString(closeIndexResponse));
-    }
-
-    public void testBwcSerialization() throws Exception {
-        {
-            final CloseIndexResponse response = randomResponse();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
-                response.writeTo(out);
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(out.getVersion());
-                    final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                }
-            }
-        }
-        {
-            final AcknowledgedResponse response = new AcknowledgedResponse(randomBoolean());
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                response.writeTo(out);
-
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(randomVersionBetween(random(), Version.V_7_0_0, getPreviousVersion(Version.V_7_2_0)));
-                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                }
-            }
-        }
-        {
-            final CloseIndexResponse response = randomResponse();
-            try (BytesStreamOutput out = new BytesStreamOutput()) {
-                Version version = randomVersionBetween(random(), Version.V_7_2_0, Version.CURRENT);
-                out.setVersion(version);
-                response.writeTo(out);
-                try (StreamInput in = out.bytes().streamInput()) {
-                    in.setVersion(version);
-                    final CloseIndexResponse deserializedResponse = new CloseIndexResponse(in);
-                    assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
-                    assertThat(deserializedResponse.isShardsAcknowledged(), equalTo(response.isShardsAcknowledged()));
-                    if (version.onOrAfter(Version.V_7_3_0)) {
-                        assertThat(deserializedResponse.getIndices(), hasSize(response.getIndices().size()));
-                    } else {
-                        assertThat(deserializedResponse.getIndices(), empty());
-                    }
-                }
-            }
-        }
     }
 
     private CloseIndexResponse randomResponse() {

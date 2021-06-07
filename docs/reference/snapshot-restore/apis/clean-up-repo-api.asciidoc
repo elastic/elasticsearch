@@ -31,6 +31,12 @@ POST /_snapshot/my_repository/_cleanup
 
 `POST /_snapshot/<repository>/_cleanup`
 
+[[clean-up-snapshot-repo-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[clean-up-snapshot-repo-api-desc]]
 ==== {api-description-title}
 

@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[search-aggregations-pipeline-moving-percentiles-aggregation]]
-=== Moving Percentiles Aggregation
+=== Moving percentiles aggregation
+++++
+<titleabbrev>Moving percentiles</titleabbrev>
+++++
 
 Given an ordered series of <<search-aggregations-metrics-percentile-aggregation, percentiles>>, the Moving Percentile aggregation
 will slide a window across those percentiles and allow the user to compute the cumulative percentile.
@@ -16,10 +19,10 @@ A `moving_percentiles` aggregation looks like this in isolation:
 [source,js]
 --------------------------------------------------
 {
-    "moving_percentiles": {
-        "buckets_path": "the_percentile",
-        "window": 10
-    }
+  "moving_percentiles": {
+    "buckets_path": "the_percentile",
+    "window": 10
+  }
 }
 --------------------------------------------------
 // NOTCONSOLE
@@ -34,36 +37,36 @@ A `moving_percentiles` aggregation looks like this in isolation:
 |`shift` |<<shift-parameter, Shift>> of window position. |Optional | 0
 |===
 
-`moving_percentiles` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation.  They can be
+`moving_percentiles` aggregations must be embedded inside of a `histogram` or `date_histogram` aggregation. They can be
 embedded like any other metric aggregation:
 
 [source,console]
 --------------------------------------------------
 POST /_search
 {
-    "size": 0,
-    "aggs": {
-        "my_date_histo":{                <1>
-            "date_histogram":{
-                "field":"date",
-                "calendar_interval":"1M"
-            },
-            "aggs":{
-                "the_percentile":{        <2>
-                    "percentiles":{
-                      "field": "price",
-                      "percents": [ 1.0, 99.0 ]
-                     }
-                },
-                "the_movperc": {
-                    "moving_percentiles": {
-                        "buckets_path": "the_percentile", <3>
-                        "window": 10
-                    }
-                }
-            }
+  "size": 0,
+  "aggs": {
+    "my_date_histo": {                          <1>
+        "date_histogram": {
+        "field": "date",
+        "calendar_interval": "1M"
+      },
+      "aggs": {
+        "the_percentile": {                     <2>
+            "percentiles": {
+            "field": "price",
+            "percents": [ 1.0, 99.0 ]
+          }
+        },
+        "the_movperc": {
+          "moving_percentiles": {
+            "buckets_path": "the_percentile",   <3>
+            "window": 10
+          }
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -72,8 +75,8 @@ POST /_search
 <2> A `percentile` metric is used to calculate the percentiles of a field.
 <3> Finally, we specify a `moving_percentiles` aggregation which uses "the_percentile" sketch as its input.
 
-Moving percentiles are built by first specifying a `histogram` or `date_histogram` over a field.  You  then add
-a percentile metric inside of that histogram.  Finally, the `moving_percentiles` is embedded inside the histogram.
+Moving percentiles are built by first specifying a `histogram` or `date_histogram` over a field. You then add
+a percentile metric inside of that histogram. Finally, the `moving_percentiles` is embedded inside the histogram.
 The `buckets_path` parameter is then used to "point" at the percentiles aggregation inside of the histogram (see
 <<buckets-path-syntax>> for a description of the syntax for `buckets_path`).
 

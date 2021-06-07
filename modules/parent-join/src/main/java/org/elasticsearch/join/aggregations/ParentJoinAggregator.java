@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.join.aggregations;
 
@@ -35,12 +24,13 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -62,15 +52,19 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
 
     public ParentJoinAggregator(String name,
                                     AggregatorFactories factories,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     Query inFilter,
                                     Query outFilter,
                                     ValuesSource.Bytes.WithOrdinals valuesSource,
                                     long maxOrd,
-                                    boolean collectsFromSingleBucket,
+                                    CardinalityUpperBound cardinality,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+        /*
+         * We have to use MANY to work around
+         * https://github.com/elastic/elasticsearch/issues/59097
+         */
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
 
         if (maxOrd > Integer.MAX_VALUE) {
             throw new IllegalStateException("the number of parent [" + maxOrd + "] + is greater than the allowed limit " +
@@ -82,9 +76,9 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         this.outFilter = context.searcher().createWeight(context.searcher().rewrite(outFilter), ScoreMode.COMPLETE_NO_SCORES, 1f);
         this.valuesSource = valuesSource;
         boolean singleAggregator = parent == null;
-        collectionStrategy = singleAggregator && collectsFromSingleBucket
+        collectionStrategy = singleAggregator && cardinality == CardinalityUpperBound.ONE
             ? new DenseCollectionStrategy(maxOrd, context.bigArrays())
-            : new SparseCollectionStrategy(context.bigArrays(), collectsFromSingleBucket);
+            : new SparseCollectionStrategy(context.bigArrays(), cardinality);
     }
 
     @Override
@@ -108,8 +102,13 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void beforeBuildingBuckets(long[] ordsToCollect) throws IOException {
-        IndexReader indexReader = context().searcher().getIndexReader();
+    public void postCollection() throws IOException {
+        // Delaying until beforeBuildingBuckets
+    }
+
+    @Override
+    protected void prepareSubAggs(long[] ordsToCollect) throws IOException {
+        IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
             if (childDocsScorer == null) {
@@ -148,7 +147,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * faster to replay all the matching ordinals and filter them down
                  * to just those listed in ordsToCollect, but we don't have a data
                  * structure that maps a primitive long to a list of primitive
-                 * longs. 
+                 * longs.
                  */
                 for (long owningBucketOrd: ordsToCollect) {
                     if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
@@ -157,6 +156,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 }
             }
         }
+        super.postCollection(); // Run post collection after collecting the sub-aggs
     }
 
     @Override
@@ -185,7 +185,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
         private final BitArray ordsBits;
 
         public DenseCollectionStrategy(long maxOrd, BigArrays bigArrays) {
-            ordsBits = new BitArray((int) maxOrd, context.bigArrays());
+            ordsBits = new BitArray(maxOrd, bigArrays());
         }
 
         @Override
@@ -215,8 +215,8 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     protected class SparseCollectionStrategy implements CollectionStrategy {
         private final LongKeyedBucketOrds ordsHash;
 
-        public SparseCollectionStrategy(BigArrays bigArrays, boolean collectsFromSingleBucket) {
-            ordsHash = LongKeyedBucketOrds.build(bigArrays, collectsFromSingleBucket);
+        public SparseCollectionStrategy(BigArrays bigArrays, CardinalityUpperBound cardinality) {
+            ordsHash = LongKeyedBucketOrds.build(bigArrays, cardinality);
         }
 
         @Override

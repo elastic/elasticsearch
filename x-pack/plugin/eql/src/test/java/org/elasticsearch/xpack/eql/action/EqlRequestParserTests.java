@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -24,7 +25,7 @@ import static org.hamcrest.Matchers.containsString;
 
 public class EqlRequestParserTests extends ESTestCase {
 
-    private static NamedXContentRegistry registry =
+    private static final NamedXContentRegistry REGISTRY =
         new NamedXContentRegistry(new SearchModule(Settings.EMPTY, List.of()).getNamedXContents());
     public void testUnknownFieldParsingErrors() throws IOException {
         assertParsingErrorMessage("{\"key\" : \"value\"}", "unknown field [key]", EqlSearchRequest::fromXContent);
@@ -37,30 +38,18 @@ public class EqlRequestParserTests extends ESTestCase {
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"event_category_field\" : 123}", "event_category_field doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"implicit_join_key_field\" : 123}",
-            "implicit_join_key_field doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"search_after\" : 123}", "search_after doesn't support values of type: VALUE_NUMBER",
-            EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"size\" : \"foo\"}", "failed to parse field [size]", EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : 123}", "query doesn't support values of type: VALUE_NUMBER",
             EqlSearchRequest::fromXContent);
         assertParsingErrorMessage("{\"query\" : \"whatever\", \"size\":\"abc\"}", "failed to parse field [size]",
             EqlSearchRequest::fromXContent);
-        assertParsingErrorMessage("{\"case_sensitive\" : \"whatever\"}", "failed to parse field [case_sensitive]",
-            EqlSearchRequest::fromXContent);
 
-        boolean setIsCaseSensitive = randomBoolean();
-        boolean isCaseSensitive = randomBoolean();
         EqlSearchRequest request = generateRequest("endgame-*", "{\"filter\" : {\"match\" : {\"foo\":\"bar\"}}, "
             + "\"timestamp_field\" : \"tsf\", "
             + "\"event_category_field\" : \"etf\","
-            + "\"implicit_join_key_field\" : \"imjf\","
-            + "\"search_after\" : [ 12345678, \"device-20184\", \"/user/local/foo.exe\", \"2019-11-26T00:45:43.542\" ],"
             + "\"size\" : \"101\","
-            + "\"query\" : \"file where user != 'SYSTEM' by file_path\""
-            + (setIsCaseSensitive ? (",\"case_sensitive\" : " + isCaseSensitive) : "")
-            + "}", EqlSearchRequest::fromXContent);
+            + "\"query\" : \"file where user != 'SYSTEM' by file_path\"}"
+            , EqlSearchRequest::fromXContent);
         assertArrayEquals(new String[]{"endgame-*"}, request.indices());
         assertNotNull(request.query());
         assertTrue(request.filter() instanceof MatchQueryBuilder);
@@ -69,17 +58,15 @@ public class EqlRequestParserTests extends ESTestCase {
         assertEquals("bar", filter.value());
         assertEquals("tsf", request.timestampField());
         assertEquals("etf", request.eventCategoryField());
-        assertEquals("imjf", request.implicitJoinKeyField());
-        assertArrayEquals(new Object[]{12345678, "device-20184", "/user/local/foo.exe", "2019-11-26T00:45:43.542"}, request.searchAfter());
-        assertEquals(101, request.fetchSize());
+        assertEquals(101, request.size());
+        assertEquals(1000, request.fetchSize());
         assertEquals("file where user != 'SYSTEM' by file_path", request.query());
-        assertEquals(setIsCaseSensitive && isCaseSensitive, request.isCaseSensitive());
     }
 
     private EqlSearchRequest generateRequest(String index, String json, Function<XContentParser, EqlSearchRequest> fromXContent)
             throws IOException {
         XContentParser parser = parser(json);
-        return fromXContent.apply(parser).indices(new String[]{index});
+        return fromXContent.apply(parser).indices(index);
     }
 
     private void assertParsingErrorMessage(String json, String errorMessage, Consumer<XContentParser> consumer) throws IOException {
@@ -91,6 +78,6 @@ public class EqlRequestParserTests extends ESTestCase {
     private XContentParser parser(String content) throws IOException {
         XContentType xContentType = XContentType.JSON;
 
-        return xContentType.xContent().createParser(registry, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content);
+        return xContentType.xContent().createParser(REGISTRY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, content);
     }
 }

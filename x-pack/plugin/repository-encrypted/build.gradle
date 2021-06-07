@@ -1,0 +1,26 @@
+import org.elasticsearch.gradle.OS
+
+evaluationDependsOn(xpackModule('core'))
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
+esplugin {
+    name 'repository-encrypted'
+    description 'Elasticsearch Expanded Pack Plugin - client-side encrypted repositories.'
+    classname 'org.elasticsearch.repositories.encrypted.EncryptedRepositoryPlugin'
+    extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-repository-encrypted'
+
+dependencies {
+    // necessary for the license check
+    compileOnly project(path: xpackModule('core'))
+    testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
+tasks.named("internalClusterTest").configure {
+  onlyIf { OS.current() != OS.WINDOWS }
+}
+

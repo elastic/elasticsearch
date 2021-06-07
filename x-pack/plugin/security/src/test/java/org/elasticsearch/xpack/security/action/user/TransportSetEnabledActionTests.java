@@ -1,12 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
@@ -18,14 +20,15 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.mockito.invocation.InvocationOnMock;
@@ -69,7 +72,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(settings, threadPool, transportService, mock(ActionFilters.class),
+        TransportSetEnabledAction action = new TransportSetEnabledAction(settings, transportService, mock(ActionFilters.class),
                 securityContext, usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
@@ -77,10 +80,10 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         request.enabled(randomBoolean());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(SetEnabledResponse setEnabledResponse) {
+            public void onResponse(ActionResponse.Empty setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
             }
 
@@ -111,18 +114,19 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         SetEnabledRequest request = new SetEnabledRequest();
-        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal()));
+        request.username(randomFrom(SystemUser.INSTANCE.principal(), XPackUser.INSTANCE.principal(),
+            XPackSecurityUser.INSTANCE.principal(), AsyncSearchUser.INSTANCE.principal()));
         request.enabled(randomBoolean());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(SetEnabledResponse setEnabledResponse) {
+            public void onResponse(ActionResponse.Empty setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
             }
 
@@ -168,14 +172,14 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(SetEnabledResponse setEnabledResponse) {
+            public void onResponse(ActionResponse.Empty setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
             }
 
@@ -186,7 +190,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), is(notNullValue()));
-        assertThat(responseRef.get(), instanceOf(SetEnabledResponse.class));
+        assertSame(responseRef.get(), ActionResponse.Empty.INSTANCE);
         assertThat(throwableRef.get(), is(nullValue()));
         verify(usersStore, times(1))
                 .setEnabled(eq(user.principal()), eq(request.enabled()), eq(request.getRefreshPolicy()), any(ActionListener.class));
@@ -223,14 +227,14 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
             mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(SetEnabledResponse setEnabledResponse) {
+            public void onResponse(ActionResponse.Empty setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
             }
 
@@ -266,14 +270,14 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, threadPool, transportService,
+        TransportSetEnabledAction action = new TransportSetEnabledAction(Settings.EMPTY, transportService,
                 mock(ActionFilters.class), securityContext, usersStore);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
-        final AtomicReference<SetEnabledResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), request, new ActionListener<SetEnabledResponse>() {
+        final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
+        action.doExecute(mock(Task.class), request, new ActionListener<>() {
             @Override
-            public void onResponse(SetEnabledResponse setEnabledResponse) {
+            public void onResponse(ActionResponse.Empty setEnabledResponse) {
                 responseRef.set(setEnabledResponse);
             }
 

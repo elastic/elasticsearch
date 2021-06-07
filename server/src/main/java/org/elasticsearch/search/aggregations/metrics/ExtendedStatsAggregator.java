@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -31,9 +20,9 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -57,7 +46,7 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
     ExtendedStatsAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         double sigma,
         Map<String, Object> metadata
@@ -92,7 +81,6 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         final CompensatedSum compensatedSum = new CompensatedSum(0, 0);
         final CompensatedSum compensatedSumOfSqr = new CompensatedSum(0, 0);
@@ -103,13 +91,13 @@ class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
                 if (bucket >= counts.size()) {
                     final long from = counts.size();
                     final long overSize = BigArrays.overSize(bucket + 1);
-                    counts = bigArrays.resize(counts, overSize);
-                    sums = bigArrays.resize(sums, overSize);
-                    compensations = bigArrays.resize(compensations, overSize);
-                    mins = bigArrays.resize(mins, overSize);
-                    maxes = bigArrays.resize(maxes, overSize);
-                    sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
-                    compensationOfSqrs = bigArrays.resize(compensationOfSqrs, overSize);
+                    counts = bigArrays().resize(counts, overSize);
+                    sums = bigArrays().resize(sums, overSize);
+                    compensations = bigArrays().resize(compensations, overSize);
+                    mins = bigArrays().resize(mins, overSize);
+                    maxes = bigArrays().resize(maxes, overSize);
+                    sumOfSqrs = bigArrays().resize(sumOfSqrs, overSize);
+                    compensationOfSqrs = bigArrays().resize(compensationOfSqrs, overSize);
                     mins.fill(from, overSize, Double.POSITIVE_INFINITY);
                     maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
                 }

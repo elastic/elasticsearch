@@ -1,0 +1,29 @@
+{
+  "rollup.get_rollup_index_caps":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/rollup-get-rollup-index-caps.html",
+      "description":"Returns the rollup capabilities of all jobs inside of a rollup index (e.g. the index where rollup data is stored)."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_rollup/data",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "index":{
+              "type":"string",
+              "description":"The rollup index or index pattern to obtain rollup capabilities from."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

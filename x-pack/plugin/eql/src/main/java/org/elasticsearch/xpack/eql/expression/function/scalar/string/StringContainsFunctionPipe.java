@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
@@ -19,18 +20,17 @@ import java.util.Objects;
 public class StringContainsFunctionPipe extends Pipe {
 
     private final Pipe string, substring;
+    private final boolean caseInsensitive;
 
-    public StringContainsFunctionPipe(Source source, Expression expression, Pipe string, Pipe substring) {
+    public StringContainsFunctionPipe(Source source, Expression expression, Pipe string, Pipe substring, boolean caseInsensitive) {
         super(source, expression, Arrays.asList(string, substring));
         this.string = string;
         this.substring = substring;
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
 
@@ -54,8 +54,8 @@ public class StringContainsFunctionPipe extends Pipe {
         return string.resolved() && substring.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe string, Pipe substring) {
-        return new StringContainsFunctionPipe(source(), expression(), string, substring);
+    protected StringContainsFunctionPipe replaceChildren(Pipe string, Pipe substring) {
+        return new StringContainsFunctionPipe(source(), expression(), string, substring, caseInsensitive);
     }
 
     @Override
@@ -66,12 +66,12 @@ public class StringContainsFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<StringContainsFunctionPipe> info() {
-        return NodeInfo.create(this, StringContainsFunctionPipe::new, expression(), string, substring);
+        return NodeInfo.create(this, StringContainsFunctionPipe::new, expression(), string, substring, caseInsensitive);
     }
 
     @Override
     public StringContainsFunctionProcessor asProcessor() {
-        return new StringContainsFunctionProcessor(string.asProcessor(), substring.asProcessor());
+        return new StringContainsFunctionProcessor(string.asProcessor(), substring.asProcessor(), caseInsensitive);
     }
 
     public Pipe string() {
@@ -82,10 +82,13 @@ public class StringContainsFunctionPipe extends Pipe {
         return substring;
     }
 
+    protected boolean isCaseInsensitive() {
+        return caseInsensitive;
+    }
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), string(), substring());
+        return Objects.hash(string(), substring());
     }
 
     @Override
@@ -99,8 +102,7 @@ public class StringContainsFunctionPipe extends Pipe {
         }
 
         StringContainsFunctionPipe other = (StringContainsFunctionPipe) obj;
-        return Objects.equals(source(), other.source())
-                && Objects.equals(string(), other.string())
+        return Objects.equals(string(), other.string())
                 && Objects.equals(substring(), other.substring());
     }
 }

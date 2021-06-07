@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.jdbc;
 
@@ -87,10 +88,14 @@ final class TypeConverter {
     }
 
     /**
-     * Converts millisecond after epoc to timestamp
+     * Converts millisecond after epoch to timestamp
      */
-    static Timestamp convertTimestamp(Long millis, Calendar cal) {
-        return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+    static Timestamp convertTimestamp(Long millis, int nanos, Calendar cal) {
+        Timestamp ts = dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+        if (ts != null) {
+            ts.setNanos(nanos);
+        }
+        return ts;
     }
 
     private static <T> T dateTimeConvert(Long millis, Calendar c, Function<Calendar, T> creator) {
@@ -105,8 +110,6 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-
-
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {
@@ -214,7 +217,6 @@ final class TypeConverter {
             case BOOLEAN:
             case TEXT:
             case KEYWORD:
-            case CONSTANT_KEYWORD:
                 return v; // These types are already represented correctly in JSON
             case BYTE:
                 return ((Number) v).byteValue(); // Parser might return it as integer or long - need to update to the correct type
@@ -328,7 +330,6 @@ final class TypeConverter {
                 return Boolean.valueOf(Integer.signum(((Number) val).intValue()) != 0);
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 return Boolean.valueOf((String) val);
             default:
                 return failConversion(val, columnType, typeString, Boolean.class);
@@ -351,7 +352,6 @@ final class TypeConverter {
                 return safeToByte(safeToLong(((Number) val).doubleValue()));
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Byte.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -379,7 +379,6 @@ final class TypeConverter {
                 return safeToShort(safeToLong(((Number) val).doubleValue()));
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Short.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -406,7 +405,6 @@ final class TypeConverter {
                 return safeToInt(safeToLong(((Number) val).doubleValue()));
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Integer.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -438,7 +436,6 @@ final class TypeConverter {
             //    return ((Number) val).longValue();
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Long.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -466,7 +463,6 @@ final class TypeConverter {
                 return Float.valueOf(((Number) val).floatValue());
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Float.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -493,7 +489,6 @@ final class TypeConverter {
                 return Double.valueOf(((Number) val).doubleValue());
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return Double.valueOf((String) val);
                 } catch (NumberFormatException e) {
@@ -559,7 +554,6 @@ final class TypeConverter {
                 return BigDecimal.valueOf(((Number) val).doubleValue());
             case KEYWORD:
             case TEXT:
-            case CONSTANT_KEYWORD:
                 try {
                     return new BigDecimal((String) val);
                 } catch (NumberFormatException nfe) {

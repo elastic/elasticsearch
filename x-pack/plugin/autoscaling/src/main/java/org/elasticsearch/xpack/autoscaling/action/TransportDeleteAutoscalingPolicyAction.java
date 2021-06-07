@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.autoscaling.action;
@@ -12,7 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -21,20 +22,17 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
 
-import java.io.IOException;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeAction<
-    DeleteAutoscalingPolicyAction.Request,
-    AcknowledgedResponse> {
+public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteAutoscalingPolicyAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
@@ -53,18 +51,9 @@ public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeA
             threadPool,
             actionFilters,
             DeleteAutoscalingPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(final StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
     }
 
     @Override
@@ -74,18 +63,13 @@ public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeA
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask<>(request, listener) {
+        // no license check, we will allow deleting policies even if the license is out of compliance, for cleanup purposes
 
-            @Override
-            protected AcknowledgedResponse newResponse(final boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
-            }
-
+        clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
                 return deleteAutoscalingPolicy(currentState, request.name(), logger);
             }
-
         });
     }
 
@@ -103,13 +87,20 @@ public class TransportDeleteAutoscalingPolicyAction extends TransportMasterNodeA
             // we will reject the request below when we try to look up the policy by name
             currentMetadata = AutoscalingMetadata.EMPTY;
         }
-        if (currentMetadata.policies().containsKey(name) == false) {
+        boolean wildcard = Regex.isSimpleMatchPattern(name);
+        if (wildcard == false && currentMetadata.policies().containsKey(name) == false) {
             throw new ResourceNotFoundException("autoscaling policy with name [" + name + "] does not exist");
         }
+
         final SortedMap<String, AutoscalingPolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.policies());
-        final AutoscalingPolicyMetadata policy = newPolicies.remove(name);
-        assert policy != null : name;
-        logger.info("deleting autoscaling policy [{}]", name);
+        if (wildcard) {
+            newPolicies.keySet().removeIf(key -> Regex.simpleMatch(name, key));
+            logger.info("deleting [{}] autoscaling policies", currentMetadata.policies().size() - newPolicies.size());
+        } else {
+            final AutoscalingPolicyMetadata policy = newPolicies.remove(name);
+            assert policy != null : name;
+            logger.info("deleting autoscaling policy [{}]", name);
+        }
         final AutoscalingMetadata newMetadata = new AutoscalingMetadata(newPolicies);
         builder.metadata(Metadata.builder(currentState.getMetadata()).putCustom(AutoscalingMetadata.NAME, newMetadata).build());
         return builder.build();

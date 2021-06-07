@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
@@ -16,6 +17,10 @@ import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
+import org.opensaml.saml.common.xml.SAMLConstants;
+import org.opensaml.saml.saml2.metadata.EntityDescriptor;
+import org.opensaml.saml.saml2.metadata.IDPSSODescriptor;
+import org.opensaml.saml.saml2.metadata.SingleSignOnService;
 import org.opensaml.security.credential.Credential;
 import org.opensaml.security.x509.impl.X509KeyManagerX509CredentialAdapter;
 
@@ -81,13 +86,21 @@ public abstract class SamlTestCase extends ESTestCase {
                 keySize = randomFrom(256, 384);
                 break;
             case "RSA":
-                keySize = randomFrom(1024, 2048, 4096);
+                if (inFipsJvm()) {
+                    keySize = randomFrom(2048, 4096);
+                } else {
+                    keySize = randomFrom(1024, 2048, 4096);
+                }
                 break;
             case "DSA":
-                keySize = randomFrom(1024, 2048, 3072);
+                if (inFipsJvm()) {
+                    keySize = randomFrom(2048, 3072);
+                } else {
+                    keySize = randomFrom(1024, 2048, 3072);
+                }
                 break;
             default:
-                keySize = randomFrom(1024, 2048);
+                keySize = 2048;
         }
         Path keyPath = PathUtils.get(SamlTestCase.class.getResource
                 ("/org/elasticsearch/xpack/security/authc/saml/saml_" + algorithm + "_" + keySize + ".key").toURI());
@@ -134,5 +147,19 @@ public abstract class SamlTestCase extends ESTestCase {
         final ElasticsearchSecurityException exception = expectThrows(ElasticsearchSecurityException.class, runnable);
         assertThat("Exception " + exception + " should be a SAML exception", SamlUtils.isSamlException(exception), is(true));
         return exception;
+    }
+
+    protected EntityDescriptor buildIdPDescriptor(String idpUrl, String idpEntityId) {
+        final SingleSignOnService sso = SamlUtils.buildObject(SingleSignOnService.class, SingleSignOnService.DEFAULT_ELEMENT_NAME);
+        sso.setLocation(idpUrl);
+        sso.setBinding(SAMLConstants.SAML2_REDIRECT_BINDING_URI);
+
+        final IDPSSODescriptor idpRole = SamlUtils.buildObject(IDPSSODescriptor.class, IDPSSODescriptor.DEFAULT_ELEMENT_NAME);
+        idpRole.getSingleSignOnServices().add(sso);
+
+        EntityDescriptor idpDescriptor = SamlUtils.buildObject(EntityDescriptor.class, EntityDescriptor.DEFAULT_ELEMENT_NAME);
+        idpDescriptor.setEntityID(idpEntityId);
+        idpDescriptor.getRoleDescriptors().add(idpRole);
+        return idpDescriptor;
     }
 }

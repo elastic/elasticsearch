@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Update model snapshot API
+=== Update model snapshots API
 
-Provides the ability to update a {ml} model snapshot.
+Updates a {ml} model snapshot.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Update model snapshot request
+==== Update model snapshots request
 
 A +{request}+ requires the following arguments:
 
@@ -42,7 +42,7 @@ include-tagged::{doc-tests-file}[{api}-retain]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Update model snapshot response
+==== Update model snapshots response
 
 A +{response}+ contains an acknowledgement of the update request and the full representation of the updated `ModelSnapshot` object
 

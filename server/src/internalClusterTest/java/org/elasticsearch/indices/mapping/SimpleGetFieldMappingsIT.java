@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.indices.mapping;
@@ -127,9 +116,10 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
     public void testSimpleGetFieldMappingsWithDefaults() throws Exception {
         assertAcked(prepareCreate("test").setMapping(getMappingForType()));
         client().admin().indices().preparePutMapping("test").setSource("num", "type=long").get();
+        client().admin().indices().preparePutMapping("test").setSource("field2", "type=text,index=false").get();
 
         GetFieldMappingsResponse response = client().admin().indices().prepareGetFieldMappings()
-            .setFields("num", "field1", "obj.subfield").includeDefaults(true).get();
+            .setFields("num", "field1", "field2", "obj.subfield").includeDefaults(true).get();
 
         assertThat((Map<String, Object>) response.fieldMappings("test", "num").sourceAsMap().get("num"),
             hasEntry("index", Boolean.TRUE));
@@ -138,6 +128,8 @@ public class SimpleGetFieldMappingsIT extends ESIntegTestCase {
         assertThat((Map<String, Object>) response.fieldMappings("test", "field1").sourceAsMap().get("field1"),
             hasEntry("index", Boolean.TRUE));
         assertThat((Map<String, Object>) response.fieldMappings("test", "field1").sourceAsMap().get("field1"),
+            hasEntry("type", "text"));
+        assertThat((Map<String, Object>) response.fieldMappings("test", "field2").sourceAsMap().get("field2"),
             hasEntry("type", "text"));
         assertThat((Map<String, Object>) response.fieldMappings("test", "obj.subfield").sourceAsMap().get("subfield"),
             hasEntry("type", "keyword"));

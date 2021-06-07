@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core;
@@ -32,6 +33,12 @@ import static org.elasticsearch.xpack.core.security.SecurityField.USER_SETTING;
  * A container for xpack setting constants.
  */
 public class XPackSettings {
+    private static final boolean IS_DARWIN_AARCH64;
+    static {
+        final String name = System.getProperty("os.name");
+        final String arch = System.getProperty("os.arch");
+        IS_DARWIN_AARCH64 = "aarch64".equals(arch) && name.startsWith("Mac OS X");
+    }
 
     private XPackSettings() {
         throw new IllegalStateException("Utility class should not be instantiated");
@@ -52,8 +59,15 @@ public class XPackSettings {
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling machine learning. Defaults to true. */
-    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting("xpack.ml.enabled", true,
-            Setting.Property.NodeScope);
+    public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
+        "xpack.ml.enabled",
+        IS_DARWIN_AARCH64 == false,
+        value -> {
+            if (value && IS_DARWIN_AARCH64) {
+                throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [Mac OS X/aarch64]");
+            }
+        },
+        Setting.Property.NodeScope);
 
     /** Setting for enabling or disabling auditing. Defaults to false. */
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting("xpack.security.audit.enabled", false,
@@ -144,6 +158,26 @@ public class XPackSettings {
                     throw new IllegalArgumentException(
                         "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
                             "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.", e);
+                }
+            }
+        }, Property.NodeScope);
+
+    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
+        new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
+        (s) -> "PBKDF2_STRETCH",
+        Function.identity(),
+        v -> {
+            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
+                throw new IllegalArgumentException("Invalid algorithm: " + v + ". Valid values for password hashing are " +
+                    Hasher.getAvailableAlgoStoredHash().toString());
+            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
+                try {
+                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new IllegalArgumentException(
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the " +
+                            "PBKDF2 algorithms for the [xpack.security.authc.service_token_hashing.algorithm] setting.", e);
                 }
             }
         }, Property.NodeScope);

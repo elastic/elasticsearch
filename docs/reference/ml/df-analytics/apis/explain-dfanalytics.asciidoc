@@ -1,20 +1,18 @@
 [role="xpack"]
 [testenv="platinum"]
 [[explain-dfanalytics]]
-=== Explain {dfanalytics} API
+= Explain {dfanalytics} API
 
 [subs="attributes"]
 ++++
-<titleabbrev>Explain {dfanalytics} API</titleabbrev>
+<titleabbrev>Explain {dfanalytics}</titleabbrev>
 ++++
 
 Explains a {dataframe-analytics-config}.
 
-experimental[]
-
 
 [[ml-explain-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/data_frame/analytics/_explain` +
 
@@ -26,18 +24,17 @@ experimental[]
 
 
 [[ml-explain-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the following privileges:
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+* cluster: `monitor_ml` (the `machine_learning_user` built-in role grants this 
+  privilege)
+* source indices: `read`, `view_index_metadata`
 
 
 [[ml-explain-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 This API provides explanations for a {dataframe-analytics-config} that either 
 exists already or one that has not been created yet.
@@ -52,21 +49,21 @@ they are not included in the explanation.
 
 
 [[ml-explain-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
 (Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-explain-dfanalytics-request-body]]
-==== {api-request-body-title}
+== {api-request-body-title}
 
 A {dataframe-analytics-config} as described in <<put-dfanalytics>>.
 Note that `id` and `dest` don't need to be provided in the context of this API.
 
 [role="child_attributes"]
 [[ml-explain-dfanalytics-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 The API returns a response that contains the following:
 
@@ -79,10 +76,10 @@ the field names.
 [%collapsible%open]
 ====
 `is_included`:::
-(boolean) Whether the field is selected to be included in the analysis.
+(Boolean) Whether the field is selected to be included in the analysis.
 
 `is_required`:::
-(boolean) Whether the field is required.
+(Boolean) Whether the field is required.
 
 `feature_type`:::
 (string) The feature type of this field for the analysis. May be `categorical` 
@@ -118,7 +115,7 @@ memory needed to perform {dfanalytics}.
 
 
 [[ml-explain-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

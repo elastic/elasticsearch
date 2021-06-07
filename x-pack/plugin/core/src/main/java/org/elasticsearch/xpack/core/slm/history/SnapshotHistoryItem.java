@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.core.slm.history;
@@ -210,7 +211,7 @@ public class SnapshotHistoryItem implements Writeable, ToXContentObject {
             Objects.equals(getRepository(), that1.getRepository()) &&
             Objects.equals(getSnapshotName(), that1.getSnapshotName()) &&
             Objects.equals(getOperation(), that1.getOperation());
-        if (!result) return false;
+        if (result == false) return false;
         SnapshotHistoryItem that = (SnapshotHistoryItem) o;
         return Objects.equals(getSnapshotConfiguration(), that.getSnapshotConfiguration()) &&
             Objects.equals(getErrorDetails(), that.getErrorDetails());

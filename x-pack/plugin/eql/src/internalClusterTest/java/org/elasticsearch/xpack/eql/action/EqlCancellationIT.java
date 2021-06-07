@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.eql.action;
@@ -58,7 +59,7 @@ public class EqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         indexRandom(true, builders);
         boolean cancelDuringSearch = randomBoolean();
         List<SearchBlockPlugin> plugins = initBlockFactory(cancelDuringSearch, cancelDuringSearch == false);
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query("my_event where val=1").eventCategoryField("event_type");
+        EqlSearchRequest request = new EqlSearchRequest().indices("test").query("my_event where val==1").eventCategoryField("event_type");
         String id = randomAlphaOfLength(10);
         logger.trace("Preparing search");
         // We might perform field caps on the same thread if it is local client, so we cannot use the standard mechanism

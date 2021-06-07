@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.saml;
 
@@ -10,6 +11,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 
@@ -24,6 +26,7 @@ public final class SamlAuthenticateResponse extends ActionResponse {
     private String refreshToken;
     private String realm;
     private TimeValue expiresIn;
+    private Authentication authentication;
 
     public SamlAuthenticateResponse(StreamInput in) throws IOException {
         super(in);
@@ -34,14 +37,18 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         tokenString = in.readString();
         refreshToken = in.readString();
         expiresIn = in.readTimeValue();
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            authentication = new Authentication(in);
+        }
     }
 
-    public SamlAuthenticateResponse(String principal, String realm, String tokenString, String refreshToken, TimeValue expiresIn) {
-        this.principal = principal;
-        this.realm = realm;
+    public SamlAuthenticateResponse(Authentication authentication, String tokenString, String refreshToken, TimeValue expiresIn) {
+        this.principal = authentication.getUser().principal();
+        this.realm = authentication.getAuthenticatedBy().getName();
         this.tokenString = tokenString;
         this.refreshToken = refreshToken;
         this.expiresIn = expiresIn;
+        this.authentication = authentication;
     }
 
     public String getPrincipal() {
@@ -64,6 +71,8 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         return expiresIn;
     }
 
+    public Authentication getAuthentication() { return authentication; }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(principal);
@@ -73,6 +82,9 @@ public final class SamlAuthenticateResponse extends ActionResponse {
         out.writeString(tokenString);
         out.writeString(refreshToken);
         out.writeTimeValue(expiresIn);
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            authentication.writeTo(out);
+        }
     }
 
     }

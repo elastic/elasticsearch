@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
@@ -65,8 +66,13 @@ public class Quantiles implements ToXContentObject, Writeable {
      * @param docId the quantiles document id
      * @return the job id or {@code null} if the id is not valid
      */
-    public static final String extractJobId(String docId) {
+    public static String extractJobId(String docId) {
         int suffixIndex = docId.lastIndexOf("_" + TYPE);
+        return suffixIndex <= 0 ? v54extractJobId(docId) : docId.substring(0, suffixIndex);
+    }
+
+    private static String v54extractJobId(String docId) {
+        int suffixIndex = docId.lastIndexOf("-" + TYPE);
         return suffixIndex <= 0 ? null : docId.substring(0, suffixIndex);
     }
 

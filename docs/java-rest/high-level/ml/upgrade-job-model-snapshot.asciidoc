@@ -1,0 +1,44 @@
+--
+:api: upgrade-job-model-snapshot
+:request: UpgradeJobModelSnapshotRequest
+:response: UpgradeJobModelSnapshotResponse
+--
+[role="xpack"]
+
+[id="{upid}-{api}"]
+=== Upgrade job snapshot API
+
+Upgrades a previously stored {ml} model snapshot to the
+current major version.
+It accepts an +{request}+ object and responds
+with an +{response}+ object.
+
+[id="{upid}-{api}-request"]
+==== Upgrade job snapshots request
+
+A +{request}+ requires the following arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+--------------------------------------------------
+<1> The job that owns the snapshot
+<2> The snapshot id to upgrade
+<3> The time out of the request. When `wait_for_completion` is `false` the timeout value is
+    applied to the time it takes for the task to be assigned to a node. When `wait_for_completion`
+    is `true` this timeout applies for the whole upgrade process. The default value is `30m`
+<4> When true, this causes the request to not return until the upgrade is complete.
+    Otherwise, the response returns as soon as the task
+    is assigned to a node. The default is false.
+
+[id="{upid}-{api}-response"]
+==== Upgrade job snapshot response
+
+A +{response}+ contains information on if the request was completed and its assigned node.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+--------------------------------------------------
+<1> Was the upgrade completed
+<2> What is the assigned node if the task is not completed

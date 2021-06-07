@@ -83,16 +83,16 @@ The following <<indices-create-index,create index API>> request uses the
 --------------------------------------------------
 PUT /asciifold_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_asciifolding" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["asciifolding"]
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_asciifolding": {
+          "tokenizer": "standard",
+          "filter": [ "asciifolding" ]
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -100,7 +100,7 @@ PUT /asciifold_example
 ==== Configurable parameters
 
 `preserve_original`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, emit both original tokens and folded tokens.
 Defaults to `false`.
 
@@ -118,21 +118,21 @@ For example, the following request creates a custom `asciifolding` filter with
 --------------------------------------------------
 PUT /asciifold_example
 {
-    "settings" : {
-        "analysis" : {
-            "analyzer" : {
-                "standard_asciifolding" : {
-                    "tokenizer" : "standard",
-                    "filter" : ["my_ascii_folding"]
-                }
-            },
-            "filter" : {
-                "my_ascii_folding" : {
-                    "type" : "asciifolding",
-                    "preserve_original" : true
-                }
-            }
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "standard_asciifolding": {
+          "tokenizer": "standard",
+          "filter": [ "my_ascii_folding" ]
         }
+      },
+      "filter": {
+        "my_ascii_folding": {
+          "type": "asciifolding",
+          "preserve_original": true
+        }
+      }
     }
+  }
 }
 --------------------------------------------------

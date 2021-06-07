@@ -1,0 +1,38 @@
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.java-rest-test'
+
+esplugin {
+  description 'Deprecated query plugin'
+  classname 'org.elasticsearch.xpack.deprecation.TestDeprecationPlugin'
+}
+
+dependencies {
+  javaRestTestImplementation project(':client:rest-high-level')
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  javaRestTestImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+}
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
+
+restResources {
+  restApi {
+    include '_common', 'indices', 'index'
+  }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+}
+
+tasks.named("test").configure { enabled = false }
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
+}

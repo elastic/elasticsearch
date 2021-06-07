@@ -1,0 +1,511 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      indices.create:
+        index: airline-data
+        body:
+          mappings:
+            properties:
+              time:
+                type: date
+              airline:
+                type: keyword
+              airport:
+                type: text
+              responsetime:
+                type: float
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: start-stop-datafeed-job
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job",
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}],
+                "influencers": ["airport"]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
+            "data_description" : {
+                "format":"xcontent",
+                "time_field":"time",
+                "time_format":"epoch"
+            }
+          }
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-datafeed-1
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job",
+            "indexes":"airline-data"
+          }
+
+---
+"Test start and stop datafeed happy path":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: started }
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: stopped }
+
+---
+"Test force stop datafeed":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - do:
+      ml.start_datafeed:
+        "datafeed_id": "start-stop-datafeed-datafeed-1"
+        "start": 0
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      ml.stop_datafeed:
+        "datafeed_id": "start-stop-datafeed-datafeed-1"
+        force: true
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: stopped }
+
+---
+"Test start datafeed given start is now":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: "now"
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: started }
+
+---
+"Test start non existing datafeed":
+    - do:
+        catch: missing
+        ml.start_datafeed:
+          datafeed_id: "non-existing-datafeed"
+          start: 0
+
+---
+"Test start datafeed job, but not open":
+    - do:
+        catch: conflict
+        ml.start_datafeed:
+          datafeed_id: "start-stop-datafeed-datafeed-1"
+          start: 0
+    - do:
+        catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because job \[start-stop-datafeed-job\] is closed/
+        ml.start_datafeed:
+          datafeed_id: "start-stop-datafeed-datafeed-1"
+          start: 0
+
+---
+"Test start already started datafeed job":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+  - do:
+      catch: conflict
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+  - do:
+      catch: /cannot start datafeed \[start-stop-datafeed-datafeed-1\] because it has already been started/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+---
+"Test start given end earlier than start":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+
+  - do:
+      catch: /.* start \[1485910800000\] must be earlier than end \[1485907200000\]/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: "2017-02-01T01:00:00Z"
+        end: "2017-02-01T00:00:00Z"
+
+---
+"Test start given end same as start":
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+
+  - do:
+      catch: /.* start \[1485910800000\] must be earlier than end \[1485910800000\]/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: "2017-02-01T01:00:00Z"
+        end: "2017-02-01T01:00:00Z"
+
+---
+"Test start given datafeed index does not exist":
+  - do:
+      ml.update_datafeed:
+        datafeed_id: start-stop-datafeed-datafeed-1
+        body:  >
+          {
+            "indexes":["utopia"]
+          }
+
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+
+  - do:
+      catch: /datafeed \[start-stop-datafeed-datafeed-1] cannot retrieve data because index \[utopia\] does not exist/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+
+---
+"Test start given field without mappings":
+  - do:
+      ml.put_job:
+        job_id: start-stop-datafeed-job-field-without-mappings
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count","by_field_name":"airline2"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-job-field-without-mappings-feed
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job-field-without-mappings",
+            "indexes":"airline-data"
+          }
+
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job-field-without-mappings"
+
+  - do:
+      catch: /\[start-stop-datafeed-job-field-without-mappings-feed] cannot retrieve field \[airline2\] because it has no mappings/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-job-field-without-mappings-feed"
+
+---
+"Test stop non existing datafeed":
+    - do:
+        catch: missing
+        ml.stop_datafeed:
+          datafeed_id: "non-existing-datafeed"
+
+---
+"Test stop with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
+        allow_no_match: true
+  - match: { stopped: true }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: true
+  - match: { stopped: true }
+
+---
+"Test stop with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
+        allow_no_match: false
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: "missing-*"
+        allow_no_datafeeds: false
+
+---
+"Test stop with body params":
+  - skip:
+      features:
+        - "warnings"
+
+  - do:
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_match" : false
+          }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_match" : true
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      catch: missing
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_datafeeds" : false
+          }
+
+  - do:
+      warnings:
+        - 'Deprecated field [allow_no_datafeeds] used, expected [allow_no_match] instead'
+      ml.stop_datafeed:
+        datafeed_id: missing-*
+        body:  >
+          {
+            "allow_no_datafeeds" : true
+          }
+
+---
+"Test stop already stopped datafeed job is not an error":
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+
+---
+"Test stop given expression":
+
+  - do:
+      ml.put_job:
+        job_id: start-stop-datafeed-job-foo-1
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      ml.put_job:
+        job_id: start-stop-datafeed-job-foo-2
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      ml.put_job:
+        job_id: start-stop-datafeed-job-bar-1
+        body:  >
+          {
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "30mb"
+            },
+            "data_description" : {
+                "time_field":"time"
+            }
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-job-foo-1-feed
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job-foo-1",
+            "indexes":"airline-data"
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-job-foo-2-feed
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job-foo-2",
+            "indexes":"airline-data"
+          }
+
+  - do:
+      ml.put_datafeed:
+        datafeed_id: start-stop-datafeed-job-bar-1-feed
+        body:  >
+          {
+            "job_id":"start-stop-datafeed-job-bar-1",
+            "indexes":"airline-data"
+          }
+
+  - do:
+      ml.open_job:
+        job_id: start-stop-datafeed-job-foo-1
+  - match: { opened: true }
+  - do:
+      ml.open_job:
+        job_id: start-stop-datafeed-job-foo-2
+  - match: { opened: true }
+  - do:
+      ml.open_job:
+        job_id: start-stop-datafeed-job-bar-1
+  - match: { opened: true }
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-job-foo-1-feed"
+  - match: { started: true }
+  - match: { node: /\S+/ }
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-job-foo-2-feed"
+  - match: { started: true }
+  - match: { node: /\S+/ }
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-job-bar-1-feed"
+  - match: { started: true }
+  - match: { node: /\S+/ }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-job-foo-*"
+  - match: { stopped: true }
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-job-foo-*"
+  - match: { datafeeds.0.state: "stopped"}
+  - match: { datafeeds.1.state: "stopped"}
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-job-bar-1-feed"
+  - match: { datafeeds.0.state: "started"}
+
+---
+"Test start datafeed when persistent task allocation disabled":
+
+  - do:
+      ml.open_job:
+        job_id: "start-stop-datafeed-job"
+  - match: { opened: true }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.persistent_tasks.allocation.enable: "none"
+  - match: {transient.cluster.persistent_tasks.allocation.enable: "none"}
+
+  - do:
+      catch: /no persistent task assignments are allowed due to cluster settings/
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: stopped }
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.persistent_tasks.allocation.enable: "all"
+  - match: {transient.cluster.persistent_tasks.allocation.enable: "all"}
+
+  - do:
+      ml.start_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+        start: 0
+
+  - do:
+      ml.get_datafeed_stats:
+        datafeed_id: "start-stop-datafeed-datafeed-1"
+  - match: { datafeeds.0.state: started }
+
+  - do:
+      ml.stop_datafeed:
+        datafeed_id: "start-stop-datafeed-datafeed-1"

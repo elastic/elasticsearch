@@ -324,7 +324,7 @@ public final class Errors {
     public Errors errorInUserCode(Throwable cause, String messageFormat, Object... arguments) {
         Collection<Message> messages = getMessagesFromThrowable(cause);
 
-        if (!messages.isEmpty()) {
+        if (messages.isEmpty() == false) {
             return merge(messages);
         } else {
             return addMessage(cause, messageFormat, arguments);
@@ -354,7 +354,7 @@ public final class Errors {
     }
 
     public void throwCreationExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 
@@ -362,7 +362,7 @@ public final class Errors {
     }
 
     public void throwConfigurationExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 
@@ -370,7 +370,7 @@ public final class Errors {
     }
 
     public void throwProvisionExceptionIfErrorsExist() {
-        if (!hasErrors()) {
+        if (hasErrors() == false) {
             return;
         }
 

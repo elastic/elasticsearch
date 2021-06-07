@@ -1,182 +1,301 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.hasSize;
 
 public class FieldTypeLookupTests extends ESTestCase {
 
     public void testEmpty() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
         assertNull(lookup.get("foo"));
-        Collection<String> names = lookup.simpleMatchToFullName("foo");
+        Collection<String> names = lookup.getMatchingFieldNames("foo");
         assertNotNull(names);
-        assertTrue(names.isEmpty());
-        Iterator<MappedFieldType> itr = lookup.iterator();
-        assertNotNull(itr);
-        assertFalse(itr.hasNext());
+        assertThat(names, hasSize(0));
     }
 
     public void testAddNewField() {
-        FieldTypeLookup lookup = new FieldTypeLookup();
         MockFieldMapper f = new MockFieldMapper("foo");
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f), emptyList());
-        assertNull(lookup.get("foo"));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(f), emptyList(), Collections.emptyList());
         assertNull(lookup.get("bar"));
-        assertEquals(f.fieldType(), lookup2.get("foo"));
-        assertNull(lookup.get("bar"));
-        assertEquals(1, size(lookup2.iterator()));
-    }
-
-    public void testAddExistingField() {
-        MockFieldMapper f = new MockFieldMapper("foo");
-        MockFieldMapper f2 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(f), emptyList());
-        FieldTypeLookup lookup2 = lookup.copyAndAddAll(newList(f2), emptyList());
-
-        assertEquals(1, size(lookup2.iterator()));
-        assertSame(f.fieldType(), lookup2.get("foo"));
-        assertEquals(f2.fieldType(), lookup2.get("foo"));
+        assertEquals(f.fieldType(), lookup.get("foo"));
     }
 
     public void testAddFieldAlias() {
         MockFieldMapper field = new MockFieldMapper("foo");
         FieldAliasMapper alias = new FieldAliasMapper("alias", "alias", "foo");
 
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(field), newList(alias));
+        FieldTypeLookup lookup = new FieldTypeLookup(Collections.singletonList(field), Collections.singletonList(alias),
+            Collections.emptyList());
 
         MappedFieldType aliasType = lookup.get("alias");
         assertEquals(field.fieldType(), aliasType);
     }
 
-    public void testUpdateFieldAlias() {
-        // Add an alias 'alias' to the concrete field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
-        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
-        FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(field1), newList(alias1));
-
-        // Check that the alias refers to 'foo'.
-        MappedFieldType aliasType1 = lookup.get("alias");
-        assertEquals(fieldType1, aliasType1);
-
-        // Update the alias to refer to a new concrete field 'bar'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("bar");
-        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
-
-        FieldAliasMapper alias2 = new FieldAliasMapper("alias", "alias", "bar");
-        lookup = lookup.copyAndAddAll(newList(field2), newList(alias2));
-
-        // Check that the alias now refers to 'bar'.
-        MappedFieldType aliasType2 = lookup.get("alias");
-        assertEquals(fieldType2, aliasType2);
-    }
-
-    public void testUpdateConcreteFieldWithAlias() {
-        // Add an alias 'alias' to the concrete field 'foo'.
-        FieldAliasMapper alias1 = new FieldAliasMapper("alias", "alias", "foo");
-        MockFieldMapper.FakeFieldType fieldType1 = new MockFieldMapper.FakeFieldType("foo");
-        fieldType1.setBoost(1.0f);
-        MockFieldMapper field1 = new MockFieldMapper(fieldType1);
-
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(field1), newList(alias1));
-
-        // Check that the alias maps to this field type.
-        MappedFieldType aliasType1 = lookup.get("alias");
-        assertEquals(fieldType1, aliasType1);
-
-        // Update the boost for field 'foo'.
-        MockFieldMapper.FakeFieldType fieldType2 = new MockFieldMapper.FakeFieldType("foo");
-        fieldType2.setBoost(2.0f);
-        MockFieldMapper field2 = new MockFieldMapper(fieldType2);
-        lookup = lookup.copyAndAddAll(newList(field2), emptyList());
-
-        // Check that the alias maps to the new field type.
-        MappedFieldType aliasType2 = lookup.get("alias");
-        assertEquals(fieldType2, aliasType2);
-    }
-
-    public void testSimpleMatchToFullName() {
+    public void testGetMatchingFieldNames() {
         MockFieldMapper field1 = new MockFieldMapper("foo");
         MockFieldMapper field2 = new MockFieldMapper("bar");
+        MockFieldMapper field3 = new MockFieldMapper("baz");
 
         FieldAliasMapper alias1 = new FieldAliasMapper("food", "food", "foo");
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(field1, field2), newList(alias1, alias2));
+        TestRuntimeField runtimeField = new TestRuntimeField("baz", "type");
+        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("baro",
+            Collections.singletonMap("meter", new TestRuntimeField("meter", "test")));
 
-        Collection<String> names = lookup.simpleMatchToFullName("b*");
+        FieldTypeLookup lookup = new FieldTypeLookup(List.of(field1, field2, field3), List.of(alias1, alias2),
+            List.of(runtimeField, dynamicRuntimeField));
 
-        assertFalse(names.contains("foo"));
-        assertFalse(names.contains("food"));
-
-        assertTrue(names.contains("bar"));
-        assertTrue(names.contains("barometer"));
-    }
-
-    public void testIteratorImmutable() {
-        MockFieldMapper f1 = new MockFieldMapper("foo");
-        FieldTypeLookup lookup = new FieldTypeLookup();
-        lookup = lookup.copyAndAddAll(newList(f1), emptyList());
-
-        try {
-            Iterator<MappedFieldType> itr = lookup.iterator();
-            assertTrue(itr.hasNext());
-            assertEquals(f1.fieldType(), itr.next());
-            itr.remove();
-            fail("remove should have failed");
-        } catch (UnsupportedOperationException e) {
-            // expected
+        {
+            Collection<String> names = lookup.getMatchingFieldNames("*");
+            assertThat(names, containsInAnyOrder("foo", "food", "bar", "baz", "barometer", "baro.meter"));
+        }
+        {
+            Collection<String> names = lookup.getMatchingFieldNames("b*");
+            assertThat(names, containsInAnyOrder("bar", "baz", "barometer", "baro.meter"));
+        }
+        {
+            Collection<String> names = lookup.getMatchingFieldNames("baro.anything");
+            assertThat(names, containsInAnyOrder("baro.anything"));
+        }
+        {
+            Collection<String> names = lookup.getMatchingFieldNames("baro.any*");
+            assertThat(names, hasSize(0));
+        }
+        {
+            Collection<String> names = lookup.getMatchingFieldNames("foo*");
+            assertThat(names, containsInAnyOrder("foo", "food"));
         }
     }
 
-    private static List<FieldMapper> newList(FieldMapper... mapper) {
-        return Arrays.asList(mapper);
+    public void testSourcePathWithMultiFields() {
+        MockFieldMapper field = new MockFieldMapper.Builder("field")
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+            .addMultiField(new MockFieldMapper.Builder("field.subfield2"))
+            .build(new ContentPath());
+
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(field), emptyList(), emptyList());
+
+        assertEquals(Set.of("field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Set.of("field"), lookup.sourcePaths("field.subfield2"));
     }
 
-    private static List<FieldAliasMapper> newList(FieldAliasMapper... mapper) {
-        return Arrays.asList(mapper);
+    public void testSourcePathsWithCopyTo() {
+        MockFieldMapper field = new MockFieldMapper.Builder("field")
+            .addMultiField(new MockFieldMapper.Builder("field.subfield1"))
+            .build(new ContentPath());
+
+        MockFieldMapper otherField = new MockFieldMapper.Builder("other_field")
+            .copyTo("field")
+            .build(new ContentPath());
+
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(field, otherField), emptyList(), emptyList());
+
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
-    private int size(Iterator<MappedFieldType> iterator) {
-        if (iterator == null) {
-            throw new NullPointerException("iterator");
+    public void testRuntimeFieldsLookup() {
+        MockFieldMapper concrete = new MockFieldMapper("concrete");
+        TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
+
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(concrete), emptyList(), List.of(runtime));
+        assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
+    }
+
+    public void testRuntimeFieldsOverrideConcreteFields() {
+        FlattenedFieldMapper flattened = createFlattenedMapper("flattened");
+        MockFieldMapper field = new MockFieldMapper("field");
+        MockFieldMapper subfield = new MockFieldMapper("object.subfield");
+        MockFieldMapper concrete = new MockFieldMapper("concrete");
+        TestRuntimeField fieldOverride = new TestRuntimeField("field", "type");
+        TestRuntimeField subfieldOverride = new TestRuntimeField("object.subfield", "type");
+        TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
+        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("flattened",
+            Collections.singletonMap("sub", new TestRuntimeField("sub", "ip")));
+
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field, concrete, subfield, flattened), emptyList(),
+            List.of(fieldOverride, runtime, subfieldOverride, dynamicRuntimeField));
+        assertThat(fieldTypeLookup.get("field"), instanceOf(TestRuntimeField.class));
+        assertThat(fieldTypeLookup.get("object.subfield"), instanceOf(TestRuntimeField.class));
+        assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
+        assertThat(fieldTypeLookup.get("flattened.sub").typeName(), equalTo("ip"));
+    }
+
+    public void testRuntimeFieldsSourcePaths() {
+        //we test that runtime fields are treated like any other field by sourcePaths, although sourcePaths
+        // should never be called for runtime fields as they are not in _source
+        MockFieldMapper field1 = new MockFieldMapper("field1");
+        MockFieldMapper concrete = new MockFieldMapper("concrete");
+        TestRuntimeField field2 = new TestRuntimeField("field2", "type");
+        TestRuntimeField subfield = new TestRuntimeField("object.subfield", "type");
+
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(List.of(field1, concrete), emptyList(), List.of(field2, subfield));
+        {
+            Set<String> sourcePaths = fieldTypeLookup.sourcePaths("field1");
+            assertEquals(1, sourcePaths.size());
+            assertTrue(sourcePaths.contains("field1"));
         }
-        int count = 0;
-        while (iterator.hasNext()) {
-            count++;
-            iterator.next();
+        {
+            Set<String> sourcePaths = fieldTypeLookup.sourcePaths("field2");
+            assertEquals(1, sourcePaths.size());
+            assertTrue(sourcePaths.contains("field2"));
         }
-        return count;
+        {
+            Set<String> sourcePaths = fieldTypeLookup.sourcePaths("object.subfield");
+            assertEquals(1, sourcePaths.size());
+            assertTrue(sourcePaths.contains("object.subfield"));
+        }
+    }
+
+    public void testDynamicRuntimeFields() {
+        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup(emptyList(), emptyList(),
+            Collections.singletonList(new TestDynamicRuntimeField("test")));
+
+        assertNull(fieldTypeLookup.get("test"));
+        assertEquals(0, fieldTypeLookup.getMatchingFieldNames("test").size());
+
+        String fieldName = "test." + randomAlphaOfLengthBetween(3, 6);
+        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldTypeLookup.get(fieldName).typeName());
+        Set<String> matchingFieldNames = fieldTypeLookup.getMatchingFieldNames(fieldName);
+        assertEquals(1, matchingFieldNames.size());
+        assertEquals(fieldName, matchingFieldNames.iterator().next());
+    }
+
+    public void testFlattenedLookup() {
+        String fieldName = "object1.object2.field";
+        FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), emptyList(), emptyList());
+        assertEquals(mapper.fieldType(), lookup.get(fieldName));
+
+        String objectKey = "key1.key2";
+        String searchFieldName = fieldName + "." + objectKey;
+
+        MappedFieldType searchFieldType = lookup.get(searchFieldName);
+        assertNotNull(searchFieldType);
+        assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
+        assertEquals(objectKey, keyedFieldType.key());
+
+        assertThat(lookup.getMatchingFieldNames("object1.*"), contains("object1.object2.field"));
+        // We can directly find dynamic subfields
+        assertThat(lookup.getMatchingFieldNames("object1.object2.field.foo"), contains("object1.object2.field.foo"));
+        // But you can't generate dynamic subfields from a wildcard pattern
+        assertThat(lookup.getMatchingFieldNames("object1.object2.field.foo*"), hasSize(0));
+    }
+
+    public void testFlattenedLookupWithAlias() {
+        String fieldName = "object1.object2.field";
+        FlattenedFieldMapper mapper = createFlattenedMapper(fieldName);
+
+        String aliasName = "alias";
+        FieldAliasMapper alias = new FieldAliasMapper(aliasName, aliasName, fieldName);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(singletonList(mapper), singletonList(alias), emptyList());
+        assertEquals(mapper.fieldType(), lookup.get(aliasName));
+
+        String objectKey = "key1.key2";
+        String searchFieldName = aliasName + "." + objectKey;
+
+        MappedFieldType searchFieldType = lookup.get(searchFieldName);
+        assertNotNull(searchFieldType);
+        assertThat(searchFieldType, Matchers.instanceOf(FlattenedFieldMapper.KeyedFlattenedFieldType.class));
+        FlattenedFieldMapper.KeyedFlattenedFieldType keyedFieldType = (FlattenedFieldMapper.KeyedFlattenedFieldType) searchFieldType;
+        assertEquals(objectKey, keyedFieldType.key());
+    }
+
+    public void testFlattenedLookupWithMultipleFields() {
+        String field1 = "object1.object2.field";
+        String field2 = "object1.field";
+        String field3 = "object2.field";
+
+        FlattenedFieldMapper mapper1 = createFlattenedMapper(field1);
+        FlattenedFieldMapper mapper2 = createFlattenedMapper(field2);
+        FlattenedFieldMapper mapper3 = createFlattenedMapper(field3);
+
+        FieldTypeLookup lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2), emptyList(), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+
+        lookup = new FieldTypeLookup(Arrays.asList(mapper1, mapper2, mapper3), emptyList(), emptyList());
+        assertNotNull(lookup.get(field1 + ".some.key"));
+        assertNotNull(lookup.get(field2 + ".some.key"));
+        assertNotNull(lookup.get(field3 + ".some.key"));
+    }
+
+    public void testUnmappedLookupWithDots() {
+        FieldTypeLookup lookup = new FieldTypeLookup(emptyList(), emptyList(), emptyList());
+        assertNull(lookup.get("object.child"));
+    }
+
+    public void testMaxDynamicKeyDepth() {
+        {
+            FieldTypeLookup lookup = new FieldTypeLookup(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
+            assertEquals(0, lookup.getMaxParentPathDots());
+        }
+
+        // Add a flattened object field.
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.emptyList(),
+                Collections.emptyList()
+            );
+            assertEquals(2, lookup.getMaxParentPathDots());
+        }
+
+        // Add a short alias to that field.
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.singletonList(new FieldAliasMapper("alias", "alias", "object1.object2.field")),
+                Collections.emptyList()
+            );
+            assertEquals(2, lookup.getMaxParentPathDots());
+        }
+
+        // Add a longer alias to that field.
+        {
+            String name = "object1.object2.field";
+            FieldTypeLookup lookup = new FieldTypeLookup(
+                Collections.singletonList(createFlattenedMapper(name)),
+                Collections.singletonList(new FieldAliasMapper("alias", "object1.object2.object3.alias", "object1.object2.field")),
+                Collections.emptyList()
+            );
+            assertEquals(2, lookup.getMaxParentPathDots());
+        }
+    }
+
+    private static FlattenedFieldMapper createFlattenedMapper(String fieldName) {
+        return new FlattenedFieldMapper.Builder(fieldName).build(new ContentPath());
     }
 }

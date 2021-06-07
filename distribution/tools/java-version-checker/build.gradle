@@ -7,7 +7,6 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-test.enabled = false
-javadoc.enabled = false
-loggerUsageCheck.enabled = false
-jarHell.enabled = false
+["test", "javadoc", "loggerUsageCheck", "jarHell"].each {
+  tasks.named(it).configure { enabled = false }
+}

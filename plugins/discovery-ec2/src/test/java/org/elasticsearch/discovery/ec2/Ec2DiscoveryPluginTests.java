@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -110,7 +99,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
     public void testClientSettingsReInit() throws IOException {
         final MockSecureSettings mockSecure1 = new MockSecureSettings();
         mockSecure1.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), "ec2_access_1");
-        mockSecure1.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_1");
+        mockSecure1.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_key_1");
         final boolean mockSecure1HasSessionToken = randomBoolean();
         if (mockSecure1HasSessionToken) {
             mockSecure1.setString(Ec2ClientSettings.SESSION_TOKEN_SETTING.getKey(), "ec2_session_token_1");
@@ -125,7 +114,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 .build();
         final MockSecureSettings mockSecure2 = new MockSecureSettings();
         mockSecure2.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), "ec2_access_2");
-        mockSecure2.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_2");
+        mockSecure2.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_key_2");
         final boolean mockSecure2HasSessionToken = randomBoolean();
         if (mockSecure2HasSessionToken) {
             mockSecure2.setString(Ec2ClientSettings.SESSION_TOKEN_SETTING.getKey(), "ec2_session_token_2");
@@ -143,7 +132,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
                 {
                     final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.client()).credentials.getCredentials();
                     assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_1"));
-                    assertThat(credentials.getAWSSecretKey(), is("ec2_secret_1"));
+                    assertThat(credentials.getAWSSecretKey(), is("ec2_secret_key_1"));
                     if (mockSecure1HasSessionToken) {
                         assertThat(credentials, instanceOf(BasicSessionCredentials.class));
                         assertThat(((BasicSessionCredentials)credentials).getSessionToken(), is("ec2_session_token_1"));
@@ -177,7 +166,7 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             try (AmazonEc2Reference clientReference = plugin.ec2Service.client()) {
                 final AWSCredentials credentials = ((AmazonEC2Mock) clientReference.client()).credentials.getCredentials();
                 assertThat(credentials.getAWSAccessKeyId(), is("ec2_access_2"));
-                assertThat(credentials.getAWSSecretKey(), is("ec2_secret_2"));
+                assertThat(credentials.getAWSSecretKey(), is("ec2_secret_key_2"));
                 if (mockSecure2HasSessionToken) {
                     assertThat(credentials, instanceOf(BasicSessionCredentials.class));
                     assertThat(((BasicSessionCredentials)credentials).getSessionToken(), is("ec2_session_token_2"));

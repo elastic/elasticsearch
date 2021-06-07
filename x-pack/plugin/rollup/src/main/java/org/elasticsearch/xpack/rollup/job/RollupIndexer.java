@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.rollup.job;
 
@@ -66,28 +67,26 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
     /**
      * Ctr
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      */
-    RollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, AtomicReference<IndexerState> initialState,
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                   Map<String, Object> initialPosition) {
-        this(threadPool, executorName, job, initialState, initialPosition, new RollupIndexerJobStats());
+        this(threadPool, job, initialState, initialPosition, new RollupIndexerJobStats());
     }
 
     /**
      * Ctr
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param job The rollup job
      * @param initialState Initial state for the indexer
      * @param initialPosition The last indexed bucket of the task
      * @param jobStats jobstats instance for collecting stats
      */
-    RollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, AtomicReference<IndexerState> initialState,
+    RollupIndexer(ThreadPool threadPool, RollupJob job, AtomicReference<IndexerState> initialState,
                   Map<String, Object> initialPosition, RollupIndexerJobStats jobStats) {
-        super(threadPool, executorName, initialState, initialPosition, jobStats);
+        super(threadPool, initialState, initialPosition, jobStats);
         this.job = job;
         this.compositeBuilder = createCompositeBuilder(job.getConfig());
     }
@@ -112,8 +111,7 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
         }
     }
 
-    @Override
-    protected SearchRequest buildSearchRequest(long waitTimeInNanos) {
+    protected SearchRequest buildSearchRequest() {
         final Map<String, Object> position = getPosition();
         SearchSourceBuilder searchSource = new SearchSourceBuilder()
                 .size(0)
@@ -121,7 +119,9 @@ public abstract class RollupIndexer extends AsyncTwoPhaseIndexer<Map<String, Obj
                 // make sure we always compute complete buckets that appears before the configured delay
                 .query(createBoundaryQuery(position))
                 .aggregation(compositeBuilder.aggregateAfter(position));
-        return new SearchRequest(job.getConfig().getIndexPattern()).source(searchSource);
+        return new SearchRequest(job.getConfig().getIndexPattern())
+                .allowPartialSearchResults(false)
+                .source(searchSource);
     }
 
     @Override

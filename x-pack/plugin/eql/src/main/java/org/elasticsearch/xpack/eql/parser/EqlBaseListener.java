@@ -230,26 +230,38 @@ interface EqlBaseListener extends ParseTreeListener {
    */
   void exitComparison(EqlBaseParser.ComparisonContext ctx);
   /**
+   * Enter a parse tree produced by the {@code operatorExpressionDefault}
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
+   * @param ctx the parse tree
+   */
+  void enterOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code operatorExpressionDefault}
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
+   * @param ctx the parse tree
+   */
+  void exitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx);
+  /**
    * Enter a parse tree produced by the {@code arithmeticBinary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void enterArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx);
   /**
    * Exit a parse tree produced by the {@code arithmeticBinary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void exitArithmeticBinary(EqlBaseParser.ArithmeticBinaryContext ctx);
   /**
    * Enter a parse tree produced by the {@code arithmeticUnary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void enterArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
   /**
    * Exit a parse tree produced by the {@code arithmeticUnary}
-   * labeled alternative in {@link EqlBaseParser#valueExpression}.
+   * labeled alternative in {@link EqlBaseParser#operatorExpression}.
    * @param ctx the parse tree
    */
   void exitArithmeticUnary(EqlBaseParser.ArithmeticUnaryContext ctx);
@@ -321,6 +333,16 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFunctionExpression(EqlBaseParser.FunctionExpressionContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void enterFunctionName(EqlBaseParser.FunctionNameContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#functionName}.
+   * @param ctx the parse tree
+   */
+  void exitFunctionName(EqlBaseParser.FunctionNameContext ctx);
   /**
    * Enter a parse tree produced by the {@code nullLiteral}
    * labeled alternative in {@link EqlBaseParser#constant}.
@@ -453,4 +475,14 @@ interface EqlBaseListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitString(EqlBaseParser.StringContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EqlBaseParser#eventValue}.
+   * @param ctx the parse tree
+   */
+  void enterEventValue(EqlBaseParser.EventValueContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EqlBaseParser#eventValue}.
+   * @param ctx the parse tree
+   */
+  void exitEventValue(EqlBaseParser.EventValueContext ctx);
 }

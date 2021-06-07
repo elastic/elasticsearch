@@ -5,6 +5,11 @@
       "description":"Performs an update on every document in the index without changing the source,\nfor example to pick up a mapping change."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {

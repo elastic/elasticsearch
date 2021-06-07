@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.common;
 
@@ -100,6 +101,8 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
         } else {
             try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false)) {
                 consumer.accept(consumables.get(position++), this);
+            } catch (Exception e) {
+                onFailure(e);
             }
         }
     }
@@ -114,7 +117,11 @@ public final class IteratingActionListener<T, U> implements ActionListener<T>, R
                 if (position == consumables.size()) {
                     delegate.onResponse(finalResultFunction.apply(response));
                 } else {
-                    consumer.accept(consumables.get(position++), this);
+                    try {
+                        consumer.accept(consumables.get(position++), this);
+                    } catch (Exception e) {
+                        onFailure(e);
+                    }
                 }
             } else {
                 delegate.onResponse(finalResultFunction.apply(response));

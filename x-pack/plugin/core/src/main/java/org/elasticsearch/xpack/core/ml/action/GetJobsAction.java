@@ -1,16 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -33,10 +31,12 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
-        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+        @Deprecated
+        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
+        public static final String ALLOW_NO_MATCH = "allow_no_match";
 
         private String jobId;
-        private boolean allowNoJobs = true;
+        private boolean allowNoMatch = true;
 
         public Request(String jobId) {
             this();
@@ -50,26 +50,26 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            allowNoJobs = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeBoolean(allowNoJobs);
+            out.writeBoolean(allowNoMatch);
         }
 
-        public void setAllowNoJobs(boolean allowNoJobs) {
-            this.allowNoJobs = allowNoJobs;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         public String getJobId() {
             return jobId;
         }
 
-        public boolean allowNoJobs() {
-            return allowNoJobs;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
         @Override
@@ -79,7 +79,7 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, allowNoJobs);
+            return Objects.hash(jobId, allowNoMatch);
         }
 
         @Override
@@ -91,14 +91,7 @@ public class GetJobsAction extends ActionType<GetJobsAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoJobs, other.allowNoJobs);
-        }
-    }
-
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        public RequestBuilder(ElasticsearchClient client, GetJobsAction action) {
-            super(client, action, new Request());
+            return Objects.equals(jobId, other.jobId) && Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 

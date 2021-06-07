@@ -10,6 +10,10 @@ are always constants and compiled efficiently a single time.
 Pattern p = /[aeiou]/
 ---------------------------------------------------------
 
+WARNING: A poorly written regular expression can significantly slow performance.
+If possible, avoid using regular expressions, particularly in frequently run
+scripts.
+
 [[pattern-flags]]
 ==== Pattern flags
 

@@ -12,26 +12,26 @@ running, including:
 * Configuring
 
 [[supported-platforms]]
-[float]
+[discrete]
 == Supported platforms
 
 The matrix of officially supported operating systems and JVMs is available here:
 link:/support/matrix[Support Matrix]. Elasticsearch is tested on the listed
 platforms, but it is possible that it will work on other platforms too.
 
-[float]
+[discrete]
 [[jvm-version]]
 == Java (JVM) Version
 
 Elasticsearch is built using Java, and includes a bundled version of
-http://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
+https://openjdk.java.net[OpenJDK] from the JDK maintainers (GPLv2+CE)
 within each distribution. The bundled JVM is the recommended JVM and
 is located within the `jdk` directory of the Elasticsearch home directory.
 
-To use your own version of Java, set the `JAVA_HOME` environment variable.
+To use your own version of Java, set the `ES_JAVA_HOME` environment variable.
 If you must use a version of Java that is different from the bundled JVM,
 we recommend using a link:/support/matrix[supported]
-http://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
+https://www.oracle.com/technetwork/java/eol-135779.html[LTS version of Java].
 Elasticsearch will refuse to start if a known-bad version of Java is used.
 The bundled JVM directory may be removed when using your own JVM.
 
@@ -41,7 +41,8 @@ include::setup/install.asciidoc[]
 
 include::setup/configuration.asciidoc[]
 
-include::setup/jvm-options.asciidoc[]
+include::setup/important-settings.asciidoc[]
+
 
 include::setup/secure-settings.asciidoc[]
 
@@ -57,9 +58,9 @@ include::modules/discovery/discovery-settings.asciidoc[]
 
 include::modules/indices/fielddata.asciidoc[]
 
-include::modules/http.asciidoc[]
-
 include::settings/ilm-settings.asciidoc[]
+
+include::modules/indices/index_management.asciidoc[]
 
 include::modules/indices/recovery.asciidoc[]
 
@@ -89,20 +90,14 @@ include::modules/indices/request_cache.asciidoc[]
 
 include::settings/slm-settings.asciidoc[]
 
-include::settings/sql-settings.asciidoc[]
-
 include::settings/transform-settings.asciidoc[]
-
-include::modules/transport.asciidoc[]
 
 include::modules/threadpool.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]
 
-include::setup/important-settings.asciidoc[]
-
+include::setup/advanced-configuration.asciidoc[]
 include::setup/sysconfig.asciidoc[]
-
 include::setup/bootstrap-checks.asciidoc[]
 
 include::setup/bootstrap-checks-xes.asciidoc[]

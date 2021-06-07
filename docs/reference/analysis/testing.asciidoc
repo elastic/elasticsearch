@@ -123,7 +123,7 @@ referred to when running the `analyze` API on a specific index:
 
 [source,console]
 -------------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "analysis": {
@@ -149,13 +149,13 @@ PUT my_index
   }
 }
 
-GET my_index/_analyze <3>
+GET my-index-000001/_analyze <3>
 {
   "analyzer": "std_folded", <4>
   "text":     "Is this déjà vu?"
 }
 
-GET my_index/_analyze <3>
+GET my-index-000001/_analyze <3>
 {
   "field": "my_text", <5>
   "text":  "Is this déjà vu?"

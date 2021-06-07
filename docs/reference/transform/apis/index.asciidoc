@@ -1,29 +1,17 @@
-[role="xpack"]
-[testenv="basic"]
-[[transform-apis]]
-== {transform-cap} APIs
-
-* <<put-transform>> 
-* <<delete-transform>>
-* <<get-transform>>
-* <<get-transform-stats>>
-* <<preview-transform>>
-* <<start-transform>>
-* <<stop-transform>>
-* <<update-transform>>
+include::transform-apis.asciidoc[leveloffset=+1]
 
 //CREATE
-include::put-transform.asciidoc[]
+include::put-transform.asciidoc[leveloffset=+2]
 //DELETE
-include::delete-transform.asciidoc[]
+include::delete-transform.asciidoc[leveloffset=+2]
 //GET
-include::get-transform.asciidoc[]
-include::get-transform-stats.asciidoc[]
+include::get-transform.asciidoc[leveloffset=+2]
+include::get-transform-stats.asciidoc[leveloffset=+2]
 //PREVIEW
-include::preview-transform.asciidoc[]
+include::preview-transform.asciidoc[leveloffset=+2]
 //START
-include::start-transform.asciidoc[]
+include::start-transform.asciidoc[leveloffset=+2]
 //STOP
-include::stop-transform.asciidoc[]
+include::stop-transform.asciidoc[leveloffset=+2]
 //UPDATE
-include::update-transform.asciidoc[]
+include::update-transform.asciidoc[leveloffset=+2]

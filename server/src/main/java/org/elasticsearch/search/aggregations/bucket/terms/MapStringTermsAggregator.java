@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -31,6 +20,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
@@ -38,93 +28,80 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
+import java.util.function.LongConsumer;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
 /**
  * An aggregator of string values that hashes the strings on the fly rather
  * than up front like the {@link GlobalOrdinalsStringTermsAggregator}.
  */
 public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
+    private final CollectorSource collectorSource;
     private final ResultStrategy<?, ?> resultStrategy;
-    private final ValuesSource valuesSource;
     private final BytesKeyedBucketOrds bucketOrds;
     private final IncludeExclude.StringFilter includeExclude;
 
     public MapStringTermsAggregator(
         String name,
         AggregatorFactories factories,
+        CollectorSource collectorSource,
         Function<MapStringTermsAggregator, ResultStrategy<?, ?>> resultStrategy,
-        ValuesSource valuesSource,
         BucketOrder order,
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
         IncludeExclude.StringFilter includeExclude,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,
-        boolean collectsFromSingleBucket,
+        CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
         super(name, factories, context, parent, order, format, bucketCountThresholds, collectionMode, showTermDocCountError, metadata);
+        this.collectorSource = collectorSource;
         this.resultStrategy = resultStrategy.apply(this); // ResultStrategy needs a reference to the Aggregator to do its job.
-        this.valuesSource = valuesSource;
         this.includeExclude = includeExclude;
-        bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), collectsFromSingleBucket);
+        bucketOrds = BytesKeyedBucketOrds.build(context.bigArrays(), cardinality);
     }
 
     @Override
     public ScoreMode scoreMode() {
-        if (valuesSource != null && valuesSource.needsScores()) {
+        if (collectorSource.needsScores()) {
             return ScoreMode.COMPLETE;
         }
         return super.scoreMode();
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-        return resultStrategy.wrapCollector(new LeafBucketCollectorBase(sub, values) {
-            final BytesRefBuilder previous = new BytesRefBuilder();
-
-            @Override
-            public void collect(int doc, long owningBucketOrd) throws IOException {
-                if (false == values.advanceExact(doc)) {
-                    return;
-                }
-                int valuesCount = values.docValueCount();
-
-                // SortedBinaryDocValues don't guarantee uniqueness so we
-                // need to take care of dups
-                previous.clear();
-                for (int i = 0; i < valuesCount; ++i) {
-                    final BytesRef bytes = values.nextValue();
-                    if (includeExclude != null && false == includeExclude.accept(bytes)) {
-                        continue;
-                    }
-                    if (i > 0 && previous.get().equals(bytes)) {
-                        continue;
-                    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+        return resultStrategy.wrapCollector(
+            collectorSource.getLeafCollector(
+                includeExclude,
+                ctx,
+                sub,
+                this::addRequestCircuitBreakerBytes,
+                (s, doc, owningBucketOrd, bytes) -> {
                     long bucketOrdinal = bucketOrds.add(owningBucketOrd, bytes);
                     if (bucketOrdinal < 0) { // already seen
                         bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
+                        collectExistingBucket(s, doc, bucketOrdinal);
                     } else {
-                        collectBucket(sub, doc, bucketOrdinal);
+                        collectBucket(s, doc, bucketOrdinal);
                     }
-                    previous.copyBytes(bytes);
                 }
-            }
-        });
+            )
+        );
     }
 
     @Override
@@ -141,12 +118,116 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("collection_strategy", collectorSource.describe());
+        collectorSource.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
     }
 
     @Override
     public void doClose() {
-        Releasables.close(bucketOrds, resultStrategy);
+        Releasables.close(collectorSource, resultStrategy, bucketOrds);
+    }
+
+    /**
+     * Abstraction on top of building collectors to fetch values so {@code terms},
+     * {@code significant_terms}, and {@code significant_text} can share a bunch of
+     * aggregation code.
+     */
+    public interface CollectorSource extends Releasable {
+        /**
+         * A description of the strategy to include in profile results.
+         */
+        String describe();
+
+        /**
+         * Collect debug information to add to the profiling results. This will
+         * only be called if the aggregation is being profiled.
+         */
+        void collectDebugInfo(BiConsumer<String, Object> add);
+
+        /**
+         * Does this {@link CollectorSource} need queries to calculate the score?
+         */
+        boolean needsScores();
+
+        /**
+         * Build the collector.
+         */
+        LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException;
+    }
+    @FunctionalInterface
+    public interface CollectConsumer {
+        void accept(LeafBucketCollector sub, int doc, long owningBucketOrd, BytesRef bytes) throws IOException;
+    }
+
+    /**
+     * Fetch values from a {@link ValuesSource}.
+     */
+    public static class ValuesSourceCollectorSource implements CollectorSource {
+        private final ValuesSourceConfig valuesSourceConfig;
+
+        public ValuesSourceCollectorSource(ValuesSourceConfig valuesSourceConfig) {
+            this.valuesSourceConfig = valuesSourceConfig;
+        }
+
+        @Override
+        public String describe() {
+            return "from " + valuesSourceConfig.getDescription();
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+        @Override
+        public boolean needsScores() {
+            return valuesSourceConfig.getValuesSource().needsScores();
+        }
+
+        @Override
+        public LeafBucketCollector getLeafCollector(
+            IncludeExclude.StringFilter includeExclude,
+            LeafReaderContext ctx,
+            LeafBucketCollector sub,
+            LongConsumer addRequestCircuitBreakerBytes,
+            CollectConsumer consumer
+        ) throws IOException {
+            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
+            return new LeafBucketCollectorBase(sub, values) {
+                final BytesRefBuilder previous = new BytesRefBuilder();
+
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    if (false == values.advanceExact(doc)) {
+                        return;
+                    }
+                    int valuesCount = values.docValueCount();
+
+                    // SortedBinaryDocValues don't guarantee uniqueness so we
+                    // need to take care of dups
+                    previous.clear();
+                    for (int i = 0; i < valuesCount; ++i) {
+                        BytesRef bytes = values.nextValue();
+                        if (includeExclude != null && false == includeExclude.accept(bytes)) {
+                            continue;
+                        }
+                        if (i > 0 && previous.get().equals(bytes)) {
+                            continue;
+                        }
+                        previous.copyBytes(bytes);
+                        consumer.accept(sub, doc, owningBucketOrd, bytes);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void close() {}
     }
 
     /**
@@ -166,7 +247,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 PriorityQueue<B> ordered = buildPriorityQueue(size);
                 B spare = null;
                 BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]); 
+                Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
                 while (ordsEnum.next()) {
                     long docCount = bucketDocCount(ordsEnum.ord());
                     otherDocCounts[ordIdx] += docCount;
@@ -270,6 +351,12 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Builds results for the standard {@code terms} aggregation.
      */
     class StandardTermsResults extends ResultStrategy<StringTerms, StringTerms.Bucket> {
+        private final ValuesSource valuesSource;
+
+        StandardTermsResults(ValuesSource valuesSource) {
+            this.valuesSource = valuesSource;
+        }
+
         @Override
         String describe() {
             return "terms";
@@ -289,7 +376,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 return;
             }
             // we need to fill-in the blanks
-            for (LeafReaderContext ctx : context.searcher().getTopReaderContext().leaves()) {
+            for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                 SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
                 // brute force
                 for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
@@ -350,9 +437,16 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
 
         @Override
         StringTerms buildResult(long owningBucketOrd, long otherDocCount, StringTerms.Bucket[] topBuckets) {
-            return new StringTerms(name, order, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(),
-                metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError, otherDocCount,
-                Arrays.asList(topBuckets), 0);
+            final BucketOrder reduceOrder;
+            if (isKeyOrder(order) == false) {
+                reduceOrder = InternalOrder.key(true);
+                Arrays.sort(topBuckets, reduceOrder.comparator());
+            } else {
+                reduceOrder = order;
+            }
+            return new StringTerms(name, reduceOrder, order, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), metadata(), format, bucketCountThresholds.getShardSize(), showTermDocCountError,
+                otherDocCount, Arrays.asList(topBuckets), 0);
         }
 
         @Override
@@ -372,14 +466,14 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         private final long supersetSize;
         private final SignificanceHeuristic significanceHeuristic;
 
-        private LongArray subsetSizes = context.bigArrays().newLongArray(1, true);
+        private LongArray subsetSizes = bigArrays().newLongArray(1, true);
 
         SignificantTermsResults(
             SignificanceLookup significanceLookup,
             SignificanceHeuristic significanceHeuristic,
-            boolean collectsFromSingleBucket
+            CardinalityUpperBound cardinality
         ) {
-            backgroundFrequencies = significanceLookup.bytesLookup(context.bigArrays(), collectsFromSingleBucket);
+            backgroundFrequencies = significanceLookup.bytesLookup(bigArrays(), cardinality);
             supersetSize = significanceLookup.supersetSize();
             this.significanceHeuristic = significanceHeuristic;
         }
@@ -395,7 +489,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
                     super.collect(doc, owningBucketOrd);
-                    subsetSizes = context.bigArrays().grow(subsetSizes, owningBucketOrd + 1);
+                    subsetSizes = bigArrays().grow(subsetSizes, owningBucketOrd + 1);
                     subsetSizes.increment(owningBucketOrd, 1);
                 }
             };

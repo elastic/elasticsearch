@@ -1,6 +1,6 @@
-[float]
+[discrete]
 [[api-java-stats]]
-=== Stats API
+=== {watcher} stats API
 
 The `stats` API returns the current {watcher} metrics. You can control what
 metrics this API returns using the `metric` parameter.

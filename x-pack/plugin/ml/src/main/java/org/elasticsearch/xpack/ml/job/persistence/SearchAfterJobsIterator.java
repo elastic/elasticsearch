@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ml.job.persistence;
@@ -17,8 +18,8 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.utils.persistence.SearchAfterDocumentsIterator;
 
 import java.io.IOException;
@@ -29,7 +30,7 @@ public class SearchAfterJobsIterator extends SearchAfterDocumentsIterator<Job.Bu
     private String lastJobId;
 
     public SearchAfterJobsIterator(OriginSettingClient client) {
-        super(client, AnomalyDetectorsIndex.configIndexName());
+        super(client, MlConfigIndex.indexName());
     }
 
     @Override

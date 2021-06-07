@@ -1,28 +1,22 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
+
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
+import org.apache.http.NameValuePair;
+import org.apache.http.ParseException;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.utils.URLEncodedUtils;
 import org.apache.http.entity.ContentType;
+import org.apache.http.message.BasicNameValuePair;
 import org.apache.http.util.EntityUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -44,6 +38,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -51,6 +46,8 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.frequently;
 
 /**
  * Used by {@link ESClientYamlSuiteTestCase} to execute REST requests according to the tests written in yaml suite files. Wraps a
@@ -66,6 +63,7 @@ public class ClientYamlTestClient implements Closeable {
     private final Map<NodeSelector, RestClient> restClients = new HashMap<>();
     private final Version esVersion;
     private final Version masterVersion;
+    private final String os;
     private final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes;
 
     ClientYamlTestClient(
@@ -74,12 +72,14 @@ public class ClientYamlTestClient implements Closeable {
             final List<HttpHost> hosts,
             final Version esVersion,
             final Version masterVersion,
+            final String os,
             final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes) {
         assert hosts.size() > 0;
         this.restSpec = restSpec;
         this.restClients.put(NodeSelector.ANY, restClient);
         this.esVersion = esVersion;
         this.masterVersion = masterVersion;
+        this.os = os;
         this.clientBuilderWithSniffedNodes = clientBuilderWithSniffedNodes;
     }
 
@@ -89,6 +89,10 @@ public class ClientYamlTestClient implements Closeable {
 
     public Version getMasterVersion() {
         return masterVersion;
+    }
+
+    public String getOs() {
+        return os;
     }
 
     /**
@@ -158,7 +162,7 @@ public class ClientYamlTestClient implements Closeable {
             }
             String contentType = entity.getContentType().getValue();
             //randomly test the GET with source param instead of GET/POST with body
-            if (sendBodyAsSourceParam(supportedMethods, contentType, entity.getContentLength())) {
+            if (sendBodyAsSourceParam(supportedMethods, contentType, entity)) {
                 logger.debug("sending the request body as source param with GET method");
                 queryStringParams.put("source", EntityUtils.toString(entity));
                 queryStringParams.put("source_content_type", contentType);
@@ -215,17 +219,22 @@ public class ClientYamlTestClient implements Closeable {
         request.setOptions(options);
     }
 
-    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, long contentLength) {
+    private static boolean sendBodyAsSourceParam(List<String> supportedMethods, String contentType, HttpEntity entity)
+        throws ParseException, IOException {
         if (false == supportedMethods.contains(HttpGet.METHOD_NAME)) {
             // The API doesn't claim to support GET anyway
             return false;
         }
-        if (contentLength < 0) {
+        if (entity.getContentLength() < 0) {
             // Negative length means "unknown" or "huge" in this case. Either way we can't send it as a parameter
             return false;
         }
-        if (contentLength > 2000) {
-            // Long bodies won't fit in the parameter and will cause a too_long_frame_exception
+        if (entity.getContentLength() > 2000) {
+            /*
+             * HTTP lines longer than 4096 bytes will cause a too_long_frame_exception
+             * so we chop at 2000 just to give us some room for extra parameters and
+             * url encoding.
+             */
             return false;
         }
         if (false == contentType.startsWith(ContentType.APPLICATION_JSON.getMimeType())
@@ -233,13 +242,25 @@ public class ClientYamlTestClient implements Closeable {
             // We can only encode JSON or YAML this way.
             return false;
         }
-        return RandomizedTest.rarely();
+        if (frequently()) {
+            return false;
+        }
+        /*
+         * Now, the last (expensive) test: make sure the *url encoded* size
+         * isn't too big. We limit ourselves to 3000 bytes for the source of
+         * the request out of 4096 so we can use the rest for other parameters
+         * and the url and stuff.
+         */
+        NameValuePair param = new BasicNameValuePair("source", EntityUtils.toString(entity));
+        String encoded = URLEncodedUtils.format(List.of(param), StandardCharsets.UTF_8);
+        return encoded.length() < 3000;
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {
         ClientYamlSuiteRestApi restApi = restSpec.getApi(apiName);
         if (restApi == null) {
-            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
+            throw new IllegalArgumentException("Rest api [" + apiName + "] cannot be found in the rest spec. Either it doesn't exist or " +
+                "is missing from the test classpath. Check the 'restResources' block of your project's build.gradle file.");
         }
         return restApi;
     }

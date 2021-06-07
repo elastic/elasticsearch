@@ -39,7 +39,7 @@ of username and password and is always available. See <<file-realm>>.
 _saml_::
 A realm that facilitates authentication using the SAML 2.0 Web SSO protocol.
 This realm is designed to support authentication through {kib} and is not
-intended for use in the REST API.  See <<saml-realm>>.
+intended for use in the REST API. See <<saml-realm>>.
 
 _kerberos_::
 A realm that authenticates a user using Kerberos authentication. Users are

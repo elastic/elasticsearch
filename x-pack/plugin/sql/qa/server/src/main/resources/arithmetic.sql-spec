@@ -87,3 +87,166 @@ orderByModulo
 SELECT emp_no FROM test_emp ORDER BY emp_no % 10000 LIMIT 10;
 orderByMul
 SELECT emp_no FROM test_emp ORDER BY emp_no * 2 LIMIT 10;
+
+// arithmetic optimiser
+plusMulIntFieldPlus
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary + 50000) > 201000;
+mulIntFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (salary + 50000) - 1000 <= -201000;
+plusIntFieldPlusDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary + 50000) / 2 > 101000;
+intFieldPlusDiv
+SELECT emp_no FROM test_emp WHERE (salary + 50000) / 2 + 1000 > 101000;
+plusMulPlusIntField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (50000 + salary) > 201000;
+mulPlusIntFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (50000 + salary) - 1000 <= -201000;
+plusPlusIntFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (50000 + salary) / 2 > 51000;
+plusIntFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (50000 + salary) / 2 + 1000 > 51000;
+plusMulIntFieldMinus
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary - 10000) > 60000;
+mulIntFieldMinusPlus
+SELECT emp_no FROM test_emp WHERE -2 * (salary - 10000) - 1000 <= -61000;
+plusIntFieldMinusDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary - 10000) / 2 > 16000;
+intFieldMinusDivPlus
+SELECT emp_no FROM test_emp WHERE (salary - 10000) / 2 + 1000 > 16000;
+plusMulMinusIntField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (100000 - salary) > 101000;
+mulMinusIntFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (100000 - salary) - 1000 <= -101000;
+plusMinusIntFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (100000 - salary) / 2 > 26000;
+minusIntFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (100000 - salary) / 2 + 1000 > 25000;
+plusMulIntFieldMul
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary * 2) > 201000;
+mulIntFieldMulPlus
+SELECT emp_no FROM test_emp WHERE 2 * (-salary * 2) - 1000 <= -200000;
+plusIntFieldMulDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary * 2) / 2 > 50100;
+intFieldMulDivPlus
+SELECT emp_no FROM test_emp WHERE (salary * 2) / 2 + 1000 > 50100;
+plusMulMulIntField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (2 * salary) > 201000;
+mulMulIntFieldPlus
+SELECT emp_no FROM test_emp WHERE 2 * (2 * -salary) - 1000 <= -201000;
+plusMulIntFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (2 * salary) / 2 > 51000;
+mulIntFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (2 * salary) / 2 + 1000 > 51000;
+plusMulIntFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary / 2) > 61000;
+mulIntFieldDivPlus
+SELECT emp_no FROM test_emp WHERE 2 * (-salary / 2) - 1000 <= -61000;
+plusIntFieldDivDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary / 2) / 2 > 16000;
+intFieldDivDivPlus
+SELECT emp_no FROM test_emp WHERE (salary / 2) / 2 + 1000 > 16000;
+plusMulDivIntField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (1000000000 / salary) > 61000;
+mulDivIntFieldPlus
+SELECT emp_no FROM test_emp WHERE 2 * (1000000000 / -salary) - 1000 <= -61000;
+plusDivIntFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (1000000000 / salary) / 2 > 16000;
+divIntFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (1000000000 / salary) / 2 + 1000 > 16000;
+
+plusMulFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary::FLOAT + 50000) > 201000;
+mulFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (salary::FLOAT + 50000) - 1000 <= -201000;
+plusFloatFieldPlusDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary::FLOAT + 50000) / 2 > 101000;
+floatFieldPlusDiv
+SELECT emp_no FROM test_emp WHERE (salary::FLOAT + 50000) / 2 + 1000 > 101000;
+plusMulPlusFloatField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (50000 + salary::FLOAT) > 201000;
+mulPlusFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (50000 + salary::FLOAT) - 1000 <= -201000;
+plusPlusFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (50000 + salary::FLOAT) / 2 > 51000;
+plusFloatFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (50000 + salary::FLOAT) / 2 + 1000 > 51000;
+plusMulFloatFieldMinus
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary::FLOAT - 10000) > 60000;
+mulFloatFieldMinusPlus
+SELECT emp_no FROM test_emp WHERE -2 * (salary::FLOAT - 10000) - 1000 <= -61000;
+plusFloatFieldMinusDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary::FLOAT - 10000) / 2 > 16000;
+floatFieldMinusDivPlus
+SELECT emp_no FROM test_emp WHERE (salary::FLOAT - 10000) / 2 + 1000 > 16000;
+plusMulMinusFloatField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (100000 - salary::FLOAT) > 101000;
+mulMinusFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE -2 * (100000 - salary::FLOAT) - 1000 <= -101000;
+plusMinusFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (100000 - salary::FLOAT) / 2 > 26000;
+minusFloatFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (100000 - salary::FLOAT) / 2 + 1000 > 25000;
+plusMulFloatFieldMul
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary::FLOAT * 2) > 201000;
+mulFloatFieldMulPlus
+SELECT emp_no FROM test_emp WHERE 2 * (-salary::FLOAT * 2) - 1000 <= -200000;
+plusFloatFieldMulDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary::FLOAT * 2) / 2 > 50100;
+floatFieldMulDivPlus
+SELECT emp_no FROM test_emp WHERE (salary::FLOAT * 2) / 2 + 1000 > 50100;
+plusMulMulFloatField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (2 * salary::FLOAT) > 201000;
+mulMulFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE 2 * (2 * -salary::FLOAT) - 1000 <= -201000;
+plusMulFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (2 * salary::FLOAT) / 2 > 51000;
+mulFloatFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (2 * salary::FLOAT) / 2 + 1000 > 51000;
+plusMulFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (salary::FLOAT / 2) > 61000;
+mulFloatFieldDivPlus
+SELECT emp_no FROM test_emp WHERE 2 * (-salary::FLOAT / 2) - 1000 <= -61000;
+plusFloatFieldDivDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (salary::FLOAT / 2) / 2 > 16000;
+floatFieldDivDivPlus
+SELECT emp_no FROM test_emp WHERE (salary::FLOAT / 2) / 2 + 1000 > 16000;
+plusMulDivFloatField
+SELECT emp_no FROM test_emp WHERE 1000 + 2 * (1000000000 / salary::FLOAT) > 61000;
+mulDivFloatFieldPlus
+SELECT emp_no FROM test_emp WHERE 2 * (1000000000 / -salary::FLOAT) - 1000 <= -61000;
+plusDivFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE 1000 + (1000000000 / salary::FLOAT) / 2 > 16000;
+divFloatFieldDivPlus
+SELECT emp_no FROM test_emp WHERE (1000000000 / salary::FLOAT) / 2 + 1000 > 16000;
+
+noOptimisationOnLongOverflowAdd
+SELECT emp_no FROM test_emp WHERE salary - 2 < 9223372036854775807;
+noOptimisationOnLongUnderflowSub
+SELECT emp_no FROM test_emp WHERE -salary + 2 < -9223372036854775807;
+noOptimisationOnIntOverflowAdd
+SELECT emp_no FROM test_emp WHERE salary::INT - 2 < 2147483647;
+noOptimisationOnIntUnderflowSub
+SELECT emp_no FROM test_emp WHERE -salary::INT + 2 < -2147483648;
+noOptimisationOnOverflowMul
+SELECT emp_no FROM test_emp WHERE salary / 10 < 1.7976931348623157E308;
+noOptimisationOnPrecisionLossOnFloatFieldAdd
+SELECT emp_no FROM test_emp WHERE 1 - salary::FLOAT/1E21 < 1;
+noOptimisationOnPrecisionLossOnFloatFieldDiv
+SELECT emp_no FROM test_emp WHERE (1 - salary::FLOAT / 1E21) * (1 + 1E-15) > 1;
+noOptimisationOnIntegralDivByZero
+SELECT emp_no FROM test_emp WHERE (5/4 - 1) * salary > 1;
+noOptimisationOnFloatDivByZero
+SELECT emp_no FROM test_emp WHERE (5/4 - 1) * salary::FLOAT > 1;
+
+// negations
+negationDenominator
+SELECT emp_no FROM test_emp WHERE 1./-salary  > 1/-6E4;
+chainedNegationDenominator
+SELECT emp_no FROM test_emp WHERE 1./(-(-(-salary)) * -1)  < 1/6E4;
+negationProductDenominator
+SELECT emp_no FROM test_emp WHERE 1/(-salary::FLOAT * -emp_no) > 1/5E8;
+negationNumeratorAndDenominator
+SELECT emp_no FROM test_emp WHERE 3 * (-languages)/(-salary::FLOAT * -emp_no) > -3/6E7;
+negationsDoubleDenominator
+SELECT emp_no FROM test_emp WHERE ((1000000000 / -salary) / 2) * (-1 / (2 / -emp_no::FLOAT)) / -1000 >= 50000;
+

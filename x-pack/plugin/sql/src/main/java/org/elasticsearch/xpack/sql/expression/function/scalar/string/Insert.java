@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.sql.expression.function.scalar.string;
 
@@ -34,23 +35,23 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.string.Inse
  */
 public class Insert extends ScalarFunction {
 
-    private final Expression source, start, length, replacement;
-    
-    public Insert(Source source, Expression src, Expression start, Expression length, Expression replacement) {
-        super(source, Arrays.asList(src, start, length, replacement));
-        this.source = src;
+    private final Expression input, start, length, replacement;
+
+    public Insert(Source source, Expression input, Expression start, Expression length, Expression replacement) {
+        super(source, Arrays.asList(input, start, length, replacement));
+        this.input = input;
         this.start = start;
         this.length = length;
         this.replacement = replacement;
     }
-    
+
     @Override
     protected TypeResolution resolveType() {
-        if (!childrenResolved()) {
+        if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(source, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
@@ -59,18 +60,18 @@ public class Insert extends ScalarFunction {
         if (startResolution.unresolved()) {
             return startResolution;
         }
-        
+
         TypeResolution lengthResolution = isNumeric(length, sourceText(), ParamOrdinal.THIRD);
         if (lengthResolution.unresolved()) {
             return lengthResolution;
         }
-        
+
         return isStringAndExact(replacement, sourceText(), ParamOrdinal.FOURTH);
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable()
+        return input.foldable()
                 && start.foldable()
                 && length.foldable()
                 && replacement.foldable();
@@ -78,13 +79,13 @@ public class Insert extends ScalarFunction {
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), start.fold(), length.fold(), replacement.fold());
+        return doProcess(input.fold(), start.fold(), length.fold(), replacement.fold());
     }
 
     @Override
     protected Pipe makePipe() {
         return new InsertFunctionPipe(source(), this,
-                Expressions.pipe(source),
+                Expressions.pipe(input),
                 Expressions.pipe(start),
                 Expressions.pipe(length),
                 Expressions.pipe(replacement));
@@ -92,34 +93,34 @@ public class Insert extends ScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Insert::new, source, start, length, replacement);
+        return NodeInfo.create(this, Insert::new, input, start, length, replacement);
     }
-    
+
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate startScript = asScript(start);
         ScriptTemplate lengthScript = asScript(length);
         ScriptTemplate replacementScript = asScript(replacement);
 
-        return asScriptFrom(sourceScript, startScript, lengthScript, replacementScript);
+        return asScriptFrom(inputScript, startScript, lengthScript, replacementScript);
     }
 
-    private ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate startScript,
+    private ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript,
             ScriptTemplate lengthScript, ScriptTemplate replacementScript) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](function_or_field1, function_or_field2,...)
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{sql}.%s(%s,%s,%s,%s)"),
                 "insert",
-                sourceScript.template(),
+                inputScript.template(),
                 startScript.template(),
                 lengthScript.template(),
                 replacementScript.template()),
                 paramsBuilder()
-                    .script(sourceScript.params()).script(startScript.params())
+                    .script(inputScript.params()).script(startScript.params())
                     .script(lengthScript.params()).script(replacementScript.params())
                     .build(), dataType());
     }
-    
+
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
         return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
@@ -134,10 +135,6 @@ public class Insert extends ScalarFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 4) {
-            throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
-        }
-
         return new Insert(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

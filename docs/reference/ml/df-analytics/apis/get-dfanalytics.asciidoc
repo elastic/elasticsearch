@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="platinum"]
 [[get-dfanalytics]]
-=== Get {dfanalytics-jobs} API
+= Get {dfanalytics-jobs} API
 [subs="attributes"]
 ++++
 <titleabbrev>Get {dfanalytics-jobs}</titleabbrev>
@@ -9,11 +9,9 @@
 
 Retrieves configuration information for {dfanalytics-jobs}.
 
-experimental[]
-
 
 [[ml-get-dfanalytics-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `GET _ml/data_frame/analytics/<data_frame_analytics_id>` +
 
@@ -25,59 +23,59 @@ experimental[]
 
 
 [[ml-get-dfanalytics-prereq]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
-
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
 
 [[ml-get-dfanalytics-desc]]
-==== {api-description-title}
+== {api-description-title}
 
-You can get information for multiple {dfanalytics-jobs} in a single API request 
+You can get information for multiple {dfanalytics-jobs} in a single API request
 by using a comma-separated list of {dfanalytics-jobs} or a wildcard expression.
 
 
 [[ml-get-dfanalytics-path-params]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<data_frame_analytics_id>`::
-(Optional, string) 
+(Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-default]
 +
 --
-You can get information for all {dfanalytics-jobs} by using _all, by specifying 
-`*` as the `<data_frame_analytics_id>`, or by omitting the 
+You can get information for all {dfanalytics-jobs} by using _all, by specifying
+`*` as the `<data_frame_analytics_id>`, or by omitting the
 `<data_frame_analytics_id>`.
 --
 
 
 [[ml-get-dfanalytics-query-params]]
-==== {api-query-parms-title}
+== {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean) 
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match]
 
 `from`::
-(Optional, integer) 
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=from]
 
 `size`::
-(Optional, integer) 
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=size]
+
+`exclude_generated`::
+(Optional, Boolean)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-generated]
 
 [role="child_attributes"]
 [[ml-get-dfanalytics-results]]
-==== {api-response-body-title}
+== {api-response-body-title}
 
 `data_frame_analytics`::
 (array)
-An array of {dfanalytics-job} resources, which are sorted by the `id` value in 
+An array of {dfanalytics-job} resources, which are sorted by the `id` value in
 ascending order.
 +
 .Properties of {dfanalytics-job} resources
@@ -88,18 +86,18 @@ ascending order.
 
 //Begin analyzed_fields
 `analyzed_fields`:::
-(object) Contains `includes` and/or `excludes` patterns that select which fields 
+(object) Contains `includes` and/or `excludes` patterns that select which fields
 are included in the analysis.
 +
 .Properties of `analyzed_fields`
 [%collapsible%open]
 =====
 `excludes`:::
-(Optional, array) An array of strings that defines the fields that are excluded 
+(Optional, array) An array of strings that defines the fields that are excluded
 from the analysis.
-    
+
 `includes`:::
-(Optional, array) An array of strings that defines the fields that are included 
+(Optional, array) An array of strings that defines the fields that are included
 in the analysis.
 =====
 //End analyzed_fields
@@ -111,11 +109,11 @@ in the analysis.
 [%collapsible%open]
 =====
 `index`:::
-(string) The _destination index_ that stores the results of the 
+(string) The _destination index_ that stores the results of the
 {dfanalytics-job}.
 
 `results_field`:::
-(string) The name of the field that stores the results of the analysis. Defaults 
+(string) The name of the field that stores the results of the analysis. Defaults
 to `ml`.
 =====
 //End dest
@@ -124,39 +122,39 @@ to `ml`.
 (string) The unique identifier of the {dfanalytics-job}.
 
 `model_memory_limit`:::
-(string) The `model_memory_limit` that has been set to the {dfanalytics-job}.
+(string) The `model_memory_limit` that has been set for the {dfanalytics-job}.
 
 `source`:::
-(object) The configuration of how the analysis data is sourced. It has an 
+(object) The configuration of how the analysis data is sourced. It has an
 `index` parameter and optionally a `query` and a `_source`.
 +
 .Properties of `source`
 [%collapsible%open]
 =====
 `index`:::
-(array) Index or indices on which to perform the analysis. It can be a single 
+(array) Index or indices on which to perform the analysis. It can be a single
 index or index pattern as well as an array of indices or patterns.
-    
+
 `query`:::
-(object) The query that has been specified for the {dfanalytics-job}. The {es} 
-query domain-specific language (<<query-dsl,DSL>>). This value corresponds to 
-the query object in an {es} search POST body. By default, this property has the 
+(object) The query that has been specified for the {dfanalytics-job}. The {es}
+query domain-specific language (<<query-dsl,DSL>>). This value corresponds to
+the query object in an {es} search POST body. By default, this property has the
 following value: `{"match_all": {}}`.
 
 `_source`:::
-(object) Contains the specified `includes` and/or `excludes` patterns that 
-select which fields are present in the destination. Fields that are excluded 
+(object) Contains the specified `includes` and/or `excludes` patterns that
+select which fields are present in the destination. Fields that are excluded
 cannot be included in the analysis.
 +
 .Properties of `_source`
 [%collapsible%open]
 ======
 `excludes`:::
-(array) An array of strings that defines the fields that are excluded from the 
+(array) An array of strings that defines the fields that are excluded from the
 destination.
-        
+
 `includes`:::
-(array) An array of strings that defines the fields that are included in the 
+(array) An array of strings that defines the fields that are included in the
 destination.
 ======
 //End of _source
@@ -166,7 +164,7 @@ destination.
 
 
 [[ml-get-dfanalytics-response-codes]]
-==== {api-response-codes-title}
+== {api-response-codes-title}
 
 `404` (Missing resources)::
   If `allow_no_match` is `false`, this code indicates that there are no
@@ -174,9 +172,9 @@ destination.
 
 
 [[ml-get-dfanalytics-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
-The following example gets configuration information for the `loganalytics` 
+The following example gets configuration information for the `loganalytics`
 {dfanalytics-job}:
 
 [source,console]
@@ -190,27 +188,27 @@ The API returns the following results:
 [source,console-result]
 ----
 {
-    "count": 1,
-    "data_frame_analytics": [
-        {
-            "id": "loganalytics",
-            "source": {
-                "index": "logdata",
-                "query": {
-                    "match_all": {}
-                }
-            },
-            "dest": {
-                "index": "logdata_out",
-                "results_field": "ml"
-            },
-            "analysis": {
-                "outlier_detection": {}
-            },
-            "model_memory_limit": "1gb",
-            "create_time": 1562265491319,
-            "version" : "8.0.0"
+  "count": 1,
+  "data_frame_analytics": [
+    {
+      "id": "loganalytics",
+      "source": {
+        "index": "logdata",
+        "query": {
+          "match_all": {}
         }
-    ]
+      },
+      "dest": {
+        "index": "logdata_out",
+        "results_field": "ml"
+      },
+      "analysis": {
+        "outlier_detection": {}
+      },
+      "model_memory_limit": "1gb",
+      "create_time": 1562265491319,
+      "version": "8.0.0"
+    }
+  ]
 }
 ----

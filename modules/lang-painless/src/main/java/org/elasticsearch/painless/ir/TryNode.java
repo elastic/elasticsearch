@@ -1,28 +1,15 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Label;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -46,41 +33,30 @@ public class TryNode extends StatementNode {
         catchNodes.add(catchNode);
     }
 
-    public List<CatchNode> getCatchsNodes() {
+    public List<CatchNode> getCatchNodes() {
         return catchNodes;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeStatementOffset(location);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitTry(this, scope);
+    }
 
-        Label begin = new Label();
-        Label end = new Label();
-        Label exception = new Label();
-
-        methodWriter.mark(begin);
-
-        blockNode.continueLabel = continueLabel;
-        blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, scopeTable.newScope());
-
-        if (blockNode.doAllEscape() == false) {
-            methodWriter.goTo(exception);
-        }
-
-        methodWriter.mark(end);
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        blockNode.visit(irTreeVisitor, scope);
 
         for (CatchNode catchNode : catchNodes) {
-            catchNode.begin = begin;
-            catchNode.end = end;
-            catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(classWriter, methodWriter, scopeTable.newScope());
-        }
-
-        if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {
-            methodWriter.mark(exception);
+            catchNode.visit(irTreeVisitor, scope);
         }
     }
+
+    /* ---- end visitor ---- */
+
+    public TryNode(Location location) {
+        super(location);
+    }
+
 }

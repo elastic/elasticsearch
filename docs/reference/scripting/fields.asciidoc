@@ -4,7 +4,7 @@
 Depending on where a script is used, it will have access to certain special
 variables and document fields.
 
-[float]
+[discrete]
 == Update scripts
 
 A script used in the <<docs-update,update>>,
@@ -14,12 +14,12 @@ API will have access to the `ctx` variable which exposes:
 [horizontal]
 `ctx._source`::     Access to the document <<mapping-source-field,`_source` field>>.
 `ctx.op`::          The operation that should be applied to the document: `index` or `delete`.
-`ctx._index` etc::  Access to <<mapping-fields,document meta-fields>>, some of which may be read-only.
+`ctx._index` etc::  Access to <<mapping-fields,document metadata fields>>, some of which may be read-only.
 
-[float]
+[discrete]
 == Search and aggregation scripts
 
-With the exception of <<request-body-search-script-fields,script fields>> which are
+With the exception of <<script-fields,script fields>> which are
 executed once per search hit, scripts used in search and aggregations will be
 executed once for every document which might match a query or an aggregation.
 Depending on how many documents you have, this could mean millions or billions
@@ -32,11 +32,11 @@ Field values can be accessed from a script using
 each of which is explained below.
 
 [[scripting-score]]
-[float]
+[discrete]
 === Accessing the score of a document within a script
 
 Scripts used in the <<query-dsl-function-score-query,`function_score` query>>,
-in <<request-body-search-sort,script-based sorting>>, or in
+in <<sort-search-results,script-based sorting>>, or in
 <<search-aggregations,aggregations>> have access to the `_score` variable which
 represents the current relevance score of a document.
 
@@ -46,19 +46,19 @@ relevance `_score` of each document:
 
 [source,console]
 -------------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "text": "quick brown fox",
   "popularity": 1
 }
 
-PUT my_index/_doc/2?refresh
+PUT my-index-000001/_doc/2?refresh
 {
   "text": "quick fox",
   "popularity": 5
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "query": {
     "function_score": {
@@ -79,7 +79,7 @@ GET my_index/_search
 -------------------------------------
 
 
-[float]
+[discrete]
 [[modules-scripting-doc-vals]]
 === Doc values
 
@@ -90,12 +90,12 @@ store, enabled by default on all fields except for <<text,analyzed `text` fields
 
 [source,console]
 -------------------------------
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "cost_price": 100
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "sales_price": {
@@ -121,7 +121,7 @@ It cannot return JSON objects.
 
 The `doc['field']` will throw an error if `field` is missing from the mappings.
 In `painless`, a check can first be done with `doc.containsKey('field')` to guard
-accessing the `doc` map.  Unfortunately, there is no way to check for the
+accessing the `doc` map. Unfortunately, there is no way to check for the
 existence of the field in mappings in an `expression` script.
 
 ===================================================
@@ -133,12 +133,12 @@ existence of the field in mappings in an `expression` script.
 The `doc['field']` syntax can also be used for <<text,analyzed `text` fields>>
 if <<fielddata,`fielddata`>> is enabled, but *BEWARE*: enabling fielddata on a
 `text` field requires loading all of the terms into the JVM heap, which can be
-very expensive both in terms of memory and CPU.  It seldom makes sense to
+very expensive both in terms of memory and CPU. It seldom makes sense to
 access `text` fields from scripts.
 
 ===================================================
 
-[float]
+[discrete]
 [[modules-scripting-source]]
 === The document `_source`
 
@@ -157,7 +157,7 @@ values are optimised for accessing the value of a specific field in many
 documents.
 
 It makes sense to use `_source` when generating a
-<<request-body-search-script-fields,script field>> for the top ten hits from a
+<<script-fields,script field>> for the top ten hits from a
 search result but, for other search and aggregation use cases, always prefer
 using doc values.
 =========================================================
@@ -167,7 +167,7 @@ For instance:
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -181,13 +181,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "first_name": "Barry",
   "last_name": "White"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "full_name": {
@@ -200,7 +200,7 @@ GET my_index/_search
 }
 -------------------------------
 
-[float]
+[discrete]
 [[modules-scripting-stored]]
 === Stored fields
 
@@ -210,7 +210,7 @@ _Stored fields_ -- fields explicitly marked as
 
 [source,console]
 -------------------------------
-PUT my_index
+PUT my-index-000001
 {
   "mappings": {
     "properties": {
@@ -226,13 +226,13 @@ PUT my_index
   }
 }
 
-PUT my_index/_doc/1?refresh
+PUT my-index-000001/_doc/1?refresh
 {
   "full_name": "Alice Ball",
   "title": "Professor"
 }
 
-GET my_index/_search
+GET my-index-000001/_search
 {
   "script_fields": {
     "name_with_title": {
@@ -250,7 +250,7 @@ GET my_index/_search
 =======================================================
 
 The `_source` field is just a special stored field, so the performance is
-similar to that of other stored fields.  The `_source` provides access to the
+similar to that of other stored fields. The `_source` provides access to the
 original document body that was indexed (including the ability to distinguish
 `null` values from empty fields, single-value arrays from plain scalars, etc).
 

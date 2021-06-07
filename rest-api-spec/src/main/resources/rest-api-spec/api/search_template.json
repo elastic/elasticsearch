@@ -5,6 +5,11 @@
       "description":"Allows to use the Mustache language to pre-render a search definition."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -70,9 +75,7 @@
         "type":"enum",
         "options":[
           "query_then_fetch",
-          "query_and_fetch",
-          "dfs_query_then_fetch",
-          "dfs_query_and_fetch"
+          "dfs_query_then_fetch"
         ],
         "description":"Search operation type"
       },

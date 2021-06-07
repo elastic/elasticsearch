@@ -1,0 +1,153 @@
+---
+setup:
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+  - do:
+      ilm.put_lifecycle:
+        policy: "my_moveable_timeseries_lifecycle"
+        body: |
+           {
+             "policy": {
+               "phases": {
+                 "warm": {
+                   "min_age": "1000s",
+                   "actions": {
+                     "forcemerge": {
+                       "max_num_segments": 10000
+                     }
+                   }
+                 },
+                 "hot": {
+                   "min_age": "1000s",
+                   "actions": { }
+                 }
+               }
+             }
+           }
+
+  - do:
+      ilm.get_lifecycle:
+        policy: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: my_index
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: my_index2
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: another_index
+        body:
+          settings:
+            index.lifecycle.name: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      indices.create:
+        index: unmanaged_index
+        body:
+          settings: {}
+
+  - do:
+      indices.create:
+        index: my_index_no_policy
+  - do:
+      indices.create:
+        index: index_with_policy_that_doesnt_exist
+        body:
+          settings:
+            index.lifecycle.name: "a_policy_that_doesnt_exist"
+
+---
+teardown:
+
+  - do:
+      indices.delete:
+        index: my_index
+  - do:
+      indices.delete:
+        index: my_index2
+  - do:
+      indices.delete:
+        index: another_index
+  - do:
+      indices.delete:
+        index: unmanaged_index
+
+  - do:
+      indices.delete:
+        index: my_index_no_policy
+
+  - do:
+      indices.delete:
+        index: index_with_policy_that_doesnt_exist
+
+  - do:
+      ilm.delete_lifecycle:
+        policy: "my_moveable_timeseries_lifecycle"
+
+  - do:
+      catch: missing
+      ilm.get_lifecycle:
+        policy: "my_moveable_timeseries_lifecycle"
+
+---
+"Test Unmanaged Index Lifecycle Explain":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "unmanaged_index"
+
+  - match: { indices.unmanaged_index.index: "unmanaged_index" }
+  - is_false: indices.unmanaged_index.managed
+  - is_false: indices.unmanaged_index.policy
+  - is_false: indices.unmanaged_index.phase
+  - is_false: indices.unmanaged_index.action
+  - is_false: indices.unmanaged_index.step
+  - is_false: indices.unmanaged_index.phase_execution
+  - is_false: indices.unmanaged.age
+  - is_false: indices.another_index.failed_step
+  - is_false: indices.another_index.step_info
+  - is_false: indices.my_index
+  - is_false: indices.my_index2
+  - is_false: indices.another_index
+  - is_false: indices.index_with_policy_that_doesnt_exist
+
+---
+"Test filter for only managed indices":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "*"
+        only_managed: true
+
+  - match: { indices.my_index.index: "my_index" }
+  - match: { indices.my_index2.index: "my_index2" }
+  - match: { indices.another_index.index: "another_index" }
+  - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
+  - is_false: indices.unmanaged_index
+  - is_false: indices.my_index_no_policy
+
+---
+"Test filter for only error indices":
+
+  - do:
+      ilm.explain_lifecycle:
+        index: "*"
+        only_errors: true
+
+  - match: { indices.index_with_policy_that_doesnt_exist.index: "index_with_policy_that_doesnt_exist" }
+  - is_false: indices.unmanaged_index
+  - is_false: indices.my_index_no_policy
+  - is_false: indices.my_index
+  - is_false: indices.my_index2
+  - is_false: indices.another_index

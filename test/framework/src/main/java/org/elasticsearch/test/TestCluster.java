@@ -1,34 +1,19 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.datastream.DeleteDataStreamAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -75,7 +60,6 @@ public abstract class TestCluster implements Closeable {
      * Wipes any data that a test can leave behind: indices, templates (except exclude templates) and repositories
      */
     public void wipe(Set<String> excludeTemplates) {
-        wipeAllDataStreams();
         wipeIndices("_all");
         wipeAllTemplates(excludeTemplates);
         wipeRepositories();
@@ -90,7 +74,7 @@ public abstract class TestCluster implements Closeable {
     /**
      * This method checks all the things that need to be checked after each test
      */
-    public void assertAfterTest() throws IOException {
+    public void assertAfterTest() throws Exception {
         ensureEstimatedStats();
     }
 
@@ -132,18 +116,6 @@ public abstract class TestCluster implements Closeable {
     public abstract void close() throws IOException;
 
     /**
-     * Deletes all data streams from the test cluster.
-     */
-    public void wipeAllDataStreams() {
-        // Feature flag may not be enabled in all gradle modules that use ESIntegTestCase
-        if (size() > 0 && ActionModule.DATASTREAMS_FEATURE_ENABLED) {
-            AcknowledgedResponse response =
-                client().admin().indices().deleteDataStream(new DeleteDataStreamAction.Request("*")).actionGet();
-            assertAcked(response);
-        }
-    }
-
-    /**
      * Deletes the given indices from the tests cluster. If no index name is passed to this method
      * all indices are removed.
      */
@@ -165,7 +137,7 @@ public abstract class TestCluster implements Closeable {
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
                     }
-                    if (!concreteIndices.isEmpty()) {
+                    if (concreteIndices.isEmpty() == false) {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
                     }
                 }

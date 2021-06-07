@@ -88,6 +88,10 @@
 
 ---
 "Create a job in the mixed cluster and write some data":
+
+  - skip:
+      features: allowed_warnings
+
   - do:
       ml.put_job:
         job_id: mixed-cluster-job
@@ -114,6 +118,8 @@
         job_id: mixed-cluster-job
 
   - do:
+      allowed_warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: mixed-cluster-job
         body:

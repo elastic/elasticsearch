@@ -11,11 +11,11 @@ out of the analyzed text. For example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_phrase" : {
-            "message" : "this is a test"
-        }
+  "query": {
+    "match_phrase": {
+      "message": "this is a test"
     }
+  }
 }
 --------------------------------------------------
 
@@ -30,14 +30,14 @@ definition, or the default search analyzer, for example:
 --------------------------------------------------
 GET /_search
 {
-    "query": {
-        "match_phrase" : {
-            "message" : {
-                "query" : "this is a test",
-                "analyzer" : "my_analyzer"
-            }
-        }
+  "query": {
+    "match_phrase": {
+      "message": {
+        "query": "this is a test",
+        "analyzer": "my_analyzer"
+      }
     }
+  }
 }
 --------------------------------------------------
 

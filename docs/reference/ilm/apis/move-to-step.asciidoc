@@ -102,7 +102,7 @@ The name of the step to move to and execute.
 [[ilm-move-to-step-example]]
 ==== {api-examples-title}
 
-The following example moves `my_index` from the initial step to the
+The following example moves `my-index-000001` from the initial step to the
 `forcemerge` step:
 
 //////////////////////////
@@ -131,7 +131,7 @@ PUT _ilm/policy/my_policy
   }
 }
 
-PUT my_index
+PUT my-index-000001
 {
   "settings": {
     "index.lifecycle.name": "my_policy"
@@ -143,7 +143,7 @@ PUT my_index
 
 [source,console]
 --------------------------------------------------
-POST _ilm/move/my_index
+POST _ilm/move/my-index-000001
 {
   "current_step": { <1>
     "phase": "new",

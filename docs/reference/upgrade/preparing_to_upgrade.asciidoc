@@ -1,4 +1,4 @@
-[float]
+[discrete]
 === Preparing to upgrade
 
 It is important to prepare carefully before starting an upgrade. Once you have

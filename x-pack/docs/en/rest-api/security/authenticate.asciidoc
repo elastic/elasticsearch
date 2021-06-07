@@ -42,7 +42,7 @@ The following example output provides information about the "rdeniro" user:
 --------------------------------------------------
 {
   "username": "rdeniro",
-  "roles": [ 
+  "roles": [
     "admin"
   ],
   "full_name": null,
@@ -56,7 +56,8 @@ The following example output provides information about the "rdeniro" user:
   "lookup_realm": {
     "name" : "file",
     "type" : "file"
-  }
+  },
+  "authentication_type": "realm"
 }
 --------------------------------------------------
 // TESTRESPONSE[s/"rdeniro"/"$body.username"/]

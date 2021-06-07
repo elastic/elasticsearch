@@ -5,7 +5,7 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== ML get info API
+=== Get {ml} info API
 
 Provides defaults and limits used internally by {ml}.
 These may be useful to a user interface that needs to interpret machine learning
@@ -15,7 +15,7 @@ with the default value.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Get info request
+==== Get {ml} info request
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------
@@ -24,7 +24,7 @@ include-tagged::{doc-tests-file}[{api}-request]
 <1> Constructing a new request.
 
 [id="{upid}-{api}-response"]
-==== ML get info response
+==== Get {ml} info response
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.security.action.role;
 
@@ -119,11 +120,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.clusterPrivileges = clusterPrivileges;
     }
 
-    void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
+    public void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
         this.configurableClusterPrivileges = configurableClusterPrivileges;
     }
 
-    void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
+    public void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
         this.indicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
@@ -139,7 +140,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 .build());
     }
 
-    void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
+    public void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 

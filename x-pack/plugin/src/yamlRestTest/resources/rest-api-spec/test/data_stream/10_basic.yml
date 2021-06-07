@@ -1,0 +1,585 @@
+setup:
+  - skip:
+      features: allowed_warnings
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: {}
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [simple-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [simple-data-stream2]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date_nanos
+          data_stream: {}
+
+---
+"Create data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'my-template1' }
+  - match: { data_streams.0.hidden: false }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.1.indices: 1 }
+  - match: { data_streams.1.indices.0.index_name: '/\.ds-simple-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.1.template: 'my-template2' }
+  - match: { data_streams.0.hidden: false }
+
+  # save the backing index names for later use
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.1.indices.0.index_name: idx1name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_mapping:
+        index: $idx1name
+        expand_wildcards: hidden
+  - match: { .$idx1name.mappings.properties.@timestamp.type: 'date_nanos' }
+
+  - do:
+      index:
+        index:  simple-data-stream1
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  - do:
+      search:
+        index: simple-data-stream1
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 1  }
+  - match: { hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+---
+"Create hidden data stream":
+  - skip:
+      version: " - 7.10.99"
+      reason: "hidden data streams only available in 7.11"
+  - do:
+      allowed_warnings:
+        - "index template [my-template3] has index patterns [.hidden-data-stream, hidden-data-stream] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template3] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template3
+        body:
+          index_patterns: [ .hidden-data-stream,hidden-data-stream ]
+          data_stream:
+            hidden: true
+  - do:
+      indices.create_data_stream:
+        name: hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: .hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 0 }
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+        expand_wildcards: hidden
+  - length: { data_streams: 2 }
+  - match: { data_streams.0.name: .hidden-data-stream }
+  - match: { data_streams.0.hidden: true }
+  - match: { data_streams.1.name: hidden-data-stream }
+  - match: { data_streams.1.hidden: true }
+
+  - do:
+      index:
+        index: hidden-data-stream
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.refresh:
+        index: hidden-data-stream
+
+  - do:
+      search:
+        index: hidden-data-*
+        body: { query: { match_all: {} } }
+  - length:   { hits.hits: 0  }
+
+  - do:
+      search:
+        index: hidden-data-*
+        expand_wildcards: open,hidden
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      index:
+        index: .hidden-data-stream
+        body:
+          '@timestamp': '2020-12-12'
+          foo: bar
+
+  - do:
+      indices.refresh:
+        index: .hidden-data-stream
+
+  - do:
+      search:
+        index: .hidden-data-*
+        body: { query: { match_all: { } } }
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._source.foo: 'bar' }
+
+  - do:
+      indices.delete_data_stream:
+        name: hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: .hidden-data-stream
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_index_template:
+        name: my-template3
+---
+"Create data stream with invalid name":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: invalid-data-stream#-name
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "data_stream [invalid-data-stream#-name] must not contain '#'" }
+
+---
+"Create existing data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: bad_request
+      indices.create_data_stream:
+        name: simple-data-stream1
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: "resource_already_exists_exception" }
+  - match: { error.root_cause.0.reason: "data_stream [simple-data-stream1] already exists" }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+---
+"Get data stream":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.1.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream*
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - match: { data_streams.1.name: simple-data-stream2 }
+  - match: { data_streams.1.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.1.generation: 1 }
+
+  - do:
+      indices.get_data_stream:
+        name: nonexistent-data-stream
+      catch: missing
+
+  - match: { status: 404 }
+  - match: { error.root_cause.0.type: "index_not_found_exception" }
+
+  - do:
+      indices.get_data_stream:
+        name: nonexistent*
+  - match: { data_streams: [] }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+---
+"Delete data stream with backing indices":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 1
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get:
+        index: ['.ds-simple-data-stream1-*000001', 'test_index']
+
+  - is_true: test_index.settings
+  - is_true: .$idx0name.settings
+
+  - do:
+      indices.get_data_stream: {}
+  - match: { data_streams.0.name: simple-data-stream1 }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-simple-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.get:
+        index: $idx0name
+
+---
+"Delete data stream missing behaviour":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.create:
+        index: simple-data-streamz
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream2
+  - is_true: acknowledged
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream*
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream1
+
+  - do:
+      catch: missing
+      indices.delete_data_stream:
+        name: simple-data-stream2
+
+---
+"append-only writes to backing indices prohibited":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+  - do:
+      index:
+        index:  logs-foobar
+        body:   { '@timestamp': '2020-12-12' }
+  - match: { _index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+
+  - do:
+      catch: bad_request
+      index:
+        index:  $idx0name
+        body:   { '@timestamp': '2020-12-12' }
+
+  - do:
+      bulk:
+        body:
+          - create:
+              _index: $idx0name
+          - '@timestamp': '2020-12-12'
+          - index:
+              _index: $idx0name
+          - '@timestamp': '2020-12-12'
+          - create:
+              _index: logs-foobar
+          - '@timestamp': '2020-12-12'
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.type: illegal_argument_exception }
+  - match: { items.0.create.error.reason: "index request with op_type=create targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.1.index.status: 400 }
+  - match: { items.1.index.error.type: illegal_argument_exception }
+  - match: { items.1.index.error.reason: "index request with op_type=index and no if_primary_term and if_seq_no set targeting backing indices is disallowed, target corresponding data stream [logs-foobar] instead" }
+  - match: { items.2.create.result: created }
+  - match: { items.2.create._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+---
+"Indexing a document into a data stream without a timestamp field":
+  - skip:
+      version: " - 7.8.99"
+      reason: "data streams only supported in 7.9+"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+  - do:
+      catch: bad_request
+      index:
+        index:  logs-foobar
+        body:   { foo: bar }
+
+  - do:
+      bulk:
+        body:
+          - create:
+              _index: logs-foobar
+          - foo: bar
+          - create:
+              _index: logs-foobar
+          - '@timestamp': '2020-12-12'
+          - create:
+              _index: logs-foobar
+          - '@timestamp': ['2020-12-12', '2022-12-12']
+  - match: { errors: true }
+  - match: { items.0.create.status: 400 }
+  - match: { items.0.create.error.caused_by.type: illegal_argument_exception }
+  - match: { items.0.create.error.caused_by.reason: "data stream timestamp field [@timestamp] is missing" }
+  - match: { items.1.create.result: created }
+  - match: { items.1.create._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { items.2.create.status: 400 }
+  - match: { items.2.create.error.caused_by.type: illegal_argument_exception }
+  - match: { items.2.create.error.caused_by.reason: "data stream timestamp field [@timestamp] encountered multiple values" }
+
+  - do:
+      indices.delete_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+---
+"Include metadata in a data stream":
+  - skip:
+      version: " - 7.99.99"
+      reason: "re-enable in 7.11 when backported"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          _meta:
+            managed_by: 'core-features'
+            managed: true
+          template:
+            settings:
+              number_of_replicas: 0
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: logs-foobar
+  - is_true: acknowledged
+
+  - do:
+      indices.get_data_stream:
+        name: "*"
+  - length: { data_streams: 1 }
+  - match: { data_streams.0.name: 'logs-foobar' }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foobar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.status: 'GREEN' }
+  - match: { data_streams.0.template: 'generic_logs_template' }
+  - length: { data_streams.0._meta: 2 }
+  - match: { data_streams.0._meta.managed: true }
+  - match: { data_streams.0._meta.managed_by: 'core-features' }
+
+---
+"Create index into a namespace that is governed by a data stream template":
+  - skip:
+      version: " - 7.9.1"
+      reason: "validation added in 7.9.2"
+      features: allowed_warnings
+
+  - do:
+      allowed_warnings:
+        - "index template [generic_logs_template] has index patterns [logs-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [generic_logs_template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: generic_logs_template
+        body:
+          index_patterns: logs-*
+          data_stream: {}
+
+  # test response status code
+  - do:
+      catch: bad_request
+      indices.create:
+        index: logs-foobar
+
+  # test error message
+  - do:
+      catch: /cannot create index with name \[logs-foobar\], because it matches with template \[generic_logs_template\] that creates data streams only, use create data stream api instead/
+      indices.create:
+        index: logs-foobar

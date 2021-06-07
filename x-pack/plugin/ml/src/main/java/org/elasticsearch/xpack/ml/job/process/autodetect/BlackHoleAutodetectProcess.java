@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
@@ -107,7 +108,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
      */
     @Override
     public String flushJob(FlushJobParams params) {
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L);
         AutodetectResult result =
             new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
         results.add(result);
@@ -116,6 +117,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void persistState() {
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
     }
 
     @Override
@@ -134,7 +139,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void kill() {
+    public void kill(boolean awaitCompletion) {
         open = false;
     }
 

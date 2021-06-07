@@ -5,6 +5,10 @@
       "description":"Returns all snapshots in a specific repository."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {

@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ccr.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
@@ -23,10 +25,48 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
 
     public void testGetAutoFollowPattern() {
         Map<String, AutoFollowPattern> patterns = new HashMap<>();
-        patterns.put("name1", new AutoFollowPattern(
-            "test_alias1", Collections.singletonList("index-*"), null, true, null, null, null, null, null, null, null, null, null, null));
-        patterns.put("name2", new AutoFollowPattern(
-            "test_alias1", Collections.singletonList("index-*"), null, true, null, null, null, null, null, null, null, null, null, null));
+        patterns.put(
+            "name1",
+            new AutoFollowPattern(
+                "test_alias1",
+                Collections.singletonList("index-*"),
+                Collections.emptyList(),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+        patterns.put(
+            "name2",
+            new AutoFollowPattern(
+                "test_alias1",
+                Collections.singletonList("index-*"),
+                Collections.emptyList(),
+                null,
+                Settings.EMPTY,
+                true,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
         Metadata metadata = Metadata.builder()
             .putCustom(AutoFollowMetadata.TYPE, new AutoFollowMetadata(patterns, Collections.emptyMap(), Collections.emptyMap()))
             .build();

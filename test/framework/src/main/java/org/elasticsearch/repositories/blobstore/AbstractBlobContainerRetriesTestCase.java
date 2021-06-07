@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -90,6 +79,11 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         @Nullable Boolean disableChunkedEncoding,
         @Nullable ByteSizeValue bufferSize);
 
+    protected org.hamcrest.Matcher<Object> readTimeoutExceptionMatcher() {
+        return either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
+            .or(instanceOf(RuntimeException.class));
+    }
+
     public void testReadNonexistentBlobThrowsNoSuchFileException() {
         final BlobContainer blobContainer = createBlobContainer(between(1, 5), null, null, null);
         final long position = randomLongBetween(0, MAX_RANGE_VAL);
@@ -162,7 +156,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
     }
 
     public void testReadRangeBlobWithRetries() throws Exception {
-        final int maxRetries = randomInt(5);
+        final int maxRetries = rarely() ? randomInt(5) : 1;
         final CountDown countDown = new CountDown(maxRetries + 1);
 
         final byte[] bytes = randomBlobContent();
@@ -194,7 +188,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
             }
         });
 
-        final TimeValue readTimeout = TimeValue.timeValueMillis(between(100, 500));
+        final TimeValue readTimeout = TimeValue.timeValueSeconds(between(5, 10));
         final BlobContainer blobContainer = createBlobContainer(maxRetries, readTimeout, null, null);
         final int position = randomIntBetween(0, bytes.length - 1);
         final int length = randomIntBetween(0, randomBoolean() ? bytes.length : Integer.MAX_VALUE);
@@ -247,8 +241,7 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
                 Streams.readFully(stream);
             }
         });
-        assertThat(exception, either(instanceOf(SocketTimeoutException.class)).or(instanceOf(ConnectionClosedException.class))
-            .or(instanceOf(RuntimeException.class)));
+        assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(exception.getMessage().toLowerCase(Locale.ROOT), either(containsString("read timed out")).or(
             containsString("premature end of chunk coded message body: closing chunk expected")).or(containsString("Read timed out"))
             .or(containsString("unexpected end of file from server")));

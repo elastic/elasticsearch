@@ -1,20 +1,9 @@
 /*
- * Licensed to Elasticsearch under one or more contributor
- * license agreements. See the NOTICE file distributed with
- * this work for additional information regarding copyright
- * ownership. Elasticsearch licenses this file to you under
- * the Apache License, Version 2.0 (the "License"); you may
- * not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied.  See the License for the
- * specific language governing permissions and limitations
- * under the License.
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
  */
 
 package org.elasticsearch.search.dfs;
@@ -25,12 +14,14 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.internal.SearchContextId;
+import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
 
@@ -45,7 +36,7 @@ public class DfsSearchResult extends SearchPhaseResult {
 
     public DfsSearchResult(StreamInput in) throws IOException {
         super(in);
-        contextId = new SearchContextId(in);
+        contextId = new ShardSearchContextId(in);
         int termsSize = in.readVInt();
         if (termsSize == 0) {
             terms = EMPTY_TERMS;
@@ -59,11 +50,15 @@ public class DfsSearchResult extends SearchPhaseResult {
         fieldStatistics = readFieldStats(in);
 
         maxDoc = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            setShardSearchRequest(in.readOptionalWriteable(ShardSearchRequest::new));
+        }
     }
 
-    public DfsSearchResult(SearchContextId contextId, SearchShardTarget shardTarget) {
+    public DfsSearchResult(ShardSearchContextId contextId, SearchShardTarget shardTarget, ShardSearchRequest shardSearchRequest) {
         this.setSearchShardTarget(shardTarget);
         this.contextId = contextId;
+        setShardSearchRequest(shardSearchRequest);
     }
 
     public DfsSearchResult maxDoc(int maxDoc) {
@@ -98,7 +93,7 @@ public class DfsSearchResult extends SearchPhaseResult {
         return fieldStatistics;
     }
 
-  @Override
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         contextId.writeTo(out);
         out.writeVInt(terms.length);
@@ -109,6 +104,9 @@ public class DfsSearchResult extends SearchPhaseResult {
         writeTermStats(out, termStatistics);
         writeFieldStats(out, fieldStatistics);
         out.writeVInt(maxDoc);
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalWriteable(getShardSearchRequest());
+        }
     }
 
     public static void writeFieldStats(StreamOutput out, ObjectObjectHashMap<String,

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.ml.integration;
 
@@ -14,13 +15,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.ml.MlAutoUpdateService;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
@@ -70,8 +69,8 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
 
     public void testAutomaticModelUpdate() throws Exception {
         ensureGreen("_all");
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
-        client().prepareIndex(AnomalyDetectorsIndex.configIndexName())
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+        client().prepareIndex(MlConfigIndex.indexName())
             .setId(DatafeedConfig.documentId("farequote-datafeed-with-old-agg"))
             .setSource(AGG_WITH_OLD_DATE_HISTOGRAM_INTERVAL, XContentType.JSON)
             .get();
@@ -82,7 +81,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
             getConfigHolder,
             exceptionHolder);
         assertThat(exceptionHolder.get(), is(nullValue()));
-        client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.configIndexName()).get();
+        client().admin().indices().prepareRefresh(MlConfigIndex.indexName()).get();
 
         DatafeedConfigAutoUpdater autoUpdater = new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver);
         MlAutoUpdateService mlAutoUpdateService = new MlAutoUpdateService(client().threadPool(),
@@ -107,7 +106,7 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
         assertBusy(() -> {
             try {
                 GetResponse getResponse = client().prepareGet(
-                    AnomalyDetectorsIndex.configIndexName(),
+                    MlConfigIndex.indexName(),
                     DatafeedConfig.documentId("farequote-datafeed-with-old-agg")
                 ).get();
                 assertTrue(getResponse.isExists());
@@ -116,11 +115,6 @@ public class MlAutoUpdateServiceIT extends MlSingleNodeTestCase {
                 fail(ex.getMessage());
             }
         });
-    }
-
-    @Override
-    public NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
     }
 
 }

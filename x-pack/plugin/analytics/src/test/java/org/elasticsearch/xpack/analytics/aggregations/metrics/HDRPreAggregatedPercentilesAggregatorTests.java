@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
@@ -148,7 +149,7 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 PercentilesAggregationBuilder builder =
                         new PercentilesAggregationBuilder("test").field("number").method(PercentilesMethod.HDR);
 
-                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", true, Collections.emptyMap());
+                MappedFieldType fieldType = new HistogramFieldMapper.HistogramFieldType("number", Collections.emptyMap());
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);

@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 package org.elasticsearch.xpack.core.ml.dataframe;
 
@@ -38,13 +39,6 @@ public class DataFrameAnalyticsStateTests extends ESTestCase {
         assertThat(DataFrameAnalyticsState.STOPPING.toString(), equalTo("stopping"));
         assertThat(DataFrameAnalyticsState.STOPPED.toString(), equalTo("stopped"));
         assertThat(DataFrameAnalyticsState.FAILED.toString(), equalTo("failed"));
-    }
-
-    public void testWriteStartingStateToPre75() throws IOException {
-        StreamOutput streamOutput = mock(StreamOutput.class);
-        when(streamOutput.getVersion()).thenReturn(Version.V_7_4_1);
-        DataFrameAnalyticsState.STARTING.writeTo(streamOutput);
-        verify(streamOutput, times(1)).writeEnum(DataFrameAnalyticsState.STOPPED);
     }
 
     public void testWriteStartingStateToPost75() throws IOException {

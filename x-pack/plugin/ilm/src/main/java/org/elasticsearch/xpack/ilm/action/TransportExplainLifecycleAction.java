@@ -1,7 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License;
- * you may not use this file except in compliance with the Elastic License.
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 package org.elasticsearch.xpack.ilm.action;
@@ -17,12 +18,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -52,19 +53,14 @@ public class TransportExplainLifecycleAction
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            NamedXContentRegistry xContentRegistry, IndexLifecycleService indexLifecycleService) {
         super(ExplainLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                ExplainLifecycleRequest::new, indexNameExpressionResolver);
+                ExplainLifecycleRequest::new, indexNameExpressionResolver, ExplainLifecycleResponse::new);
         this.xContentRegistry = xContentRegistry;
         this.indexLifecycleService = indexLifecycleService;
     }
 
     @Override
-    protected ExplainLifecycleResponse read(StreamInput in) throws IOException {
-        return new ExplainLifecycleResponse(in);
-    }
-
-    @Override
-    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
-            ActionListener<ExplainLifecycleResponse> listener) {
+    protected void doMasterOperation(Task task, ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
+                                     ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);
@@ -109,6 +105,7 @@ public class TransportExplainLifecycleAction
                         lifecycleState.getStepTime(),
                         lifecycleState.getSnapshotRepository(),
                         lifecycleState.getSnapshotName(),
+                        lifecycleState.getShrinkIndexName(),
                         stepInfoBytes,
                         phaseExecutionInfo);
                 } else {

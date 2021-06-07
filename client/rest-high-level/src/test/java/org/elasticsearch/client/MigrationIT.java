@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.migration.DeprecationInfoRequest;
 import org.elasticsearch.client.migration.DeprecationInfoResponse;
 import org.elasticsearch.common.settings.Settings;

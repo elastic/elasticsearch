@@ -82,19 +82,20 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 xpack.security.transport.ssl.truststore.password: password
 ----
 
-. Generate a certificate and private key for your node. You must include the CA
-that was used to sign the certificate currently in use.
-+
-   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
-   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
+. On any node in your cluster, generate a certificate and private key for your
+node. You must include the CA that was used to sign the certificate currently
+in use.
 +
 [source,shell]
 ----
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
++
+   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
 
     a. Enter the password for your CA when prompted.
-    
+
     b. Enter the name for your certificate, which must match the name of the
     certificate currently in use.
 
@@ -231,6 +232,70 @@ certificate to the incoming TLS connections.
 [discrete]
 [[node-certs-different-transport]]
 ==== Generate a new certificate for the transport layer
+If your CA is changing or has already changed, you'll need to generate a new
+CA key and certificate. You can then add this CA certificate to all nodes so
+that they know and trust it. Then, generate new certificate/key pairs for each
+node that are signed by the new CA and instruct your nodes to use the new files. 
+
+NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS keystores.
+
+. Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
+security certificates that are currently in use. You'll use the same names
+for your new certificate.
++
+In this example, the keystore and truststore are pointing to different files.
+Your configuration might use the same file that contains the certificate and CA.
++
+[source,yaml]
+----
+xpack.security.transport.ssl.keystore.path: config/elastic-certificates.p12
+xpack.security.transport.ssl.keystore.type: PKCS12
+xpack.security.transport.ssl.keystore.password: password
+xpack.security.transport.ssl.truststore.path: config/elastic-ca.p12
+xpack.security.transport.ssl.truststore.type: PKCS12
+xpack.security.transport.ssl.truststore.password: password
+----
+
+. On any node in your cluster, generate a new certificate and private key. You
+only need to complete this step once, and can use the generated security files
+on every node in your cluster.
++
+You must include the CA that was used to sign the certificate currently in use.
++
+[source,shell]
+----
+./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12 --pem
+----
+
+   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
+   `--pem`:: Generates an `/instance` directory containing a new certificate and
+    key in PEM format instead of PKCS#12. 
+
+    a. Enter the password for your CA when prompted.
+    
+    b. Enter a name for the compressed output file that will contain your
+    certificate and key, or accept the default name of `certificate-bundle.zip`.
+
+    c. Unzip the output file. The
+    resulting directory contains two files: `instance.crt` and `instance.key`.
++
+--
+IMPORTANT: Keep these file in a secure location as they contain the private key
+for your instance. 
+--
+
+. On every node in your cluster, import the new `instance.crt` certificate into your
+existing CA certificate. This step ensures that your nodes trust the new
+certificate. This example uses the Java `keytool` utility to import the
+certificate into the `elasticsearch-certificates.p12` CA certificate.
++
+[source,shell]
+----
+keytool -importcert -trustcacerts -noprompt -keystore elasticsearch-certificates.p12 \
+-storepass passw0rd  -alias testca -file instance.crt
+----
+
 
 [discrete]
 [[node-certs-different-http]]

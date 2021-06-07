@@ -165,9 +165,9 @@ if (JavaVersion.current() < JavaVersion.VERSION_11) {
   throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
 }
 
-def minRuntimeJava = JavaVersion.toVersion(file('src/main/resources/minimumRuntimeVersion').text)
-targetCompatibility = minRuntimeJava
-sourceCompatibility = minRuntimeJava
+def minCompilerJava = JavaVersion.toVersion(file('src/main/resources/minimumCompilerVersion').text)
+targetCompatibility = minCompilerJava
+sourceCompatibility = minCompilerJava
 
 sourceSets {
   integTest {
@@ -226,9 +226,6 @@ dependencies {
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "junit:junit:${props.getProperty('junit')}"
-//  testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${props.getProperty('randomizedrunner')}"
-//  testFixturesApi gradleApi()
-//  testFixturesApi gradleTestKit()
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"

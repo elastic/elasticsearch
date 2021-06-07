@@ -61,9 +61,6 @@ public interface RuntimeField extends ToXContentFragment {
      */
     MappedFieldType asMappedFieldType();
 
-    /**
-     *  For runtime fields the {@link RuntimeField.Parser} returns directly the {@link MappedFieldType}.
-     */
     abstract class Builder implements ToXContent {
         final String name;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -118,11 +115,11 @@ public interface RuntimeField extends ToXContentFragment {
                         continue;
                     }
                     throw new MapperParsingException(
-                        "unknown parameter [" + propName + "] on mapper [" + name + "] of type [" + type + "]"
+                        "unknown parameter [" + propName + "] on runtime field [" + name + "] of type [" + type + "]"
                     );
                 }
                 if (propNode == null && parameter.canAcceptNull() == false) {
-                    throw new MapperParsingException("[" + propName + "] on mapper [" + name
+                    throw new MapperParsingException("[" + propName + "] on runtime field [" + name
                         + "] of type [" + type + "] must not have a [null] value");
                 }
                 parameter.parse(name, parserContext, propNode);

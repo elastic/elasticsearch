@@ -129,7 +129,7 @@ public class XContentMapValues {
      *
      * @return a list of source maps or {@code null} if the path does not exist.
      */
-    public static List<Map<?, ?>> extractNestedSource(String nestedPath, Map<?, ?> map) {
+    public static List<Map<?, ?>> extractNestedSources(String nestedPath, Map<?, ?> map) {
         Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
         List<?> nestedParsedSource = null;
         if (extractedValue != null) {
@@ -139,9 +139,9 @@ public class XContentMapValues {
             } else if (extractedValue instanceof Map) {
                 // nested field has an object value in the _source. This just means the nested field has just one inner object,
                 // which is valid, but uncommon.
-                nestedParsedSource = Collections.singletonList(extractedValue);
+                return Collections.singletonList((Map<?, ?>)extractedValue);
             } else {
-                throw new IllegalStateException("extracted source isn't an object or an array");
+                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath + "]: got [" + extractedValue + "]");
             }
         }
         if (nestedParsedSource == null) {

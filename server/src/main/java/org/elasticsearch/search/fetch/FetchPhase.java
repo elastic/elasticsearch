@@ -369,7 +369,7 @@ public class FetchPhase {
             for (SearchHit.NestedIdentity nested = nestedIdentity; nested != null; nested = nested.getChild()) {
                 String nestedPath = nested.getField().string();
                 current.put(nestedPath, new HashMap<>());
-                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSource(nestedPath, rootSourceAsMap);
+                List<Map<?, ?>> nestedParsedSource = XContentMapValues.extractNestedSources(nestedPath, rootSourceAsMap);
                 if (nestedParsedSource == null) {
                     throw new IllegalStateException("Couldn't find nested source for path " + nestedPath);
                 }

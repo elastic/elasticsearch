@@ -35,6 +35,7 @@ public class GetAutoFollowPatternResponseTests extends AbstractWireSerializingTe
             AutoFollowPattern autoFollowPattern = new AutoFollowPattern(
                 "remote",
                 Collections.singletonList(randomAlphaOfLength(4)),
+                Collections.singletonList(randomAlphaOfLength(4)),
                 randomAlphaOfLength(4),
                 Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), randomIntBetween(0, 4)).build(),
                 true,

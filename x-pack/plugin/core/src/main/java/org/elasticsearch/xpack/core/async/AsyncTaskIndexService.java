@@ -23,20 +23,16 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
@@ -54,7 +50,6 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -153,8 +148,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, origin);
-        this.reader = reader;
         this.registry = registry;
+        this.reader = reader;
     }
 
     /**
@@ -187,12 +182,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                R response,
                                ActionListener<IndexResponse> listener) throws IOException {
         try {
-            final Map<String, Object> fields = new HashMap<>();
-            if (headers != null) {
-                fields.put(HEADERS_FIELD, headers);
-            }
-            fields.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
-            final XContentBuilder source = buildSourceForUpdateRequest(response, fields);
+            // TODO: Integrate with circuit breaker
+            final XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(HEADERS_FIELD, headers)
+                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
+                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                .endObject();
+
             final IndexRequest indexRequest = new IndexRequest(index)
                 .create(true)
                 .id(docId)
@@ -211,52 +208,21 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             R response,
                             ActionListener<UpdateResponse> listener) {
         try {
-            final Map<String, Object> fields = new HashMap<>();
-            if (responseHeaders != null) {
-                fields.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-            }
-            final XContentBuilder source = buildSourceForUpdateRequest(response, fields);
+            // TODO: Integrate with circuit breaker
+            final XContentBuilder source = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(RESPONSE_HEADERS_FIELD, responseHeaders)
+                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                .endObject();
             UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
                 .doc(source)
                 .retryOnConflict(5);
             clientWithOrigin.update(request, listener);
-        } catch(Exception e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
-    }
-
-    XContentBuilder buildSourceForUpdateRequest(R response, Map<String, Object> otherFields) throws IOException {
-        final BytesStreamOutput buffer = new BytesStreamOutput(); // TODO: Integrate with the circuit breaker
-        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON, buffer);
-        builder.startObject();
-        for (Map.Entry<String, Object> e : otherFields.entrySet()) {
-            if (e.getKey().equals(RESULT_FIELD) == false) {
-                builder.field(e.getKey(), e.getValue());
-            }
-        }
-        // Write the base64 encoding directly to OutputStream of XContentBuilder avoid using multiple buffers.
-        final XContentGenerator generator = builder.generator();
-        if (generator instanceof JsonXContentGenerator == false) {
-            assert false : "expected a JsonXContentGenerator; got " + generator;
-            throw new IllegalStateException("expected a JsonXContentGenerator; got " + generator);
-        }
-        final JsonXContentGenerator jsonGenerator = (JsonXContentGenerator) generator;
-        final OutputStream out = builder.getOutputStream();
-        builder.field(RESULT_FIELD);
-        builder.flush();
-        out.write(':');
-        out.write('\"');
-        try (StreamOutput based64 = new OutputStreamStreamOutput(Base64.getEncoder().wrap(builder.getOutputStream()))) {
-            Version.writeVersion(Version.CURRENT, based64);
-            response.writeTo(based64);
-        }
-        out.write('\"');
-        jsonGenerator.writeEndRaw();
-        builder.endObject();
-        builder.flush();
-        return builder;
     }
 
     /**
@@ -495,6 +461,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
         Authentication origin = AuthenticationContextSerializer.decode(originHeaders.get(AUTHENTICATION_KEY));
         return origin.canAccessResourcesOf(current);
+    }
+
+    private void writeResponse(R response, OutputStream os) throws IOException {
+        final OutputStreamStreamOutput out = new OutputStreamStreamOutput(os);
+        Version.writeVersion(Version.CURRENT, out);
+        response.writeTo(out);
     }
 
     /**

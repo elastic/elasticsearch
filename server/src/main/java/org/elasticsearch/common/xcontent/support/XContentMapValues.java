@@ -141,7 +141,8 @@ public class XContentMapValues {
                 // which is valid, but uncommon.
                 return Collections.singletonList((Map<?, ?>)extractedValue);
             } else {
-                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath + "]: got [" + extractedValue + "]");
+                throw new IllegalStateException("Cannot extract nested source from path [" + nestedPath +
+                    "]: got [" + extractedValue + "]");
             }
         }
         if (nestedParsedSource == null) {

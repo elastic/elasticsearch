@@ -824,6 +824,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73859")
     public void testReorderParent() throws IOException {
 
         Version version = VersionUtils.randomIndexCompatibleVersion(random());

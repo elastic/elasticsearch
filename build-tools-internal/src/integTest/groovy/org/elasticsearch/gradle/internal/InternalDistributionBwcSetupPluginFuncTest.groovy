@@ -51,7 +51,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
         "7.10.1"       | "bugfix"   | "assemble"
-        "7.12.0"       | "minor"    | "extractedAssemble"
+        "7.14.0"       | "minor"    | "extractedAssemble"
     }
 
     @Unroll

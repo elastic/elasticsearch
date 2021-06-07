@@ -8,7 +8,6 @@
 
 package org.elasticsearch.tasks;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -104,11 +103,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         startTime = in.readLong();
         runningTimeNanos = in.readLong();
         cancellable = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            cancelled = in.readBoolean();
-        } else {
-            cancelled = false; // older versions do not report when tasks are cancelled so we just assume they aren't
-        }
+        cancelled = in.readBoolean();
         assert cancellable || cancelled == false : "uncancellable task cannot be cancelled";
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
@@ -124,9 +119,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeLong(startTime);
         out.writeLong(runningTimeNanos);
         out.writeBoolean(cancellable);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(cancelled);
-        } // older versions do not report when tasks are cancelled anyway so it's ok just to drop this flag
+        out.writeBoolean(cancelled);
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
     }

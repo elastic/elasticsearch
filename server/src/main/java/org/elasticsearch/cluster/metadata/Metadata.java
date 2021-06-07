@@ -1156,10 +1156,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
         }
 
-        public Builder dataStreams(Map<String, DataStream> dataStreams) {
-            // TODO: take into account aliases...
-            // (this is only used from snapshot / restore)
-            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, new HashMap<>()));
+        public Builder dataStreams(Map<String, DataStream> dataStreams, Map<String, DataStreamAlias> dataStreamAliases) {
+            this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(dataStreams, dataStreamAliases));
             return this;
         }
 
@@ -1179,7 +1177,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return this;
         }
 
-        public boolean put(String name, String dataStream) {
+        public boolean put(String aliasName, String dataStream, Boolean isWriteDataStream) {
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1190,21 +1188,21 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                     .orElse(new HashMap<>());
 
             if (existingDataStream.containsKey(dataStream) == false) {
-                throw new IllegalArgumentException("alias [" + name + "] refers to a non existing data stream [" + dataStream + "]");
+                throw new IllegalArgumentException("alias [" + aliasName + "] refers to a non existing data stream [" + dataStream + "]");
             }
 
-            DataStreamAlias alias = dataStreamAliases.get(name);
+            DataStreamAlias alias = dataStreamAliases.get(aliasName);
             if (alias == null) {
-                alias = new DataStreamAlias(name, List.of(dataStream));
+                String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
+                alias = new DataStreamAlias(aliasName, List.of(dataStream), writeDataStream);
             } else {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                boolean added = dataStreams.add(dataStream);
-                if (added == false) {
+                DataStreamAlias copy = alias.addDataStream(dataStream, isWriteDataStream);
+                if (copy == alias) {
                     return false;
                 }
-                alias = new DataStreamAlias(name, List.copyOf(dataStreams));
+                alias = copy;
             }
-            dataStreamAliases.put(name, alias);
+            dataStreamAliases.put(aliasName, alias);
 
             this.customs.put(DataStreamMetadata.TYPE, new DataStreamMetadata(existingDataStream, dataStreamAliases));
             return true;
@@ -1225,14 +1223,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
             for (var alias : existingDataStreamAliases.values()) {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                if (dataStreams.contains(name)) {
-                    dataStreams.remove(name);
-                    if (dataStreams.isEmpty()) {
-                        aliasesToDelete.add(alias.getName());
-                    } else {
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), List.copyOf(dataStreams)));
+                DataStreamAlias copy = alias.removeDataStream(name);
+                if (copy != null) {
+                    if (copy == alias) {
+                        continue;
                     }
+                    aliasesToUpdate.add(copy);
+                } else {
+                    aliasesToDelete.add(alias.getName());
                 }
             }
             for (DataStreamAlias alias : aliasesToUpdate) {
@@ -1258,15 +1256,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             } else if (existing == null) {
                 return false;
             }
-            Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
-            dataStreams.remove(dataStreamName);
-            if (dataStreams.isEmpty()) {
-                dataStreamAliases.remove(aliasName);
-            } else {
-                dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), List.copyOf(dataStreams)));
+            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
+            if (copy == existing) {
+                return false;
             }
-
+            if (copy != null) {
+                dataStreamAliases.put(aliasName, copy);
+            } else {
+                dataStreamAliases.remove(aliasName);
+            }
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))
@@ -1523,8 +1521,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         .flatMap(ds -> ds.getIndices().stream())
                         .map(index -> indices.get(index.getName()))
                         .collect(Collectors.toList());
+                    IndexMetadata writeIndexOfWriteDataStream = null;
+                    if (alias.getWriteDataStream() != null) {
+                        DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
+                        writeIndexOfWriteDataStream = indices.get(writeDataStream.getWriteIndex().getName());
+                    }
                     IndexAbstraction existing = indicesLookup.put(alias.getName(),
-                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams));
+                        new IndexAbstraction.DataStreamAlias(alias, allIndicesOfAllDataStreams, writeIndexOfWriteDataStream));
                     assert existing == null : "duplicate data stream alias for " + alias.getName();
                 }
             }

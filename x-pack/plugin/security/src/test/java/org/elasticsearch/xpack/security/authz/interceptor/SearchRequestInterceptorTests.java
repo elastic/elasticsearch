@@ -86,7 +86,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8));
         final ArrayList<String> allIndices =
             Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
-        Collections.shuffle(allIndices);
+        Collections.shuffle(allIndices, random());
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -107,7 +107,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8));
         final ArrayList<String> allIndices =
             Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
-        Collections.shuffle(allIndices);
+        Collections.shuffle(allIndices, random());
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         if (remoteIndices.length > 0) {

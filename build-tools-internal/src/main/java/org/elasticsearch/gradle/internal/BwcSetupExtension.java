@@ -31,10 +31,10 @@ import static org.elasticsearch.gradle.internal.util.JavaUtil.getJavaHome;
 /**
  * By registering bwc tasks via this extension we can support declaring custom bwc tasks from the build script
  * without relying on groovy closures and sharing common logic for tasks created by the BwcSetup plugin already.
- * */
+ */
 public class BwcSetupExtension {
 
-    private static final String MINIMUM_COMPILER_VERSION_PATH = "buildSrc/src/main/resources/minimumCompilerVersion";
+    private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
     private final Project project;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
     private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
@@ -42,10 +42,10 @@ public class BwcSetupExtension {
     private Provider<File> checkoutDir;
 
     public BwcSetupExtension(
-        Project project,
-        Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
-        Provider<File> checkoutDir
+            Project project,
+            Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
+            Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider,
+            Provider<File> checkoutDir
     ) {
         this.project = project;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
@@ -65,7 +65,8 @@ public class BwcSetupExtension {
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH));
+                String compilerVersionInfoPath = minimumCompilerVersionPath(project, checkoutDir);
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
                 loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
             });
 
@@ -107,6 +108,13 @@ public class BwcSetupExtension {
         });
     }
 
+    // TODO provide a long term reliable solution here.
+    private String minimumCompilerVersionPath(Project project, Provider<File> checkoutDir) {
+        return (checkoutDir.get().getName().endsWith("7.x")) ?
+                "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH :
+                "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
+    }
+
     private static class IndentingOutputStream extends OutputStream {
 
         public final byte[] indent;
@@ -119,7 +127,7 @@ public class BwcSetupExtension {
 
         @Override
         public void write(int b) throws IOException {
-            int[] arr = { b };
+            int[] arr = {b};
             write(arr, 0, 1);
         }
 

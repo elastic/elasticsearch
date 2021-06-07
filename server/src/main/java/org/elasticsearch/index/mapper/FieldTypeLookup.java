@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -146,23 +147,14 @@ final class FieldTypeLookup {
      */
     Set<String> getMatchingFieldNames(String pattern) {
         if (Regex.isMatchAllPattern(pattern)) {
-            if (dynamicFieldTypes.isEmpty()) {
-                return fullNameToFieldType.keySet();
-            }
-            Set<String> fieldNames = new HashSet<>(fullNameToFieldType.keySet());
-            return Collections.unmodifiableSet(fieldNames);
+            return Collections.unmodifiableSet(fullNameToFieldType.keySet());
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
-        Set<String> matchingFields = new HashSet<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(field);
-            }
-        }
-        return matchingFields;
+        return fullNameToFieldType.keySet().stream().filter(field -> Regex.simpleMatch(pattern, field))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

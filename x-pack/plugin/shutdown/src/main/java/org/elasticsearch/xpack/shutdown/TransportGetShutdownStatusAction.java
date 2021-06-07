@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -19,8 +21,16 @@ import org.elasticsearch.cluster.metadata.ShutdownPersistentTasksStatus;
 import org.elasticsearch.cluster.metadata.ShutdownPluginsStatus;
 import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.snapshots.SnapshotsInfoService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -30,18 +40,29 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
     GetShutdownStatusAction.Response> {
+
+    private final AllocationDeciders allocationDeciders;
+    private final AllocationService allocationService;
+    private final ClusterInfoService clusterInfoService;
+    private final SnapshotsInfoService snapshotsInfoService;
+
     @Inject
     public TransportGetShutdownStatusAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        AllocationService allocationService,
+        AllocationDeciders allocationDeciders,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService
     ) {
         super(
             GetShutdownStatusAction.NAME,
@@ -54,6 +75,10 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             GetShutdownStatusAction.Response::new,
             ThreadPool.Names.SAME
         );
+        this.allocationService = allocationService;
+        this.allocationDeciders = allocationDeciders;
+        this.clusterInfoService = clusterInfoService;
+        this.snapshotsInfoService = snapshotsInfoService;
     }
 
     @Override
@@ -75,7 +100,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        new ShutdownShardMigrationStatus(),
+                        shardMigrationStatus(state, ns.getNodeId()),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus()
                     )
@@ -91,7 +116,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        new ShutdownShardMigrationStatus(),
+                        shardMigrationStatus(state, ns.getNodeId()),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus()
                     )
@@ -102,6 +127,60 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         listener.onResponse(response);
+    }
+
+    private ShutdownShardMigrationStatus shardMigrationStatus(ClusterState currentState, String nodeId) {
+        // First, check if there are any shards currently on this node, and if there are any relocating shards
+        int currentShardsOnNode = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
+        int currentlyRelocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
+        int totalRemainingShards = currentlyRelocatingShards + currentShardsOnNode;
+
+        // If there's relocating shards, or no shards on this node, we'll just use the number of shards left to move
+        if (currentlyRelocatingShards > 0 || (currentlyRelocatingShards == 0 && currentShardsOnNode == 0)) {
+            SingleNodeShutdownMetadata.Status shardStatus = totalRemainingShards == 0
+                ? SingleNodeShutdownMetadata.Status.COMPLETE
+                : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+            return new ShutdownShardMigrationStatus(shardStatus, totalRemainingShards);
+        }
+
+        // If there's no relocating shards and shards still on this node, we need to figure out why
+        final RoutingAllocation allocation = new RoutingAllocation(
+            allocationDeciders,
+            currentState.getRoutingNodes(),
+            currentState,
+            clusterInfoService.getClusterInfo(),
+            snapshotsInfoService.snapshotShardSizes(),
+            System.nanoTime()
+        );
+        allocation.debugDecision(true);
+
+        // Explain shard allocations until we find one that can't move, then stop (as `findFirst` short-circuits)
+        final Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
+            .node(nodeId)
+            .shardsWithState(ShardRoutingState.STARTED)
+            .stream()
+            .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
+            .filter(pair -> pair.v2().getMoveDecision().canRemain() == false && pair.v2().getMoveDecision().forceMove() == false)
+            .findFirst();
+
+        if (unmovableShard.isPresent()) {
+            // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
+            ShardRouting shardRouting = unmovableShard.get().v1();
+
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.STALLED,
+                totalRemainingShards,
+                new ParameterizedMessage(
+                    "shard [{}] [{}] of index [{}] cannot move, see Cluster Allocation Explain API for details",
+                    shardRouting.shardId().getId(),
+                    shardRouting.primary() ? "primary" : "replica",
+                    shardRouting.index().getName()
+                ).getFormattedMessage()
+            );
+        } else {
+            // We couldn't find any shards that can't be moved, so we're just waiting for other recoveries to complete
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
+        }
     }
 
     @Override

@@ -90,10 +90,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return mappersBuilders;
         }
 
-        @Override
-        public ObjectMapper build(ContentPath contentPath) {
+        protected Map<String, Mapper> buildMappers(ContentPath contentPath) {
             contentPath.add(name);
-
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(contentPath);
@@ -104,8 +102,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 mappers.put(mapper.simpleName(), mapper);
             }
             contentPath.remove();
+            return mappers;
+        }
 
-            return new ObjectMapper(name, contentPath.pathAsText(name), enabled, dynamic, mappers);
+        @Override
+        public ObjectMapper build(ContentPath contentPath) {
+            return new ObjectMapper(name, contentPath.pathAsText(name), enabled, dynamic, buildMappers(contentPath));
         }
     }
 

@@ -96,18 +96,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(ContentPath contentPath) {
-            contentPath.add(name);
-            Map<String, Mapper> mappers = new HashMap<>();
-            for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(contentPath);
-                Mapper existing = mappers.get(mapper.simpleName());
-                if (existing != null) {
-                    mapper = existing.merge(mapper);
-                }
-                mappers.put(mapper.simpleName(), mapper);
-            }
-            contentPath.remove();
-            return new RootObjectMapper(name, enabled, dynamic, mappers,
+            return new RootObjectMapper(name, enabled, dynamic, buildMappers(contentPath),
                 runtimeFields == null ? Collections.emptyMap() : runtimeFields,
                 dynamicDateTimeFormatters,
                 dynamicTemplates,

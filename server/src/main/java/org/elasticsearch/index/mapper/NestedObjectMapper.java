@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -57,19 +56,7 @@ public class NestedObjectMapper extends ObjectMapper {
         @Override
         public NestedObjectMapper build(ContentPath contentPath) {
             fixRedundantIncludes(this, true);
-            contentPath.add(name);
-            Map<String, Mapper> mappers = new HashMap<>();
-            for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(contentPath);
-                Mapper existing = mappers.get(mapper.simpleName());
-                if (existing != null) {
-                    mapper = existing.merge(mapper);
-                }
-                mappers.put(mapper.simpleName(), mapper);
-            }
-            contentPath.remove();
-
-            return new NestedObjectMapper(name, contentPath.pathAsText(name), mappers, this);
+            return new NestedObjectMapper(name, contentPath.pathAsText(name), buildMappers(contentPath), this);
         }
 
         private static void fixRedundantIncludes(ObjectMapper.Builder objectMapper, boolean parentIncluded) {

@@ -65,7 +65,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
             builder.field(STATUS, response.status().getStatus());
         } else {
             builder.field(_INDEX, failure.getIndex());
-            if(builder.getRestApiVersion() == RestApiVersion.V_7){
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
                 builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
             }
 
@@ -318,7 +318,7 @@ public class BulkItemResponse implements Writeable, StatusToXContentObject {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(INDEX_FIELD, index);
-            if(builder.getRestApiVersion() == RestApiVersion.V_7){
+            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
                 builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
             }
             if (id != null) {

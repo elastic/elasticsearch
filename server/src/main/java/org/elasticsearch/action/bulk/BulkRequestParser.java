@@ -41,7 +41,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
  * Helper to parse bulk requests. This should be considered an internal class.
  */
 public final class BulkRequestParser {
-    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(BulkRequestParser.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(BulkRequestParser.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField TYPE = new ParseField("_type");

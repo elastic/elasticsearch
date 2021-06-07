@@ -71,6 +71,7 @@ public class SystemIndices {
     private final Predicate<String> systemDataStreamAutomaton;
     private final Map<String, Feature> featureDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
+    private final ExecutorSelector executorSelector;
 
     /**
      * Initialize the SystemIndices object
@@ -85,6 +86,7 @@ public class SystemIndices {
         this.systemDataStreamIndicesAutomaton = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamAutomaton = buildDataStreamNamePredicate(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
+        this.executorSelector = new ExecutorSelector(this);
     }
 
     private static void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
@@ -624,4 +626,9 @@ public class SystemIndices {
             plugin.getAssociatedIndexDescriptors(),
             plugin::cleanUpFeature);
     }
+
+    public ExecutorSelector getExecutorSelector() {
+        return executorSelector;
+    }
+
 }

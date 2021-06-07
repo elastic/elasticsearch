@@ -8,10 +8,8 @@
 
 package org.elasticsearch.search.aggregations.bucket.filter;
 
-import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
@@ -97,7 +95,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     private int scorersPreparedWhileEstimatingCost;
 
-    private QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
+    QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
         this.searcher = searcher;
         this.key = key;
         this.query = query;
@@ -291,160 +289,5 @@ public class QueryToFilterAdapter<Q extends Query> {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }
         return weight;
-    }
-
-    /**
-     * Special case when the filter can't match anything.
-     */
-    private static class MatchNoneQueryToFilterAdapter extends QueryToFilterAdapter<MatchNoDocsQuery> {
-        private MatchNoneQueryToFilterAdapter(IndexSearcher searcher, String key, MatchNoDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return this;
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> false;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            return 0;
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return 0;
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_none");
-        }
-    }
-
-    /**
-     * Filter that matches every document.
-     */
-    private static class MatchAllQueryToFilterAdapter extends QueryToFilterAdapter<MatchAllDocsQuery> {
-        private int resultsFromMetadata;
-
-        private MatchAllQueryToFilterAdapter(IndexSearcher searcher, String key, MatchAllDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return QueryToFilterAdapter.build(searcher(), key(), extraQuery);
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> true;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return canUseMetadata.get() ? 0 : ctx.reader().maxDoc();
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_all");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
-    }
-
-    private static class TermQueryToFilterAdapter extends QueryToFilterAdapter<TermQuery> {
-        private int resultsFromMetadata;
-
-        private TermQueryToFilterAdapter(IndexSearcher searcher, String key, TermQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().docFreq(query().getTerm());
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            if (canUseMetadata.get()) {
-                return 0;
-            }
-            return super.estimateCountCost(ctx, canUseMetadata);
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "term");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
-    }
-
-    private static class DocValuesFieldExistsAdapter extends QueryToFilterAdapter<DocValuesFieldExistsQuery> {
-        private int resultsFromMetadata;
-
-        private DocValuesFieldExistsAdapter(IndexSearcher searcher, String key, DocValuesFieldExistsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live) && canCountFromMetadata(ctx)) {
-                resultsFromMetadata++;
-                PointValues points = ctx.reader().getPointValues(query().getField());
-                if (points == null) {
-                    return 0;
-                }
-                return points.getDocCount();
-
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            if (canUseMetadata.get() && canCountFromMetadata(ctx)) {
-                return 0;
-            }
-            return super.estimateCountCost(ctx, canUseMetadata);
-        }
-
-        private boolean canCountFromMetadata(LeafReaderContext ctx) throws IOException {
-            FieldInfo info = ctx.reader().getFieldInfos().fieldInfo(query().getField());
-            if (info == null) {
-                // If we don't have any info then there aren't any values anyway.
-                return true;
-            }
-            return info.getPointDimensionCount() > 0;
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "docvalues_field_exists");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
     }
 }

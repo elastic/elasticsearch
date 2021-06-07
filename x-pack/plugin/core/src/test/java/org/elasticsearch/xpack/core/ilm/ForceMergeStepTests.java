@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
@@ -125,8 +126,9 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         Mockito.when(forceMergeResponse.getFailedShards()).thenReturn(numberOfShards - 1);
         Mockito.when(forceMergeResponse.getStatus()).thenReturn(RestStatus.BAD_REQUEST);
         Mockito.when(forceMergeResponse.getSuccessfulShards()).thenReturn(1);
-        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[]{
-            new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("couldn't merge"))});
+        DefaultShardOperationFailedException cause =
+            new DefaultShardOperationFailedException(index.getName(), 0, new IllegalArgumentException("couldn't merge"));
+        Mockito.when(forceMergeResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[]{cause});
 
         Step.StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
@@ -138,7 +140,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
             return null;
         }).when(indicesClient).forceMerge(any(), any());
 
-        SetOnce<IllegalStateException> failedStep = new SetOnce<>();
+        SetOnce<ElasticsearchException> failedStep = new SetOnce<>();
 
         ClusterState state =
             ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
@@ -151,14 +153,15 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
 
             @Override
             public void onFailure(Exception e) {
-                assert e instanceof IllegalStateException : "step must report " + IllegalStateException.class.getSimpleName() +
+                assert e instanceof ElasticsearchException : "step must report " + ElasticsearchException.class.getSimpleName() +
                     " but was " + e;
-                failedStep.set((IllegalStateException) e);
+                failedStep.set((ElasticsearchException) e);
             }
         });
 
-        assertThat(failedStep.get(), notNullValue());
-        assertThat(failedStep.get().getMessage(),
+        ElasticsearchException stepException = failedStep.get();
+        assertThat(stepException, notNullValue());
+        assertThat(stepException.getMessage(),
             is(
                 "index [" + index.getName() + "] in policy [ilmPolicy] encountered failures [{\"shard\":0,\"index\":\"" +
                     index.getName() + "\",\"status\":\"BAD_REQUEST\",\"reason\":{\"type\":\"illegal_argument_exception\"," +

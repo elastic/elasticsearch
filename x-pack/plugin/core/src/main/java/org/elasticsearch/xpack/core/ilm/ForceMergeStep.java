@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
@@ -68,7 +69,7 @@ public class ForceMergeStep extends AsyncActionStep {
                                 NAME);
                         logger.warn(errorMessage);
                         // let's report it as a failure and retry
-                        listener.onFailure(new IllegalStateException(errorMessage));
+                        listener.onFailure(new ElasticsearchException(errorMessage));
                     }
                 },
                 listener::onFailure));

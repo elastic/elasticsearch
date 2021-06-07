@@ -223,7 +223,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
-        isDataStream = in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ? in.readOptionalBoolean() : false;
+        if (in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
+            isDataStream = in.readOptionalBoolean();
+        }
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {

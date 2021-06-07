@@ -272,7 +272,7 @@ public final class MappingLookup {
     public String getNestedScope(String path) {
         for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
             ObjectMapper objectMapper = objectMappers.get(parentPath);
-            if (objectMapper.isNested()) {
+            if (objectMapper != null && objectMapper.isNested()) {
                 return parentPath;
             }
         }

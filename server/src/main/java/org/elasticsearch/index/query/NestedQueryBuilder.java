@@ -341,7 +341,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                           InnerHitsContext innerHitsContext) throws IOException {
             SearchExecutionContext searchExecutionContext = parentSearchContext.getSearchExecutionContext();
             ObjectMapper objectMapper = searchExecutionContext.getObjectMapper(path);
-            if (objectMapper.isNested() == false) {
+            if (objectMapper == null || objectMapper.isNested() == false) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {

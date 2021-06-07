@@ -14,7 +14,6 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-  restTestConfig project(path: ':modules:geo', configuration: 'restTests')
   api project(path: ':modules:geo')
   restTestConfig project(path: ':modules:geo', configuration: 'restTests')
 }

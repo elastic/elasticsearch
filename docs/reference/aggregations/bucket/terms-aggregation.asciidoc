@@ -794,7 +794,7 @@ the field is unmapped in one of the indices.  Setting the `value_type` parameter
 can resolve the issue by coercing the unmapped field into the correct type.
 
 [source,console,id=terms-aggregation-value_type-example]
---------------------------------------------------
+----
 GET /_search
 {
   "aggs": {
@@ -807,4 +807,4 @@ GET /_search
     }
   }
 }
---------------------------------------------------
+----

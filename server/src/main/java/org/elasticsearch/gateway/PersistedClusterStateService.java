@@ -331,8 +331,8 @@ public class PersistedClusterStateService {
                     onDiskState = loadOnDiskState(dataPath, directoryReader);
 
                     if (nodeId.equals(onDiskState.nodeId) == false) {
-                        throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                            "] in [" + dataPath + "] but expected [" + nodeId + "]");
+                        throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                            "] belongs to a node with ID [" + onDiskState.nodeId + "] but this node's ID is [" + nodeId + "]");
                     }
                 }
             } catch (IndexNotFoundException e) {

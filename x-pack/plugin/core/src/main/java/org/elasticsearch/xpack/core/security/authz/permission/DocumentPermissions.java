@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;

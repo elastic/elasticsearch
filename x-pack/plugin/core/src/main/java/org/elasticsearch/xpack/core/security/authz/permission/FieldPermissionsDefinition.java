@@ -13,13 +13,9 @@ import org.elasticsearch.xpack.core.security.support.CacheKey;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.stream.Collectors;
-
-import static java.util.Comparator.comparingInt;
 
 /**
  * Represents the definition of a {@link FieldPermissions}. Field permissions are defined as a

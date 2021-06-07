@@ -22,6 +22,8 @@ tasks.named("yamlRestTest").configure {
     'ml/ml_classic_analyze/Test analyze API with an analyzer that does what we used to do in native code',
     'ml/ml_standard_analyze/Test analyze API with the standard 7.14 ML analyzer',
     'ml/ml_standard_analyze/Test 7.14 analyzer with blank lines',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with multiple multiline messages',
+    'ml/ml_standard_analyze/Test 7.14 analyzer with stop words in messages',
     // Remove tests that are expected to throw an exception, because we cannot then
     // know whether to expect an authorization exception or a validation exception
     'ml/calendar_crud/Test get calendar given missing',

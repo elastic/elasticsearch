@@ -139,8 +139,18 @@ public class IndicesAccessControl {
 
         @Override
         public void writeCacheKey(StreamOutput out) throws IOException {
-            this.documentPermissions.writeCacheKey(out);
-            this.fieldPermissions.writeCacheKey(out);
+            if (documentPermissions.hasDocumentLevelPermissions()) {
+                out.writeBoolean(true);
+                documentPermissions.writeCacheKey(out);
+            } else {
+                out.writeBoolean(false);
+            }
+            if (fieldPermissions.hasFieldLevelSecurity()) {
+                out.writeBoolean(true);
+                fieldPermissions.writeCacheKey(out);
+            } else {
+                out.writeBoolean(false);
+            }
         }
 
         @Override

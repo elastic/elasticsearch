@@ -97,5 +97,4 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         differentiator.accept(shardSearchRequest, out);
         assertThat(out.position(), equalTo(0L));
     }
-
 }

@@ -99,8 +99,8 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             "{\"names\":[\"index-1\",\"index-2\",\"index-3-*\"]," +
             "\"privileges\":[\"read\",\"write\"]," +
             "\"field_security\":[" +
-            "{\"grant\":[\"public.*\"]}," +
-            "{\"grant\":[\"*\"],\"except\":[\"private.*\"]}" +
+            "{\"grant\":[\"*\"],\"except\":[\"private.*\"]}," +
+            "{\"grant\":[\"public.*\"]}" +
             "]," +
             "\"query\":[" +
             "\"{ \\\"term\\\": { \\\"access\\\": \\\"public\\\" } }\"," +

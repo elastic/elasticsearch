@@ -258,7 +258,8 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 if (disjunct instanceof BooleanQuery) {
                     final BooleanQuery firstDisjunct = (BooleanQuery) disjunct;
                     assertThat(firstDisjunct.clauses(), hasSize(2));
-                    assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "foo")));
+                    assertThat(assertBooleanSubQuery(firstDisjunct, TermQuery.class, 0).getTerm(),
+                        equalTo(new Term(TEXT_FIELD_NAME, "foo")));
                 } else if (disjunct instanceof PrefixQuery) {
                     final PrefixQuery secondDisjunct = (PrefixQuery) disjunct;
                     assertThat(secondDisjunct.getPrefix(), equalTo(new Term(KEYWORD_FIELD_NAME, "foo bar")));

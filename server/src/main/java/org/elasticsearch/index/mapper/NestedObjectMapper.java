@@ -139,6 +139,11 @@ public class NestedObjectMapper extends ObjectMapper {
         return this.nestedTypePath;
     }
 
+    @Override
+    public boolean isNested() {
+        return true;
+    }
+
     public boolean isIncludeInParent() {
         return this.includeInParent.value();
     }

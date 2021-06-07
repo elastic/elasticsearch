@@ -203,7 +203,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         if (objectMapper == null) {
             throw new QueryShardException(context, "[nested] failed to find nested object under path [" + nestedPath + "]");
         }
-        if (objectMapper instanceof NestedObjectMapper == false) {
+        if (objectMapper.isNested() == false) {
             throw new QueryShardException(context, "[nested] nested object under path [" + nestedPath + "] is not of nested type");
         }
         NestedObjectMapper nestedObjectMapper = (NestedObjectMapper) objectMapper;

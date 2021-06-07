@@ -271,7 +271,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 throw new IllegalStateException("[" + NAME + "] failed to find nested object under path [" + path + "]");
             }
         }
-        if (nestedObjectMapper instanceof NestedObjectMapper == false) {
+        if (nestedObjectMapper.isNested() == false) {
             throw new IllegalStateException("[" + NAME + "] nested object under path [" + path + "] is not of nested type");
         }
         final BitSetProducer parentFilter;
@@ -341,7 +341,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                           InnerHitsContext innerHitsContext) throws IOException {
             SearchExecutionContext searchExecutionContext = parentSearchContext.getSearchExecutionContext();
             ObjectMapper objectMapper = searchExecutionContext.getObjectMapper(path);
-            if (objectMapper instanceof NestedObjectMapper == false) {
+            if (objectMapper.isNested() == false) {
                 if (innerHitBuilder.isIgnoreUnmapped() == false) {
                     throw new IllegalStateException("[" + query.getName() + "] no mapping found for type [" + path + "]");
                 } else {

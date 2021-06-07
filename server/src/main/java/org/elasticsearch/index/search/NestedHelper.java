@@ -103,7 +103,7 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper instanceof NestedObjectMapper) {
+            if (mapper != null && mapper.isNested()) {
                 return true;
             }
         }
@@ -171,7 +171,7 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper instanceof NestedObjectMapper) {
+            if (mapper != null && mapper.isNested()) {
                 NestedObjectMapper nestedMapper = (NestedObjectMapper) mapper;
                 if (mapper.fullPath().equals(nestedPath)) {
                     // If the mapper does not include in its parent or in the root object then

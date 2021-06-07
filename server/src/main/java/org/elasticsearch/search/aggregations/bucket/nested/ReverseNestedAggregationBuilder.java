@@ -98,7 +98,7 @@ public class ReverseNestedAggregationBuilder extends AbstractAggregationBuilder<
             if (parentObjectMapper == null) {
                 return new ReverseNestedAggregatorFactory(name, true, null, context, parent, subFactoriesBuilder, metadata);
             }
-            if (parentObjectMapper instanceof NestedObjectMapper == false) {
+            if (parentObjectMapper.isNested() == false) {
                 throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
             }
         }

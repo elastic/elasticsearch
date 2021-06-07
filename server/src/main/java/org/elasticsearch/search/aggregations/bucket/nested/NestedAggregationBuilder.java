@@ -92,7 +92,7 @@ public class NestedAggregationBuilder extends AbstractAggregationBuilder<NestedA
                 parent, subFactoriesBuilder, metadata);
         }
 
-        if (childObjectMapper instanceof NestedObjectMapper == false) {
+        if (childObjectMapper.isNested() == false) {
             throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
         }
         try {

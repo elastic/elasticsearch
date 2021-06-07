@@ -33,7 +33,6 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -141,7 +140,7 @@ public class TransportFieldCapabilitiesIndexAction
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
                             ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            String type = mapper instanceof NestedObjectMapper ? "nested" : "object";
+                            String type = mapper.isNested() ? "nested" : "object";
                             IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                 false, false, false, Collections.emptyMap());
                             responseMap.put(parentField, fieldCap);

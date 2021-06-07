@@ -284,6 +284,10 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return this.enabled.value();
     }
 
+    public boolean isNested() {
+        return false;
+    }
+
     public Mapper getMapper(String field) {
         return mappers.get(field);
     }

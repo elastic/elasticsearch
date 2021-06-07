@@ -630,7 +630,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper parentMapper = context.getObjectMapper(parent);
-            if (parentMapper instanceof NestedObjectMapper) {
+            if (parentMapper != null && parentMapper.isNested()) {
                 NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
                 if (parentNested.isIncludeInRoot() == false) {
                     throw new QueryShardException(context,

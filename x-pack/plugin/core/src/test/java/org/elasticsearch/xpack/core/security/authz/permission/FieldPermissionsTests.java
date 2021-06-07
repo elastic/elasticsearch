@@ -16,7 +16,6 @@ import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.is;

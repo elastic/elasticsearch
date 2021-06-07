@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.jdk;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;

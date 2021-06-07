@@ -69,8 +69,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -116,7 +114,6 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
-import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and

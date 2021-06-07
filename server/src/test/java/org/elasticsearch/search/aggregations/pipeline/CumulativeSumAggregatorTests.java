@@ -9,19 +9,24 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.DoubleDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -31,16 +36,20 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggre
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
+import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -48,6 +57,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
     private static final String HISTO_FIELD = "histo";
+    private static final String KEYWORD_FIELD = "keyword";
     private static final String VALUE_FIELD = "value_field";
 
     private static final List<String> datasetTimes = Arrays.asList(
@@ -64,7 +74,44 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
 
     private static final List<Integer> datasetValues = Arrays.asList(1,2,3,4,5,6,7,8,9,10);
 
-    public void testSimple() throws IOException {
+    private static final List<String> datasetTermsString = Arrays.asList("1","1","1","2","2","2","3","3","4","4");
+    private static final List<Double> datasetTermsDouble = Arrays.asList(1.0,1.0,1.0,2.0,2.0,2.0,3.0,3.0,4.0,4.0);
+    private static final List<Long> datasetTermsLong = Arrays.asList(1L,1L,1L,2L,2L,2L,3L,3L,4L,4L);
+    private static final List<Long> datasetTermValues = Arrays.asList(5L,5L,4L,4L,3L,3L,2L,2L,1L,1L);
+    private static final List<Double> expectedTermsMetricValues = Arrays.asList(14.0,24.0,28.0,30.0);
+    private static final List<Double> expectedTermsCountValues = Arrays.asList(3.0,6.0,8.0,10.0);
+
+    public void testTermsStringCount() throws IOException {
+        executeTestCaseTerms(ValueType.STRING, KEYWORD_FIELD, "_count", datasetTermsString, expectedTermsCountValues,
+            (val) -> new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef((String)val)),
+            new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD));
+    }
+
+    public void testTermsStringMetric() throws IOException {
+        executeTestCaseTerms(ValueType.STRING, KEYWORD_FIELD, "sum", datasetTermsString, expectedTermsMetricValues,
+            (val) -> new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef((String)val)),
+            new KeywordFieldMapper.KeywordFieldType(KEYWORD_FIELD) );
+    }
+
+    public void testTermsLongMetric() throws IOException {
+        executeTestCaseTerms(ValueType.LONG, KEYWORD_FIELD, "sum", datasetTermsLong, expectedTermsMetricValues,
+            (val) -> new NumericDocValuesField(KEYWORD_FIELD, (Long)val),
+            new NumberFieldMapper.NumberFieldType(KEYWORD_FIELD, NumberFieldMapper.NumberType.LONG) );
+    }
+
+    public void testTermsDoubleMetric() throws IOException {
+        executeTestCaseTerms(ValueType.DOUBLE, KEYWORD_FIELD, "sum", datasetTermsDouble, expectedTermsMetricValues,
+            (val) -> new DoubleDocValuesField(KEYWORD_FIELD, (Double)val),
+            new NumberFieldMapper.NumberFieldType(KEYWORD_FIELD, NumberFieldMapper.NumberType.DOUBLE) );
+    }
+
+    public void testTermsNoBuckets() throws IOException {
+        executeTestCaseTerms(ValueType.LONG,"unmapped","sum", datasetTermsLong, expectedTermsMetricValues,
+            (val) -> new NumericDocValuesField(KEYWORD_FIELD, (Long)val),
+            new NumberFieldMapper.NumberFieldType(KEYWORD_FIELD, NumberFieldMapper.NumberType.LONG) );
+    }
+
+    public void testHistoSimple() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
@@ -87,7 +134,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
     /**
      * First value from a derivative is null, so this makes sure the cusum can handle that
      */
-    public void testDerivative() throws IOException {
+    public void testHistoDerivative() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
@@ -115,7 +162,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testCount() throws IOException {
+    public void testHistoCount() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("histo");
@@ -135,7 +182,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
     }
 
-    public void testDocCount() throws IOException {
+    public void testHistoDocCount() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         int numDocs = randomIntBetween(6, 20);
@@ -185,7 +232,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testMetric() throws IOException {
+    public void testHistoMetric() throws IOException {
         Query query = new MatchAllDocsQuery();
 
         int numDocs = randomIntBetween(6, 20);
@@ -238,7 +285,7 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    public void testNoBuckets() throws IOException {
+    public void testHistoNoBuckets() throws IOException {
         int numDocs = randomIntBetween(6, 20);
         int interval = randomIntBetween(2, 5);
 
@@ -315,6 +362,36 @@ public class CumulativeSumAggregatorTests extends AggregatorTestCase {
                 verify.accept(histogram);
             }
         }
+    }
+
+    public void executeTestCaseTerms(ValueType valueType, String termsField, String bucketPath,
+                                     List datasetKey, List expectedValues,
+                                     Function<Object, IndexableField> keyField, MappedFieldType keyFieldType) throws IOException {
+        TermsAggregationBuilder aggBuilder = new TermsAggregationBuilder("terms")
+            .userValueTypeHint(valueType)
+            .field(termsField)
+            .subAggregation(new SumAggregationBuilder("sum").field(VALUE_FIELD))
+            .subAggregation(new CumulativeSumPipelineAggregationBuilder("cusum", bucketPath));
+
+        MappedFieldType valueFieldType
+            = new NumberFieldMapper.NumberFieldType(VALUE_FIELD, NumberFieldMapper.NumberType.LONG);
+
+        testCase(aggBuilder, new MatchAllDocsQuery(), indexWriter -> {
+            Document document = new Document();
+            for (int counter = 0; counter < datasetKey.size(); ++counter) {
+                document.add(keyField.apply(datasetKey.get(counter)));
+                document.add(new NumericDocValuesField(VALUE_FIELD, datasetTermValues.get(counter).intValue()));
+
+                indexWriter.addDocument(document);
+                document.clear();
+            }
+        }, terms->{
+            List<? extends InternalTerms.Bucket> buckets = ((InternalTerms)terms).getBuckets();
+            for(int i = 0; i< buckets.size(); ++i){
+                assertThat(((InternalSimpleValue) (buckets.get(i).getAggregations().get("cusum"))).value(),
+                    equalTo(expectedValues.get(i)));
+            }
+        }, new MappedFieldType[]{keyFieldType, valueFieldType});
     }
 
     private static long asLong(String dateTime) {

@@ -27,7 +27,7 @@ import java.util.Objects;
 public class DoubleTerms extends InternalMappedTerms<DoubleTerms, DoubleTerms.Bucket> {
     public static final String NAME = "dterms";
 
-    static class Bucket extends InternalTerms.Bucket<Bucket> {
+    public static class Bucket extends InternalTerms.Bucket<Bucket> {
         double term;
 
         Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,

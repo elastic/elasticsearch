@@ -15,9 +15,14 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramFactory;
+import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -37,27 +42,81 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
         InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends InternalMultiBucketAggregation.InternalBucket>
-                histo = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
-                InternalMultiBucketAggregation.InternalBucket>) aggregation;
-        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
-        HistogramFactory factory = (HistogramFactory) histo;
-        List<Bucket> newBuckets = new ArrayList<>(buckets.size());
-        double sum = 0;
-        for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
-            Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
+            parentAggregate = (InternalMultiBucketAggregation<? extends InternalMultiBucketAggregation, ? extends
+            InternalMultiBucketAggregation.InternalBucket>) aggregation;
 
-            // Only increment the sum if it's a finite value, otherwise "increment by zero" is correct
+        InternalAggregation internalAggregation = null;
+        List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = parentAggregate.getBuckets();
+
+        double sum = 0;
+        Map<Integer, List<InternalAggregation>> aggregationMap = new HashMap<>();
+        for (int i = 0; i < buckets.size(); ++i) {
+            InternalMultiBucketAggregation.InternalBucket bucket = buckets.get(i);
+
+            Double thisBucketValue = resolveBucketValue(parentAggregate, bucket, bucketsPaths()[0], GapPolicy.INSERT_ZEROS);
             if (thisBucketValue != null && thisBucketValue.isInfinite() == false && thisBucketValue.isNaN() == false) {
                 sum += thisBucketValue;
             }
 
-            List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
+            List<InternalAggregation> aggregate = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                 .map((p) -> (InternalAggregation) p)
                 .collect(Collectors.toList());
-            aggs.add(new InternalSimpleValue(name(), sum, formatter, metadata()));
-            Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
-            newBuckets.add(newBucket);
+            aggregate.add(new InternalSimpleValue(name(), sum, formatter, metadata()));
+            aggregationMap.put(i, aggregate);
         }
-        return factory.createAggregation(newBuckets);
+
+        //FIXME: kludgy. assess interfaces, probably create another interface/factory/helper
+        if (parentAggregate instanceof HistogramFactory) {
+            HistogramFactory factory = (HistogramFactory) parentAggregate;
+            List<Bucket> newBuckets = new ArrayList<>(buckets.size());
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                Bucket bucket = buckets.get(entry.getKey());
+                Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(),
+                                                        InternalAggregations.from(entry.getValue()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.createAggregation(newBuckets);
+        } else if (parentAggregate instanceof LongTerms) {
+            LongTerms factory = (LongTerms) parentAggregate;
+            List<LongTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                LongTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                  (LongTerms.Bucket) buckets.get(entry.getKey()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.create(newBuckets);
+        } else if (parentAggregate instanceof DoubleTerms) {
+            DoubleTerms factory = (DoubleTerms) parentAggregate;
+            List<DoubleTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                DoubleTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                    (DoubleTerms.Bucket) buckets.get(entry.getKey()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.create(newBuckets);
+        } else if (parentAggregate instanceof StringTerms) {
+            StringTerms factory = (StringTerms) parentAggregate;
+            List<StringTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                StringTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                                                                    (StringTerms.Bucket) buckets.get(entry.getKey()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.create(newBuckets);
+        } else if (parentAggregate instanceof UnmappedTerms) {
+            UnmappedTerms factory = (UnmappedTerms) parentAggregate;
+            List<UnmappedTerms.Bucket> newBuckets = new ArrayList<>(buckets.size());
+            //FIXME: is this necessary?
+            for (Map.Entry<Integer, List<InternalAggregation>> entry : aggregationMap.entrySet()) {
+                UnmappedTerms.Bucket newBucket = factory.createBucket(InternalAggregations.from(entry.getValue()),
+                    (UnmappedTerms.Bucket) buckets.get(entry.getKey()));
+                newBuckets.add(newBucket);
+            }
+            internalAggregation = factory.create(newBuckets);
+        }
+
+        return internalAggregation;
     }
+
+
 }

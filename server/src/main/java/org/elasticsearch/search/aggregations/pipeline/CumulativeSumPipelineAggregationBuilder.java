@@ -13,6 +13,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -93,8 +98,37 @@ public class CumulativeSumPipelineAggregationBuilder extends AbstractPipelineAgg
         if (bucketsPaths.length != 1) {
             context.addBucketPathValidationError("must contain a single entry for aggregation [" + name + "]");
         }
-        context.validateParentAggSequentiallyOrdered(NAME, name);
+
+        //FIXME: duplicated from context.validate
+        AggregationBuilder parent = context.getParent();
+        if ( parent == null ){
+            context.addValidationError(type + " aggregation [" + name
+                + "] must have a histogram, date_histogram, auto_date_histogram or terms as parent but doesn't have a parent");
+
+        } else if ( parent instanceof HistogramAggregationBuilder) {
+            HistogramAggregationBuilder histoParent = (HistogramAggregationBuilder) parent;
+            if (histoParent.minDocCount() != 0) {
+                context.addValidationError(
+                    "parent histogram of " + NAME + " aggregation [" + name + "] must have min_doc_count of 0");
+            }
+        } else if (parent instanceof DateHistogramAggregationBuilder) {
+            DateHistogramAggregationBuilder histoParent = (DateHistogramAggregationBuilder) parent;
+            if (histoParent.minDocCount() != 0) {
+                context.addValidationError(
+                    "parent histogram of " + NAME + " aggregation [" + name + "] must have min_doc_count of 0");
+            }
+        } else if (parent instanceof AutoDateHistogramAggregationBuilder) {
+            // Nothing to check
+        } else if (parent instanceof TermsAggregationBuilder) {
+            //TODO: what should be checked?
+        } else {
+            context.addValidationError(
+                NAME + " aggregation [" + name + "] must have a histogram, date_histogram, auto_date_histogram or terms"
+                    + " as parent");
+        }
     }
+
+
 
     @Override
     protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {

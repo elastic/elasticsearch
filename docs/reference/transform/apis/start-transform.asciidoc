@@ -27,16 +27,21 @@ Requires the following privileges:
 [[start-transform-desc]]
 == {api-description-title}
 
-When you start a {transform}, it creates the destination index if it
-does not already exist. The `number_of_shards` is set to `1` and the
+When you start a {transform}, it creates the destination index if it does not 
+already exist. The `number_of_shards` is set to `1` and the
 `auto_expand_replicas` is set to `0-1`.
 
-The {transform} deduces the mapping definitions from the source indices. For
-scripted fields, it uses <<dynamic-mapping,dynamic mappings>>. If a field in the
-destination index is created by `scripted_metric` or `bucket_script`
-aggregations, the {transform} uses dynamic mappings unless a template exists or
-the destination index already exists. Mapping definitions in the destination
-index take precedence over dynamic mappings and templates.
+If it is a pivot {transform}, it deduces the mapping definitions for the
+destination index from the source indices and the transform aggregations. If
+fields in the destination index are derived from scripts (as in the case of
+`scripted_metric` or `bucket_script` aggregations), the {transform} uses
+<<dynamic-mapping,dynamic mappings>> unless an index template exists.
+
+If it is a latest {transform}, it does not deduce mapping definitions; it uses
+dynamic mappings.
+
+TIP: To use explicit mappings, create the destination index before you start the {transform}. Alternatively, you can create an index template, though it does not affect the
+deduced mappings in a pivot {transform}.
 
 When the {transform} starts, a series of validations occur to ensure
 its success. If you deferred validation when you created the

@@ -280,3 +280,22 @@ per index data path settings.
 
 *Impact* +
 Discontinue use of the deprecated settings.
+
+[[single-data-node-watermark-setting]]
+.Single data node watermark setting only accept true and is deprecated
+[%collapsible]
+====
+*Details* +
+In 7.14, setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+to false was deprecated. Starting in 8.0, the only legal value will be
+true. In a future release, the setting will be removed completely, with same
+behavior as if the setting was `true`.
+
+If the old behavior is desired for a single data node cluster, disk based
+allocation can be disabled by setting
+`cluster.routing.allocation.disk.threshold_enabled: false`
+
+*Impact* +
+Discontinue use of the deprecated setting.
+====
+

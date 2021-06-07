@@ -209,8 +209,13 @@ public final class MappingLookup {
     }
 
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - mapping.getSortedMetadataMappers().length > limit) {
-            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
+        checkFieldLimit(limit, 0);
+    }
+
+    void checkFieldLimit(long limit, int additionalFieldsToAdd) {
+        if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
+            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
+                (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
         }
     }
 

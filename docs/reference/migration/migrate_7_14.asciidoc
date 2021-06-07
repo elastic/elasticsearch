@@ -70,10 +70,16 @@ should never be explicitly set to false. In 8.0, the only legal value will be
 true. In a future release, the setting will be removed completely, with same
 behavior as if the setting was `true`.
 
-If the old behavior is desired for a single data node cluster, disk based
-allocation can be disabled by setting
-`cluster.routing.allocation.disk.threshold_enabled: false`
+*Impact* +
 
+If your cluster has a single data node then set
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node: true`
+to opt in to the future behaviour today. If you wish to disable the disk
+watermarks then set `cluster.routing.allocation.disk.threshold_enabled: false`.
+
+If your cluster has multiple data nodes then the
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+has no effect and you should discontinue its use.
 ====
 
 // end::notable-breaking-changes[]

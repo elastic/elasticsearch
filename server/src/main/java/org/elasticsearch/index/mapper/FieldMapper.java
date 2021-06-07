@@ -653,6 +653,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return this;
         }
 
+        public boolean canAcceptNull() {
+            return acceptsNull;
+        }
+
         /**
          * Adds a deprecated parameter name.
          *
@@ -757,7 +761,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             setValue(initializer.apply(toInit));
         }
 
-        private void parse(String field, ParserContext context, Object in) {
+        /**
+         * Parse the field value from an Object
+         * @param field     the field name
+         * @param context   the parser context
+         * @param in        the object
+         */
+        public void parse(String field, ParserContext context, Object in) {
             setValue(parser.apply(field, context, in));
         }
 

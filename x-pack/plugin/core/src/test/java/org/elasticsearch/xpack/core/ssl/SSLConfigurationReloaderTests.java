@@ -40,6 +40,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
@@ -55,6 +56,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.GeneralSecurityException;
 import java.security.KeyManagementException;
@@ -66,6 +68,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -504,6 +507,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertNotNull(exceptionRef.get());
         assertThat(exceptionRef.get(), throwableWithMessage(containsString("cannot load PEM certificate_authorities")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
+    }
+
+    /**
+     * Tests that the reloader doesn't throw an exception if a file is unreadable or configured to be outside of the config/ directory.
+     * These errors are handled correctly by the relevant {@link org.elasticsearch.common.ssl.SslKeyConfig} and
+     * {@link org.elasticsearch.common.ssl.SslTrustConfig} classes, so the reloader should simply log and continue.
+     */
+    public void testFailureToReadFileDoesntFail() throws Exception {
+        Path tempDir = createTempDir();
+        Path clientCertPath = tempDir.resolve("testclient.crt");
+        Settings settings = baseKeystoreSettings(tempDir, null)
+            .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+
+        final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
+        Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any()))
+            .thenThrow(randomBoolean() ? new AccessControlException("access denied in test") : new IOException("file error for testing"));
+        final Collection<SslConfiguration> configurations = SSLService.getSSLConfigurations(env).values();
+        try {
+            new SSLConfigurationReloader(ignore -> {}, mockResourceWatcher, configurations);
+        } catch (Exception e) {
+            fail("SSLConfigurationReloader threw exception, but is expected to catch and log file access errors instead:" + e);
+        }
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {

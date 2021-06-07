@@ -46,6 +46,7 @@ public class BertTokenizer {
     private final boolean doLowerCase;
     private final boolean doTokenizeCjKChars;
     private final boolean doStripAccents;
+    private final boolean withSpecialTokens;
     private final Set<String> neverSplit;
 
     private BertTokenizer(
@@ -54,6 +55,7 @@ public class BertTokenizer {
                           boolean doLowerCase,
                           boolean doTokenizeCjKChars,
                           boolean doStripAccents,
+                          boolean withSpecialTokens,
                           Set<String> neverSplit) {
         wordPieceTokenizer = new WordPieceTokenizer(vocab, UNKNOWN_TOKEN, DEFAULT_MAX_INPUT_CHARS_PER_WORD);
         this.originalVocab = originalVocab;
@@ -61,11 +63,8 @@ public class BertTokenizer {
         this.doLowerCase = doLowerCase;
         this.doTokenizeCjKChars = doTokenizeCjKChars;
         this.doStripAccents = doStripAccents;
+        this.withSpecialTokens = withSpecialTokens;
         this.neverSplit = Sets.union(neverSplit, NEVER_SPLIT);
-    }
-
-    public TokenizationResult tokenize(String text) {
-        return tokenize(text, true);
     }
 
     /**
@@ -75,10 +74,9 @@ public class BertTokenizer {
      * The result is the Word Piece tokens, a map of the Word Piece
      * token position to the position of the token in the source
      * @param text Text to tokenize
-     * @param withSpecialTokens Include CLS and SEP tokens
      * @return Tokenized text, token Ids and map
      */
-    public TokenizationResult tokenize(String text, boolean withSpecialTokens) {
+    public TokenizationResult tokenize(String text) {
         BasicTokenizer basicTokenizer = new BasicTokenizer(doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
 
         List<String> delineatedTokens = basicTokenizer.tokenize(text);
@@ -194,6 +192,7 @@ public class BertTokenizer {
         private final SortedMap<String, Integer> vocab;
         private boolean doLowerCase = false;
         private boolean doTokenizeCjKChars = true;
+        private boolean withSpecialTokens = true;
         private Boolean doStripAccents = null;
         private Set<String> neverSplit;
 
@@ -230,6 +229,16 @@ public class BertTokenizer {
             return this;
         }
 
+        /**
+         * Include CLS and SEP tokens
+         * @param withSpecialTokens if true include CLS and SEP tokens
+         * @return this
+         */
+        public Builder setWithSpecialTokens(boolean withSpecialTokens) {
+            this.withSpecialTokens = withSpecialTokens;
+            return this;
+        }
+
         public BertTokenizer build() {
             // if not set strip accents defaults to the value of doLowerCase
             if (doStripAccents == null) {
@@ -240,7 +249,7 @@ public class BertTokenizer {
                 neverSplit = Collections.emptySet();
             }
 
-            return new BertTokenizer(originalVocab, vocab, doLowerCase, doTokenizeCjKChars, doStripAccents, neverSplit);
+            return new BertTokenizer(originalVocab, vocab, doLowerCase, doTokenizeCjKChars, doStripAccents, withSpecialTokens, neverSplit);
         }
     }
 }

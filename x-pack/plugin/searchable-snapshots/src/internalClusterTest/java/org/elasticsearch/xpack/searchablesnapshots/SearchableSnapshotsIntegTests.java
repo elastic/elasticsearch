@@ -938,6 +938,10 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
 
+        internalCluster().fullRestart();
+        ensureGreen(restoredIndexName);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
+
         final IllegalArgumentException remountException = expectThrows(IllegalArgumentException.class, () -> {
             try {
                 mountSnapshot(

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.ml.inference.deployment;
+package org.elasticsearch.xpack.ml.inference.deployment;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -24,10 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-/*
- * TODO This does not necessarily belong in core. Will have to reconsider
- * once we figure the format we store inference results in client calls.
-*/
 public class PyTorchResult implements ToXContentObject, Writeable {
 
     private static final ParseField REQUEST_ID = new ParseField("request_id");
@@ -54,6 +50,10 @@ public class PyTorchResult implements ToXContentObject, Writeable {
             ObjectParser.ValueType.VALUE_ARRAY
         );
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ERROR);
+    }
+
+    public static PyTorchResult fromXContent(XContentParser parser) throws IOException {
+        return PARSER.parse(parser, null);
     }
 
     private final String requestId;
@@ -121,7 +121,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(requestId, Arrays.hashCode(inference), error);
+        return Objects.hash(requestId, Arrays.deepHashCode(inference), error);
     }
 
     @Override
@@ -131,7 +131,7 @@ public class PyTorchResult implements ToXContentObject, Writeable {
 
         PyTorchResult that = (PyTorchResult) other;
         return Objects.equals(requestId, that.requestId)
-            && Objects.equals(inference, that.inference)
+            && Arrays.deepEquals(inference, that.inference)
             && Objects.equals(error, that.error);
     }
 }

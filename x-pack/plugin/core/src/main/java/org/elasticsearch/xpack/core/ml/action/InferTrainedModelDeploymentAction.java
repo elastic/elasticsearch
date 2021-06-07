@@ -130,7 +130,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             results.toXContent(builder, params);
+            builder.endObject();
             return builder;
         }
 

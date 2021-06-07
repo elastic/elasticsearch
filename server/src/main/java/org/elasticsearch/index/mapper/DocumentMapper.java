@@ -24,7 +24,9 @@ public class DocumentMapper {
      * @return the newly created document mapper
      */
     public static DocumentMapper createEmpty(String type, MapperService mapperService) {
-        Mapping mapping = mapperService.parseMapping(type, null, true);
+        RootObjectMapper root = new RootObjectMapper.Builder(type).build(new ContentPath(1));
+        MetadataFieldMapper[] metadata = mapperService.getMetadataMappers(type).values().toArray(new MetadataFieldMapper[0]);
+        Mapping mapping = new Mapping(root, metadata, null);
         return new DocumentMapper(mapperService.documentParser(), mapping);
     }
 

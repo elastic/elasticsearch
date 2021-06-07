@@ -132,7 +132,11 @@ public class PersistentTasksService {
      * or above.
      */
     public boolean isLocalAbortSupported() {
-        return clusterService.state().nodes().getMinNodeVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION);
+        return isLocalAbortSupported(clusterService.state());
+    }
+
+    public static boolean isLocalAbortSupported(ClusterState state) {
+        return state.nodes().getMinNodeVersion().onOrAfter(LOCAL_ABORT_AVAILABLE_VERSION);
     }
 
     /**

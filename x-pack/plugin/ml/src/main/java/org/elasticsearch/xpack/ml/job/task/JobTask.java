@@ -16,12 +16,14 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class JobTask extends AllocatedPersistentTask implements OpenJobAction.JobTaskMatcher {
 
     private static final Logger LOGGER = LogManager.getLogger(JobTask.class);
 
     private final String jobId;
+    private final AtomicBoolean isVacating = new AtomicBoolean();
     private volatile AutodetectProcessManager autodetectProcessManager;
     private volatile boolean isClosing = false;
 
@@ -46,6 +48,18 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
         return isClosing;
     }
 
+    public boolean triggerVacate() {
+        return isVacating.compareAndSet(false, true);
+    }
+
+    public boolean changeVacateToClose() {
+        return isVacating.compareAndSet(true, false);
+    }
+
+    public boolean isVacating() {
+        return isVacating.get();
+    }
+
     public void closeJob(String reason) {
         isClosing = true;
         autodetectProcessManager.closeJob(this, reason);
@@ -59,5 +73,4 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
     void setAutodetectProcessManager(AutodetectProcessManager autodetectProcessManager) {
         this.autodetectProcessManager = autodetectProcessManager;
     }
-
 }

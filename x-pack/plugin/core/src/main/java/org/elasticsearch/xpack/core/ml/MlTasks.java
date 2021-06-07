@@ -331,4 +331,31 @@ public final class MlTasks {
 
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
     }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> datafeedTasksOnNode(
+        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(DATAFEED_TASK_NAME, task -> nodeId.equals(task.getExecutorNode()));
+    }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> jobTasksOnNode(
+        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_TASK_NAME, task -> nodeId.equals(task.getExecutorNode()));
+    }
+
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>> snapshotUpgradeTasksOnNode(
+        @Nullable PersistentTasksCustomMetadata tasks, String nodeId) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(JOB_SNAPSHOT_UPGRADE_TASK_NAME, task -> nodeId.equals(task.getExecutorNode()));
+    }
 }

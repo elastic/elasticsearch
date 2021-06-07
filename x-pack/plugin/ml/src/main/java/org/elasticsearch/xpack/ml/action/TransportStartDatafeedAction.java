@@ -462,14 +462,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 return;
             }
             datafeedTask.datafeedRunner = datafeedRunner;
-            datafeedRunner.run(datafeedTask,
-                    (error) -> {
-                        if (error != null) {
-                            datafeedTask.markAsFailed(error);
-                        } else {
-                            datafeedTask.markAsCompleted();
-                        }
-                    });
+            datafeedRunner.run(datafeedTask, datafeedTask::completeOrFailIfRequired);
         }
 
         @Override
@@ -538,6 +531,18 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         public void isolate() {
             if (datafeedRunner != null) {
                 datafeedRunner.isolateDatafeed(getAllocationId());
+            }
+        }
+
+        void completeOrFailIfRequired(Exception error) {
+            // A task can only be completed or failed once - trying multiple times just causes log spam
+            if (isCompleted()) {
+                return;
+            }
+            if (error != null) {
+                markAsFailed(error);
+            } else {
+                markAsCompleted();
             }
         }
 

@@ -326,7 +326,11 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {
-                if (shouldFinalizeJob) {
+                // Beyond this point it's too late to change our minds about whether we're closing or vacating
+                if (jobTask.isVacating()) {
+                    jobTask.markAsLocallyAborted(
+                        "previously assigned node [" + clusterState.nodes().getLocalNode().getName() + "] is shutting down");
+                } else if (shouldFinalizeJob) {
                     FinalizeJobExecutionAction.Request finalizeRequest = new FinalizeJobExecutionAction.Request(new String[]{jobId});
                     finalizeRequest.masterNodeTimeout(PERSISTENT_TASK_MASTER_NODE_TIMEOUT);
                     executeAsyncWithOrigin(client, ML_ORIGIN, FinalizeJobExecutionAction.INSTANCE, finalizeRequest,

@@ -568,7 +568,7 @@ public class MlConfigMigrator {
      * @param clusterState The cluster state
      * @return The closed job configurations
      */
-    public static List<DatafeedConfig> stopppedOrUnallocatedDatafeeds(ClusterState clusterState) {
+    public static List<DatafeedConfig> stoppedOrUnallocatedDatafeeds(ClusterState clusterState) {
         PersistentTasksCustomMetadata persistentTasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         Set<String> startedDatafeedIds = MlTasks.startedDatafeedIds(persistentTasks);
         startedDatafeedIds.removeAll(MlTasks.unassignedDatafeedIds(persistentTasks, clusterState.nodes()));
@@ -594,7 +594,7 @@ public class MlConfigMigrator {
     }
 
     public static List<JobsAndDatafeeds> splitInBatches(ClusterState clusterState) {
-        Collection<DatafeedConfig> stoppedDatafeeds = stopppedOrUnallocatedDatafeeds(clusterState);
+        Collection<DatafeedConfig> stoppedDatafeeds = stoppedOrUnallocatedDatafeeds(clusterState);
         Map<String, Job> eligibleJobs = nonDeletingJobs(closedOrUnallocatedJobs(clusterState)).stream()
             .map(MlConfigMigrator::updateJobForMigration)
             .collect(Collectors.toMap(Job::getId, Function.identity(), (a, b) -> a));

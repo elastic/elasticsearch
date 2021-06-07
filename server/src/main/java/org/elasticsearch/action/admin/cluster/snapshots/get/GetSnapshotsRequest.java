@@ -11,9 +11,11 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -31,7 +33,17 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String ALL_SNAPSHOTS = "_all";
     public static final String CURRENT_SNAPSHOT = "_current";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
+
     public static final Version MULTIPLE_REPOSITORIES_SUPPORT_ADDED = Version.V_8_0_0;
+
+    public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_8_0_0;
+
+    private int size = 0;
+
+    @Nullable
+    private After after;
+
+    private GetSnapshotsAction.SortBy sort = GetSnapshotsAction.SortBy.START_TIME;
 
     private String[] repositories;
 
@@ -74,6 +86,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         snapshots = in.readStringArray();
         ignoreUnavailable = in.readBoolean();
         verbose = in.readBoolean();
+        if (in.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            after = in.readOptionalWriteable(After::new);
+            sort = in.readEnum(GetSnapshotsAction.SortBy.class);
+            size = in.readVInt();
+        }
     }
 
     @Override
@@ -91,6 +108,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeStringArray(snapshots);
         out.writeBoolean(ignoreUnavailable);
         out.writeBoolean(verbose);
+        if (out.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            out.writeOptionalWriteable(after);
+            out.writeEnum(sort);
+            out.writeVInt(size);
+        }
     }
 
     @Override
@@ -172,6 +194,25 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public GetSnapshotsRequest pagination(After after, GetSnapshotsAction.SortBy sort, int size) {
+        this.after = after;
+        this.sort = sort;
+        this.size = size;
+        return this;
+    }
+
+    public After after() {
+        return after;
+    }
+
+    public GetSnapshotsAction.SortBy sort() {
+        return sort;
+    }
+
+    public int size() {
+        return size;
+    }
+
     /**
      * Returns whether the request will return a verbose response.
      */
@@ -182,5 +223,27 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Override
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+    }
+
+    public static final class After implements Writeable {
+
+        private final String value;
+
+        private final String snapshotUUID;
+
+        After(StreamInput in) throws IOException {
+            this(in.readString(), in.readString());
+        }
+
+        After(String value, String snapshotUUID) {
+            this.value = value;
+            this.snapshotUUID = snapshotUUID;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(value);
+            out.writeString(snapshotUUID);
+        }
     }
 }

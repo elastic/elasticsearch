@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
@@ -261,7 +260,6 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver expressionResolver,
-        BigArrays bigArrays,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);

@@ -107,7 +107,9 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
 
     public AsyncTaskManagementService(String index, Client client, String origin, NamedWriteableRegistry registry, TaskManager taskManager,
                                       String action, AsyncOperation<Request, Response, T> operation, Class<T> taskClass,
-                                      ClusterService clusterService, ThreadPool threadPool, BigArrays bigArrays) {
+                                      ClusterService clusterService,
+                                      ThreadPool threadPool,
+                                      BigArrays bigArrays) {
         this.taskManager = taskManager;
         this.action = action;
         this.operation = operation;

@@ -268,7 +268,7 @@ public class XPackPlugin extends XPackClientPlugin
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver, BigArrays bigArrays,
+                                               IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         List<Object> components = new ArrayList<>();
 

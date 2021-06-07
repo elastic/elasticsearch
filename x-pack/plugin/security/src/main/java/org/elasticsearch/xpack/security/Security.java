@@ -403,7 +403,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                                                ResourceWatcherService resourceWatcherService, ScriptService scriptService,
                                                NamedXContentRegistry xContentRegistry, Environment environment,
                                                NodeEnvironment nodeEnvironment, NamedWriteableRegistry namedWriteableRegistry,
-                                               IndexNameExpressionResolver expressionResolver, BigArrays bigArrays,
+                                               IndexNameExpressionResolver expressionResolver,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         try {
             return createComponents(client, threadPool, clusterService, resourceWatcherService, scriptService, xContentRegistry,

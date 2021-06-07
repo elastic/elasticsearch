@@ -13,7 +13,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -79,7 +78,6 @@ public class AzureStorageServiceTests extends ESTestCase {
             null,
             null,
             null,
-            BigArrays.NON_RECYCLING_INSTANCE,
             null);
         return plugin;
     }

@@ -548,7 +548,7 @@ public class Node implements Closeable {
                 .flatMap(p -> p.createComponents(client, clusterService, threadPool, resourceWatcherService,
                     scriptService, xContentRegistry, environment, nodeEnvironment,
                     namedWriteableRegistry, clusterModule.getIndexNameExpressionResolver(),
-                    bigArrays, repositoriesServiceReference::get).stream())
+                    repositoriesServiceReference::get).stream())
                 .collect(Collectors.toList());
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),

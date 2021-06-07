@@ -149,7 +149,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
 
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
-        final BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
             transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool(),
             bigArrays);

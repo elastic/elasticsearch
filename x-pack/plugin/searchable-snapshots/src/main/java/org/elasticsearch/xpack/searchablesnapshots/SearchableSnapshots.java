@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
@@ -331,7 +330,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         final NodeEnvironment nodeEnvironment,
         final NamedWriteableRegistry registry,
         final IndexNameExpressionResolver resolver,
-        final BigArrays bigArrays,
         final Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         final List<Object> components = new ArrayList<>();

@@ -61,6 +61,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         alias = "alias-" + randomAlphaOfLength(5);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71010")
     public void testExplainFilters() throws Exception {
         String goodIndex = index + "-good-000001";
         String errorIndex = index + "-error";

@@ -11,7 +11,6 @@ package org.elasticsearch.gradle.internal
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import spock.lang.Ignore
 import spock.lang.IgnoreIf
 import spock.lang.Unroll
 

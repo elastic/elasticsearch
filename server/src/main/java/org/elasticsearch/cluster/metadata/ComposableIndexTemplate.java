@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
@@ -256,12 +257,21 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
     public static class DataStreamTemplate implements Writeable, ToXContentObject {
 
+        public static final Version DATA_STREAM_ALIAS_VERSION = Version.V_8_0_0;
+
         private static final ParseField HIDDEN = new ParseField("hidden");
+        private static final ParseField ALIASES = new ParseField("aliases");
 
         public static final ConstructingObjectParser<DataStreamTemplate, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_template",
             false,
-            a -> new DataStreamTemplate(a[0] != null && (boolean) a[0]));
+            args -> {
+                boolean hidden = args[0] != null && (boolean) args[0];
+                @SuppressWarnings("unchecked")
+                Map<String, AliasMetadata> aliases = (Map<String, AliasMetadata>) args[1];
+                return new DataStreamTemplate(hidden, aliases);
+            }
+        );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
@@ -269,16 +279,23 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         private final boolean hidden;
 
+        @Nullable
+        private final Map<String, AliasMetadata> aliases;
+
         public DataStreamTemplate() {
-            this(false);
+            this(false, null);
         }
 
-        public DataStreamTemplate(boolean hidden) {
+        public DataStreamTemplate(boolean hidden, Map<String, AliasMetadata> aliases) {
             this.hidden = hidden;
+            this.aliases = aliases;
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
             hidden = in.readBoolean();
+            aliases = in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)
+                ? in.readBoolean() ? in.readMap(StreamInput::readString, AliasMetadata::new) : null
+                : null;
         }
 
         public String getTimestampField() {
@@ -300,12 +317,27 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(hidden);
+            if (out.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
+                if (aliases != null) {
+                    out.writeBoolean(true);
+                    out.writeMap(aliases, StreamOutput::writeString, (innerOut, alias) -> alias.writeTo(innerOut));
+                } else {
+                    out.writeBoolean(false);
+                }
+            }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field("hidden", hidden);
+            if (aliases != null) {
+                builder.startObject("aliases");
+                for (var alias : aliases.values()) {
+                    alias.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
             builder.endObject();
             return builder;
         }
@@ -315,12 +347,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DataStreamTemplate that = (DataStreamTemplate) o;
-            return hidden == that.hidden;
+            return hidden == that.hidden && Objects.equals(aliases, that.aliases);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(hidden);
+            return Objects.hash(hidden, aliases);
         }
     }
 

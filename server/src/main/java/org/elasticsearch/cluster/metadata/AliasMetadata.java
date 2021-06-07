@@ -32,6 +32,7 @@ import java.util.Objects;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.metadata.ComposableIndexTemplate.DataStreamTemplate.DATA_STREAM_ALIAS_VERSION;
 
 public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements ToXContentFragment {
 
@@ -51,8 +52,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
+    @Nullable
+    private final Boolean isDataStream;
+
     private AliasMetadata(String alias, CompressedXContent filter, String indexRouting, String searchRouting, Boolean writeIndex,
-                          @Nullable Boolean isHidden) {
+                          @Nullable Boolean isHidden, @Nullable Boolean isDataStream) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -64,11 +68,12 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         this.writeIndex = writeIndex;
         this.isHidden = isHidden;
+        this.isDataStream = isDataStream;
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
         this(alias, aliasMetadata.filter(), aliasMetadata.indexRouting(), aliasMetadata.searchRouting(), aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden);
+            aliasMetadata.isHidden, aliasMetadata.isDataStream);
     }
 
     public String alias() {
@@ -120,6 +125,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return isHidden;
     }
 
+    @Nullable
+    public Boolean isDataStream() {
+        return isDataStream;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -148,6 +158,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         if (Objects.equals(searchRouting, that.searchRouting) == false) return false;
         if (Objects.equals(writeIndex, that.writeIndex) == false) return false;
         if (Objects.equals(isHidden, that.isHidden) == false) return false;
+        if (Objects.equals(isDataStream, that.isDataStream) == false) return false;
 
         return true;
     }
@@ -159,6 +170,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
         result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
+        result = 31 * result + (isDataStream != null ? isDataStream.hashCode() : 0);
         return result;
     }
 
@@ -185,6 +197,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden);
+        if (out.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
+            out.writeOptionalBoolean(isDataStream);
+        }
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -208,6 +223,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
+        isDataStream = in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION) ? in.readOptionalBoolean() : false;
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -248,6 +264,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         @Nullable
         private Boolean isHidden;
+
+        @Nullable
+        private Boolean isDataStream;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -310,8 +329,13 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             return this;
         }
 
+        public Builder isDataStream(@Nullable Boolean isDataStream) {
+            this.isDataStream = isDataStream;
+            return this;
+        }
+
         public AliasMetadata build() {
-            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden);
+            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, isDataStream);
         }
 
         public static void toXContent(AliasMetadata aliasMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -339,6 +363,10 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
             if (aliasMetadata.isHidden != null) {
                 builder.field("is_hidden", aliasMetadata.isHidden());
+            }
+
+            if (aliasMetadata.isDataStream != null) {
+                builder.field("is_data_stream", aliasMetadata.isDataStream());
             }
 
             builder.endObject();
@@ -384,6 +412,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                         builder.writeIndex(parser.booleanValue());
                     } else if ("is_hidden".equals(currentFieldName)) {
                         builder.isHidden(parser.booleanValue());
+                    } else if ("is_data_stream".equals(currentFieldName)) {
+                        builder.isDataStream(parser.booleanValue());
                     }
                 }
             }

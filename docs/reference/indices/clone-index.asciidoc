@@ -53,10 +53,13 @@ and then the previous write index can be cloned.
 [[clone-index-api-desc]]
 ==== {api-description-title}
 
-Use the clone index API
-to clone an existing index into a new index,
-where each original primary shard is cloned
-into a new primary shard in the new index.
+Use the clone index API to clone an existing index into a new index, where each
+original primary shard is cloned into a new primary shard in the new index.
+
+IMPORTANT: Cloning doesn't copy index metadata. This metadata includes aliases,
+{ilm-init} phase definitions, and {ccr-init} follower information. For example,
+if you clone a {ccr-init} follower index, the resulting clone won't be a
+follower index.
 
 [[cloning-works]]
 ===== How cloning works

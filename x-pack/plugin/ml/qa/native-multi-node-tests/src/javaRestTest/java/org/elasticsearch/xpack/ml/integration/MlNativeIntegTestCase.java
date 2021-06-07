@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -169,7 +168,6 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
 
         Settings.Builder builder = Settings.builder();
         builder.putList("node.roles", Collections.emptyList());
-        builder.put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false);
         builder.put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4);
         builder.put(XPackSettings.MACHINE_LEARNING_ENABLED.getKey(), true);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), true);

@@ -200,6 +200,8 @@ public final class DocumentPermissions implements CacheKey {
         if (queries == null && limitedByDocumentPermissions.queries == null) {
             return DocumentPermissions.allowAll();
         }
+        // TODO: should we apply the same logic here as FieldPermissions#limitFieldPermissions,
+        //       i.e. treat limited-by as queries if original queries is null?
         return new DocumentPermissions(queries, limitedByDocumentPermissions.queries);
     }
 

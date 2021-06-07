@@ -101,7 +101,7 @@ public class FieldPermissionsTests extends ESTestCase {
         //   1. Just the definition
         //   2. Just the limited-by definition
         //   3. both
-        // The cache key should differentiate between all above
+        // The cache key should differentiate between them
 
         // Just definition
         final BytesStreamOutput out0 = new BytesStreamOutput();
@@ -144,10 +144,11 @@ public class FieldPermissionsTests extends ESTestCase {
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
-        assertThat(Arrays.equals(BytesReference.toBytes(out2.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
+
+        // Just limited by is the same as definition because limitFieldPermissions uses limited-by definition if the original
+        // permission is match all
+        assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out3.bytes())), is(true));
     }
 
     private static FieldPermissionsDefinition fieldPermissionDef(String[] granted, String[] denied) {

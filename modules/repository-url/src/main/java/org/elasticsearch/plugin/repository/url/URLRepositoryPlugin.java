@@ -78,6 +78,7 @@ public class URLRepositoryPlugin extends Plugin implements RepositoryPlugin {
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
+                                               BigArrays bigArrays,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
 
         final URLHttpClient.Factory apacheURLHttpClientFactory = new URLHttpClient.Factory();

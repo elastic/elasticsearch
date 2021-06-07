@@ -101,6 +101,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
                                                NodeEnvironment nodeEnvironment,
                                                NamedWriteableRegistry namedWriteableRegistry,
                                                IndexNameExpressionResolver indexNameExpressionResolver,
+                                               BigArrays bigArrays,
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         AzureClientProvider azureClientProvider =
             AzureClientProvider.create(threadPool, settings);

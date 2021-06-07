@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -70,6 +71,7 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
         NodeEnvironment nodeEnvironment,
         NamedWriteableRegistry namedWriteableRegistry,
         IndexNameExpressionResolver indexNameExpressionResolver,
+        BigArrays bigArrays,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         List<Object> components = new ArrayList<>();
@@ -82,7 +84,8 @@ public class AsyncResultsIndexPlugin extends Plugin implements SystemIndexPlugin
                 client,
                 ASYNC_SEARCH_ORIGIN,
                 AsyncSearchResponse::new,
-                namedWriteableRegistry
+                namedWriteableRegistry,
+                bigArrays
             );
             AsyncTaskMaintenanceService maintenanceService = new AsyncTaskMaintenanceService(
                 clusterService,

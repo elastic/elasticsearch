@@ -13,6 +13,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -85,9 +86,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         TransportService transportService = getInstanceFromNode(TransportService.class);
         indexService = new AsyncTaskIndexService<>("test", clusterService, transportService.getThreadPool().getThreadContext(),
-            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry());
+            client(), ASYNC_SEARCH_ORIGIN, TestAsyncResponse::new, writableRegistry(), bigArrays);
     }
 
     public void testEncodeSearchResponse() throws IOException {

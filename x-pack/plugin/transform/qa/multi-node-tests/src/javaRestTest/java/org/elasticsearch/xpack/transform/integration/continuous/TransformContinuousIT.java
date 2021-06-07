@@ -155,7 +155,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67887")
     public void testContinousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));

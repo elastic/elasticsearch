@@ -2089,15 +2089,11 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                         Collections.singletonMap(pattern, emptyMap()))))
             .build();
 
-        ClusterState remoteState = null;
+        ClusterState remoteState = ClusterState.EMPTY_STATE;
         final int nbLeaderIndices = randomIntBetween(0, 15);
         for (int i = 0; i < nbLeaderIndices; i++) {
             String indexName = "docs-" + i;
-            if (remoteState == null) {
-                remoteState = createRemoteClusterState(indexName, true);
-            } else {
-                remoteState = createRemoteClusterState(remoteState, indexName);
-            }
+            remoteState = createRemoteClusterState(remoteState, indexName);
         }
 
         final int nbLeaderExcludedIndices = randomIntBetween(1, 15);

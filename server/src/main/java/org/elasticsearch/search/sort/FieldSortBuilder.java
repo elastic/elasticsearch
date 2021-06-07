@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -622,20 +623,16 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Throws an exception if the provided <code>field</code> requires a nested context.
      */
     static void validateMissingNestedPath(SearchExecutionContext context, String field) {
-        ObjectMapper contextMapper = context.nestedScope().getObjectMapper();
-        if (contextMapper != null && contextMapper.nested().isNested() == false) {
+        NestedObjectMapper contextMapper = context.nestedScope().getObjectMapper();
+        if (contextMapper != null) {
             // already in nested context
             return;
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper parentMapper = context.getObjectMapper(parent);
-            if (parentMapper != null && parentMapper.nested().isNested()) {
-                if (contextMapper != null && contextMapper.fullPath().equals(parentMapper.fullPath())) {
-                    // we are in a nested context that matches the path of the provided field so the nested path
-                    // is not required
-                    return ;
-                }
-                if (parentMapper.nested().isIncludeInRoot() == false) {
+            if (parentMapper != null && parentMapper.isNested()) {
+                NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
+                if (parentNested.isIncludeInRoot() == false) {
                     throw new QueryShardException(context,
                         "it is mandatory to set the [nested] context on the nested sort field: [" + field + "].");
                 }

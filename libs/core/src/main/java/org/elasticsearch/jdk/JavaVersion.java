@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.bootstrap;
+package org.elasticsearch.jdk;
 
 import java.math.BigInteger;
 import java.util.ArrayList;

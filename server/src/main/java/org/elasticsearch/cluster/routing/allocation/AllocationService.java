@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -121,19 +123,7 @@ public class AllocationService {
         return buildResultAndLogHealthChange(clusterState, allocation, "shards started [" + startedShardsAsString + "]");
     }
 
-    protected ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
-        ClusterState newState = buildResult(oldState, allocation);
-
-        logClusterHealthStateChange(
-            new ClusterStateHealth(oldState),
-            new ClusterStateHealth(newState),
-            reason
-        );
-
-        return newState;
-    }
-
-    private ClusterState buildResult(ClusterState oldState, RoutingAllocation allocation) {
+    private ClusterState buildResultAndLogHealthChange(ClusterState oldState, RoutingAllocation allocation, String reason) {
         final RoutingTable oldRoutingTable = oldState.routingTable();
         final RoutingNodes newRoutingNodes = allocation.routingNodes();
         final RoutingTable newRoutingTable = new RoutingTable.Builder().updateNodes(oldRoutingTable.version(), newRoutingNodes).build();
@@ -152,7 +142,15 @@ public class AllocationService {
                 newStateBuilder.customs(customsBuilder.build());
             }
         }
-        return newStateBuilder.build();
+        final ClusterState newState = newStateBuilder.build();
+
+        logClusterHealthStateChange(
+            new ClusterStateHealth(oldState),
+            new ClusterStateHealth(newState),
+            reason
+        );
+
+        return newState;
     }
 
     // Used for testing
@@ -246,7 +244,7 @@ public class AllocationService {
         disassociateDeadNodes(allocation);
 
         if (allocation.routingNodesChanged()) {
-            clusterState = buildResult(clusterState, allocation);
+            clusterState = buildResultAndLogHealthChange(clusterState, allocation, reason);
         }
         if (reroute) {
             return reroute(clusterState, reason);
@@ -375,9 +373,14 @@ public class AllocationService {
     }
 
     /**
-     * Reroutes the routing table based on the live nodes.
+     * Computes the next step towards a fully allocated and balanced cluster and records this step in the routing table of the returned
+     * state. Should be called after every change to the cluster that affects the routing table and/or the balance of shards.
      * <p>
-     * If the same instance of ClusterState is returned, then no change has been made.
+     * This method is expensive in larger clusters. Wherever possible you should invoke this method asynchronously using
+     * {@link RerouteService#reroute} to batch up invocations rather than calling the method directly. The node's reroute service is
+     * typically obtained from {@link ClusterService#getRerouteService}.
+     *
+     * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);

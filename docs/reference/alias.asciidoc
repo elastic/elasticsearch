@@ -45,9 +45,8 @@ POST _aliases
 ----
 // TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\n/]
 
-The API's `index` and `indices` parameters support wildcards (`*`). If a
-wildcard pattern matches both data streams and indices, the action only uses
-matching data streams.
+The API's `index` and `indices` parameters support wildcards (`*`). Wildcard
+patterns that match both data streams and indices return an error.
 
 [source,console]
 ----
@@ -210,7 +209,8 @@ GET _alias/logs
 === Write index
 
 If an alias points to multiple indices, you can use `is_write_index` to specify
-a write index. {es} routes any write requests for the alias to this index.
+a write index or data stream. {es} routes any write requests for the alias to
+this index or data stream.
 
 [source,console]
 ----
@@ -219,31 +219,32 @@ POST _aliases
   "actions": [
     {
       "add": {
-        "index": "my-index-2099.05.06-000001",
-        "alias": "my-alias"
+        "index": "logs-nginx.access-prod",
+        "alias": "logs"
       }
     },
     {
       "add": {
-        "index": "my-index-2099.05.07-000002",
-        "alias": "my-alias",
+        "index": "logs-my_app-default",
+        "alias": "logs",
         "is_write_index": true
       }
     }
   ]
 }
 ----
-// TEST[s/^/PUT my-index-2099.05.06-000001\nPUT my-index-2099.05.07-000002\n/]
+// TEST[s/^/PUT _data_stream\/logs-nginx.access-prod\nPUT _data_stream\/logs-my_app-default\n/]
+
+If an alias points to multiple indices or data streams and `is_write_index`
+isn't set, the alias rejects write requests. If an index alias points to one
+index and `is_write_index` isn't set, the index automatically acts as the write
+index. Data stream aliases don't automatically set a write data stream, even if
+the alias points to one data stream.
 
 TIP: We recommend using data streams to store append-only time series data. If
 you frequently update or delete existing time series data, use an index alias
 with a write index instead. See
 <<manage-time-series-data-without-data-streams>>.
-
-If an alias points to multiple indices with no write index, the alias rejects
-write requests. If an alias points to one index and `is_write_index` is not set,
-the index automatically acts as the write index. Data stream aliases do not
-support `is_write_index`.
 
 [discrete]
 [[filter-alias]]
@@ -259,15 +260,25 @@ POST _aliases
   "actions": [
     {
       "add": {
-        "index": "my-index-2099.05.07-000002",
+        "index": "my-index-2099.05.06-000001",
         "alias": "my-alias",
-        "is_write_index": true,
         "filter": {
-          "range": {
-            "@timestamp": {
-              "gte": "now-1d/d",
-              "lt": "now/d"
-            }
+          "bool": {
+            "filter": [
+              {
+                "range": {
+                  "@timestamp": {
+                    "gte": "now-1d/d",
+                    "lt": "now/d"
+                  }
+                }
+              },
+              {
+                "term": {
+                  "user.id": "kimchy"
+                }
+              }
+            ]
           }
         }
       }
@@ -275,7 +286,7 @@ POST _aliases
   ]
 }
 ----
-// TEST[s/^/PUT my-index-2099.05.07-000002\n/]
+// TEST[s/^/PUT my-index-2099.05.06-000001\n/]
 
 [discrete]
 [[alias-routing]]

@@ -86,6 +86,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -303,16 +304,23 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     public void testWildcardsAreNotAllowedInShardLevelRequests() {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[]{"index*"});
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
-                        .getLocal());
-        assertEquals("There are no external requests known to support wildcards that don't support replacing their indices",
-                illegalStateException.getMessage());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+        );
+        assertThat(
+            exception,
+            throwableWithMessage(
+                "the action indices:data/read/search[s] does not support wildcards;"
+                    + " the provided index expression(s) [index*] are not allowed"
+            )
+        );
     }
 
     public void testAllIsNotAllowedInShardLevelRequests() {
         ShardSearchRequest request = mock(ShardSearchRequest.class);
-        if (randomBoolean()) {
+        final boolean literalAll = randomBoolean();
+        if (literalAll) {
             when(request.indices()).thenReturn(new String[]{"_all"});
         } else {
             if (randomBoolean()) {
@@ -321,11 +329,20 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 when(request.indices()).thenReturn(null);
             }
         }
-        IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> resolveIndices(request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME))
-                        .getLocal());
-        assertEquals("There are no external requests known to support wildcards that don't support replacing their indices",
-                illegalStateException.getMessage());
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> resolveIndices(SearchAction.NAME + "[s]", request, buildAuthorizedIndices(userDashIndices, SearchAction.NAME)).getLocal()
+        );
+
+        assertThat(
+            exception,
+            literalAll
+                ? throwableWithMessage(
+                    "the action indices:data/read/search[s] does not support accessing all indices;"
+                        + " the provided index expression [_all] is not allowed"
+                )
+                : throwableWithMessage("the action indices:data/read/search[s] requires explicit index names, but none were provided")
+        );
     }
 
     public void testExplicitDashIndices() {
@@ -1481,7 +1498,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, true, true));
         Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices
+            = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar", "bar-closed", "foofoobar", "foobarfoo", "foofoo", "foofoo-closed",
             "hidden-open", "hidden-closed", ".hidden-open", ".hidden-closed", "date-hidden-" + todaySuffix,
             "date-hidden-" + tomorrowSuffix));
@@ -1490,7 +1508,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // open + hidden
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(),
             containsInAnyOrder("bar", "foofoobar", "foobarfoo", "foofoo", "hidden-open", ".hidden-open", "date-hidden-" + todaySuffix,
                 "date-hidden-" + tomorrowSuffix));
@@ -1500,7 +1518,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1508,7 +1526,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, true, true, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("bar-closed", "foofoo-closed", "hidden-closed", ".hidden-closed"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1516,7 +1534,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest(randomFrom(".h*", ".hid*"));
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".hidden-closed"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1524,14 +1542,14 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, false, false, false, true, false, true, false));
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // date math with default indices options
         searchRequest = new SearchRequest("<date-hidden-{now/d}>");
         authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME);
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains(oneOf("date-hidden-" + todaySuffix, "date-hidden-" + tomorrowSuffix)));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
     }
@@ -1543,14 +1561,15 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // Visible only
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices
+            = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-visible", "alias-visible-mixed"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Include hidden explicitly
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(),
             containsInAnyOrder("alias-visible", "alias-visible-mixed", "alias-hidden", ".alias-hidden", "hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1558,28 +1577,28 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // Include hidden with a wildcard
         searchRequest = new SearchRequest("alias-h*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("alias-hidden"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Dot prefix, implicitly including hidden
         searchRequest = new SearchRequest(".a*");
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder(".alias-hidden"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (visible only)
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, false, true, false));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), contains("-*"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
 
         // Make sure ignoring aliases works (including hidden)
         searchRequest = new SearchRequest();
         searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, true, true, false, true, false));
-        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+        resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(SearchAction.NAME, searchRequest, metadata, authorizedIndices);
         assertThat(resolvedIndices.getLocal(), containsInAnyOrder("hidden-open"));
         assertThat(resolvedIndices.getRemote(), emptyIterable());
     }
@@ -1593,7 +1612,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
             final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchAction.NAME,
+                searchRequest,
+                metadata,
+                authorizedIndices
+            );
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
 
@@ -1601,7 +1625,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             searchRequest = new SearchRequest();
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, true, true, false, false, true, true, true, true));
-            resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchAction.NAME,
+                searchRequest,
+                metadata,
+                authorizedIndices
+            );
             // if data streams are to be ignored then this happens in IndexNameExpressionResolver:
             assertThat(resolvedIndices.getLocal(), contains("logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
@@ -1614,7 +1643,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             searchRequest.indices("logs-*");
             searchRequest.indicesOptions(IndicesOptions.fromOptions(false, false, true, false, false, true, true, true, true));
             final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, searchRequest);
-            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(searchRequest, metadata, authorizedIndices);
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+                SearchAction.NAME,
+                searchRequest,
+                metadata,
+                authorizedIndices
+            );
             assertThat(resolvedIndices.getLocal(), containsInAnyOrder("logs-foo", "logs-foobar"));
             assertThat(resolvedIndices.getRemote(), emptyIterable());
         }
@@ -1641,7 +1675,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // neither data streams nor their backing indices will be in the resolved list unless the backing indices matched the requested
         // pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            GetAliasesAction.NAME,
+            request,
+            metadata,
+            authorizedIndices);
         for (String dsName : dataStreams) {
             assertThat(resolvedIndices.getLocal(), hasItem(dsName));
             DataStream dataStream = metadata.dataStreams().get(dsName);
@@ -1671,7 +1709,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // neither data streams nor their backing indices will be in the resolved list since the backing indices do not match the
         // requested name(s)
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            GetAliasesAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -1697,7 +1740,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // data streams without their backing indices will be in the resolved list since the backing indices do not match the requested
         // pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            SearchAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), hasItem("logs-foo"));
         assertThat(resolvedIndices.getLocal(), hasItem("logs-foobar"));
         assertThat(resolvedIndices.getLocal(), hasItem("logs-00001"));
@@ -1728,7 +1776,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             assertThat(authorizedIndices, hasItem(i.getName()));
         }
 
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            SearchAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         // data streams without their backing indices will be in the resolved list since the backing indices do not match the requested
         // name
         assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
@@ -1756,7 +1809,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // data streams should _not_ be included in the resolved list because they do not match the pattern but their backing indices
         // should be in the resolved list because they match the pattern and are authorized via extension from their parent data stream
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            SearchAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = metadata.dataStreams().get(dsName);
             assertThat(resolvedIndices.getLocal(), not(hasItem(dsName)));
@@ -1785,7 +1843,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // neither data streams nor their backing indices will be in the resolved list since the request does not support data streams
         // and the backing indices do not match the requested name
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            GetAliasesAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), hasItem(dataStreamName));
         for (Index i : dataStream.getIndices()) {
             assertThat(resolvedIndices.getLocal(), hasItem(i.getName()));
@@ -1811,7 +1874,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // only the backing indices will be in the resolved list since the request does not support data streams
         // but the backing indices match the requested pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            SearchAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices, hasItem(i.getName()));
@@ -1833,7 +1901,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            SearchAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
         assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
     }
@@ -1857,7 +1930,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // only the backing indices will be in the resolved list since the request does not support data streams
         // but the backing indices match the requested pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            GetAliasesAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), not(hasItem(dataStream.getName())));
         for (Index i : dataStream.getIndices()) {
             assertThat(authorizedIndices, hasItem(i.getName()));
@@ -1879,7 +1957,12 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // only the single backing index will be in the resolved list since the request does not support data streams
         // but one of the backing indices matched the requested pattern
-        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(request, metadata, authorizedIndices);
+        ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliases(
+            GetAliasesAction.NAME,
+            request,
+            metadata,
+            authorizedIndices
+        );
         assertThat(resolvedIndices.getLocal(), not(hasItem("logs-foobar")));
         assertThat(resolvedIndices.getLocal(), contains(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
     }
@@ -1904,7 +1987,11 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private ResolvedIndices resolveIndices(TransportRequest request, Set<String> authorizedIndices) {
-        return defaultIndicesResolver.resolve(request, this.metadata, authorizedIndices);
+        return resolveIndices("indices:/" + randomAlphaOfLength(8), request, authorizedIndices);
+    }
+
+    private ResolvedIndices resolveIndices(String action, TransportRequest request, Set<String> authorizedIndices) {
+        return defaultIndicesResolver.resolve(action, request, this.metadata, authorizedIndices);
     }
 
     private static void assertNoIndices(IndicesRequest.Replaceable request, ResolvedIndices resolvedIndices) {

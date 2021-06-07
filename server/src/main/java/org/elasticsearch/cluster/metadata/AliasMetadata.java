@@ -225,6 +225,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         isHidden = in.readOptionalBoolean();
         if (in.getVersion().onOrAfter(DATA_STREAM_ALIAS_VERSION)) {
             isDataStream = in.readOptionalBoolean();
+        } else {
+            isDataStream = null;
         }
     }
 

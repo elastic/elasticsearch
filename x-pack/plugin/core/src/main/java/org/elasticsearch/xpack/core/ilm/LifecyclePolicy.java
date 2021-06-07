@@ -94,6 +94,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         this.name = name;
         this.phases = phases;
         this.type = type;
+    }
+
+    public void validate() {
         this.type.validate(phases.values());
     }
 

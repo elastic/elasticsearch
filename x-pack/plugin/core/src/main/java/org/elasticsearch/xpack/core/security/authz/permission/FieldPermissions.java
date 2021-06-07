@@ -60,7 +60,6 @@ public final class FieldPermissions implements Accountable, CacheKey {
         BASE_HASHSET_ENTRY_SIZE = mapEntryShallowSize + 2 * RamUsageEstimator.NUM_BYTES_OBJECT_REF;
     }
 
-    // This permissions object represents the AND of these definitions (see #limitFieldPermissions)
     private final FieldPermissionsDefinition fieldPermissionsDefinition;
     @Nullable
     private final FieldPermissionsDefinition limitedByFieldPermissionsDefinition;

@@ -98,6 +98,8 @@ public interface RuntimeField extends ToXContentFragment {
                                                            Function<SearchLookup, ObjectFieldScript.LeafFactory> parentScriptFactory);
 
         private void validate() {
+            //TODO does this rely on the assumption that the leaf field name won't contain dots?
+            // That assumption is not valid for runtime fields?
             ContentPath contentPath = parentPath(name());
             FieldMapper.MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
             if (multiFields.iterator().hasNext()) {
@@ -107,6 +109,7 @@ public interface RuntimeField extends ToXContentFragment {
             if (copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException("runtime field [" + name + "] does not support [copy_to]");
             }
+            //TODO we should do something about boost too here
         }
     }
 

@@ -42,7 +42,8 @@ public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
                     throw new IllegalArgumentException("object runtime field [" + name + "] must declare a [script]");
                 }
             });
-            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>("fields",
+            //TODO we call it fields2 for now because it clashes with multi_fields which are rejected for all runtime fields
+            private final FieldMapper.Parameter<Map<String, Object>> fields = new FieldMapper.Parameter<>("fields2",
                 true, Collections::emptyMap, (f, p, o) -> parseFields(f, o), mappers -> {
                 throw new UnsupportedOperationException();
             });
@@ -84,7 +85,7 @@ public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
     @Override
     public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         toXContent.toXContent(builder, params);
-        builder.startObject("fields");
+        builder.startObject("fields2");
         for (RuntimeField runtimeField : subfields.values()) {
             runtimeField.toXContent(builder, params);
         }

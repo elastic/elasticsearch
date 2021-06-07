@@ -43,7 +43,12 @@ You don't have to do that.
   Docs follow the same policy as code and fixes are not ordinarily merged to
   versions that are out of maintenance.
   
-* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions]. 
+* Do not backport doc changes to https://www.elastic.co/support/eol[EOL versions].
+
+* Release notes for known issues are an exception to this policy. Document the 
+  known issue in the release notes for any minor version affected by the issue.
+  Backport the changes to any branch containing release notes for those
+  versions, even if the branch is no longer maintained.
 
 === Snippet testing
 

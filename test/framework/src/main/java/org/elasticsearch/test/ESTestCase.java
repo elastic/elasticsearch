@@ -405,7 +405,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> k.contains(s)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
@@ -418,9 +418,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected List<String> filteredWarnings() {
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            return List.of("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release",
+                "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
         } else {
-            return List.of();
+            return List.of("setting [path.shared_data] is deprecated and will be removed in a future release");
         }
     }
 
@@ -860,6 +861,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static DateTimeZone randomDateTimeZone() {
         return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
+     */
+    public long randomMillisUpToYear9999() {
+        return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
     /**

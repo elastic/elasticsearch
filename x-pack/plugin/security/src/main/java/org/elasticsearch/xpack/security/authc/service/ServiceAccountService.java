@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -23,14 +24,17 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
 
 public class ServiceAccountService {
 
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
+    private static final int MIN_TOKEN_SECRET_LENGTH = 10;
 
     private final ServiceAccountTokenStore serviceAccountTokenStore;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
@@ -101,9 +105,21 @@ public class ServiceAccountService {
                 return;
             }
 
-            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
-                if (success) {
-                    listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+            if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
+                logger.debug("failing authentication for service account token [{}],"
+                        + " the provided credential has length [{}]"
+                        + " but a token's secret value must be at least [{}] characters",
+                    serviceAccountToken.getQualifiedName(),
+                    serviceAccountToken.getSecret().length(),
+                    MIN_TOKEN_SECRET_LENGTH);
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+
+            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource() , nodeName));
                 } else {
                     final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
                     logger.debug(e.getMessage());
@@ -127,12 +143,13 @@ public class ServiceAccountService {
         });
     }
 
-    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
+    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, TokenSource tokenSource,
+                                                String nodeName) {
         final User user = account.asUser();
         final Authentication.RealmRef authenticatedBy =
             new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            Map.of(TOKEN_NAME_FIELD, token.getTokenName()));
+            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {

@@ -55,12 +55,13 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
@@ -164,6 +165,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public static final Setting<Integer> MAX_OPEN_SCROLL_CONTEXT =
         Setting.intSetting("search.max_open_scroll_context", 500, 0, Property.Dynamic, Property.NodeScope);
 
+    public static final Setting<Boolean> ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER = Setting.boolSetting(
+        "search.aggs.rewrite_to_filter_by_filter",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final int DEFAULT_SIZE = 10;
     public static final int DEFAULT_FROM = 0;
 
@@ -176,6 +184,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final ScriptService scriptService;
 
     private final ResponseCollectorService responseCollectorService;
+
+    private final ExecutorSelector executorSelector;
 
     private final BigArrays bigArrays;
 
@@ -197,6 +207,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private volatile int maxOpenScrollContext;
 
+    private volatile boolean enableRewriteAggsToFilterByFilter;
+
     private final Cancellable keepAliveReaper;
 
     private final AtomicLong idGenerator = new AtomicLong();
@@ -210,7 +222,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
-                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService) {
+                         ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService,
+                         ExecutorSelector executorSelector) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -222,6 +235,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.fetchPhase = fetchPhase;
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
+        this.executorSelector = executorSelector;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -243,6 +257,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         lowLevelCancellation = LOW_LEVEL_CANCELLATION_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(LOW_LEVEL_CANCELLATION_SETTING, this::setLowLevelCancellation);
+
+        enableRewriteAggsToFilterByFilter = ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER, this::setEnableRewriteAggsToFilterByFilter);
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {
@@ -277,6 +295,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private void setLowLevelCancellation(Boolean lowLevelCancellation) {
         this.lowLevelCancellation = lowLevelCancellation;
+    }
+
+    private void setEnableRewriteAggsToFilterByFilter(boolean enableRewriteAggsToFilterByFilter) {
+        this.enableRewriteAggsToFilterByFilter = enableRewriteAggsToFilterByFilter;
     }
 
     @Override
@@ -522,7 +544,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert indexShard != null;
         final String executorName;
         if (indexShard.isSystem()) {
-            executorName = Names.SYSTEM_READ;
+            executorName = executorSelector.executorForSearch(indexShard.shardId().getIndexName());
         } else if (indexShard.indexSettings().isSearchThrottled()) {
             executorName = Names.SEARCH_THROTTLED;
         } else {
@@ -968,7 +990,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
                 context::isCancelled,
-                context::buildFilteredQuery
+                context::buildFilteredQuery,
+                enableRewriteAggsToFilterByFilter
             );
             context.addReleasable(aggContext);
             try {
@@ -1055,7 +1078,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (context.from() > 0) {
                 throw new SearchException(shardTarget, "`from` parameter must be set to 0 when `search_after` is used.");
             }
-            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter());
+
+            String collapseField = source.collapse() != null ? source.collapse().getField() : null;
+            FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(context.sort(), source.searchAfter(), collapseField);
             context.searchAfter(fieldDoc);
         }
 
@@ -1081,9 +1106,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.collapse() != null) {
             if (context.scrollContext() != null) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in a scroll context");
-            }
-            if (context.searchAfter() != null) {
-                throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `search_after`");
             }
             if (context.rescore() != null && context.rescore().isEmpty() == false) {
                 throw new SearchException(shardTarget, "cannot use `collapse` in conjunction with `rescore`");

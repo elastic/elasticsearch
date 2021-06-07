@@ -45,7 +45,7 @@ public class RectangleTests extends BaseGeometryTestCase<Rectangle> {
 
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(2, 3, 1, 2)));
-        assertEquals("max y cannot be less than min x", ex.getMessage());
+        assertEquals("max y cannot be less than min y", ex.getMessage());
 
         ex = expectThrows(IllegalArgumentException.class,
             () -> validator.validate(new Rectangle(2, 3, 2, 1, 5, Double.NaN)));

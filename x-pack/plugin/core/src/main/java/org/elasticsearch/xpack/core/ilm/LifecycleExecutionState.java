@@ -371,6 +371,8 @@ public class LifecycleExecutionState {
             Objects.equals(getSnapshotRepository(), that.getSnapshotRepository()) &&
             Objects.equals(getSnapshotName(), that.getSnapshotName()) &&
             Objects.equals(getSnapshotIndexName(), that.getSnapshotIndexName()) &&
+            Objects.equals(getShrinkIndexName(), that.getShrinkIndexName()) &&
+            Objects.equals(getRollupIndexName(), that.getRollupIndexName()) &&
             Objects.equals(getPhaseDefinition(), that.getPhaseDefinition());
     }
 
@@ -378,7 +380,7 @@ public class LifecycleExecutionState {
     public int hashCode() {
         return Objects.hash(getPhase(), getAction(), getStep(), getFailedStep(), isAutoRetryableError(), getFailedStepRetryCount(),
             getStepInfo(), getPhaseDefinition(), getLifecycleDate(), getPhaseTime(), getActionTime(), getStepTime(),
-            getSnapshotRepository(), getSnapshotName(), getSnapshotIndexName());
+            getSnapshotRepository(), getSnapshotName(), getSnapshotIndexName(), getShrinkIndexName(), getRollupIndexName());
     }
 
     @Override

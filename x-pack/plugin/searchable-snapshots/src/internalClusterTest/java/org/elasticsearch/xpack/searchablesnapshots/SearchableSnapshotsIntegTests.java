@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
@@ -20,11 +21,16 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -969,6 +975,123 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 containsString("cannot be mounted; did you mean to restore it instead?")
             )
         );
+    }
+
+    public void testSnapshotOfSearchableSnapshotCanBeRestoredBeforeRepositoryRegistered() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+        );
+
+        final TotalHits originalAllHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits();
+        final TotalHits originalBarHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .setQuery(matchQuery("foo", "bar"))
+            .get()
+            .getHits()
+            .getTotalHits();
+        logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
+
+        // Take snapshot containing the actual data to one repository
+        final String dataRepoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(dataRepoName, "fs");
+
+        final SnapshotId dataSnapshot = createSnapshot(dataRepoName, "data-snapshot", List.of(indexName)).snapshotId();
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final String restoredIndexName = randomValueOtherThan(indexName, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        mountSnapshot(dataRepoName, dataSnapshot.getName(), indexName, restoredIndexName, Settings.EMPTY);
+        ensureGreen(restoredIndexName);
+
+        if (randomBoolean()) {
+            logger.info("--> closing index before snapshot");
+            assertAcked(client().admin().indices().prepareClose(restoredIndexName));
+        }
+
+        // Back up the cluster to a different repo
+        final String backupRepoName = randomValueOtherThan(dataRepoName, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        createRepository(backupRepoName, "fs");
+        final SnapshotId backupSnapshot = createSnapshot(backupRepoName, "backup-snapshot", List.of(restoredIndexName)).snapshotId();
+
+        // Clear out data & the repo that contains it
+        final RepositoryMetadata dataRepoMetadata = client().admin()
+            .cluster()
+            .prepareGetRepositories(dataRepoName)
+            .get()
+            .repositories()
+            .get(0);
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+        assertAcked(client().admin().cluster().prepareDeleteRepository(dataRepoName));
+
+        // Restore the backup snapshot
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(backupRepoName, backupSnapshot.getName())
+                .setIndices(restoredIndexName)
+                .get()
+                .status(),
+            equalTo(RestStatus.ACCEPTED)
+        );
+
+        assertBusy(() -> {
+            final ClusterAllocationExplanation clusterAllocationExplanation = client().admin()
+                .cluster()
+                .prepareAllocationExplain()
+                .setIndex(restoredIndexName)
+                .setShard(0)
+                .setPrimary(true)
+                .get()
+                .getExplanation();
+
+            final String description = Strings.toString(clusterAllocationExplanation);
+            final AllocateUnassignedDecision allocateDecision = clusterAllocationExplanation.getShardAllocationDecision()
+                .getAllocateDecision();
+            assertTrue(description, allocateDecision.isDecisionTaken());
+            assertThat(description, allocateDecision.getAllocationDecision(), equalTo(AllocationDecision.NO));
+            for (NodeAllocationResult nodeAllocationResult : allocateDecision.getNodeDecisions()) {
+                for (Decision decision : nodeAllocationResult.getCanAllocateDecision().getDecisions()) {
+                    final String explanation = decision.getExplanation();
+                    if (explanation.contains("this index is backed by a searchable snapshot")
+                        && explanation.contains("no such repository is registered")
+                        && explanation.contains("the required repository was originally named [" + dataRepoName + "]")) {
+                        return;
+                    }
+                }
+            }
+
+            fail(description);
+        });
+
+        assertBusy(() -> {
+            final RestoreInProgress restoreInProgress = client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setCustoms(true)
+                .get()
+                .getState()
+                .custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY);
+            assertTrue(Strings.toString(restoreInProgress, true, true), restoreInProgress.isEmpty());
+        });
+
+        // Re-register the repository containing the actual data & verify that the shards are now allocated
+        final String newRepositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final Settings.Builder settings = Settings.builder().put(dataRepoMetadata.settings());
+        if (randomBoolean()) {
+            settings.put(READONLY_SETTING_KEY, "true");
+        }
+        assertAcked(clusterAdmin().preparePutRepository(newRepositoryName).setType("fs").setSettings(settings));
+
+        ensureGreen(restoredIndexName);
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
     }
 
     private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {

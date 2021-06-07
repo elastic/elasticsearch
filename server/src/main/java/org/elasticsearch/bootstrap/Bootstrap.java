@@ -37,6 +37,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;

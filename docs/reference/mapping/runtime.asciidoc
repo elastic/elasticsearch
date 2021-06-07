@@ -1003,8 +1003,8 @@ POST my-index-000001/_bulk?refresh=true
 
 You can now retrieve calculated values in a search query, and find documents
 based on precise values. The following range query returns all documents where
-the calculated `voltage_corrected` is greater than or equal to `10`, but less
-than or equal to `16`. Again, use the <<search-fields,`fields`>> parameter on
+the calculated `voltage_corrected` is greater than or equal to `16`, but less
+than or equal to `20`. Again, use the <<search-fields,`fields`>> parameter on
 the `_search` API to retrieve the fields you want:
 
 [source,console]

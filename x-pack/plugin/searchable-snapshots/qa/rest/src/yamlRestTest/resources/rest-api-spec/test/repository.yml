@@ -54,7 +54,7 @@ setup:
 ---
 "Delete repository when a snapshot is mounted as an index":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.13.99"
       reason: "starting 8.0, an error occurs when a repository used by snapshot backed indices is deleted"
 
   - do:
@@ -92,4 +92,49 @@ setup:
   - do:
       snapshot.delete_repository:
         repository: repository-fs
+
+
+---
+"Delete snapshot when the snapshot is mounted as an index":
+  - skip:
+      version: " - 7.13.99"
+      reason: "starting 8.0, an error occurs when a snapshot used by snapshot backed indices is deleted"
+
+  - do:
+      searchable_snapshots.mount:
+        repository: repository-fs
+        snapshot: snapshot
+        wait_for_completion: true
+        body:
+          index: docs
+          renamed_index: mounted-docs
+
+  - match: { snapshot.snapshot: snapshot }
+  - match: { snapshot.shards.failed: 0 }
+  - match: { snapshot.shards.successful: 1 }
+
+  # Returns an illegal state exception
+  - do:
+      catch: request
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
+
+  - do:
+      search:
+        index: mounted-docs
+        body:
+          query:
+            match_all: { }
+
+  - match: { hits.total.value: 3 }
+
+  - do:
+      indices.delete:
+        index: mounted-docs
+
+  - do:
+      snapshot.delete:
+        repository: repository-fs
+        snapshot: snapshot
 

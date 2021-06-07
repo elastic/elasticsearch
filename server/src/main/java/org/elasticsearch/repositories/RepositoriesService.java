@@ -683,7 +683,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
+    public static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
         if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
             final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
             if (Strings.hasLength(indexRepositoryUuid)) {

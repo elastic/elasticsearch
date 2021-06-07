@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -68,6 +69,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
@@ -113,6 +116,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -134,6 +138,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
 
     public static final String NO_FEATURE_STATES_VALUE = "none";
+
+    public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY = "index.store.snapshot.snapshot_name";
+    public static final String SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY = "index.store.snapshot.snapshot_uuid";
 
     private final ClusterService clusterService;
 
@@ -1676,6 +1683,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                 "cannot delete snapshot during a restore in progress in [" + restoreInProgress + "]");
                     }
                 }
+
+                for (SnapshotId snapshotId : snapshotIds) {
+                    ensureNoSearchableSnapshotsIndicesInUse(repository.getMetadata(), snapshotId, currentState);
+                }
+
                 // Snapshot ids that will have to be physically deleted from the repository
                 final Set<SnapshotId> snapshotIdsRequiringCleanup = new HashSet<>(snapshotIds);
                 final SnapshotsInProgress updatedSnapshots = SnapshotsInProgress.of(snapshots.entries().stream()
@@ -2427,6 +2439,31 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
             .map(alias -> alias.intersect(dataStreams::containsKey))
             .collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
+    }
+
+    private static void ensureNoSearchableSnapshotsIndicesInUse(RepositoryMetadata repository, SnapshotId snapshot, ClusterState state) {
+        long count = 0L;
+        List<Index> indices = null;
+        for (IndexMetadata indexMetadata : state.metadata()) {
+            final Settings indexSettings = indexMetadata.getSettings();
+            if (RepositoriesService.indexSettingsMatchRepositoryMetadata(indexSettings, repository)
+                && Objects.equals(snapshot.getUUID(), indexSettings.get(SEARCHABLE_SNAPSHOTS_SNAPSHOT_UUID_SETTING_KEY))) {
+                if (indices == null) {
+                    indices = new ArrayList<>();
+                }
+                if (indices.size() < 5) {
+                    indices.add(indexMetadata.getIndex());
+                }
+                count += 1L;
+            }
+        }
+        if (indices != null && indices.isEmpty() == false) {
+            throw new SnapshotException(repository.name(), snapshot.toString(), "found " + count
+                + " searchable snapshots indices that use the snapshot: "
+                + Strings.collectionToCommaDelimitedString(indices)
+                + (count > indices.size() ? ",..." : "")
+            );
+        }
     }
 
     /**

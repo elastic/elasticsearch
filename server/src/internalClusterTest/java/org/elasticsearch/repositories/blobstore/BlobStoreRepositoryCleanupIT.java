@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -43,7 +44,15 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         awaitClusterState(state ->
                 state.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY).hasCleanupInProgress() == false);
 
-        cleanupFuture.get();
+        try {
+            cleanupFuture.get();
+        } catch (ExecutionException e) {
+            // rare case where the master failure triggers a client retry that executes quicker than the removal of the initial
+            // cleanup in progress
+            final Throwable ise = ExceptionsHelper.unwrap(e, IllegalStateException.class);
+            assertThat(ise, instanceOf(IllegalStateException.class));
+            assertThat(ise.getMessage(), containsString(" a repository cleanup is already in-progress in "));
+        }
     }
 
     public void testRepeatCleanupsDontRemove() throws Exception {

@@ -37,7 +37,7 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -861,6 +861,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static DateTimeZone randomDateTimeZone() {
         return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
+     */
+    public long randomMillisUpToYear9999() {
+        return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
     /**

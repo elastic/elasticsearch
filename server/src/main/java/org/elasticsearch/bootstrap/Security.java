@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;

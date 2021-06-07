@@ -21,7 +21,7 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,7 +35,7 @@ public class NestedDocuments {
 
     private final Map<String, BitSetProducer> parentObjectFilters = new HashMap<>();
     private final Map<String, Weight> childObjectFilters = new HashMap<>();
-    private final Map<String, ObjectMapper> childObjectMappers = new HashMap<>();
+    private final Map<String, NestedObjectMapper> childObjectMappers = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
     private final MappingLookup mappingLookup;
     private final Version indexVersionCreated;
@@ -52,11 +52,11 @@ public class NestedDocuments {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter(indexVersionCreated));
-            for (ObjectMapper mapper : mappingLookup.getNestedParentMappers()) {
+            for (NestedObjectMapper mapper : mappingLookup.getNestedParentMappers()) {
                 parentObjectFilters.put(mapper.name(),
                     filterProducer.apply(mapper.nestedTypeFilter()));
             }
-            for (ObjectMapper mapper : mappingLookup.getNestedMappers()) {
+            for (NestedObjectMapper mapper : mappingLookup.getNestedMappers()) {
                 childObjectFilters.put(mapper.name(), null);
                 childObjectMappers.put(mapper.name(), mapper);
             }
@@ -79,7 +79,7 @@ public class NestedDocuments {
         }
         if (childObjectFilters.get(path) == null) {
             IndexSearcher searcher = new IndexSearcher(ReaderUtil.getTopLevelContext(ctx));
-            ObjectMapper childMapper = childObjectMappers.get(path);
+            NestedObjectMapper childMapper = childObjectMappers.get(path);
             childObjectFilters.put(path,
                 searcher.createWeight(searcher.rewrite(childMapper.nestedTypeFilter()), ScoreMode.COMPLETE_NO_SCORES, 1));
         }

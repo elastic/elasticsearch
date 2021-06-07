@@ -16,18 +16,19 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * A runtime field of type object. Defines a script at the top level, which emits multiple sub-fields.
  * The sub-fields are declared within the object in order to be made available to the field_caps and search API.
  */
 //TODO find a better name!?
-public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
+public class ObjectRuntimeField implements RuntimeField {
 
     public static final Parser PARSER = new Parser(name ->
         new RuntimeField.Builder(name) {
@@ -68,28 +69,32 @@ public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
                 // only print out their leaf field name (which may contain dots!)
                 Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(fields.getValue(),
                     parserContext, searchLookup -> factory.newFactory(name, script.get().getParams(), searchLookup), false);
-                return new ObjectRuntimeField(name, runtimeFields, this);
+                return new ObjectRuntimeField(name, runtimeFields.values(), this);
             }
         });
 
     private final String name;
-    private final Map<String, RuntimeField> subfields;
+    private final Collection<MappedFieldType> subfields;
     private final ToXContent toXContent;
 
-    ObjectRuntimeField(String name, Map<String, RuntimeField> subfields, ToXContent toXContent) {
+    ObjectRuntimeField(String name, Collection<RuntimeField> subfields, ToXContent toXContent) {
         this.name = name;
-        this.subfields = subfields;
-        this.toXContent = toXContent;
+        this.subfields = subfields.stream().flatMap(runtimeField -> runtimeField.asMappedFieldTypes().stream())
+            .collect(Collectors.toList());
+        this.toXContent = (builder, params) -> {
+            toXContent.toXContent(builder, params);
+            builder.startObject("fields2");
+            for (RuntimeField runtimeField : subfields) {
+                runtimeField.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        };
     }
 
     @Override
     public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
         toXContent.toXContent(builder, params);
-        builder.startObject("fields2");
-        for (RuntimeField runtimeField : subfields.values()) {
-            runtimeField.toXContent(builder, params);
-        }
-        builder.endObject();
     }
 
     @Override
@@ -103,8 +108,8 @@ public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
     }
 
     @Override
-    public MappedFieldType asMappedFieldType() {
-        return null;
+    public Collection<MappedFieldType> asMappedFieldTypes() {
+        return subfields;
     }
 
     private static Map<String, Object> parseFields(String name, Object fieldsObject) {
@@ -115,17 +120,5 @@ public class ObjectRuntimeField implements RuntimeField, DynamicFieldType {
         @SuppressWarnings("unchecked")
         Map<String, Object> fields = (Map<String, Object>) fieldsObject;
         return fields;
-    }
-
-    @Override
-    public MappedFieldType getChildFieldType(String path) {
-        RuntimeField runtimeField = subfields.get(path);
-        //we could create a KeywordScriptFieldType on-the-fly for any unmapped field, but they would not be exposed to field_caps
-        return runtimeField == null ? null : runtimeField.asMappedFieldType();
-    }
-
-    @Override
-    public Set<String> getKnownSubfields() {
-        return subfields.keySet();
     }
 }

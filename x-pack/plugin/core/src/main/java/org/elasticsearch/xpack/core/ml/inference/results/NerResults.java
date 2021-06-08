@@ -37,7 +37,7 @@ public class NerResults implements InferenceResults {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray();
+        builder.startArray("entities");
         for (EntityGroup entity : entityGroups) {
             entity.toXContent(builder, params);
         }

@@ -1,5 +1,3 @@
-import org.apache.tools.ant.taskdefs.condition.Os
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -17,9 +15,4 @@ dependencies {
     // necessary for the license check
     compileOnly project(path: xpackModule('core'))
     testImplementation(testArtifact(project(xpackModule('core'))))
-}
-
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  tasks.named("internalClusterTest").configure {enabled = false }
 }

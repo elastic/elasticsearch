@@ -17,8 +17,8 @@ import org.apache.tika.parser.Parser;
 import org.apache.tika.parser.ParserDecorator;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 

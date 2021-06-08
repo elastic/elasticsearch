@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.inference.nlp;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
+import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
@@ -122,8 +122,9 @@ public class NerResultProcessorTests extends ESTestCase {
     private static NerResultProcessor createProcessor(List<String> vocab, String input){
         BertTokenizer tokenizer = BertTokenizer.builder(vocab)
             .setDoLowerCase(true)
+            .setWithSpecialTokens(false)
             .build();
-        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input, false);
+        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
         return new NerResultProcessor(tokenizationResult);
     }
 }

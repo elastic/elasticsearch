@@ -355,6 +355,30 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
     }
 
+    public void testRequireAttributeIndexSettingTakesPriorityOverInclude() {
+        IndexMetadata.Builder indexWithRequireAndInclude =
+            IndexMetadata.builder("indexWithRequireAndInclude")
+                .settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_REQUIRE_SETTING, "warm")
+                    .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                );
+        ClusterState state =
+            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithRequireAndInclude)).build();
+
+        Metadata.Builder mb = Metadata.builder(state.metadata());
+
+        List<String> migratedIndices = migrateIndices(mb, state, "data");
+        assertThat(migratedIndices.size(), is(1));
+        assertThat(migratedIndices.get(0), is("indexWithRequireAndInclude"));
+
+        ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+        IndexMetadata migratedIndex = migratedState.metadata().index("indexWithRequireAndInclude");
+        assertThat("index migration ONLY clears the setting it migrates, in this case the require.data setting",
+            migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), is("cold"));
+        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+        assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+    }
+
     public void testMigrateToDataTiersRouting() {
         AllocateAction allocateActionWithDataAttribute = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction allocateActionWithOtherAttribute = new AllocateAction(0, null, null, Map.of("other", "cold"));

@@ -8,12 +8,17 @@
 
 
 import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
+import org.apache.tools.ant.taskdefs.condition.Os
+import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+import org.gradle.plugins.ide.eclipse.model.ProjectDependency
 
 plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
   id 'groovy'
   id 'elasticsearch.build-tools'
+  id 'elasticsearch.eclipse'
 }
 
 group = 'org.elasticsearch.gradle'

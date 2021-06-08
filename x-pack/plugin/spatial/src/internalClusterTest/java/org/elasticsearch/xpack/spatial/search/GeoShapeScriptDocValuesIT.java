@@ -161,7 +161,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
-                .field("location", WellKnownText.INSTANCE.toWKT(geometry))
+                .field("location", WellKnownText.toWKT(geometry))
                 .endObject())
             .get();
 

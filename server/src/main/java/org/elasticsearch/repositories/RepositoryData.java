@@ -185,6 +185,24 @@ public final class RepositoryData {
     }
 
     /**
+     * Creates a copy of this instance that does not track any shard generations.
+     *
+     * @return repository data with empty shard generations
+     */
+    public RepositoryData withoutShardGenerations() {
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotsDetails,
+                indices,
+                indexSnapshots,
+                ShardGenerations.EMPTY,
+                indexMetaDataGenerations,
+                clusterUUID);
+    }
+
+    /**
      * Creates a copy of this instance that contains additional details read from the per-snapshot metadata blobs
      * @param extraDetails map of snapshot details
      * @return copy with updated version data

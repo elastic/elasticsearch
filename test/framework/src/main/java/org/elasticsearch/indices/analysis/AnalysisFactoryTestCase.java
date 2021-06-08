@@ -184,6 +184,10 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
         // LUCENE-8936
         .put("spanishminimalstem", Void.class)
         .put("delimitedboost", Void.class)
+        // LUCENE-9574
+        .put("dropifflagged", Void.class)
+        // LUCENE-9575
+        .put("patterntyping", Void.class)
         .immutableMap();
 
     static final Map<String,Class<?>> KNOWN_CHARFILTERS = new MapBuilder<String,Class<?>>()

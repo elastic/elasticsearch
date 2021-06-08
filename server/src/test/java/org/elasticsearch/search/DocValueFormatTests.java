@@ -25,6 +25,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocValueFormatTests extends ESTestCase {
@@ -223,5 +224,25 @@ public class DocValueFormatTests extends ESTestCase {
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo(1415580798601L));
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
         assertThat(dateFormat.formatSortValue(1415580798601L), equalTo("2014-11-10 01:53:18"));
+    }
+
+    public void testBadUtf8() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.RAW.format(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("0.0.0.0"))))
+        );
+        assertNotNull("wrapped exception should have a cause", e.getCause());
+        assertThat(e.getMessage(), containsString("mapping"));
+        assertThat(e.getMessage(), containsString("UTF8"));
+    }
+
+    public void testBadIp() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> DocValueFormat.IP.format(new BytesRef("cat"))
+        );
+        assertNotNull("wrapped exception should have a cause", e.getCause());
+        assertThat(e.getMessage(), containsString("mapping"));
+        assertThat(e.getMessage(), containsString("IP address"));
     }
 }

@@ -54,7 +54,7 @@ final class SingleDocDirectoryReader extends DirectoryReader {
     }
 
     private SingleDocDirectoryReader(SingleDocLeafReader leafReader) throws IOException {
-        super(leafReader.directory, new LeafReader[]{leafReader});
+        super(leafReader.directory, new LeafReader[]{leafReader}, null);
         this.leafReader = leafReader;
     }
 

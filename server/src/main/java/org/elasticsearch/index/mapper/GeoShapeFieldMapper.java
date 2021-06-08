@@ -111,7 +111,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         }
     }
 
-    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
+    public static class GeoShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
         public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                  Parser<Geometry> parser, Map<String, String> meta) {
@@ -202,7 +202,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         if (geometry == null) {
             return;
         }
-        context.doc().addAll(indexer.indexShape(geometry));
+        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
         context.addToFieldNames(fieldType().name());
     }
 

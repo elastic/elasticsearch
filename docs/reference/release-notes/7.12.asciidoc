@@ -3,6 +3,20 @@
 
 Also see <<breaking-changes-7.12,Breaking changes in 7.12>>.
 
+[[known-issues-7.12.1]]
+[discrete]
+=== Known issues
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
+
 [[enhancement-7.12.1]]
 [float]
 === Enhancements
@@ -133,6 +147,16 @@ https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22137[CVE-2021-22137]
 * If autoscaling is enabled and job assignment takes an inordinate amount of time, scaling
   sizes may increase much higher than required. Elasticsearch 7.13.0 contains a fix for this.
   For more details, see {es-issue}72509[#72509]
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[breaking-7.12.0]]
 [float]
@@ -403,6 +427,9 @@ Features/Java Low Level REST Client::
 Features/Monitoring::
 * Move monitoring collection timeouts to coordinator {es-pull}67084[#67084] (issues: {es-issue}60188[#60188], {es-issue}66993[#66993])
 
+Features/Ingest::
+* Fix ingest java week based year defaulting {es-pull}65717[#65717]
+
 Geo::
 * Fix indexing of degenerated rectangles {es-pull}67702[#67702] (issue: {es-issue}67695[#67695])
 
@@ -427,6 +454,3 @@ Search::
 
 Snapshot/Restore::
 * Make `RepositoryData` Parsing Stricter {es-pull}67699[#67699] (issue: {es-issue}67696[#67696])
-
-
-

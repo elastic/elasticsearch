@@ -13,7 +13,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
@@ -208,9 +208,10 @@ public class FrozenIndexIT extends ESIntegTestCase {
             client().prepareIndex(indexName, "_doc").setSource("created_date", "2011-02-02").get();
         }
         assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
-        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE,
-            new OpenPointInTimeRequest(new String[]{indexName}, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
-                TimeValue.timeValueMinutes(2), null, null)).actionGet().getSearchContextId();
+        final OpenPointInTimeRequest openPointInTimeRequest = new OpenPointInTimeRequest(indexName).
+            indicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED)
+            .keepAlive(TimeValue.timeValueMinutes(2));
+        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE, openPointInTimeRequest).actionGet().getPointInTimeId();
         try {
             SearchResponse resp = client().prepareSearch()
                 .setIndices(indexName)

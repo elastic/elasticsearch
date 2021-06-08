@@ -241,7 +241,7 @@ public class TrainedModelStatsService {
             ActionListener.wrap(
             r -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlStatsIndex.writeAlias(),
-                MlStatsIndex::mapping,
+                MlStatsIndex::wrappedMapping,
                 client,
                 clusterState,
                 MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,

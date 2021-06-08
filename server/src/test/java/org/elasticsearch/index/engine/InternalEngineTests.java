@@ -106,8 +106,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.DocumentParser;
-import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -3139,7 +3137,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     private Mapping dynamicUpdate() {
-        final RootObjectMapper root = new RootObjectMapper.Builder("some_type", Version.CURRENT).build(new ContentPath());
+        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(new ContentPath());
         return new Mapping(root, new MetadataFieldMapper[0], emptyMap());
     }
 
@@ -3284,7 +3282,6 @@ public class InternalEngineTests extends EngineTestCase {
                 () -> UNASSIGNED_SEQ_NO,
                 () -> RetentionLeases.EMPTY,
                 primaryTerm::get,
-                tombstoneDocSupplier(),
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
         expectThrows(EngineCreationFailureException.class, () -> new InternalEngine(brokenConfig));
 
@@ -3504,28 +3501,29 @@ public class InternalEngineTests extends EngineTestCase {
     public void testDeleteWithFatalError() throws Exception {
         final IllegalStateException tragicException = new IllegalStateException("fail to store tombstone");
         try (Store store = createStore()) {
-            EngineConfig.TombstoneDocSupplier tombstoneDocSupplier = new EngineConfig.TombstoneDocSupplier() {
+            IndexWriterFactory indexWriterFactory = (directory, iwc) -> new IndexWriter(directory, iwc) {
                 @Override
-                public ParsedDocument newDeleteTombstoneDoc(String type, String id) {
-                    ParsedDocument parsedDocument = tombstoneDocSupplier().newDeleteTombstoneDoc(type, id);
-                    parsedDocument.rootDoc().add(new StoredField("foo", "bar") {
-                        // this is a hack to add a failure during store document which triggers a tragic event
-                        // and in turn fails the engine
-                        @Override
-                        public BytesRef binaryValue() {
-                            throw tragicException;
+                public long softUpdateDocument(Term term, Iterable<? extends IndexableField> doc,
+                                               Field... softDeletes) throws IOException {
+                    final List<IndexableField> docIncludeExtraField = new ArrayList<>();
+                    doc.forEach(docIncludeExtraField::add);
+                    docIncludeExtraField.add(
+                        new StoredField("foo", "bar") {
+                            @Override
+                            public BytesRef binaryValue() {
+                                throw tragicException;
+                            }
                         }
-                    });
-                    return parsedDocument;
-                }
-
-                @Override
-                public ParsedDocument newNoopTombstoneDoc(String reason) {
-                    return tombstoneDocSupplier().newNoopTombstoneDoc(reason);
+                    );
+                    return super.softUpdateDocument(term, docIncludeExtraField, softDeletes);
                 }
             };
-            EngineConfig config = config(this.engine.config(), store, createTempDir(), tombstoneDocSupplier);
-            try (InternalEngine engine = createEngine(null, null, null, config)) {
+            Settings.Builder settings = Settings.builder()
+                .put(defaultSettings.getSettings())
+                .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true);
+            final IndexMetadata indexMetadata = IndexMetadata.builder(defaultSettings.getIndexMetadata()).settings(settings).build();
+            final IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(indexMetadata);
+            try (InternalEngine engine = createEngine(indexSettings, store, createTempDir(), NoMergePolicy.INSTANCE, indexWriterFactory)) {
                 final ParsedDocument doc = testParsedDocument("1", null, testDocumentWithTextField(), SOURCE, null);
                 engine.index(indexForDoc(doc));
                 expectThrows(IllegalStateException.class,
@@ -6378,7 +6376,7 @@ public class InternalEngineTests extends EngineTestCase {
                 config.getQueryCachingPolicy(), translogConfig, config.getFlushMergesAfter(),
                 config.getExternalRefreshListener(), config.getInternalRefreshListener(), config.getIndexSort(),
                 config.getCircuitBreakerService(), config.getGlobalCheckpointSupplier(), config.retentionLeasesSupplier(),
-                config.getPrimaryTermSupplier(), config.getTombstoneDocSupplier(), config.getSnapshotCommitSupplier());
+                config.getPrimaryTermSupplier(), config.getSnapshotCommitSupplier());
             try (InternalEngine engine = createEngine(configWithWarmer)) {
                 assertThat(warmedUpReaders, empty());
                 assertThat(expectThrows(Throwable.class, () -> engine.acquireSearcher("test")).getMessage(),

@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -53,6 +54,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -267,8 +269,11 @@ public class RestoreService implements ClusterStateApplier {
                 List<String> requestIndices = new ArrayList<>(Arrays.asList(request.indices()));
 
                 // Get data stream metadata for requested data streams
-                Map<String, DataStream> dataStreamsToRestore = getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata,
-                    requestIndices);
+                Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result =
+                    getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata, requestIndices, request.includeAliases());
+                Map<String, DataStream> dataStreamsToRestore = result.v1();
+                Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
+
 
                 // Remove the data streams from the list of requested indices
                 requestIndices.removeAll(dataStreamsToRestore.keySet());
@@ -318,7 +323,9 @@ public class RestoreService implements ClusterStateApplier {
                             + explicitlyRequestedSystemIndices);
                 }
 
-                final Metadata metadata = metadataBuilder.dataStreams(dataStreamsToRestore).build();
+                final Metadata metadata = metadataBuilder
+                    .dataStreams(dataStreamsToRestore, dataStreamAliasesToRestore)
+                    .build();
 
                 // Apply renaming on index names, returning a map of names where
                 // the key is the renamed index and the value is the original name
@@ -509,7 +516,24 @@ public class RestoreService implements ClusterStateApplier {
                         updatedDataStreams.putAll(dataStreamsToRestore.values().stream()
                             .map(ds -> updateDataStream(ds, mdBuilder, request))
                             .collect(Collectors.toMap(DataStream::getName, Function.identity())));
-                        mdBuilder.dataStreams(updatedDataStreams);
+                        Map<String, DataStreamAlias> updatedDataStreamAliases = new HashMap<>(currentState.metadata().dataStreamAliases());
+                        metadata.dataStreamAliases().values().stream()
+                            // Optionally rename the data stream names for each alias
+                            .map(alias -> {
+                                if (request.renamePattern() != null && request.renameReplacement() != null) {
+                                    return alias.renameDataStreams(request.renamePattern(), request.renameReplacement());
+                                } else {
+                                    return alias;
+                                }
+                            }).forEach(alias -> {
+                                DataStreamAlias current = updatedDataStreamAliases.putIfAbsent(alias.getName(), alias);
+                                if (current != null) {
+                                    // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
+                                    DataStreamAlias newInstance = alias.merge(current);
+                                    updatedDataStreamAliases.put(alias.getName(), newInstance);
+                                }
+                            });
+                        mdBuilder.dataStreams(updatedDataStreams, updatedDataStreamAliases);
 
                         // Restore global state if needed
                         if (request.includeGlobalState()) {
@@ -771,13 +795,19 @@ public class RestoreService implements ClusterStateApplier {
         return indexMetadata.isSystem() || systemIndices.isSystemName(indexMetadata.getIndex().getName());
     }
 
-    private Map<String, DataStream> getDataStreamsToRestore(Repository repository, SnapshotId snapshotId, SnapshotInfo snapshotInfo,
-                                                           Metadata globalMetadata, List<String> requestIndices) {
+    private Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> getDataStreamsToRestore(Repository repository,
+                                                                                                 SnapshotId snapshotId,
+                                                                                                 SnapshotInfo snapshotInfo,
+                                                                                                 Metadata globalMetadata,
+                                                                                                 List<String> requestIndices,
+                                                                                                 boolean includeAliases) {
         Map<String, DataStream> dataStreams;
+        Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(new String[]{}),
             IndicesOptions.fromOptions(true, true, true, true));
         if (requestedDataStreams.isEmpty()) {
             dataStreams = Collections.emptyMap();
+            dataStreamAliases = Collections.emptyMap();
         } else {
             if (globalMetadata == null) {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
@@ -789,8 +819,20 @@ public class RestoreService implements ClusterStateApplier {
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
                 dataStreams.put(requestedDataStream, dataStreamInSnapshot);
             }
+            if (includeAliases) {
+                dataStreamAliases = new HashMap<>();
+                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
+                for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
+                    DataStreamAlias copy = alias.intersect(requestedDataStreams::contains);
+                    if (copy.getDataStreams().isEmpty() == false) {
+                        dataStreamAliases.put(alias.getName(), copy);
+                    }
+                }
+            } else {
+                dataStreamAliases = Collections.emptyMap();
+            }
         }
-        return dataStreams;
+        return new Tuple<>(dataStreams, dataStreamAliases);
     }
 
     private Map<String, List<String>> getFeatureStatesToRestore(RestoreSnapshotRequest request, SnapshotInfo snapshotInfo,

@@ -30,7 +30,8 @@ These APIs are used internally by {kib} in order to provide SAML based
 authentication, but can also be used by other custom web applications or other
 clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
 <<security-api-saml-prepare-authentication,SAML prepare authentication API>>,
-and <<security-api-saml-logout,SAML logout API>>.
+<<security-api-saml-logout,SAML logout API>>, and
+<<security-api-saml-complete-logout, SAML complete logout API>>.
 
 [[security-api-saml-invalidate-request-body]]
 ==== {api-request-body-title}
@@ -39,11 +40,11 @@ and <<security-api-saml-logout,SAML logout API>>.
   (Optional, string) The Assertion Consumer Service URL that matches the one of the SAML
   realm in {es} that should be used. You must specify either this parameter or the `realm` parameter.
 
-`queryString`:: 
+`queryString`::
   (Required, string) The query part of the URL that the user was redirected to by the SAML
   IdP to initiate the Single Logout. This query should include a single
   parameter named `SAMLRequest` that contains a SAML logout request that is
-  deflated and Base64 encoded. If the SAML IdP has signed the logout request, 
+  deflated and Base64 encoded. If the SAML IdP has signed the logout request,
   the URL should include two extra parameters named `SigAlg` and `Signature`
   that contain the algorithm used for the signature and the signature value itself.
 In order for {es} to be able to verify the IdP's signature, the value of the queryString field must be an exact match to the string provided by the browser.
@@ -54,12 +55,12 @@ The client application must not attempt to parse or process the string in any wa
   either this parameter or the `acs` parameter.
 
 [[security-api-saml-invalidate-response-body]]
-==== {api-response-body-title}  
+==== {api-response-body-title}
 
 `invalidated`::
   (integer) The number of tokens that were invalidated as part of this logout.
 
-`realm`:: 
+`realm`::
   (string) The realm name of the SAML realm in {es} that authenticated the user.
 
 `redirect`::

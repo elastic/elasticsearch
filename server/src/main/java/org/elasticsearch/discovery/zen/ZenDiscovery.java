@@ -764,7 +764,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent implements Discover
             // to ensure we fail as fast as possible.
             onJoinValidators.stream().forEach(a -> a.accept(node, state));
             if (state.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false) {
-                JoinTaskExecutor.ensureMajorVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
+                JoinTaskExecutor.ensureVersionBarrier(node.getVersion(), state.getNodes().getMinNodeVersion());
             }
             // try and connect to the node, if it fails, we can raise an exception back to the client...
             transportService.connectToNode(node);

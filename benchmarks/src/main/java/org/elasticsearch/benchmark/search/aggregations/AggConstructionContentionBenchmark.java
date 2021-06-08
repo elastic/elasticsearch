@@ -68,9 +68,9 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -222,7 +222,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getFieldTypes() {
+        public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
         }
 
@@ -344,6 +344,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public Version indexVersionCreated() {
             return Version.CURRENT;
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return true;
         }
 
         @Override

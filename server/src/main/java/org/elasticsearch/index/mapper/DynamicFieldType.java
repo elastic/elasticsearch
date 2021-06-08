@@ -30,5 +30,4 @@ public interface DynamicFieldType {
      * Returns a dynamic MappedFieldType for the given path
      */
     MappedFieldType getChildFieldType(String path);
-
 }

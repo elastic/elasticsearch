@@ -11,6 +11,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.core.ilm.FreezeAction;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
-import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
@@ -40,7 +40,6 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -154,8 +153,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             TimeUnit.SECONDS);
     }
 
-       @SuppressWarnings("unchecked")
-       public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
+    @SuppressWarnings("unchecked")
+    public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
@@ -191,25 +190,25 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         assertBusy(() -> assertFalse(indexExists(restoredIndexName)), 60, TimeUnit.SECONDS);
 
         assertTrue("the snapshot we generate in the cold phase should be deleted by the delete phase", waitUntil(() -> {
-           try {
-               Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/_all");
-               Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
+            try {
+                Request getSnapshotsRequest = new Request("GET", "_snapshot/" + snapshotRepo + "/_all");
+                Response getSnapshotsResponse = client().performRequest(getSnapshotsRequest);
 
-               Map<String, Object> responseMap;
-               try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
-                   responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
-               }
-               List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
-               return snapshots.size() == 0;
-           } catch (Exception e) {
-               logger.error(e.getMessage(), e);
-               return false;
-           }
+                Map<String, Object> responseMap;
+                try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
+                    responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+                }
+                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
+                return snapshots.size() == 0;
+            } catch (Exception e) {
+                logger.error(e.getMessage(), e);
+                return false;
+            }
         }, 30, TimeUnit.SECONDS));
     }
 
     public void testCreateInvalidPolicy() {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> createPolicy(client(), policy,
+        ResponseException exception = expectThrows(ResponseException.class, () -> createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10)))),
@@ -220,7 +219,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
-        assertThat(exception.getMessage(), is("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]" +
+        assertThat(exception.getMessage(), containsString("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup]" +
             " actions which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 
@@ -460,7 +459,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         String secondRepo = randomAlphaOfLengthBetween(10, 20);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createSnapshotRepo(client(), secondRepo, randomBoolean());
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+        ResponseException e = expectThrows(ResponseException.class, () ->
             createPolicy(client(), policy, null, null,
                 new Phase("cold", TimeValue.ZERO,
                     singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))),
@@ -473,7 +472,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             containsString("policy specifies [searchable_snapshot] action multiple times with differing repositories"));
     }
 
-    public void testSearchableSnapshotActionOverridesMigrateAction() throws Exception {
+    public void testSearchableSnapshotsInHotPhasePinnedToHotNodes() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
@@ -481,13 +480,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 SearchableSnapshotAction.NAME, new SearchableSnapshotAction(
                     snapshotRepo, randomBoolean()))
             ),
-            new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            // this time transition condition will make sure we catch ILM in the warm phase so we can assert the warm migrate action
-            // didn't re-configure the tier allocation settings set by the searchable_snapshot action in the hot phase
-            // we'll use the origination date to kick off ILM to complete the policy
-            new Phase("cold", TimeValue.timeValueDays(5L),
-            org.elasticsearch.common.collect.Map.of(MigrateAction.NAME, new MigrateAction(true))),
-            null, null
+            null, null, null, null
         );
 
         createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream,
@@ -510,25 +503,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             logger.info("--> waiting for [{}] to exist...", restoredIndex);
             assertTrue(indexExists(restoredIndex));
         }, 30, TimeUnit.SECONDS);
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("warm").getKey())),
+        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("hot").getKey())),
             30, TimeUnit.SECONDS);
 
-        Map<String, Object> warmIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // the warm phase shouldn't have changed the data_cold -> data_hot configuration
-        assertThat(warmIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-            is("data_cold,data_warm,data_hot"));
-
-        // make the index 100 days old so the cold phase transition timing passes
-        updateIndexSettings(restoredIndex, Settings.builder().put(LifecycleSettings.LIFECYCLE_ORIGINATION_DATE,
-            ZonedDateTime.now().toInstant().toEpochMilli() - TimeValue.timeValueDays(100).getMillis()));
-
-        // let's wait for ILM to finish
-        assertBusy(() -> assertThat(getStepKeyForIndex(client(), restoredIndex), is(PhaseCompleteStep.finalStep("cold").getKey())));
-
-        Map<String, Object> coldIndexSettings = getIndexSettingsAsMap(restoredIndex);
-        // the frozen phase should've reconfigured the allocation preference
-        assertThat(coldIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
-            is("data_cold,data_warm,data_hot"));
+        Map<String, Object> hotIndexSettings = getIndexSettingsAsMap(restoredIndex);
+        // searchable snapshots mounted in the hot phase should be pinned to hot nodes
+        assertThat(hotIndexSettings.get(DataTierAllocationDecider.INDEX_ROUTING_PREFER),
+            is("data_hot"));
     }
-
 }

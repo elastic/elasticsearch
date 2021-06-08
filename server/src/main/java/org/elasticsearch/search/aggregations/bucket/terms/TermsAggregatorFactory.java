@@ -325,7 +325,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 return new MapStringTermsAggregator(
                     name,
                     factories,
-                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig.getValuesSource()),
+                    new MapStringTermsAggregator.ValuesSourceCollectorSource(valuesSourceConfig),
                     a -> a.new StandardTermsResults(valuesSourceConfig.getValuesSource()),
                     order,
                     valuesSourceConfig.format(),
@@ -360,7 +360,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     .getValuesSource();
                 SortedSetDocValues values = globalOrdsValues(context, ordinalsValuesSource);
                 long maxOrd = values.getValueCount();
-                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS) {
+                if (maxOrd > 0 && maxOrd <= MAX_ORDS_TO_TRY_FILTERS && context.enableRewriteToFilterByFilter()) {
                     StringTermsAggregatorFromFilters adapted = StringTermsAggregatorFromFilters.adaptIntoFiltersOrNull(
                         name,
                         factories,

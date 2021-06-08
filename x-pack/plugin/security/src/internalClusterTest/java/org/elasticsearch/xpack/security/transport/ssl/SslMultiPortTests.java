@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport.ssl;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.network.NetworkAddress;

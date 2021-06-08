@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;

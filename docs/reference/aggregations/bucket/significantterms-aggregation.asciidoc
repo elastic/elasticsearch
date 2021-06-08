@@ -374,7 +374,7 @@ Chi square behaves like mutual information and can be configured with the same p
 
 
 ===== Google normalized distance
-Google normalized distance as described in "The Google Similarity Distance", Cilibrasi and Vitanyi, 2007 (https://arxiv.org/pdf/cs/0412098v3.pdf) can be used as significance score by adding the parameter
+Google normalized distance as described in https://arxiv.org/pdf/cs/0412098v3.pdf["The Google Similarity Distance", Cilibrasi and Vitanyi, 2007] can be used as significance score by adding the parameter
 
 [source,js]
 --------------------------------------------------
@@ -408,7 +408,7 @@ Multiple observations are typically required to reinforce a view so it is recomm
 
 Roughly, `mutual_information` prefers high frequent terms even if they occur also frequently in the background. For example, in an analysis of natural language text this might lead to selection of stop words. `mutual_information` is unlikely to select very rare terms like misspellings. `gnd` prefers terms with a high co-occurrence and avoids selection of stopwords. It might be better suited for synonym detection. However, `gnd` has a tendency to select very rare terms that are, for example, a result of misspelling. `chi_square` and `jlh` are somewhat in-between.
 
-It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example [Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997](http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf) for a study on using significant terms for feature selection for text classification).
+It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf[Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997] for a study on using significant terms for feature selection for text classification).
 
 If none of the above measures suits your usecase than another option is to implement a custom significance measure:
 

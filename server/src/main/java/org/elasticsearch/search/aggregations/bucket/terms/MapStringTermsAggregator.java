@@ -30,6 +30,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.Bac
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -117,6 +118,8 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("total_buckets", bucketOrds.size());
+        add.accept("collection_strategy", collectorSource.describe());
+        collectorSource.collectDebugInfo(add);
         add.accept("result_strategy", resultStrategy.describe());
     }
 
@@ -126,11 +129,30 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
     }
 
     /**
-     * Abstaction on top of building collectors to fetch values.
+     * Abstraction on top of building collectors to fetch values so {@code terms},
+     * {@code significant_terms}, and {@code significant_text} can share a bunch of
+     * aggregation code.
      */
     public interface CollectorSource extends Releasable {
+        /**
+         * A description of the strategy to include in profile results.
+         */
+        String describe();
+
+        /**
+         * Collect debug information to add to the profiling results. This will
+         * only be called if the aggregation is being profiled.
+         */
+        void collectDebugInfo(BiConsumer<String, Object> add);
+
+        /**
+         * Does this {@link CollectorSource} need queries to calculate the score?
+         */
         boolean needsScores();
 
+        /**
+         * Build the collector.
+         */
         LeafBucketCollector getLeafCollector(
             IncludeExclude.StringFilter includeExclude,
             LeafReaderContext ctx,
@@ -148,15 +170,23 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
      * Fetch values from a {@link ValuesSource}.
      */
     public static class ValuesSourceCollectorSource implements CollectorSource {
-        private final ValuesSource valuesSource;
+        private final ValuesSourceConfig valuesSourceConfig;
 
-        public ValuesSourceCollectorSource(ValuesSource valuesSource) {
-            this.valuesSource = valuesSource;
+        public ValuesSourceCollectorSource(ValuesSourceConfig valuesSourceConfig) {
+            this.valuesSourceConfig = valuesSourceConfig;
         }
 
         @Override
+        public String describe() {
+            return "from " + valuesSourceConfig.getDescription();
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {}
+
+        @Override
         public boolean needsScores() {
-            return valuesSource.needsScores();
+            return valuesSourceConfig.getValuesSource().needsScores();
         }
 
         @Override
@@ -167,7 +197,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
             LongConsumer addRequestCircuitBreakerBytes,
             CollectConsumer consumer
         ) throws IOException {
-            SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+            SortedBinaryDocValues values = valuesSourceConfig.getValuesSource().bytesValues(ctx);
             return new LeafBucketCollectorBase(sub, values) {
                 final BytesRefBuilder previous = new BytesRefBuilder();
 

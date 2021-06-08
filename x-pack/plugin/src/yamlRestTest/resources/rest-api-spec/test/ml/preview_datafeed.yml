@@ -111,6 +111,25 @@ setup:
 
   - do:
       ml.preview_datafeed:
+        datafeed_id: preview-datafeed-feed
+        body: >
+          {}
+  - length: { $body: 4 }
+  - match: { 0.time: 1487376000000 }
+  - match: { 0.airline: foo }
+  - match: { 0.responsetime: 1.0 }
+  - match: { 1.time: 1487377800000 }
+  - match: { 1.airline: foo }
+  - match: { 1.responsetime: 1.0 }
+  - match: { 2.time: 1487379600000 }
+  - match: { 2.airline: bar }
+  - match: { 2.responsetime: 42.0 }
+  - match: { 3.time: 1487379660000 }
+  - match: { 3.airline: foo }
+  - match: { 3.responsetime: 42.0 }
+
+  - do:
+      ml.preview_datafeed:
         body: >
           {
             "datafeed_config": {

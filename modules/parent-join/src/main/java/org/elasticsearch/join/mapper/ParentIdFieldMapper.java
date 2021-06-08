@@ -73,7 +73,9 @@ public final class ParentIdFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + typeName() + "].");
+            // Although this is an internal field, we return it in the list of all field types. So we
+            // provide an empty value fetcher here instead of throwing an error.
+            return lookup -> org.elasticsearch.common.collect.List.of();
         }
 
         @Override

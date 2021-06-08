@@ -42,14 +42,15 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
         ));
 
-    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
+    static final List<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
+        NODE_SETTINGS_CHECKS;
 
         static {
-            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, XPackLicenseState, DeprecationIssue>> legacyRoleSettings =
-                DiscoveryNode.getPossibleRoles()
-                .stream()
+            final Stream<NodeDeprecationCheck<Settings, PluginsAndModules, ClusterState, XPackLicenseState, DeprecationIssue>>
+                legacyRoleSettings =
+                DiscoveryNode.getPossibleRoles().stream()
                 .filter(r -> r.legacySetting() != null)
-                .map(r -> (s, p, t) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
+                .map(r -> (s, p, t, c) -> NodeDeprecationChecks.checkLegacyRoleSettings(r.legacySetting(), s, p));
             NODE_SETTINGS_CHECKS = Stream.concat(
                 legacyRoleSettings,
                 Stream.of(
@@ -59,33 +60,38 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkMissingRealmOrders,
                     NodeDeprecationChecks::checkUniqueRealmOrders,
                     NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,
                     NodeDeprecationChecks::checkNodeLocalStorageSetting,
                     NodeDeprecationChecks::checkGeneralScriptSizeSetting,
                     NodeDeprecationChecks::checkGeneralScriptExpireSetting,
                     NodeDeprecationChecks::checkGeneralScriptCompileSettings,
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.ENRICH_ENABLED_SETTING),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.FLATTENED_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.INDEX_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.MONITORING_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.ROLLUP_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.SQL_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.TRANSFORM_ENABLED),
-                    (settings, pluginsAndModules, state) -> NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
-                        XPackSettings.VECTORS_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ENRICH_ENABLED_SETTING),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.FLATTENED_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.INDEX_LIFECYCLE_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.MONITORING_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.ROLLUP_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings,
+                            XPackSettings.SNAPSHOT_LIFECYCLE_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.SQL_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.TRANSFORM_ENABLED),
+                    (settings, pluginsAndModules, clusterState, licenseState) ->
+                        NodeDeprecationChecks.checkNodeBasicLicenseFeatureEnabledSetting(settings, XPackSettings.VECTORS_ENABLED),
                     NodeDeprecationChecks::checkMultipleDataPaths,
                     NodeDeprecationChecks::checkDataPathsList,
+                    NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
+                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
                     NodeDeprecationChecks::checkImplicitlyDisabledSecurityOnBasicAndTrial,
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting
                 )
@@ -99,9 +105,11 @@ public class DeprecationChecks {
             IndexDeprecationChecks::chainedMultiFieldsCheck,
             IndexDeprecationChecks::deprecatedDateTimeFormat,
             IndexDeprecationChecks::translogRetentionSettingCheck,
-            IndexDeprecationChecks::fieldNamesDisabledCheck
+            IndexDeprecationChecks::fieldNamesDisabledCheck,
+            IndexDeprecationChecks::checkIndexDataPath,
+            IndexDeprecationChecks::indexingSlowLogLevelSettingCheck,
+            IndexDeprecationChecks::searchSlowLogLevelSettingCheck
         ));
-
 
     /**
      * helper utility function to reduce repeat of running a specific {@link List} of checks.
@@ -116,7 +124,7 @@ public class DeprecationChecks {
     }
 
     @FunctionalInterface
-    public interface NodeDeprecationCheck<F, S, T, R> {
-        R apply(F first, S second, T third);
+    public interface NodeDeprecationCheck<A, B, C, D, R> {
+        R apply(A first, B second, C third, D fourth);
     }
 }

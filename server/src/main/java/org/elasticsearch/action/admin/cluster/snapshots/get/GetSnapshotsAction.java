@@ -22,7 +22,7 @@ public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
         super(NAME, GetSnapshotsResponse::new);
     }
 
-    enum SortBy {
+    public enum SortBy {
         START_TIME,
         NAME,
         DURATION,

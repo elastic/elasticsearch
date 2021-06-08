@@ -93,4 +93,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder sortBy(GetSnapshotsAction.SortBy sortBy) {
+        request.pagination(request.after(), sortBy, request.size());
+        return this;
+    }
 }

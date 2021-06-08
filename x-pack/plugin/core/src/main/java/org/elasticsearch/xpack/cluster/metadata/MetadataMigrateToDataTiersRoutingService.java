@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
@@ -76,9 +77,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
      *  As part of migrating the ILM policies we also update the cached phase definition for the managed indices to reflect the migrated
      *  policy phase.
      *
-     *  - loop through all the indices convert the index.routing.allocation.require.{nodeAttrName} setting (if present) to the
-     *  corresponding data tier `_tier_preference` routing. We are only able to convert the `frozen`, `cold`, `warm`, or `hot` setting
-     *  values to the `_tier_preference`. If other configuration values are present eg ("the_warm_nodes") the index will not be migrated.
+     *  - loop through all the indices convert the index.routing.allocation.require.{nodeAttrName} or
+     *  index.routing.allocation.include.{nodeAttrName} setting (if present) to the corresponding data tier `_tier_preference` routing.
+     *  We are only able to convert the `frozen`, `cold`, `warm`, or `hot` setting values to the `_tier_preference`. If other
+     *  configuration values are present eg ("the_warm_nodes") the index will not be migrated.
      *
      * If no @param nodeAttrName is provided "data" will be used.
      * If no @param indexTemplateToDelete is provided, no index templates will be deleted.
@@ -184,46 +186,58 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     static List<String> migrateIndices(Metadata.Builder mb, ClusterState currentState, String nodeAttrName) {
         List<String> migratedIndices = new ArrayList<>();
-        String nodeAttrIndexRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String nodeAttrIndexRequireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
+        String nodeAttrIndexIncludeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
             IndexMetadata indexMetadata = index.value;
-            Settings currentIndexSettings = indexMetadata.getSettings();
-            if (currentIndexSettings.keySet().contains(nodeAttrIndexRoutingSetting)) {
-                // look at the value, get the correct tiers config and update the settings and index metadata
-                Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
-                String indexName = indexMetadata.getIndex().getName();
-                if (currentIndexSettings.keySet().contains(INDEX_ROUTING_PREFER) == false) {
-                    // parse the custom attribute routing into the corresponding tier preference and configure it
-                    String attributeValue = currentIndexSettings.get(nodeAttrIndexRoutingSetting);
-                    String convertedTierPreference = convertAttributeValueToTierPreference(attributeValue);
-                    if (convertedTierPreference != null) {
-                        newSettingsBuilder.put(INDEX_ROUTING_PREFER, convertedTierPreference);
-                        newSettingsBuilder.remove(nodeAttrIndexRoutingSetting);
-                        logger.debug("index [{}]: removed setting [{}]", indexName, nodeAttrIndexRoutingSetting);
-                        logger.debug("index [{}]: configured setting [{}] to [{}]", indexName,
-                            INDEX_ROUTING_PREFER, convertedTierPreference);
-                    } else {
-                        // log warning and do *not* remove setting
-                        logger.warn("index [{}]: could not convert attribute based setting [{}] value of [{}] to a tier preference " +
-                                "configuration. the only known values are: {}", indexName,
-                            nodeAttrIndexRoutingSetting, attributeValue, "hot,warm,cold, and frozen");
-                        continue;
-                    }
-                } else {
-                    newSettingsBuilder.remove(nodeAttrIndexRoutingSetting);
-                    logger.debug("index [{}]: removed setting [{}]", indexName, nodeAttrIndexRoutingSetting);
-                }
+            Settings currentSettings = indexMetadata.getSettings();
+            Settings newSettings = migrateIndexSettings(nodeAttrIndexRequireRoutingSetting, indexMetadata);
+            if (newSettings.equals(currentSettings)) {
+                // migrating based on the `require` setting was not successful so let's check if the index used the `include` routing
+                // setting to configure the allocations and try to migrate it
+                newSettings = migrateIndexSettings(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
+            }
 
-                Settings newSettings = newSettingsBuilder.build();
-                if (currentIndexSettings.equals(newSettings) == false) {
-                    mb.put(IndexMetadata.builder(indexMetadata)
-                        .settings(newSettings)
-                        .settingsVersion(indexMetadata.getSettingsVersion() + 1));
-                    migratedIndices.add(indexName);
-                }
+            if (newSettings.equals(currentSettings) == false) {
+                mb.put(IndexMetadata.builder(indexMetadata)
+                    .settings(newSettings)
+                    .settingsVersion(indexMetadata.getSettingsVersion() + 1));
+                migratedIndices.add(indexMetadata.getIndex().getName());
             }
         }
         return migratedIndices;
+    }
+
+    private static Settings migrateIndexSettings(String attributeBasedRoutingSettingName, IndexMetadata indexMetadata) {
+        Settings currentIndexSettings = indexMetadata.getSettings();
+        if (currentIndexSettings.keySet().contains(attributeBasedRoutingSettingName) == false) {
+            return currentIndexSettings;
+        }
+        // look at the value, get the correct tiers config and update the settings and index metadata
+        Settings.Builder newSettingsBuilder = Settings.builder().put(currentIndexSettings);
+        String indexName = indexMetadata.getIndex().getName();
+        if (currentIndexSettings.keySet().contains(INDEX_ROUTING_PREFER)) {
+            newSettingsBuilder.remove(attributeBasedRoutingSettingName);
+            logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
+        } else {
+            // parse the custom attribute routing into the corresponding tier preference and configure it
+            String attributeValue = currentIndexSettings.get(attributeBasedRoutingSettingName);
+            String convertedTierPreference = convertAttributeValueToTierPreference(attributeValue);
+            if (convertedTierPreference != null) {
+                newSettingsBuilder.put(INDEX_ROUTING_PREFER, convertedTierPreference);
+                newSettingsBuilder.remove(attributeBasedRoutingSettingName);
+                logger.debug("index [{}]: removed setting [{}]", indexName, attributeBasedRoutingSettingName);
+                logger.debug("index [{}]: configured setting [{}] to [{}]", indexName,
+                    INDEX_ROUTING_PREFER, convertedTierPreference);
+            } else {
+                // log warning and do *not* remove setting, return the settings unchanged
+                logger.warn("index [{}]: could not convert attribute based setting [{}] value of [{}] to a tier preference " +
+                        "configuration. the only known values are: {}", indexName,
+                    attributeBasedRoutingSettingName, attributeValue, "hot,warm,cold, and frozen");
+                return currentIndexSettings;
+            }
+        }
+        return newSettingsBuilder.build();
     }
 
     /**

@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.allocateActionDefinesRoutingRules;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.convertAttributeValueToTierPreference;
@@ -57,6 +58,7 @@ import static org.mockito.Mockito.mock;
 public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     private static final String DATA_ROUTING_REQUIRE_SETTING = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data";
+    private static final String DATA_ROUTING_INCLUDE_SETTING = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data";
     private static final String BOX_ROUTING_REQUIRE_SETTING = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "box";
     private static final NamedXContentRegistry REGISTRY;
 
@@ -163,12 +165,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     private Settings.Builder getBaseIndexSettings() {
-        Settings.Builder settings = Settings.builder()
+        return Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, lifecycleName)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 5))
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
-        return settings;
     }
 
     public void testAllocateActionDefinesRoutingRules() {
@@ -212,6 +213,26 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         }
 
         {
+            // test the migration of the `include.data` configuration to the equivalent _tier_preference routing
+            IndexMetadata.Builder indexWitWarmDataAttribute =
+                IndexMetadata.builder("indexWitWarmDataAttribute").settings(getBaseIndexSettings().put(DATA_ROUTING_INCLUDE_SETTING,
+                    "warm"));
+            ClusterState state =
+                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWitWarmDataAttribute)).build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWitWarmDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWitWarmDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+        }
+
+        {
             // since the index has a _tier_preference configuration the migrated index should still contain it and have the `data`
             // attribute routing removed
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
@@ -231,6 +252,29 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
+        }
+
+        {
+            // like above, test a combination of node attribute and _tier_preference routings configured for the original index, but this
+            // time using the `include.data` setting
+            IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
+                IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
+                    .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                    .put(INDEX_ROUTING_PREFER, "data_warm,data_hot")
+                );
+            ClusterState state =
+                ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithTierPreferenceAndDataAttribute)).build();
+
+            Metadata.Builder mb = Metadata.builder(state.metadata());
+
+            List<String> migratedIndices = migrateIndices(mb, state, "data");
+            assertThat(migratedIndices.size(), is(1));
+            assertThat(migratedIndices.get(0), is("indexWithTierPreferenceAndDataAttribute"));
+
+            ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
+            IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
         }
 

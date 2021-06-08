@@ -29,8 +29,13 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         execute("git branch origin/7.10", file("cloned"))
     }
 
-    @Unroll
-    def "builds distribution from branches via archives #expectedAssembleTaskName"() {
+    def "builds distribution from branches via archives assemble"() {
+        given:
+        buildFile.text = ""
+        internalBuild(buildFile, "7.10.1", "7.11.0", "7.12.0")
+        buildFile << """
+            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
+        """
         when:
         def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
                 ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
@@ -49,7 +54,33 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName
         "7.10.1"       | "bugfix"   | "assemble"
-        "7.12.0"       | "minor"    | "extractedAssemble"
+    }
+
+    def "builds distribution from branches via archives extractedAssemble"() {
+        given:
+        buildFile.text = ""
+        internalBuild(buildFile, "7.12.1", "7.13.0", "7.14.0")
+        buildFile << """
+            apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
+        """
+        when:
+        def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
+                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
+                "-DtestRemoteRepo=" + remoteGitRepo,
+                "-Dbwc.remote=origin",
+                "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
+                .build()
+        then:
+        result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "assemble task triggered"
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
+
+        where:
+        bwcDistVersion | bwcProject | expectedAssembleTaskName
+        "7.14.0"       | "minor"    | "extractedAssemble"
     }
 
     @Unroll

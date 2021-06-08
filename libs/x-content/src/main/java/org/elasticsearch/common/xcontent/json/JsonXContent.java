@@ -105,4 +105,11 @@ public class JsonXContent implements XContent {
         return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(is), restApiVersion);
     }
 
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion)
+        throws IOException {
+        return new JsonXContentParser(xContentRegistry, deprecationHandler, jsonFactory.createParser(data, offset, length), restApiVersion);
+    }
+
 }

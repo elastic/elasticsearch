@@ -306,6 +306,7 @@ public abstract class ParseContext {
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
+        private final Set<String> newFieldsSeen = new HashSet<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeField> dynamicRuntimeFields = new ArrayList<>();
         private final Set<String> ignoredFields = new HashSet<>();
@@ -427,6 +428,14 @@ public abstract class ParseContext {
 
         @Override
         public void addDynamicMapper(Mapper mapper) {
+            // eagerly check field name limit here to avoid OOM errors
+            // only check fields that are not already mapped or tracked in order to avoid hitting field limit too early via double-counting
+            // note that existing fields can also receive dynamic mapping updates (e.g. constant_keyword to fix the value)
+            if (mappingLookup.getMapper(mapper.name()) == null &&
+                mappingLookup.objectMappers().containsKey(mapper.name()) == false &&
+                newFieldsSeen.add(mapper.name())) {
+                mappingLookup.checkFieldLimit(indexSettings.getMappingTotalFieldsLimit(), newFieldsSeen.size());
+            }
             if (mapper instanceof ObjectMapper) {
                 dynamicObjectMappers.put(mapper.name(), (ObjectMapper)mapper);
             }

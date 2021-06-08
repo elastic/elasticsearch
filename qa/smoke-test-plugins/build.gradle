@@ -6,8 +6,7 @@
  * Side Public License, v 1.
  */
 
-
-import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.internal.MavenFilteringHack
 import org.elasticsearch.gradle.internal.info.BuildParams
 
@@ -43,6 +42,6 @@ tasks.named("processTestResources").configure {
 }
 
 // AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-  tasks.named("integTest").configure {enabled = false }
+tasks.named("integTest").configure {
+  onlyIf { OS.current() != OS.WINDOWS }
 }

@@ -125,14 +125,8 @@ A comma-separated list of index settings that should not be restored from a snap
 
 `include_aliases`::
 (Optional, Boolean)
-If `true`, index aliases from the original snapshot are restored.
-Defaults to `true`.
-+
-If `false`, prevents index aliases from being restored together with associated
-indices.
-+
-This option doesn't affect data stream aliases. Restoring a data stream
-restores its aliases.
+If `true`, the request restores aliases for any restored data streams and
+indices. If `false`, the request doesn't restore aliases. Defaults to `true`.
 
 [[restore-snapshot-api-include-global-state]]
 `include_global_state`::

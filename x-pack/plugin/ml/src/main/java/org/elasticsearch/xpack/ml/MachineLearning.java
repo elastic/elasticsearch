@@ -43,7 +43,9 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -224,6 +226,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
@@ -249,6 +252,8 @@ import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.JobManagerHolder;
 import org.elasticsearch.xpack.ml.job.UpdateJobProcessNotifier;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
 import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
 import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizer;
@@ -1085,6 +1090,10 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         return Arrays.asList(jobComms, utility, datafeed);
     }
 
+    public Map<String, AnalysisProvider<CharFilterFactory>> getCharFilters() {
+        return Collections.singletonMap(FirstNonBlankLineCharFilter.NAME, FirstNonBlankLineCharFilterFactory::new);
+    }
+
     @Override
     public Map<String, AnalysisProvider<TokenizerFactory>> getTokenizers() {
         Map<String, AnalysisProvider<TokenizerFactory>> tokenizers = new HashMap<>();
@@ -1097,7 +1106,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         return Arrays.asList(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState()),
-            BucketCorrelationAggregationBuilder.buildSpec()
+            BucketCorrelationAggregationBuilder.buildSpec(),
+            BucketCountKSTestAggregationBuilder.buildSpec()
         );
     }
 
@@ -1196,13 +1206,13 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     }
 
     @Override
-    public Collection<String> getAssociatedIndexPatterns() {
+    public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
         return org.elasticsearch.common.collect.List.of(
-            RESULTS_INDEX_PREFIX + "*",
-            STATE_INDEX_PREFIX + "*",
-            MlStatsIndex.indexPattern(),
-            ".ml-notifications*",
-            ".ml-annotations*"
+            new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
+            new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
+            new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),
+            new AssociatedIndexDescriptor(".ml-notifications*", "ML notifications indices"),
+            new AssociatedIndexDescriptor(".ml-annotations*", "Ml annotations indices")
         );
     }
 

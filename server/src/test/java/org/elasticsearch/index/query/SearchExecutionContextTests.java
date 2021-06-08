@@ -75,7 +75,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -89,7 +88,6 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -327,7 +325,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
@@ -348,7 +346,8 @@ public class SearchExecutionContextTests extends ESTestCase {
             "uuid",
             null,
             createMappingLookup(org.elasticsearch.common.collect.List.of(
-                new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), Collections.emptyList()),
+                new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                Collections.singletonList(new TestRuntimeField("runtime", "long"))),
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
@@ -359,15 +358,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(context.getMatchingFieldNames("pig"), equalTo(Collections.singleton("pig")));
-        assertThat(context.getMatchingFieldNames("*"), containsInAnyOrder("cat", "dog", "pig"));
-
-        // test that shadowed fields aren't returned by getMatchingFieldTypes
-        Collection<MappedFieldType> matches = context.getMatchingFieldTypes("ca*");
-        assertThat(matches, hasSize(1));
-        assertThat(matches.iterator().next(), instanceOf(KeywordScriptFieldType.class));
-
-        matches = context.getAllFieldTypes();
-        assertThat(matches, hasSize(3));
+        assertThat(context.getMatchingFieldNames("*"), containsInAnyOrder("cat", "dog", "pig", "runtime"));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {

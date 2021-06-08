@@ -23,7 +23,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequest;
 import org.bouncycastle.util.io.pem.PemObject;
 import org.bouncycastle.util.io.pem.PemReader;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedFunction;

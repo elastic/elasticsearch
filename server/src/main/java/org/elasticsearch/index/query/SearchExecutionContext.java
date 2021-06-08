@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -312,7 +313,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<ObjectMapper> nestedMappings() {
+    public List<NestedObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
@@ -344,49 +345,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
             }
         }
         return matches;
-    }
-
-    /**
-     * @return all mapped field types, including runtime fields defined in the request
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return getMatchingFieldTypes("*");
-    }
-
-    /**
-     * Returns all mapped field types that match a given pattern
-     *
-     * Includes any runtime fields that have been defined in the request. Note
-     * that a runtime field with the same name as a mapped field will override
-     * the mapped field.
-     *
-     * @param pattern the field name pattern
-     */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
-        if (runtimeMappings.isEmpty()) {
-            return mappedFieldTypes;
-        }
-
-        Map<String, MappedFieldType> mappedByName = new HashMap<>();
-        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
-
-        if ("*".equals(pattern)) {
-            mappedByName.putAll(runtimeMappings);
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern) == false) {
-                return mappedFieldTypes;
-            }
-            mappedByName.put(pattern, runtimeMappings.get(pattern));
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    mappedByName.put(name, runtimeMappings.get(name));
-                }
-            }
-        }
-        return mappedByName.values();
     }
 
     /**

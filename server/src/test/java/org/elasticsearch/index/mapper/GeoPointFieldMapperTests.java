@@ -262,7 +262,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
-        AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
+        GeoPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         assertThat(nullValue, equalTo(new GeoPoint(1, 2)));
 
         doc = mapper.parse(source(b -> b.nullField("field")));
@@ -294,7 +294,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(GeoPointFieldMapper.class));
 
-        AbstractPointGeometryFieldMapper.ParsedPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
+        GeoPoint nullValue = ((GeoPointFieldMapper) fieldMapper).nullValue;
         // geo_point [91, 181] should have been normalized to [89, 1]
         assertThat(nullValue, equalTo(new GeoPoint(89, 1)));
     }

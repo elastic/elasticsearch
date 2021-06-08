@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.LoggedExec
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 /*

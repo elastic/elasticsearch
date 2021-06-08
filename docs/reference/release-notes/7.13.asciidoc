@@ -1,9 +1,34 @@
 [[release-notes-7.13.1]]
 == {es} version 7.13.1
 
-coming::[7.13.1]
-
 Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[bug-7.13.1]]
+[discrete]
+=== Bug fixes
+
+Engine::
+* Fix illegal access on PIT creation for frozen index {es-pull}73517[#73517] (issue: {es-issue}73514[#73514])
+
+Geo::
+* Fix typo in Rectangle() error message {es-pull}73124[#73124]
+
+Infra/Core::
+* Validate that system indices aren't also hidden indices {es-pull}72768[#72768] (issue: {es-issue}72631[#72631])
+
+Infra/Scripting::
+* Add `LinkageError` to the errors we catch as part of the Painless sandbox {es-pull}73116[#73116]
+
+Machine Learning::
+* Reduce warning logging from get categories Grok pattern creation {es-pull}73373[#73373]
+
+Search::
+* Search analyzer should default to configured index analyzer over default {es-pull}73359[#73359] (issue: {es-issue}73333[#73333])
+
+Snapshot/Restore::
+* Do not remove write block when unfreezing cold/frozen indices {es-pull}73368[#73368]
+* Fix bug with concurrent snapshot and index delete {es-pull}73456[#73456]
+* Fix location of repository analyzer API spec {es-pull}73378[#73378]
 
 [[release-notes-7.13.0]]
 == {es} version 7.13.0

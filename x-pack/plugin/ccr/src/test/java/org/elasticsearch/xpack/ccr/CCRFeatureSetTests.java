@@ -105,6 +105,7 @@ public class CCRFeatureSetTests extends ESTestCase {
             AutoFollowMetadata.AutoFollowPattern pattern = new AutoFollowMetadata.AutoFollowPattern(
                 "remote_cluser",
                 Collections.singletonList("logs" + i + "*"),
+                Collections.emptyList(),
                 null,
                 Settings.EMPTY,
                 true,

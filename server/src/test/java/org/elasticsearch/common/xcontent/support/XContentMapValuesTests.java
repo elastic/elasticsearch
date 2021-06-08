@@ -673,4 +673,62 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
         return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();
     }
+
+    public void testExtractSingleNestedSource() {
+        Map<?, ?> map = map("nested", map("field", "nested1"));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, contains(map("field", "nested1")));
+    }
+
+    public void testExtractFlatArrayNestedSource() {
+        Map<?, ?> map = map("nested", list(
+            map("field", "nested1"),
+            map("field", "nested2")));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            map("field", "nested1"),
+            map("field", "nested2")));
+    }
+
+    public void testNonExistentNestedSource() {
+        assertNull(XContentMapValues.extractNestedSources("nested", map("foo", "bar")));
+    }
+
+    public void testNestedSourceIsBadlyFormed() {
+        Exception e = expectThrows(IllegalStateException.class,
+            () -> XContentMapValues.extractNestedSources("nested", map("nested", "foo")));
+        assertThat(e.getMessage(), equalTo("Cannot extract nested source from path [nested]: got [foo]"));
+    }
+
+    public void testExtractNestedSources() {
+        Map<?, ?> map = map(
+            "obj.ect", list(
+                map("nested", list(map("field", "nested1"), map("field", "nested2"))),
+                map("nested", list(map("field", "nested3")))
+            ),
+            "obj", list(map("ect", map("nested", list(
+                map("field", "nested4"), map("field", "nested5"))
+            )))
+        );
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("obj.ect.nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            map("field", "nested1"),
+            map("field", "nested2"),
+            map("field", "nested3"),
+            map("field", "nested4"),
+            map("field", "nested5")
+        ));
+    }
+
+    private static Map<?, ?> map(String k1, Object v1) {
+        return org.elasticsearch.common.collect.Map.of(k1, v1);
+    }
+
+    private static Map<?, ?> map(String k1, Object v1, String k2, Object v2) {
+        return org.elasticsearch.common.collect.Map.of(k1, v1, k2, v2);
+    }
+
+    private static List<?> list(Object... vs) {
+        return org.elasticsearch.common.collect.List.of(vs);
+    }
 }

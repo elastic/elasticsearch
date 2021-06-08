@@ -70,13 +70,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
     }
 
-    public abstract static class AbstractGeometryFieldType extends MappedFieldType {
+    public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
-        protected final Parser<?> geometryParser;
+        protected final Parser<T> geometryParser;
         protected final boolean parsesArrayValue;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                            boolean parsesArrayValue, Parser<?> geometryParser, Map<String, String> meta) {
+                                            boolean parsesArrayValue, Parser<T> geometryParser, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
             this.parsesArrayValue = parsesArrayValue;
             this.geometryParser = geometryParser;
@@ -116,13 +116,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> ignoreZValue;
-    private final Parser<? extends T> parser;
+    private final Parser<T> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<? extends T> parser) {
+                                          Parser<T> parser) {
         super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
@@ -132,7 +132,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<? extends T> parser) {
+                                          Parser<T> parser) {
         this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
     }
 
@@ -141,7 +141,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        Parser<? extends T> parser,
+        Parser<T> parser,
         String onScriptError
     ) {
         super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
@@ -151,8 +151,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType) mappedFieldType;
+    public AbstractGeometryFieldType<T> fieldType() {
+        return (AbstractGeometryFieldType<T>) mappedFieldType;
     }
 
     @Override

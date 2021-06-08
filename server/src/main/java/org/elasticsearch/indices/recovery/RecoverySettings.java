@@ -12,7 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;

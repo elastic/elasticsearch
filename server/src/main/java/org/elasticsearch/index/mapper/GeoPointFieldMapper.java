@@ -18,7 +18,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoFormatsFactory;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -240,7 +240,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         @Override
         protected Function<GeoPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatsFactory.getFormat(format);
+            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
             return (point) -> formatter.apply(new Point(point.lon(), point.lat()));
         }
 
@@ -249,7 +249,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatsFactory.GEOJSON);
+            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
             return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
         }
 

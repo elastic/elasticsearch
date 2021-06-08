@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.spatial.common.CartesianFormatsFactory;
+import org.elasticsearch.xpack.spatial.common.CartesianFormatterFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryPointProcessor;
 
@@ -180,7 +180,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         @Override
         protected Function<CartesianPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = CartesianFormatsFactory.getFormat(format);
+            Function<Geometry, Object> formatter = CartesianFormatterFactory.getFormatter(format);
             return (point) -> formatter.apply(new Point(point.getX(), point.getY()));
         }
     }

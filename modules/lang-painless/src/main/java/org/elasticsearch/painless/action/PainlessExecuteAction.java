@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoFormatsFactory;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -588,7 +588,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     List<GeoPoint> points = new ArrayList<>();
                     geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    Function<Geometry, Object> format = GeoFormatsFactory.getFormat(GeoFormatsFactory.GEOJSON);
+                    Function<Geometry, Object> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
                     List<Object> objects = new ArrayList<>();
                     for (GeoPoint gp : points) {
                         objects.add(format.apply(new Point(gp.getLon(), gp.getLat())));

@@ -229,21 +229,29 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
         private final String value;
 
-        private final String snapshotUUID;
+        private final String snapshotName;
 
         After(StreamInput in) throws IOException {
             this(in.readString(), in.readString());
         }
 
-        After(String value, String snapshotUUID) {
+        After(String value, String snapshotName) {
             this.value = value;
-            this.snapshotUUID = snapshotUUID;
+            this.snapshotName = snapshotName;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public String snapshotName() {
+            return snapshotName;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
-            out.writeString(snapshotUUID);
+            out.writeString(snapshotName);
         }
     }
 }

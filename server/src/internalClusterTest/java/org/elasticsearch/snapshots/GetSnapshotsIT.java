@@ -17,7 +17,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -64,13 +67,21 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
         final List<String> names = createNSnapshots(repoName, randomIntBetween(6, 20));
-        final List<SnapshotInfo> allSnapshotsByName = allSnapshotsSorted(names, repoName, GetSnapshotsAction.SortBy.NAME);
-        assertSorted(
-                allSnapshotsByName,
-                (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()))
-        );
-        final List<SnapshotInfo> batch1 = sortedWithSize(repoName, GetSnapshotsAction.SortBy.NAME, 2);
-        assertEquals(batch1, allSnapshotsByName.subList(0, 2));
+        for (GetSnapshotsAction.SortBy sort : GetSnapshotsAction.SortBy.values()) {
+            logger.info("--> testing pagination for [{}]", sort);
+            doTestResponseSizeLimit(sort, repoName, names);
+        }
+    }
+
+    private void doTestResponseSizeLimit(GetSnapshotsAction.SortBy sort, String repoName, List<String> snapshotNames) throws Exception {
+        final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(snapshotNames, repoName, sort);
+        final List<SnapshotInfo> batch1 = sortedWithSize(repoName, sort, 2);
+        assertEquals(batch1, allSnapshotsSorted.subList(0, 2));
+        final List<SnapshotInfo> batch2 = sortedWithSize(repoName, sort, batch1.get(1), 2);
+        assertEquals(batch2, allSnapshotsSorted.subList(2, 4));
+        final int lastBatch = snapshotNames.size() - batch1.size() - batch2.size();
+        final List<SnapshotInfo> batch3 = sortedWithSize(repoName, sort, batch2.get(1), lastBatch);
+        assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), snapshotNames.size()));
     }
 
     private List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames, String repoName, GetSnapshotsAction.SortBy sortBy) {
@@ -93,6 +104,17 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .size(size)
             .get()
             .getSnapshots(repoName);
+        assertThat(snapshotInfos, hasSize(size));
+        return snapshotInfos;
+    }
+
+    private List<SnapshotInfo> sortedWithSize(String repoName, GetSnapshotsAction.SortBy sortBy, SnapshotInfo after, int size) {
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin()
+                .prepareGetSnapshots(repoName)
+                .pagination(after, sortBy, size)
+                .size(size)
+                .get()
+                .getSnapshots(repoName);
         assertThat(snapshotInfos, hasSize(size));
         return snapshotInfos;
     }

@@ -95,6 +95,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 (CancellableTask) task,
                 request.size(),
                 request.sort(),
+                request.after(),
                 listener
         );
     }
@@ -107,6 +108,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                               CancellableTask cancellableTask,
                                               int size,
                                               GetSnapshotsAction.SortBy sortBy,
+                                              @Nullable GetSnapshotsRequest.After after,
                                               ActionListener<GetSnapshotsResponse> listener) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
         if (repos.isEmpty()) {
@@ -131,6 +133,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     cancellableTask,
                     sortBy,
                     size,
+                    after,
                     groupedActionListener.delegateResponse((groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
@@ -141,13 +144,19 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
     }
 
-    private void getSingleRepoSnapshotInfo(SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
-                                           boolean ignoreUnavailable, boolean verbose, CancellableTask task,
-                                           GetSnapshotsAction.SortBy sortBy, int size,
+    private void getSingleRepoSnapshotInfo(SnapshotsInProgress snapshotsInProgress,
+                                           String repo,
+                                           String[] snapshots,
+                                           boolean ignoreUnavailable,
+                                           boolean verbose,
+                                           CancellableTask task,
+                                           GetSnapshotsAction.SortBy sortBy,
+                                           int size,
+                                           @Nullable final GetSnapshotsRequest.After after,
                                            ActionListener<List<SnapshotInfo>> listener) {
         final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
         final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, size, sortBy)) {
+        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, size, after, sortBy)) {
             SnapshotId snapshotId = snapshotInfo.snapshotId();
             allSnapshotIds.put(snapshotId.getName(), snapshotId);
             currentSnapshots.add(snapshotInfo);
@@ -161,7 +170,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         repositoryDataListener.whenComplete(repositoryData -> loadSnapshotInfos(snapshotsInProgress, repo, snapshots,
-                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, task, size, sortBy, listener),
+                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, task, size, after, sortBy, listener),
             listener::onFailure);
     }
 
@@ -172,7 +181,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    private static List<SnapshotInfo> sortedCurrentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName, int size,
+    private static List<SnapshotInfo> sortedCurrentSnapshots(SnapshotsInProgress snapshotsInProgress,
+                                                             String repositoryName,
+                                                             int size,
+                                                             @Nullable final GetSnapshotsRequest.After after,
                                                              GetSnapshotsAction.SortBy sortBy) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries =
@@ -180,7 +192,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(new SnapshotInfo(entry));
         }
-        return sortSnapshots(snapshotList, sortBy, size);
+        return sortSnapshots(snapshotList, sortBy, after, size);
     }
 
 
@@ -193,6 +205,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                    @Nullable RepositoryData repositoryData,
                                    CancellableTask task,
                                    int size,
+                                   @Nullable final GetSnapshotsRequest.After after,
                                    GetSnapshotsAction.SortBy sortBy,
                                    ActionListener<List<SnapshotInfo>> listener) {
         if (task.isCancelled()) {
@@ -234,16 +247,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         if (verbose) {
-            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, size, listener);
+            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, size, after, listener);
         } else {
             final List<SnapshotInfo> snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
-                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, size, sortBy);
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, size, after, sortBy);
             } else {
                 // only want current snapshots
                 snapshotInfos =
-                    sortSnapshots(currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()), sortBy, size);
+                    sortSnapshots(currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()), sortBy, after, size);
             }
             listener.onResponse(snapshotInfos);
         }
@@ -265,6 +278,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                            CancellableTask task,
                            GetSnapshotsAction.SortBy sortBy,
                            int size,
+                           @Nullable GetSnapshotsRequest.After after,
                            ActionListener<List<SnapshotInfo>> listener) {
         if (task.isCancelled()) {
             listener.onFailure(new TaskCancelledException("task cancelled"));
@@ -290,7 +304,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Collection<Void>> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, size));
+            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, size));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(Collections.emptyList());
@@ -375,6 +389,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                                                final RepositoryData repositoryData,
                                                                final List<SnapshotInfo> currentSnapshots,
                                                                final int size,
+                                                               @Nullable final GetSnapshotsRequest.After after,
                                                                final GetSnapshotsAction.SortBy sortBy) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
         for (SnapshotInfo snapshotInfo : currentSnapshots) {
@@ -397,7 +412,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), Collections.emptyList(),
                 repositoryData.getSnapshotState(snapshotId)));
         }
-        return sortSnapshots(snapshotInfos, sortBy, size);
+        return sortSnapshots(snapshotInfos, sortBy, after, size);
     }
 
     private static final Comparator<SnapshotInfo> BY_START_TIME =
@@ -411,7 +426,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
 
-    private static List<SnapshotInfo> sortSnapshots(List<SnapshotInfo> snapshotInfos, GetSnapshotsAction.SortBy sortBy, int size) {
+    private static List<SnapshotInfo> sortSnapshots(List<SnapshotInfo> snapshotInfos,
+                                                    GetSnapshotsAction.SortBy sortBy,
+                                                    @Nullable GetSnapshotsRequest.After after,
+                                                    int size) {
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
             case START_TIME:
@@ -430,6 +448,61 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 throw new AssertionError("unknown sort column [" + sortBy + "]");
         }
         CollectionUtil.timSort(snapshotInfos, comparator);
-        return List.copyOf(size > 0 && size < snapshotInfos.size() ? snapshotInfos.subList(0, size) : snapshotInfos);
+        int startIndex = 0;
+        if (after != null) {
+            switch (sortBy) {
+                case START_TIME:
+                    final long start = Long.parseLong(after.value());
+                    for (int i = 0; i < snapshotInfos.size(); i++) {
+                        final SnapshotInfo info = snapshotInfos.get(i);
+                        if (start < info.startTime() ||
+                                (start == info.startTime() && after.snapshotName().compareTo(info.snapshotId().getName()) < 0)) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    break;
+                case NAME:
+                    for (int i = 0; i < snapshotInfos.size(); i++) {
+                        final SnapshotInfo info = snapshotInfos.get(i);
+                        if (info.snapshotId().getName().compareTo(after.snapshotName()) > 0) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    break;
+                case DURATION:
+                    final long duration = Long.parseLong(after.value());
+                    for (int i = 0; i < snapshotInfos.size(); i++) {
+                        final SnapshotInfo info = snapshotInfos.get(i);
+                        final long snapshotDuration = info.endTime() - info.startTime();
+                        if (duration < snapshotDuration
+                                || (duration == snapshotDuration && after.snapshotName().compareTo(info.snapshotId().getName()) < 0)) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    break;
+                case INDICES:
+                    final int indices = Integer.parseInt(after.value());
+                    for (int i = 0; i < snapshotInfos.size(); i++) {
+                        final SnapshotInfo info = snapshotInfos.get(i);
+                        final int indexCount = info.indices().size();
+                        if (indices < indexCount || (indices == indexCount
+                                && after.snapshotName().compareTo(info.snapshotId().getName()) < 0)) {
+                            startIndex = i;
+                            break;
+                        }
+                    }
+                    break;
+            }
+        }
+        final List<SnapshotInfo> afterStart;
+        if (startIndex == 0) {
+            afterStart = snapshotInfos;
+        } else {
+            afterStart = snapshotInfos.subList(startIndex, snapshotInfos.size());
+        }
+        return List.copyOf(size > 0 && size < afterStart.size() ? afterStart.subList(0, size) : afterStart);
     }
 }

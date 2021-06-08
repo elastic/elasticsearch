@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 /**
  * Get snapshots request builder
@@ -100,6 +101,28 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     public GetSnapshotsRequestBuilder size(int size) {
         request.pagination(request.after(), request.sort(), size);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder pagination(SnapshotInfo after, GetSnapshotsAction.SortBy sortBy, int size) {
+        final String afterValue;
+        switch (sortBy) {
+            case START_TIME:
+                afterValue = String.valueOf(after.startTime());
+                break;
+            case NAME:
+                afterValue = after.snapshotId().getName();
+                break;
+            case DURATION:
+                afterValue = String.valueOf(after.endTime() - after.startTime());
+                break;
+            case INDICES:
+                afterValue = String.valueOf(after.indices().size());
+                break;
+            default:
+                throw new AssertionError("unknown sort column [" + sortBy + "]");
+        }
+        request.pagination(new GetSnapshotsRequest.After(afterValue, after.snapshotId().getName()), sortBy, size);
         return this;
     }
 }

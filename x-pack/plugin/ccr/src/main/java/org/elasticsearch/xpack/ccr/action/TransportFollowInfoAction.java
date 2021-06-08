@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
@@ -79,8 +78,8 @@ public class TransportFollowInfoAction extends TransportMasterNodeReadAction<Fol
                 }
 
                 String followerIndex = indexMetadata.getIndex().getName();
-                String remoteCluster = ccrCustomData.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
-                String leaderIndex = ccrCustomData.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+                String remoteCluster = ccrCustomData.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+                String leaderIndex = ccrCustomData.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
                 if (result.isPresent()) {
                     ShardFollowTask params = result.get();
                     FollowParameters followParameters = new FollowParameters();

@@ -30,6 +30,8 @@ import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -75,6 +77,8 @@ import static org.elasticsearch.xpack.core.ccr.AutoFollowStats.AutoFollowedClust
 public class AutoFollowCoordinator extends AbstractLifecycleComponent implements ClusterStateListener {
 
     private static final Logger LOGGER = LogManager.getLogger(AutoFollowCoordinator.class);
+    public static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AutoFollowCoordinator.class);
+
     private static final int MAX_AUTO_FOLLOW_ERRORS = 256;
 
     private final Client client;
@@ -538,6 +542,14 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         updateAutoFollowMetadata(recordLeaderIndexAsFollowFunction(autoFollowPattenName, indexToFollow),
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     } else {
+                        if (indexAbstraction.isSystem()) {
+                            deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                                "ccr_auto_follow_system_indices",
+                                "Auto following a leader system index " + indexToFollow.getName() +
+                                    " will not work in the next major version"
+                            );
+                        }
+
                         followLeaderIndex(autoFollowPattenName, remoteCluster, indexToFollow, autoFollowPattern, headers,
                             error -> groupedListener.onResponse(new Tuple<>(indexToFollow, error)));
                     }

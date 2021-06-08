@@ -43,7 +43,8 @@ import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
-    private static final List<DeprecationChecker> PLUGIN_CHECKERS = Arrays.asList(new MlDeprecationChecker());
+    private static final List<DeprecationChecker> PLUGIN_CHECKERS =
+        Arrays.asList(new MlDeprecationChecker(), new CcrAutoFollowedSystemIndicesChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
     private final NodeClient client;
@@ -90,7 +91,8 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             DeprecationChecker.Components components = new DeprecationChecker.Components(
                 xContentRegistry,
                 settings,
-                new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+                new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN),
+                state
             );
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
                 deprecationIssues -> {

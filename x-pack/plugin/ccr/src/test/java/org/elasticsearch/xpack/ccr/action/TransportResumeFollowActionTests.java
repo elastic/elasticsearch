@@ -20,7 +20,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
@@ -48,7 +47,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
 
     public void testValidation() throws IOException {
         final Map<String, String> customMetadata = new HashMap<>();
-        customMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
+        customMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "uuid");
         customMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
 
         ResumeFollowAction.Request request = resumeFollow("index2");
@@ -75,7 +74,7 @@ public class TransportResumeFollowActionTests extends ESTestCase {
             IndexMetadata leaderIMD = createIMD("index1", 5, Settings.EMPTY, null);
             Map<String, String> anotherCustomMetadata = new HashMap<>();
             anotherCustomMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, "_na_");
-            anotherCustomMetadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "another-uuid");
+            anotherCustomMetadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, "another-uuid");
             IndexMetadata followIMD = createIMD("index2", 5, Settings.EMPTY, anotherCustomMetadata);
             Exception e = expectThrows(IllegalArgumentException.class,
                 () -> validate(request, leaderIMD, followIMD, UUIDs, null));

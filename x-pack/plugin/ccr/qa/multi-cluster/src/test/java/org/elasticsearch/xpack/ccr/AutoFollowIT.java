@@ -864,6 +864,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     expectedWarningMessageFound,
                     equalTo(true)
                 );
+
             }
         } finally {
             cleanUpFollower(

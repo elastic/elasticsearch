@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
@@ -25,6 +26,8 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -34,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
@@ -2021,6 +2025,118 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(expect));
             assertThat(followedIndices.contains(index.key), is(expect));
         }
+    }
+
+    public void testDeprecationWarningIsEmittedWhenASystemIndexIsAutoFollowed() throws Exception {
+        // Set up a mock log appender to watch for the log message we expect
+        MockLogAppender mockLogAppender = new MockLogAppender();
+        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation.xpack.ccr.action.AutoFollowCoordinator"), mockLogAppender);
+        mockLogAppender.start();
+
+        final Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        final String pattern = "pattern1";
+        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
+            .metadata(Metadata.builder()
+                .putCustom(AutoFollowMetadata.TYPE,
+                    new AutoFollowMetadata(
+                        Collections.singletonMap(
+                            pattern,
+                            new AutoFollowPattern(
+                                "remote",
+                                Collections.singletonList(".*"),
+                                null,
+                                Settings.EMPTY,
+                                true,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        Collections.singletonMap(pattern, Collections.emptyList()),
+                        Collections.singletonMap(pattern, Collections.emptyMap()))))
+            .build();
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final int nbLeaderSystemIndices = randomIntBetween(1, 10);
+        for (int i = 0; i < nbLeaderSystemIndices; i++) {
+            final String indexName = ".system-" + i;
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .system(true)
+                .build();
+            metadataBuilder.put(indexMetadata, true);
+
+            routingTableBuilder.add(IndexRoutingTable.builder(indexMetadata.getIndex())
+                .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
+                .build());
+
+            mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "ccr_auto_follow_system_indices",
+                "org.elasticsearch.deprecation.xpack.ccr.action.AutoFollowCoordinator",
+                DeprecationLogger.DEPRECATION,
+                "Auto following a leader system index " + indexName + " will not work in the next major version"));
+        }
+
+        final ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .build();
+
+        final List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
+        final Set<Object> followedIndices = ConcurrentCollections.newConcurrentSet();
+        final AutoFollower autoFollower =
+            new AutoFollower("remote", results::addAll, localClusterStateSupplier(localState), () -> 1L, Runnable::run) {
+                @Override
+                void getRemoteClusterState(String remoteCluster,
+                                           long metadataVersion,
+                                           BiConsumer<ClusterStateResponse, Exception> handler) {
+                    assertThat(remoteCluster, equalTo("remote"));
+                    handler.accept(new ClusterStateResponse(new ClusterName("remote"), remoteState, false), null);
+                }
+
+                @Override
+                void createAndFollow(Map<String, String> headers,
+                                     PutFollowAction.Request followRequest,
+                                     Runnable successHandler,
+                                     Consumer<Exception> failureHandler) {
+                    followedIndices.add(followRequest.getLeaderIndex());
+                    successHandler.run();
+                }
+
+                @Override
+                void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+                    handler.accept(null);
+                }
+
+                @Override
+                void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
+                    // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+                }
+            };
+        autoFollower.start();
+
+        assertThat(results, notNullValue());
+        assertThat(results.size(), equalTo(1));
+
+        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(true));
+            assertThat(followedIndices.contains(index.key), is(true));
+        }
+
+        mockLogAppender.assertAllExpectationsMatched();
     }
 
     private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {

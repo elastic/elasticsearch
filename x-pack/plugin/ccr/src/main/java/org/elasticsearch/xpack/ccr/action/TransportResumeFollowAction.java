@@ -44,7 +44,6 @@ import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -126,10 +125,10 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         if (ccrMetadata == null) {
             throw new IllegalArgumentException("follow index ["+ request.getFollowerIndex() + "] does not have ccr metadata");
         }
-        final String leaderCluster = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+        final String leaderCluster = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
         // Validates whether the leader cluster has been configured properly:
         client.getRemoteClusterClient(leaderCluster);
-        final String leaderIndex = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+        final String leaderIndex = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
         ccrLicenseChecker.checkRemoteClusterLicenseAndFetchLeaderIndexMetadataAndHistoryUUIDs(
             client,
             leaderCluster,
@@ -353,7 +352,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
     }
 
     static String[] extractLeaderShardHistoryUUIDs(Map<String, String> ccrIndexMetadata) {
-        String historyUUIDs = ccrIndexMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
+        String historyUUIDs = ccrIndexMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS);
         if (historyUUIDs == null) {
             throw new IllegalArgumentException("leader index shard UUIDs are missing");
         }

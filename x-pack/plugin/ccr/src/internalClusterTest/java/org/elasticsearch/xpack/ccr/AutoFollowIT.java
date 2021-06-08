@@ -8,12 +8,17 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
@@ -21,12 +26,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
+import org.elasticsearch.xpack.core.ccr.CcrAutoFollowInfoFetcher;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -34,9 +44,13 @@ import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
+import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -46,7 +60,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -59,6 +76,105 @@ public class AutoFollowIT extends CcrIntegTestCase {
     @Override
     protected boolean reuseClusters() {
         return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return org.elasticsearch.common.collect.List.of(FakeSystemIndexPlugin.class, SecondFakeSystemIndexPlugin.class);
+    }
+
+
+    public static class FakeSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+
+        public static final Settings SETTINGS = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        public static final String SYSTEM_INDEX_NAME = ".test-system-idx";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(SystemIndexDescriptor.builder()
+                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                .setDescription("Test system index")
+                .setPrimaryIndex(SYSTEM_INDEX_NAME)
+                .setMappings(getSystemIndexMappings())
+                .setSettings(SETTINGS)
+                .setOrigin(getClass().getName())
+                .setVersionMetaKey("version")
+                .build()
+            );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "FakeSystemIndexPlugin";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Another simple test plugin";
+        }
+
+        private static XContentBuilder getSystemIndexMappings() {
+            try {
+                final XContentBuilder builder = jsonBuilder();
+
+                builder.startObject();
+                {
+                    builder.startObject(SINGLE_MAPPING_NAME);
+                    builder.field("dynamic", "strict");
+                    {
+                        builder.startObject("_meta");
+                        builder.field("version", Version.CURRENT.toString());
+                        builder.endObject();
+                    }
+                    {
+                        builder.startObject("properties");
+                        {
+                            builder.startObject("completed");
+                            builder.field("type", "boolean");
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                return builder;
+            } catch (IOException e) {
+                throw new UncheckedIOException("Failed to build index mappings", e);
+            }
+        }
+    }
+
+    public static class SecondFakeSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_NAME = ".another-test-system-idx";
+
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return Collections.singletonList(SystemIndexDescriptor.builder()
+                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
+                .setDescription("Test system index")
+                .setPrimaryIndex(SYSTEM_INDEX_NAME)
+                .setMappings(FakeSystemIndexPlugin.getSystemIndexMappings())
+                .setSettings(FakeSystemIndexPlugin.SETTINGS)
+                .setOrigin(getClass().getName())
+                .setVersionMetaKey("version")
+                .build()
+            );
+        }
+
+        @Override
+        public String getFeatureName() {
+            return "SecondFakeSystemIndexPlugin";
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return "Fake system index";
+        }
     }
 
     public void testAutoFollow() throws Exception {
@@ -567,6 +683,70 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         ensureFollowerGreen("copy-*");
         assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(leaderIndices.get()));
+    }
+
+    public void testGetAutoFollowedSystemIndices() throws Exception {
+        assertThat(getFollowerAutoFollowedSystemIndices(), is(empty()));
+
+        // This index is created before the auto-follow pattern therefore it won't be auto-followed
+        // but it's in the followedLeaderIndexUUIDs list anyway.
+        createLeaderSystemIndex(FakeSystemIndexPlugin.SYSTEM_INDEX_NAME);
+
+        putAutoFollowPatterns("my-pattern", new String[] {".*", "logs-*"});
+
+        assertLongBusy(() -> {
+            final AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getAutoFollowedClusters().size(), equalTo(1));
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+        });
+
+        assertThat(getFollowerAutoFollowedSystemIndices(), is(empty()));
+
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        createLeaderIndex("logs-202101", leaderIndexSettings);
+        createLeaderSystemIndex(SecondFakeSystemIndexPlugin.SYSTEM_INDEX_NAME);
+
+        final String followerSystemIndexName = "copy-" + SecondFakeSystemIndexPlugin.SYSTEM_INDEX_NAME;
+
+        ensureFollowerGreen(followerSystemIndexName);
+        ensureFollowerGreen("copy-logs-202101");
+
+        assertLongBusy(() -> {
+            final AutoFollowStats autoFollowStats = getAutoFollowStats();
+            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(2L));
+
+            // Ensure that the operations have been replicated
+            final GetResponse response = followerClient().prepareGet(followerSystemIndexName, "_doc", "1").execute().actionGet();
+            assertThat(response.isExists(), equalTo(true));
+        });
+
+        final List<String> autoFollowedIndices = getFollowerAutoFollowedSystemIndices();
+        assertThat(autoFollowedIndices.size(), is(equalTo(1)));
+        assertThat(autoFollowedIndices.get(0), is(equalTo(followerSystemIndexName)));
+
+        followerClient().execute(PauseFollowAction.INSTANCE, new PauseFollowAction.Request(followerSystemIndexName)).actionGet();
+
+        assertLongBusy(() -> {
+            assertThat(getFollowerAutoFollowedSystemIndices(), is(empty()));
+        });
+    }
+
+    private void createLeaderSystemIndex(String indexName) {
+        leaderClient().index(new IndexRequest(indexName).id("1").source("completed", true)).actionGet();
+        final GetResponse getResponse = leaderClient().prepareGet(indexName, "_doc", "1").execute().actionGet();
+        assertThat(getResponse.isExists(), equalTo(true));
+    }
+
+    private List<String> getFollowerAutoFollowedSystemIndices() {
+        final ClusterService followerClusterService = getFollowerCluster().getMasterNodeInstance(ClusterService.class);
+        PlainActionFuture<List<String>> future = PlainActionFuture.newFuture();
+        CcrAutoFollowInfoFetcher.getAutoFollowedSystemIndices(followerClient(), followerClusterService.state(), future);
+        return future.actionGet();
     }
 
     private void putAutoFollowPatterns(String name, String[] patterns) {

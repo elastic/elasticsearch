@@ -38,7 +38,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
@@ -97,9 +96,9 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                 final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
                 final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
-                final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+                final String remoteClusterName = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
-                final String leaderIndexName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+                final String leaderIndexName = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
                 final String leaderIndexUuid = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
                 final Index leaderIndex = new Index(leaderIndexName, leaderIndexUuid);
                 final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(

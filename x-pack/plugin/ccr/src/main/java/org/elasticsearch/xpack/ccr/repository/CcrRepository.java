@@ -219,10 +219,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(leaderIndex);
         // Adding the leader index uuid for each shard as custom metadata:
         Map<String, String> metadata = new HashMap<>();
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
+        metadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_SHARD_HISTORY_UUIDS, String.join(",", leaderHistoryUUIDs));
         metadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY, leaderIndexMetadata.getIndexUUID());
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetadata.getIndex().getName());
-        metadata.put(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
+        metadata.put(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY, leaderIndexMetadata.getIndex().getName());
+        metadata.put(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY, remoteClusterAlias);
         imdBuilder.putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, metadata);
 
         imdBuilder.settings(leaderIndexMetadata.getSettings());
@@ -347,7 +347,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
             final Map<String, String> ccrMetadata = store.indexSettings()
                 .getIndexMetadata()
                 .getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
-            final String leaderIndexName = ccrMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+            final String leaderIndexName = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
             final String leaderUUID = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
             final Index leaderIndex = new Index(leaderIndexName, leaderUUID);
             final ShardId leaderShardId = new ShardId(leaderIndex, shardId.getId());

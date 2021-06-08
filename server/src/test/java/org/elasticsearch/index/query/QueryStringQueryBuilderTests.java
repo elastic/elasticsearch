@@ -60,6 +60,7 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -1548,11 +1549,10 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             .field(TEXT_FIELD_NAME, 0.3f)
             .field(TEXT_FIELD_NAME.substring(0, TEXT_FIELD_NAME.length()-2) + "*", 0.5f)
             .toQuery(createSearchExecutionContext());
-        List<Query> terms = new ArrayList<>();
-        terms.add(new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f));
-        terms.add(new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first")), 0.5f));
-        Query expected = new DisjunctionMaxQuery(terms, 1.0f);
-        assertEquals(expected, query);
+        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
+        Collection<Query> disjuncts = ((DisjunctionMaxQuery) query).getDisjuncts();
+        assertThat(disjuncts, hasItems(new BoostQuery(new TermQuery(new Term(TEXT_FIELD_NAME, "first")), 0.075f),
+            new BoostQuery(new TermQuery(new Term(KEYWORD_FIELD_NAME, "first")), 0.5f)));
     }
 
     private static IndexMetadata newIndexMeta(String name, Settings oldIndexSettings, Settings indexSettings) {

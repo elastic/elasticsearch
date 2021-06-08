@@ -22,13 +22,16 @@ description = "The elasticsearch build tools"
 // we write this back out below to load it in the Build.java which will be shown in rest main action
 // to indicate this being a snapshot build or a release build.
 Properties props = VersionPropertiesLoader.loadBuildSrcVersion(project.file('../build-tools-internal/version.properties'))
+def minRuntimeJava = JavaVersion.toVersion(file('../build-tools-internal/src/main/resources/minimumRuntimeVersion').text)
+
 allprojects {
     group = "org.elasticsearch"
     version = props.getProperty("elasticsearch")
 
     apply plugin: 'java'
-    targetCompatibility = 11
-    sourceCompatibility = 11
+    apply plugin: 'elasticsearch.eclipse'
+    targetCompatibility = minRuntimeJava
+    sourceCompatibility = minRuntimeJava
 }
 
 gradlePlugin {

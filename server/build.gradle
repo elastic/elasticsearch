@@ -324,13 +324,6 @@ tasks.named('splitPackagesAudit').configure {
     // Joda should own its own packages! This should be a simple move.
     'org.joda.time.format.StrictISODateTimeFormat',
 
-    // core should not have common, all it's common packages should be renamed to core
-    'org.elasticsearch.common.*',
-    'org.elasticsearch.common.unit.*',
-    'org.elasticsearch.common.collect.*',
-    'org.elasticsearch.common.io.*',
-    'org.elasticsearch.common.util.*',
-
     // xcontent should not have common, all it's common packages should be renamed to xcontent
     'org.elasticsearch.common.xcontent.*',
     'org.elasticsearch.common.xcontent.support.XContentMapValues',

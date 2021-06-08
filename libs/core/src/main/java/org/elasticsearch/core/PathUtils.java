@@ -6,9 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.io;
-
-import org.elasticsearch.common.SuppressForbidden;
+package org.elasticsearch.core;
 
 import java.net.URI;
 import java.nio.file.FileSystem;

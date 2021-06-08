@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.transport.nio;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.nio.BytesWriteHandler;
 import org.elasticsearch.nio.FlushOperation;

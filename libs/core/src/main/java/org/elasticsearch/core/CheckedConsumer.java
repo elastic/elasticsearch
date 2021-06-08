@@ -6,20 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.util;
+package org.elasticsearch.core;
+
+import java.util.function.Consumer;
 
 /**
- * Similar to Lucene's SloppyMath, but for additional math functions.
+ * A {@link Consumer}-like interface which allows throwing checked exceptions.
  */
-public class ESSloppyMath {
-
-    private ESSloppyMath() {}
-
-    public static double sinh(double value) {
-        return FastMath.sinh(value);
-    }
-
-    public static double atan(double value) {
-        return FastMath.atan(value);
-    }
+@FunctionalInterface
+public interface CheckedConsumer<T, E extends Exception> {
+    void accept(T t) throws E;
 }

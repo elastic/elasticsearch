@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.util.concurrent;
+package org.elasticsearch.core;
 
 /**
  *  An interface for objects that need to be notified when all reference

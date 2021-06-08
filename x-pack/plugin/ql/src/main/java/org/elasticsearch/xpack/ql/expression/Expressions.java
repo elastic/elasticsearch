@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AttributeInput;

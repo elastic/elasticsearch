@@ -20,7 +20,7 @@ import java.io.IOException;
 import java.text.ParseException;
 
 /**
- * Supported formats to read/write geometries using XContent.
+ * Supported formats to read/write JSON geometries.
  */
 public enum GeometryParserFormat {
 
@@ -64,8 +64,14 @@ public enum GeometryParserFormat {
         }
     };
 
+    /**
+     * Serializes the geometry into its JSON representation
+     */
     public abstract XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException;
 
+    /**
+     * Parser JSON representation of a geometry
+     */
     public abstract Geometry fromXContent(GeometryValidator validator, boolean coerce, boolean rightOrientation, XContentParser parser)
         throws IOException, ParseException;
 

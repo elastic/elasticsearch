@@ -80,10 +80,9 @@ final class FieldTypeLookup {
             }
         }
 
-        for (RuntimeField runtimeField : runtimeFields) {
-            MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
+        for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
             //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            fullNameToFieldType.put(fieldType.name(), fieldType);
         }
     }
 

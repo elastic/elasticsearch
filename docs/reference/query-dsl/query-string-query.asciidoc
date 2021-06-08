@@ -142,8 +142,8 @@ You can use this parameter query to search across multiple fields. See
 --
 
 `fuzziness`::
-(Optional, string) Maximum edit distance allowed for matching. See <<fuzziness>>
-for valid values and more information.
+(Optional, string) Maximum edit distance allowed for fuzzy matching. For fuzzy
+syntax, see <<query-string-fuzziness>>.
 
 `fuzzy_max_expansions`::
 (Optional, integer) Maximum number of terms to which the query expands for fuzzy

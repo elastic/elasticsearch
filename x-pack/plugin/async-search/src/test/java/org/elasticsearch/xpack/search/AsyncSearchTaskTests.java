@@ -74,7 +74,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     private AsyncSearchTask createAsyncSearchTask() {
         return new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
     }
 
     public void testTaskDescription() {
@@ -82,7 +82,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")));
         AsyncSearchTask asyncSearchTask = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), searchRequest::buildDescription,
             TimeValue.timeValueHours(1), Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         assertEquals("async_search{indices[index1,index2], search_type[QUERY_THEN_FETCH], " +
             "source[{\"query\":{\"term\":{\"field\":{\"value\":\"value\",\"boost\":1.0}}}}]}", asyncSearchTask.getDescription());
     }
@@ -90,7 +90,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
     public void testWaitForInit() throws InterruptedException {
         AsyncSearchTask task = new AsyncSearchTask(0L, "", "", new TaskId("node1", 0), () -> null, TimeValue.timeValueHours(1),
             Collections.emptyMap(), Collections.emptyMap(), new AsyncExecutionId("0", new TaskId("node1", 1)),
-            new NoOpClient(threadPool), threadPool, null);
+            new NoOpClient(threadPool), threadPool, (t) -> () -> null);
         int numShards = randomIntBetween(0, 10);
         List<SearchShard> shards = new ArrayList<>();
         for (int i = 0; i < numShards; i++) {

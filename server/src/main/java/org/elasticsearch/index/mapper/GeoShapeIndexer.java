@@ -168,11 +168,10 @@ public class GeoShapeIndexer {
     }
 
     public List<IndexableField> indexShape(Geometry shape) {
-        LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
-        shape = prepareForIndexing(shape);
         if (shape == null) {
             return Collections.emptyList();
         }
+        LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         shape.visit(visitor);
         return visitor.fields();
     }

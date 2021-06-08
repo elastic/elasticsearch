@@ -18,7 +18,6 @@ import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.StandardValidator;
-import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -32,14 +31,14 @@ import java.util.Map;
  */
 public final class GeometryParser {
 
-    private final GeoJson geoJsonParser;
-    private final WellKnownText wellKnownTextParser;
+    private final GeoJsonGeometryFormat jsonGeometryFormat;
+    private final WKTGeometryFormat wktGeometryFormat;
     private final boolean ignoreZValue;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        GeometryValidator validator = new StandardValidator(ignoreZValue);
-        geoJsonParser = new GeoJson(rightOrientation, coerce, validator);
-        wellKnownTextParser = new WellKnownText(coerce, validator);
+        final GeometryValidator validator = StandardValidator.instance(ignoreZValue);
+        jsonGeometryFormat = new GeoJsonGeometryFormat(validator, coerce, rightOrientation);
+        wktGeometryFormat = new WKTGeometryFormat(validator, coerce);
         this.ignoreZValue = ignoreZValue;
     }
 
@@ -55,9 +54,9 @@ public final class GeometryParser {
      */
     public GeometryFormat<Geometry> geometryFormat(String format) {
         if (format.equals(GeoJsonGeometryFormat.NAME)) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
+            return jsonGeometryFormat;
         } else if (format.equals(WKTGeometryFormat.NAME)) {
-            return new WKTGeometryFormat(wellKnownTextParser);
+            return wktGeometryFormat;
         } else {
             throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
         }
@@ -69,12 +68,12 @@ public final class GeometryParser {
      */
     public GeometryFormat<Geometry> geometryFormat(XContentParser parser) {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            return new GeoJsonGeometryFormat(geoJsonParser);
+            return jsonGeometryFormat;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-            return new WKTGeometryFormat(wellKnownTextParser);
+            return wktGeometryFormat;
         } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             // We don't know the format of the original geometry - so going with default
-            return new GeoJsonGeometryFormat(geoJsonParser);
+            return jsonGeometryFormat;
         } else {
             throw new ElasticsearchParseException("shape must be an object consisting of type and coordinates");
         }

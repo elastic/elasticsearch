@@ -122,17 +122,6 @@ tasks.named("yamlRestCompatTest").configure {
     //type information is not stored, hence the the index will be found
     'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
     // 85 - 13 = 72 tests won't be fixed
-    'bulk/11_basic_with_types/Array of objects',
-    'bulk/11_basic_with_types/Empty _id',
-    'bulk/11_basic_with_types/Empty _id with op_type create',
-    'bulk/11_basic_with_types/empty action',
-    'bulk/21_list_of_strings_with_types/List of strings',
-    'bulk/31_big_string_with_types/One big string',
-    'bulk/41_source_with_types/Source filtering',
-    'bulk/51_refresh_with_types/refresh=empty string immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=true immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=wait_for waits until changes are visible in search',
-    'bulk/81_cas_with_types/Compare And Swap Sequence Numbers',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'count/11_basic_with_types/count body without query element',

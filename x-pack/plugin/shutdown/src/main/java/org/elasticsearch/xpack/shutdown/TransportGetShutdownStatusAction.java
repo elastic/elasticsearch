@@ -64,7 +64,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         AllocationService allocationService,
         AllocationDeciders allocationDeciders,
         ClusterInfoService clusterInfoService,
-        SnapshotsInfoService snapshotsInfoService
+        SnapshotsInfoService snapshotsInfoService,
         PluginShutdownService pluginShutdownService
     ) {
         super(

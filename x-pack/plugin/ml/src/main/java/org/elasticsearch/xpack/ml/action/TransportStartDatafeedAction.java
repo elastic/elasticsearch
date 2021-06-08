@@ -45,6 +45,7 @@ import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ml.MlTasks;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -538,6 +539,16 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             if (datafeedManager != null) {
                 datafeedManager.isolateDatafeed(getAllocationId());
             }
+        }
+
+        public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
+            if (datafeedManager == null) {
+                return Optional.empty();
+            }
+            return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
+                this.endTime == null,
+                datafeedManager.finishedLookBack(this)
+            ));
         }
     }
 

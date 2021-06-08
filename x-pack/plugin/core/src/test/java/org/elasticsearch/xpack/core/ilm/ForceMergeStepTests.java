@@ -145,7 +145,7 @@ public class ForceMergeStepTests extends AbstractStepTestCase<ForceMergeStep> {
         ClusterState state =
             ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
         ForceMergeStep step = new ForceMergeStep(stepKey, nextStepKey, client, 1);
-        step.performAction(indexMetadata, state, null, new ActionListener<>() {
+        step.performAction(indexMetadata, state, null, new ActionListener<Boolean>() {
             @Override
             public void onResponse(Boolean aBoolean) {
                 throw new AssertionError("unexpected method call [onResponse]. expecting [onFailure]");

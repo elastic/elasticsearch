@@ -294,15 +294,22 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter',
     'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttribute',
     'org.apache.lucene.analysis.miscellaneous.DuplicateSequenceAttributeImpl',
+    'org.apache.lucene.document.BinaryRange',
     'org.apache.lucene.queryparser.classic.XQueryParser',
+    'org.apache.lucene.queries.BinaryDocValuesRangeQuery',
+    'org.apache.lucene.queries.BlendedTermQuery',
+    'org.apache.lucene.queries.MinDocQuery',
+    'org.apache.lucene.queries.SearchAfterSortedDocQuery',
+    'org.apache.lucene.queries.SpanMatchNoDocsQuery',
     'org.apache.lucene.search.grouping.CollapseTopFieldDocs',
     'org.apache.lucene.search.grouping.CollapsingDocValuesSource',
-    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector', 
+    'org.apache.lucene.search.grouping.CollapsingTopDocsCollector',
     'org.apache.lucene.search.uhighlight.BoundedBreakIteratorScanner',
     'org.apache.lucene.search.uhighlight.CustomFieldHighlighter',
     'org.apache.lucene.search.uhighlight.CustomPassageFormatter',
     'org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter',
     'org.apache.lucene.search.uhighlight.Snippet',
+    'org.apache.lucene.util.CombinedBitSet',
     'org.apache.lucene.search.vectorhighlight.CustomFieldQuery',
 
     // These are tricky because Lucene itself splits the index package,
@@ -315,66 +322,24 @@ tasks.named('splitPackagesAudit').configure {
     'org.elasticsearch.common.util.concurrent.*',
 
     // Joda should own its own packages! This should be a simple move.
-    'org.joda.time.format.StrictISODateTimeFormat',    
+    'org.joda.time.format.StrictISODateTimeFormat',
 
-    // common should be owned by core
-    'org.elasticsearch.common.AsyncBiFunction',
-    'org.elasticsearch.common.CheckedBiConsumer',
-    'org.elasticsearch.common.CheckedBiFunction',
-    'org.elasticsearch.common.CheckedIntFunction',
-    'org.elasticsearch.common.CheckedSupplier',
-    'org.elasticsearch.common.Classes',
-    'org.elasticsearch.common.Explicit',
-    'org.elasticsearch.common.ExponentiallyWeightedMovingAverage',
-    'org.elasticsearch.common.FieldMemoryStats',
-    'org.elasticsearch.common.LocalTimeOffset',
-    'org.elasticsearch.common.MacAddressProvider',
-    'org.elasticsearch.common.NamedRegistry',
-    'org.elasticsearch.common.Numbers',
-    'org.elasticsearch.common.ParsingException',
-    'org.elasticsearch.common.PidFile',
-    'org.elasticsearch.common.Priority',
-    'org.elasticsearch.common.RandomBasedUUIDGenerator',
-    'org.elasticsearch.common.Randomness',
-    'org.elasticsearch.common.Rounding',
-    'org.elasticsearch.common.SecureRandomHolder',
-    'org.elasticsearch.common.StopWatch',
-    'org.elasticsearch.common.Strings',
-    'org.elasticsearch.common.SuppressLoggerChecks',
-    'org.elasticsearch.common.Table',
-    'org.elasticsearch.common.TimeBasedUUIDGenerator',
-    'org.elasticsearch.common.TriConsumer',
-    'org.elasticsearch.common.TriFunction',
-    'org.elasticsearch.common.UUIDGenerator',
-    'org.elasticsearch.common.UUIDs',
-    'org.elasticsearch.common.ValidationException',
+    // core should not have common, all it's common packages should be renamed to core
+    'org.elasticsearch.common.*',
+    'org.elasticsearch.common.unit.*',
+    'org.elasticsearch.common.collect.*',
+    'org.elasticsearch.common.io.*',
+    'org.elasticsearch.common.util.*',
 
-    // it's surprising these are not in core, move them to o.e.server.something
-    'org.elasticsearch.common.unit.ByteSizeUnit',
-    'org.elasticsearch.common.unit.ByteSizeValue',
-    'org.elasticsearch.common.unit.DistanceUnit',
-    'org.elasticsearch.common.unit.Fuzziness',
-    'org.elasticsearch.common.unit.MemorySizeValue',
-    'org.elasticsearch.common.unit.RatioValue',
-    'org.elasticsearch.common.unit.RelativeByteSizeValue',
-    'org.elasticsearch.common.unit.SizeUnit',
-    'org.elasticsearch.common.unit.SizeValue',   
+    // xcontent should not have common, all it's common packages should be renamed to xcontent
+    'org.elasticsearch.common.xcontent.*',
+    'org.elasticsearch.common.xcontent.support.XContentMapValues',
 
-    // these should move to o.e.server.something
-    'org.elasticsearch.common.collect.CopyOnWriteHashMap',
-    'org.elasticsearch.common.collect.EvictingQueue',
-    'org.elasticsearch.common.collect.HppcMaps',
-    'org.elasticsearch.common.collect.ImmutableOpenIntMap',
-    'org.elasticsearch.common.collect.ImmutableOpenMap',
-    'org.elasticsearch.common.collect.Iterators',
-    'org.elasticsearch.common.collect.MapBuilder'
-    
-    // these should move to o.e.server.io
-    'org.elasticsearch.common.io.Channels',
-    'org.elasticsearch.common.io.DiskIoBufferPool',
-    'org.elasticsearch.common.io.FileSystemUtils',
-    'org.elasticsearch.common.io.Streams',
-    'org.elasticsearch.common.io.UTF8StreamWriter',
+    // cli is owned by the libs/cli, so these should be moved to o.e.server.cli
+    'org.elasticsearch.cli.CommandLoggingConfigurator',
+    'org.elasticsearch.cli.EnvironmentAwareCommand',
+    'org.elasticsearch.cli.KeyStoreAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareCommand',
+    'org.elasticsearch.cli.LoggingAwareMultiCommand'
 
-    
 }

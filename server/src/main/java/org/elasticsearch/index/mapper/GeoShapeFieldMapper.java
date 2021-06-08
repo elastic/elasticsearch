@@ -202,7 +202,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         if (geometry == null) {
             return;
         }
-        context.doc().addAll(indexer.indexShape(geometry));
+        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
         context.addToFieldNames(fieldType().name());
     }
 

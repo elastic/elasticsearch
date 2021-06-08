@@ -243,7 +243,7 @@ public class SplitPackagesAuditTask extends DefaultTask {
                 } else {
                     if (className.equals("*")) {
                         currentClasses.clear();
-                    } else if (currentClasses.remove(className) == false) {
+                    } else if (currentClasses.remove(fqcn) == false) {
                         LOGGER.error("Class does not exist: " + fqcn);
                         filterErrorsFound = true;
                     }

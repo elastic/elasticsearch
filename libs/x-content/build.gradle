@@ -47,3 +47,8 @@ tasks.named("dependencyLicenses").configure {
 }
 
 tasks.named("jarHell").configure { enabled = false }
+
+tasks.named('splitPackagesAudit').configure {
+  // the common package is owned by libs/core, this should move to o.e.c.xcontent
+  ignoreClasses 'org.elasticsearch.common.ParseField'
+}

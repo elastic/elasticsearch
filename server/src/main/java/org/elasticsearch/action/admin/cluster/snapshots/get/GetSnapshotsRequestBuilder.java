@@ -105,6 +105,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public GetSnapshotsRequestBuilder pagination(SnapshotInfo after, GetSnapshotsAction.SortBy sortBy, int size) {
+        request.pagination(buildAfter(after, sortBy), sortBy, size);
+        return this;
+    }
+
+    public static GetSnapshotsRequest.After buildAfter(SnapshotInfo after, GetSnapshotsAction.SortBy sortBy) {
         final String afterValue;
         switch (sortBy) {
             case START_TIME:
@@ -122,7 +127,6 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
             default:
                 throw new AssertionError("unknown sort column [" + sortBy + "]");
         }
-        request.pagination(new GetSnapshotsRequest.After(afterValue, after.snapshotId().getName()), sortBy, size);
-        return this;
+        return new GetSnapshotsRequest.After(afterValue, after.snapshotId().getName());
     }
 }

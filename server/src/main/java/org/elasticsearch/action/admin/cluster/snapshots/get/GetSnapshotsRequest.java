@@ -235,7 +235,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             this(in.readString(), in.readString());
         }
 
-        After(String value, String snapshotName) {
+        public After(String value, String snapshotName) {
             this.value = value;
             this.snapshotName = snapshotName;
         }

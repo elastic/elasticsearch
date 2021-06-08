@@ -15,9 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
-import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -44,22 +42,14 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         allSnapshotNames.addAll(snapshotNamesWithoutIndex);
 
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(repoName);
-        assertSorted(defaultSorting, (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1)));
+        assertSorted(defaultSorting, null);
+        assertSorted(allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.NAME), GetSnapshotsAction.SortBy.NAME);
         assertSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.NAME),
-            (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()))
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.DURATION), GetSnapshotsAction.SortBy.DURATION
         );
+        assertSorted(allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.INDICES), GetSnapshotsAction.SortBy.INDICES);
         assertSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.DURATION),
-            (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()))
-        );
-        assertSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.INDICES),
-            (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()))
-        );
-        assertSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.START_TIME),
-            (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()))
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.START_TIME), GetSnapshotsAction.SortBy.START_TIME
         );
     }
 
@@ -73,7 +63,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private void doTestResponseSizeLimit(GetSnapshotsAction.SortBy sort, String repoName, List<String> snapshotNames) throws Exception {
+    private void doTestResponseSizeLimit(GetSnapshotsAction.SortBy sort, String repoName, List<String> snapshotNames) {
         final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(snapshotNames, repoName, sort);
         final List<SnapshotInfo> batch1 = sortedWithSize(repoName, sort, 2);
         assertEquals(batch1, allSnapshotsSorted.subList(0, 2));
@@ -117,11 +107,5 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .getSnapshots(repoName);
         assertThat(snapshotInfos, hasSize(size));
         return snapshotInfos;
-    }
-
-    private static void assertSorted(List<SnapshotInfo> snapshotInfos, BiConsumer<SnapshotInfo, SnapshotInfo> assertion) {
-        for (int i = 0; i < snapshotInfos.size() - 1; i++) {
-            assertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
-        }
     }
 }

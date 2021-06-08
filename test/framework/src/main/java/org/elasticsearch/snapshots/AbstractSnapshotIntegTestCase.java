@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -28,6 +30,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -74,6 +77,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
@@ -83,6 +87,7 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -282,6 +287,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        createRepository(logger, repoName, type, settings, verify);
+    }
+
+    public static void createRepository(Logger logger, String repoName, String type, Settings.Builder settings, boolean verify) {
         logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
                 .setVerify(verify)
@@ -298,14 +307,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        createRepository(repoName, type, randomRepositorySettings());
+        createRepository(logger, repoName, type);
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
         createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
-    protected Settings.Builder randomRepositorySettings() {
+    public static void createRepository(Logger logger, String repoName, String type) {
+        createRepository(logger, repoName, type, randomRepositorySettings(), true);
+    }
+
+    public static Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
@@ -540,7 +553,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfo;
     }
 
-    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
+    public static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
 
     protected void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
@@ -601,6 +614,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {
+        return createNSnapshots(logger, repoName, count);
+    }
+
+    public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
@@ -626,5 +643,33 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    public static void assertSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsAction.SortBy sort) {
+        final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
+        if (sort == null) {
+            assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
+        } else {
+            switch (sort) {
+                case START_TIME:
+                    assertion = (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
+                    break;
+                case NAME:
+                    assertion = (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
+                    break;
+                case DURATION:
+                    assertion =
+                        (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
+                    break;
+                case INDICES:
+                    assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
+                    break;
+                default:
+                    throw new AssertionError("unknown sort column [" + sort + "]");
+            }
+        }
+        for (int i = 0; i < snapshotInfos.size() - 1; i++) {
+            assertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
+        }
     }
 }

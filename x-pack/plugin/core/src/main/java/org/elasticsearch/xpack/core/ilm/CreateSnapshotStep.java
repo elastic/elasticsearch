@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.client.Client;
@@ -15,6 +16,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.snapshots.SnapshotInfo;
+
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -76,8 +79,12 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
                 } else {
                     int failures = snapInfo.failedShards();
                     int total = snapInfo.totalShards();
-                    logger.warn("failed to create snapshot successfully, {} failures  out of {} total shards failed", failures, total);
-                    listener.onResponse(false);
+                    String message = String.format(Locale.ROOT,
+                        "failed to create snapshot successfully, %s failures out of %s total shards failed", failures, total);
+                    logger.warn(message);
+                    ElasticsearchException failure = new ElasticsearchException(message,
+                        snapInfo.shardFailures().stream().findFirst().orElse(null));
+                    listener.onFailure(failure);
                 }
             }, listener::onFailure));
     }

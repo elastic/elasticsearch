@@ -9,11 +9,20 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotsNodeCachesStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.DedicatedFrozenNodeAllocationDecider;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotRepositoryExistsAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -108,12 +117,15 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -344,7 +356,10 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         this.allocator.set(new SearchableSnapshotAllocator(client, clusterService.getRerouteService(), frozenCacheInfoService));
         components.add(new FrozenCacheServiceSupplier(frozenCacheService.get()));
         components.add(new CacheServiceSupplier(cacheService.get()));
-        new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
+        if (DiscoveryNode.isMasterNode(settings)) {
+            new SearchableSnapshotIndexMetadataUpgrader(clusterService, threadPool).initialize();
+            clusterService.addListener(new RepositoryUuidWatcher(clusterService.getRerouteService()));
+        }
         return Collections.unmodifiableList(components);
     }
 
@@ -519,6 +534,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
             new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
+            new SearchableSnapshotRepositoryExistsAllocationDecider(),
             new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
             new HasFrozenCacheAllocationDecider(frozenCacheInfoService),
             new DedicatedFrozenNodeAllocationDecider()
@@ -695,6 +711,36 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         @Override
         public FrozenCacheService get() {
             return frozenCacheService;
+        }
+    }
+
+    private static final class RepositoryUuidWatcher implements ClusterStateListener {
+
+        private final RerouteService rerouteService;
+        private final HashSet<String> knownUuids = new HashSet<>();
+
+        RepositoryUuidWatcher(RerouteService rerouteService) {
+            this.rerouteService = rerouteService;
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            final RepositoriesMetadata repositoriesMetadata = event.state().metadata().custom(RepositoriesMetadata.TYPE);
+            if (repositoriesMetadata == null) {
+                knownUuids.clear();
+                return;
+            }
+
+            final Set<String> newUuids = repositoriesMetadata.repositories()
+                .stream()
+                .map(RepositoryMetadata::uuid)
+                .filter(s -> s.equals(RepositoryData.MISSING_UUID) == false)
+                .collect(Collectors.toSet());
+            if (knownUuids.addAll(newUuids)) {
+                rerouteService.reroute("repository UUIDs changed", Priority.NORMAL, ActionListener.wrap((() -> {})));
+            }
+            knownUuids.retainAll(newUuids);
+            assert knownUuids.equals(newUuids) : knownUuids + " vs " + newUuids;
         }
     }
 }

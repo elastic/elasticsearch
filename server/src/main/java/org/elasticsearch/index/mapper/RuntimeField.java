@@ -194,7 +194,7 @@ public interface RuntimeField extends ToXContentFragment {
                         || name.length() > runtimeField.name().length() + 1 == false))
                     .collect(Collectors.toList());
                 if (names.isEmpty() == false) {
-                    throw new IllegalArgumentException("Found sub-fields with name not belonging to the parent field they are part of "
+                    throw new IllegalStateException("Found sub-fields with name not belonging to the parent field they are part of "
                         + names);
                 }
                 return runtimeField.asMappedFieldTypes().stream();

@@ -344,19 +344,19 @@ public class FieldTypeLookupTests extends ESTestCase {
                 List.of(new TestRuntimeField.TestRuntimeFieldType("first", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("second", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("multi.third", "leaf")));
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new FieldTypeLookup(Collections.emptySet(),
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new FieldTypeLookup(Collections.emptySet(),
                 Collections.emptySet(), Collections.singletonList(multi)));
             assertEquals("Found sub-fields with name not belonging to the parent field they are part of [first, second]",
-                iae.getMessage());
+                ise.getMessage());
         }
         {
             TestRuntimeField multi = new TestRuntimeField("multi", "multi",
                 List.of(new TestRuntimeField.TestRuntimeFieldType("multi.", "leaf"),
                     new TestRuntimeField.TestRuntimeFieldType("multi.f", "leaf")));
-            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> new FieldTypeLookup(Collections.emptySet(),
+            IllegalStateException ise = expectThrows(IllegalStateException.class, () -> new FieldTypeLookup(Collections.emptySet(),
                 Collections.emptySet(), Collections.singletonList(multi)));
             assertEquals("Found sub-fields with name not belonging to the parent field they are part of [multi.]",
-                iae.getMessage());
+                ise.getMessage());
         }
     }
 

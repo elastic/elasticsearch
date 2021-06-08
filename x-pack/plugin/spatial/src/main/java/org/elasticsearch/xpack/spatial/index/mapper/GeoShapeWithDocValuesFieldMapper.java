@@ -216,6 +216,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
+        geometry = indexer.prepareForIndexing(geometry);
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (fieldType().isSearchable()) {
             context.doc().addAll(fields);

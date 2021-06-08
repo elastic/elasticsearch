@@ -161,7 +161,7 @@ in the results. If `0`, `doc_count` values are accurate.
 
 ==== Per bucket document count error
 
-To get the `doc_count_error_upper_bound` for each top term, set
+To get the `doc_count_error_upper_bound` for each term, set
 `show_term_doc_count_error` to `true`:
 
 [source,console,id=terms-aggregation-doc-count-error-example]

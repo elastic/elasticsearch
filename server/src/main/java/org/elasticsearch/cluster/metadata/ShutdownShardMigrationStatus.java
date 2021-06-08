@@ -60,6 +60,10 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         out.writeOptionalString(reason);
     }
 
+    public SingleNodeShutdownMetadata.Status getStatus() {
+        return status;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

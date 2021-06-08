@@ -6,14 +6,20 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -66,6 +72,14 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
         public int hashCode() {
             return Objects.hash(test, expirationTimeMillis);
         }
+
+        @Override
+        public String toString() {
+            return "TestAsyncResponse{" +
+                "test='" + test + '\'' +
+                ", expirationTimeMillis=" + expirationTimeMillis +
+                '}';
+        }
     }
 
     @Before
@@ -77,11 +91,46 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testEncodeSearchResponse() throws IOException {
-        for (int i = 0; i < 10; i++) {
-            TestAsyncResponse response = new TestAsyncResponse(randomAlphaOfLength(10), randomLong());
-            String encoded = indexService.encodeResponse(response);
-            TestAsyncResponse same = indexService.decodeResponse(encoded);
-            assertThat(same, equalTo(response));
+        final int iterations = iterations(1, 20);
+        for (int i = 0; i < iterations; i++) {
+            long expirationTime = randomLong();
+            String testMessage = randomAlphaOfLength(10);
+            TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
+            AsyncExecutionId executionId = new AsyncExecutionId(
+                Long.toString(randomNonNegativeLong()),
+                new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+
+            PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+            indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
+            assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+
+            if (randomBoolean()) {
+                PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                indexService.getResponse(executionId, randomBoolean(), getFuture);
+                assertThat(getFuture.actionGet(), equalTo(initialResponse));
+            }
+
+            int updates = randomIntBetween(1, 5);
+            for (int u = 0; u < updates; u++) {
+                if (randomBoolean()) {
+                    testMessage = randomAlphaOfLength(10);
+                    TestAsyncResponse updateResponse = new TestAsyncResponse(testMessage, randomLong());
+                    PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+                    indexService.updateResponse(executionId.getDocId(), Map.of(), updateResponse, updateFuture);
+                    updateFuture.actionGet();
+                } else {
+                    expirationTime = randomLong();
+                    PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+                    indexService.updateExpirationTime(executionId.getDocId(), expirationTime, updateFuture);
+                    updateFuture.actionGet();
+                }
+                if (randomBoolean()) {
+                    PlainActionFuture<TestAsyncResponse> getFuture = new PlainActionFuture<>();
+                    indexService.getResponse(executionId, randomBoolean(), getFuture);
+                    assertThat(getFuture.actionGet().test, equalTo(testMessage));
+                    assertThat(getFuture.actionGet().expirationTimeMillis, equalTo(expirationTime));
+                }
+            }
         }
     }
 }

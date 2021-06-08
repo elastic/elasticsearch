@@ -777,3 +777,34 @@ WARNING: When aggregating on multiple indices the type of the aggregated field m
 Some types are compatible with each other (`integer` and `long` or `float` and `double`) but when the types are a mix
 of decimal and non-decimal number the terms aggregation will promote the non-decimal numbers to decimal numbers.
 This can result in a loss of precision in the bucket values.
+
+[discrete]
+[[search-aggregations-bucket-terms-aggregation-troubleshooting]]
+==== Troubleshooting
+
+===== Failed Trying to Format Bytes
+When running a terms aggregation (or other aggregation, but in practice usually
+terms) over multiple indices, you may get an error that starts with "Failed
+trying to format bytes...".  This is usually caused by two of the indices not
+having the same mapping type for the field being aggregated.
+
+**Use an explicit `value_type`**
+Although it's best to correct the mappings, you can work around this issue if
+the field is unmapped in one of the indices.  Setting the `value_type` parameter
+can resolve the issue by coercing the unmapped field into the correct type.
+
+[source,console,id=terms-aggregation-value_type-example]
+----
+GET /_search
+{
+  "aggs": {
+    "ip_addresses": {
+      "terms": {
+        "field": "destination_ip",
+        "missing": "0.0.0.0",
+        "value_type": "ip"
+      }
+    }
+  }
+}
+----

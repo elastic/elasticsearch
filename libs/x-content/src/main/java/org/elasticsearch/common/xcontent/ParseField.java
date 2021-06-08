@@ -5,10 +5,7 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.common;
-
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
+package org.elasticsearch.common.xcontent;
 
 import java.util.Collections;
 import java.util.HashSet;

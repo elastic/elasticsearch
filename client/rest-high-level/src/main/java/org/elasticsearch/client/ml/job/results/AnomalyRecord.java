@@ -11,7 +11,7 @@ import org.elasticsearch.client.common.TimeUtil;
 import org.elasticsearch.client.ml.job.config.DetectorFunction;
 import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;

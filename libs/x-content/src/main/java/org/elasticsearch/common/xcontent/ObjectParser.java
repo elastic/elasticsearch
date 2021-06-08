@@ -8,7 +8,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
 
 import java.io.IOException;
 import java.lang.reflect.Array;

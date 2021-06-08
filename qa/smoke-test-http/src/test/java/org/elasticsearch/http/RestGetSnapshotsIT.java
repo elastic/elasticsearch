@@ -10,7 +10,7 @@ package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -139,7 +139,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
                     "/_snapshot/" + repoName
                         + "/*?sort=" + sortBy
                         + "&size=" + size
-                        + "&after=" + GetSnapshotsRequestBuilder.buildAfter(after, sortBy).value() + "," + after.snapshotId().getName()
+                        + "&after=" + GetSnapshotsRequest.After.from(after, sortBy).value() + "," + after.snapshotId().getName()
             )
         );
         final List<SnapshotInfo> snapshotInfos;

@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
@@ -94,39 +95,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder sortBy(GetSnapshotsAction.SortBy sortBy) {
-        request.pagination(request.after(), sortBy, request.size());
+    public GetSnapshotsRequestBuilder pagination(@Nullable SnapshotInfo snapshotInfo, GetSnapshotsAction.SortBy sortBy, int size) {
+        request.pagination(GetSnapshotsRequest.After.from(snapshotInfo, sortBy), sortBy, size);
         return this;
-    }
-
-    public GetSnapshotsRequestBuilder size(int size) {
-        request.pagination(request.after(), request.sort(), size);
-        return this;
-    }
-
-    public GetSnapshotsRequestBuilder pagination(SnapshotInfo after, GetSnapshotsAction.SortBy sortBy, int size) {
-        request.pagination(buildAfter(after, sortBy), sortBy, size);
-        return this;
-    }
-
-    public static GetSnapshotsRequest.After buildAfter(SnapshotInfo after, GetSnapshotsAction.SortBy sortBy) {
-        final String afterValue;
-        switch (sortBy) {
-            case START_TIME:
-                afterValue = String.valueOf(after.startTime());
-                break;
-            case NAME:
-                afterValue = after.snapshotId().getName();
-                break;
-            case DURATION:
-                afterValue = String.valueOf(after.endTime() - after.startTime());
-                break;
-            case INDICES:
-                afterValue = String.valueOf(after.indices().size());
-                break;
-            default:
-                throw new AssertionError("unknown sort column [" + sortBy + "]");
-        }
-        return new GetSnapshotsRequest.After(afterValue, after.snapshotId().getName());
     }
 }

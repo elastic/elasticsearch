@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -233,6 +234,31 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
         After(StreamInput in) throws IOException {
             this(in.readString(), in.readString());
+        }
+
+        @Nullable
+        public static After from(@Nullable SnapshotInfo snapshotInfo, GetSnapshotsAction.SortBy sortBy) {
+            if (snapshotInfo == null) {
+                return null;
+            }
+            final String afterValue;
+            switch (sortBy) {
+                case START_TIME:
+                    afterValue = String.valueOf(snapshotInfo.startTime());
+                    break;
+                case NAME:
+                    afterValue = snapshotInfo.snapshotId().getName();
+                    break;
+                case DURATION:
+                    afterValue = String.valueOf(snapshotInfo.endTime() - snapshotInfo.startTime());
+                    break;
+                case INDICES:
+                    afterValue = String.valueOf(snapshotInfo.indices().size());
+                    break;
+                default:
+                    throw new AssertionError("unknown sort column [" + sortBy + "]");
+            }
+            return new After(afterValue, snapshotInfo.snapshotId().getName());
         }
 
         public After(String value, String snapshotName) {

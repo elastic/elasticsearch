@@ -77,7 +77,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames, String repoName, GetSnapshotsAction.SortBy sortBy) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin()
                 .prepareGetSnapshots(repoName)
-                .sortBy(sortBy)
+                .pagination(null, sortBy, 0)
                 .get()
                 .getSnapshots(repoName);
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
@@ -90,8 +90,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     private List<SnapshotInfo> sortedWithSize(String repoName, GetSnapshotsAction.SortBy sortBy, int size) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin()
             .prepareGetSnapshots(repoName)
-            .sortBy(sortBy)
-            .size(size)
+            .pagination(null, sortBy, size)
             .get()
             .getSnapshots(repoName);
         assertThat(snapshotInfos, hasSize(size));
@@ -102,7 +101,6 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin()
                 .prepareGetSnapshots(repoName)
                 .pagination(after, sortBy, size)
-                .size(size)
                 .get()
                 .getSnapshots(repoName);
         assertThat(snapshotInfos, hasSize(size));

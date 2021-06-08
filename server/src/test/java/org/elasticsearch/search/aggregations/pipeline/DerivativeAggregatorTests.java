@@ -586,7 +586,15 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     Sum sum = bucket.getAggregations().get("sum");
                     double thisSumValue = sum.value();
                     if (bucket.getDocCount() == 0) {
-                        thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
+                        switch (gapPolicy) {
+                            case INSERT_ZEROS:
+                                thisSumValue = 0;
+                                break;
+                            case KEEP_VALUES:
+                                break;
+                            default:
+                                thisSumValue = Double.NaN;
+                        }
                     }
                     SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                     if (i == 0) {

@@ -35,7 +35,7 @@ public class StandardValidator implements GeometryValidator {
        this.ignoreZValue = ignoreZValue;
     }
 
-    public static GeometryValidator get(boolean ignoreZValue) {
+    public static GeometryValidator instance(boolean ignoreZValue) {
         return ignoreZValue ? TRUE : FALSE;
     }
 

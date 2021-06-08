@@ -28,7 +28,7 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        GeometryValidator validator =  GeographyValidator.get(true);
+        GeometryValidator validator =  GeographyValidator.instance(true);
         assertEquals("CIRCLE (20.0 10.0 15.0)", WellKnownText.toWKT(new Circle(20, 10, 15)));
         assertEquals(new Circle(20, 10, 15), WellKnownText.fromWKT(validator, true, "circle (20.0 10.0 15.0)"));
 
@@ -40,7 +40,7 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
     }
 
     public void testInitValidation() {
-        GeometryValidator validator = GeographyValidator.get(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(20, 10, -1)));
         assertEquals("Circle radius [-1.0] cannot be negative", ex.getMessage());
 
@@ -50,9 +50,9 @@ public class CircleTests extends BaseGeometryTestCase<Circle> {
         ex = expectThrows(IllegalArgumentException.class, () -> validator.validate(new Circle(200, 10, 1)));
         assertEquals("invalid longitude 200.0; must be between -180.0 and 180.0", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.get(false).validate(new Circle(200, 10, 1, 20)));
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(new Circle(200, 10, 1, 20)));
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        StandardValidator.get(true).validate(new Circle(200, 10, 1, 20));
+        StandardValidator.instance(true).validate(new Circle(200, 10, 1, 20));
     }
 }

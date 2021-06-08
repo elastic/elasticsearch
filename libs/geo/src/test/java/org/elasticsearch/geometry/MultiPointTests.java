@@ -34,7 +34,7 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        GeometryValidator validator = GeographyValidator.get(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("MULTIPOINT (2.0 1.0)", WellKnownText.toWKT(
             new MultiPoint(Collections.singletonList(new Point(2, 1)))));
         assertEquals(new MultiPoint(Collections.singletonList(new Point(2, 1))),
@@ -55,10 +55,10 @@ public class MultiPointTests extends BaseGeometryTestCase<MultiPoint> {
     }
 
     public void testValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.get(false).validate(
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new MultiPoint(Collections.singletonList(new Point(2, 1, 3)))));
         assertEquals("found Z value [3.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        StandardValidator.get(true).validate(new MultiPoint(Collections.singletonList(new Point(2, 1, 3))));
+        StandardValidator.instance(true).validate(new MultiPoint(Collections.singletonList(new Point(2, 1, 3))));
     }
 }

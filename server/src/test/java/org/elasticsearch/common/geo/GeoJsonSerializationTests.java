@@ -56,7 +56,7 @@ public class GeoJsonSerializationTests extends ESTestCase {
 
         public static GeometryWrapper fromXContent(XContentParser parser) throws IOException {
             parser.nextToken();
-            return new GeometryWrapper(GeoJson.fromXContent(GeographyValidator.get(true), false, true, parser));
+            return new GeometryWrapper(GeoJson.fromXContent(GeographyValidator.instance(true), false, true, parser));
         }
 
         @Override

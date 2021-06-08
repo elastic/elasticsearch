@@ -33,7 +33,7 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        GeometryValidator validator = GeographyValidator.get(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("MULTILINESTRING ((3.0 1.0, 4.0 2.0))", WellKnownText.toWKT(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2})))));
         assertEquals(new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}))),
@@ -44,11 +44,11 @@ public class MultiLineTests extends BaseGeometryTestCase<MultiLine> {
     }
 
     public void testValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.get(false).validate(
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}, new double[]{6, 5})))));
         assertEquals("found Z value [6.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        StandardValidator.get(true).validate(
+        StandardValidator.instance(true).validate(
             new MultiLine(Collections.singletonList(new Line(new double[]{3, 4}, new double[]{1, 2}, new double[]{6, 5}))));
     }
 }

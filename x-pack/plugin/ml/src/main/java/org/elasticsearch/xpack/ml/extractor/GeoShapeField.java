@@ -57,7 +57,7 @@ public class GeoShapeField extends SourceField {
     private String handleString(String geoString) {
         try {
             if (geoString.startsWith("POINT")) { // Entry is of the form "POINT (-77.03653 38.897676)"
-                Geometry geometry = WellKnownText.fromWKT(StandardValidator.get(true), true, geoString);
+                Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, geoString);
                 if (geometry.type() != ShapeType.POINT) {
                     throw new IllegalArgumentException("Unexpected non-point geo_shape type: " + geometry.type().name());
                 }

@@ -255,7 +255,7 @@ final class TypeConverter {
             case GEO_SHAPE:
             case SHAPE:
                 try {
-                    return WellKnownText.fromWKT(StandardValidator.get(true), true, v.toString());
+                    return WellKnownText.fromWKT(StandardValidator.instance(true), true, v.toString());
                 } catch (IOException | ParseException ex) {
                     throw new SQLException("Cannot parse geo_shape", ex);
                 }

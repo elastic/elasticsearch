@@ -182,7 +182,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
-                        Geometry geometry = WellKnownText.fromWKT(StandardValidator.get(true), true, parser.text());
+                        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
                             throw new ElasticsearchParseException("failed to parse WKT bounding box. ["
                                 + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");

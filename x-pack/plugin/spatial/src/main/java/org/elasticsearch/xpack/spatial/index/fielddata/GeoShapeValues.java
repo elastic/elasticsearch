@@ -142,7 +142,7 @@ public abstract class GeoShapeValues {
         public static GeoShapeValue missing(String missing) {
             try {
                 final Geometry geometry =
-                    MISSING_GEOSHAPE_INDEXER.prepareForIndexing(WellKnownText.fromWKT(GeographyValidator.get(true), true, missing));
+                    MISSING_GEOSHAPE_INDEXER.prepareForIndexing(WellKnownText.fromWKT(GeographyValidator.instance(true), true, missing));
                 final BinaryGeoShapeDocValuesField field = new BinaryGeoShapeDocValuesField("missing");
                 field.add(MISSING_GEOSHAPE_INDEXER.indexShape(geometry), geometry);
                 final GeoShapeValue value = new GeoShapeValue();

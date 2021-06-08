@@ -36,7 +36,7 @@ public final class GeometryParser {
     private final boolean ignoreZValue;
 
     public GeometryParser(boolean rightOrientation, boolean coerce, boolean ignoreZValue) {
-        final GeometryValidator validator = StandardValidator.get(ignoreZValue);
+        final GeometryValidator validator = StandardValidator.instance(ignoreZValue);
         jsonGeometryFormat = new GeoJsonGeometryFormat(validator, coerce, rightOrientation);
         wktGeometryFormat = new WKTGeometryFormat(validator, coerce);
         this.ignoreZValue = ignoreZValue;

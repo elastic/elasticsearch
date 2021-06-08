@@ -33,7 +33,7 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        GeometryValidator validator = GeographyValidator.get(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("MULTIPOLYGON (((3.0 1.0, 4.0 2.0, 5.0 3.0, 3.0 1.0)))",
             WellKnownText.toWKT(new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}))))));
@@ -46,13 +46,13 @@ public class MultiPolygonTests extends BaseGeometryTestCase<MultiPolygon> {
     }
 
     public void testValidation() {
-        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.get(false).validate(
+        IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 2, 3, 1}))
             ))));
         assertEquals("found Z value [1.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        StandardValidator.get(true).validate(
+        StandardValidator.instance(true).validate(
             new MultiPolygon(Collections.singletonList(
                 new Polygon(new LinearRing(new double[]{3, 4, 5, 3}, new double[]{1, 2, 3, 1}, new double[]{1, 2, 3, 1})))));
     }

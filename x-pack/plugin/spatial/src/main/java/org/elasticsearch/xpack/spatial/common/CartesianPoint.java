@@ -105,7 +105,7 @@ public class CartesianPoint implements ToXContentFragment {
     private CartesianPoint resetFromWKT(String value, boolean ignoreZValue) {
         Geometry geometry;
         try {
-            geometry = WellKnownText.fromWKT(StandardValidator.get(ignoreZValue), false, value);
+            geometry = WellKnownText.fromWKT(StandardValidator.instance(ignoreZValue), false, value);
         } catch (Exception e) {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }

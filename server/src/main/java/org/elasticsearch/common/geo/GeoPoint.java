@@ -114,7 +114,7 @@ public class GeoPoint implements ToXContentFragment {
     private GeoPoint resetFromWKT(String value, boolean ignoreZValue) {
         Geometry geometry;
         try {
-            geometry = WellKnownText.fromWKT(GeographyValidator.get(ignoreZValue), false, value);
+            geometry = WellKnownText.fromWKT(GeographyValidator.instance(ignoreZValue), false, value);
         } catch (Exception e) {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }

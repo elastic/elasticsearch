@@ -313,7 +313,7 @@ public class JdbcAssert {
                         if (actualObject instanceof Geometry) {
                             // We need to convert the expected object to libs/geo Geometry for comparision
                             try {
-                                expectedObject = WellKnownText.fromWKT(StandardValidator.get(true), true, expectedObject.toString());
+                                expectedObject = WellKnownText.fromWKT(StandardValidator.instance(true), true, expectedObject.toString());
                             } catch (IOException | ParseException ex) {
                                 fail(ex.getMessage());
                             }

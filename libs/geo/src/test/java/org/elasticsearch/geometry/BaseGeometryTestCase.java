@@ -35,7 +35,7 @@ abstract class BaseGeometryTestCase<T extends Geometry> extends AbstractWireTest
     protected T copyInstance(T instance, Version version) throws IOException {
         String text = WellKnownText.toWKT(instance);
         try {
-            return (T) WellKnownText.fromWKT(GeographyValidator.get(true), true, text);
+            return (T) WellKnownText.fromWKT(GeographyValidator.instance(true), true, text);
         } catch (ParseException e) {
             throw new ElasticsearchException(e);
         }

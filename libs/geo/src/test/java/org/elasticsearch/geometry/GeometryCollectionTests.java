@@ -26,7 +26,7 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
     }
 
     public void testBasicSerialization() throws IOException, ParseException {
-        GeometryValidator validator = GeographyValidator.get(true);
+        GeometryValidator validator = GeographyValidator.instance(true);
         assertEquals("GEOMETRYCOLLECTION (POINT (20.0 10.0),POINT EMPTY)",
             WellKnownText.toWKT(new GeometryCollection<Geometry>(Arrays.asList(new Point(20, 10), Point.EMPTY))));
 
@@ -49,10 +49,10 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
             Arrays.asList(new Point(20, 10), new Point(20, 10, 30))));
         assertEquals("all elements of the collection should have the same number of dimension", ex.getMessage());
 
-        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.get(false).validate(
+        ex = expectThrows(IllegalArgumentException.class, () -> StandardValidator.instance(false).validate(
             new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30)))));
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
-        StandardValidator.get(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+        StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
     }
 }

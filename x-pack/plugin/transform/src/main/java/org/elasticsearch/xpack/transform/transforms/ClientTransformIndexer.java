@@ -163,7 +163,7 @@ class ClientTransformIndexer extends TransformIndexer {
                         Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
                         nextPhase.onFailure(
                             new BulkIndexingException(
-                                "Bulk index experienced [{}] failures. Significant falures: {}",
+                                "Bulk index experienced [{}] failures.{}",
                                 firstException,
                                 false,
                                 failureCount,
@@ -185,7 +185,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
                         nextPhase.onFailure(
                             new BulkIndexingException(
-                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. Other failures: {}",
+                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}].{}",
                                 irrecoverableException,
                                 true,
                                 failureCount,

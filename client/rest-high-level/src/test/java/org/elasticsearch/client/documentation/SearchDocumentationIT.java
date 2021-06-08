@@ -770,7 +770,7 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
             // tag::open-point-in-time-routing
             openRequest.routing("routing"); // <1>
-            // end::explain-request-routing
+            // end::open-point-in-time-routing
 
             // tag::open-point-in-time-preference
             openRequest.preference("_local"); // <1>

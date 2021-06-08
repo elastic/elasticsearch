@@ -194,6 +194,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+        final Path pluginsDescriptor = env.configFile().resolve("elasticsearch-plugins.yml");
+        if (Files.exists(pluginsDescriptor)) {
+            throw new UserException(ExitCodes.USAGE, "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead");
+        }
+
         List<String> pluginId = arguments.values(options);
         final boolean isBatch = options.has(batchOption);
         execute(terminal, pluginId, isBatch, env);

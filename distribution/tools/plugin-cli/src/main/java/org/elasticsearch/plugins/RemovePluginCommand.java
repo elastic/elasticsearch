@@ -54,6 +54,10 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(final Terminal terminal, final OptionSet options, final Environment env) throws Exception {
+        final Path pluginsDescriptor = env.configFile().resolve("elasticsearch-plugins.yml");
+        if (Files.exists(pluginsDescriptor)) {
+            throw new UserException(1, "Plugins descriptor [" + pluginsDescriptor + "] exists, please use [elasticsearch-plugin sync] instead");
+        }
         final List<String> pluginIds = arguments.values(options);
         final boolean purge = options.has(purgeOption);
         execute(terminal, env, pluginIds, purge);
@@ -65,7 +69,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
      * @param terminal   the terminal to use for input/output
      * @param env        the environment for the local node
      * @param pluginIds  the IDs of the plugins to remove
-     * @param purge      if true, plugin configuration files will be removed but otherwise preserved
+     * @param purge      if true, plugin configuration files will be removed, if false they are preserved
      * @throws IOException   if any I/O exception occurs while performing a file operation
      * @throws UserException if pluginIds is null or empty
      * @throws UserException if plugin directory does not exist

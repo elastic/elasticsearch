@@ -100,8 +100,8 @@ String urlDecode(String value);
 ===== URI decomposition
 Use the {ref}/uriparts-processor.html[URI parts processor] to decompose the URI string
 supplied in the `value` parameter. Returns a map of key-value pairs in which the key is
-the name of the URI component such as `domain` or `path` and the value is the respective
-value for that component.
+the name of the URI component such as `domain` or `path` and the value is the
+corresponding value for that component.
 
 [source,Painless]
 ----

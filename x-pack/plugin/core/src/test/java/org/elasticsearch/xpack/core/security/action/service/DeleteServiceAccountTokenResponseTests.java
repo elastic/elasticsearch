@@ -44,6 +44,6 @@ public class DeleteServiceAccountTokenResponseTests extends AbstractWireSerializ
         final Map<String, Object> responseMap = XContentHelper.convertToMap(
             BytesReference.bytes(builder),
             false, builder.contentType()).v2();
-        assertThat(responseMap, equalTo(org.elasticsearch.common.collect.Map.of("found", response.found())));
+        assertThat(responseMap, equalTo(org.elasticsearch.core.Map.of("found", response.found())));
     }
 }

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.geometry.Rectangle;

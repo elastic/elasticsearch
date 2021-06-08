@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -92,7 +93,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
                 i -> new DiscoveryNode(
                     prefix + i,
                     buildNewFakeTransportAddress(),
-                    org.elasticsearch.common.collect.Map.of(),
+                    org.elasticsearch.core.Map.of(),
                     randomRoles().stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet()),
                     Version.CURRENT
                 )
@@ -111,9 +112,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static SortedMap<String, Settings> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            org.elasticsearch.common.collect.List.of(randomFixedDecider())
-                .stream()
-                .collect(Collectors.toMap(d -> FixedAutoscalingDeciderService.NAME, Function.identity()))
+            List.of(randomFixedDecider()).stream().collect(Collectors.toMap(d -> FixedAutoscalingDeciderService.NAME, Function.identity()))
         );
     }
 

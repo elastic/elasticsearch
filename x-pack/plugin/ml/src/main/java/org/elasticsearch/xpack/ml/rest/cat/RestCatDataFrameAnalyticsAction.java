@@ -36,7 +36,7 @@ public class RestCatDataFrameAnalyticsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(GET, "_cat/ml/data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}"),
             new Route(GET, "_cat/ml/data_frame/analytics")
         );

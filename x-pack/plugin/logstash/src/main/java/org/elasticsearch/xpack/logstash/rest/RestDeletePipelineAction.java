@@ -33,7 +33,7 @@ public class RestDeletePipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_logstash/pipeline/{id}"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_logstash/pipeline/{id}"));
     }
 
     @Override

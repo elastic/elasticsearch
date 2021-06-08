@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 
 import static org.hamcrest.Matchers.is;
 

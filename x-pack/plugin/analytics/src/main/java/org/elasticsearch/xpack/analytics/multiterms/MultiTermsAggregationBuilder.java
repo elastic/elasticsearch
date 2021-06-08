@@ -114,23 +114,23 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         registry.registerUsage(NAME);
         registry.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.NUMERIC),
+            org.elasticsearch.core.List.of(CoreValuesSourceType.NUMERIC),
             MultiTermsAggregator::buildNumericTermValues,
             false);
         registry.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            org.elasticsearch.core.List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
             MultiTermsAggregator.LongTermValuesSource::new,
             false
         );
         registry.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.KEYWORD),
+            org.elasticsearch.core.List.of(CoreValuesSourceType.KEYWORD),
             MultiTermsAggregator.StringTermValuesSource::new,
             false);
         registry.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.IP),
+            org.elasticsearch.core.List.of(CoreValuesSourceType.IP),
             MultiTermsAggregator.IPTermValuesSource::new,
             false);
     }

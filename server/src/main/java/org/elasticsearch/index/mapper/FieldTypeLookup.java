@@ -177,7 +177,7 @@ final class FieldTypeLookup {
      */
     Set<String> sourcePaths(String field) {
         if (fullNameToFieldType.isEmpty()) {
-            return org.elasticsearch.common.collect.Set.of();
+            return org.elasticsearch.core.Set.of();
         }
 
         // If the field is dynamically generated then return its full path
@@ -197,6 +197,6 @@ final class FieldTypeLookup {
 
         return fieldToCopiedFields.containsKey(resolvedField)
             ? fieldToCopiedFields.get(resolvedField)
-            : org.elasticsearch.common.collect.Set.of(resolvedField);
+            : org.elasticsearch.core.Set.of(resolvedField);
     }
 }

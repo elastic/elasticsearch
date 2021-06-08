@@ -132,7 +132,7 @@ public class MergedPointRangeQueryTests extends ESTestCase {
         String field = randomAlphaOfLength(5);
         int dims = randomBoolean() ? 1 : between(2, 16);
         Supplier<Query> supplier = randomFrom(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 () -> randomIntPointRangequery(field, dims),
                 () -> randomLongPointRangequery(field, dims),
                 () -> randomDoublePointRangequery(field, dims)

@@ -240,9 +240,9 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
         return new InternalTopMetrics(
             "test",
             SortOrder.ASC,
-            org.elasticsearch.common.collect.List.of("int", "double", "bytes", "null"),
+            org.elasticsearch.core.List.of("int", "double", "bytes", "null"),
             1,
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new InternalTopMetrics.TopMetric(
                     DocValueFormat.RAW,
                     SortValue.from(1),

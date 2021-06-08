@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.datafeeds;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -28,7 +28,7 @@ public class RestGetDatafeedStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats")
                 .replaces(GET, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}/_stats", RestApiVersion.V_7).build(),
             Route.builder(GET, BASE_PATH + "datafeeds/_stats")

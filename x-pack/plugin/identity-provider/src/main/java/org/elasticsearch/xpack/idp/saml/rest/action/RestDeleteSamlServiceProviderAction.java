@@ -41,7 +41,7 @@ public class RestDeleteSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_idp/saml/sp/{sp_entity_id}"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_idp/saml/sp/{sp_entity_id}"));
     }
 
     @Override

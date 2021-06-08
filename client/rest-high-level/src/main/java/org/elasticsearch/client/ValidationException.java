@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.ArrayList;
 import java.util.Arrays;

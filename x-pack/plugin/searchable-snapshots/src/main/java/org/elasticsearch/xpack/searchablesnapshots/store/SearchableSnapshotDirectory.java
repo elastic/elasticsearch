@@ -27,16 +27,16 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheServ
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RecoverySource;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -257,7 +257,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     private List<BlobStoreIndexShardSnapshot.FileInfo> files() {
         if (loaded == false) {
-            return org.elasticsearch.common.collect.List.of();
+            return org.elasticsearch.core.List.of();
         }
         final List<BlobStoreIndexShardSnapshot.FileInfo> files = snapshot().indexFiles();
         assert files != null;

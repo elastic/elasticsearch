@@ -39,7 +39,7 @@ public class MigrateAction implements LifecycleAction {
     static final String CONDITIONAL_SKIP_MIGRATE_STEP = BranchingStep.NAME + "-check-skip-action";
     // Represents an ordered list of data tiers from frozen to hot (or slow to fast)
     private static final List<String> FROZEN_TO_HOT_TIERS =
-        org.elasticsearch.common.collect.List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
+        org.elasticsearch.core.List.of(DataTier.DATA_FROZEN, DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
 
     private static final ConstructingObjectParser<MigrateAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
         a -> new MigrateAction(a[0] == null ? true : (boolean) a[0]));
@@ -122,9 +122,9 @@ public class MigrateAction implements LifecycleAction {
                     .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getPreferredTiersConfiguration(targetTier))
                     .build());
             DataTierMigrationRoutedStep migrationRoutedStep = new DataTierMigrationRoutedStep(migrationRoutedKey, nextStepKey);
-            return org.elasticsearch.common.collect.List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
+            return org.elasticsearch.core.List.of(conditionalSkipActionStep, updateMigrationSettingStep, migrationRoutedStep);
         } else {
-            return org.elasticsearch.common.collect.List.of();
+            return org.elasticsearch.core.List.of();
         }
     }
 

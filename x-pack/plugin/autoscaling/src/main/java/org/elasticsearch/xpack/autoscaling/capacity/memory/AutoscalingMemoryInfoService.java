@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicyMetadata;
@@ -70,7 +70,7 @@ public class AutoscalingMemoryInfoService {
     void onClusterChanged(ClusterChangedEvent event) {
         boolean master = event.localNodeMaster();
         final ClusterState state = event.state();
-        final Set<DiscoveryNode> currentNodes = master ? relevantNodes(state) : org.elasticsearch.common.collect.Set.of();
+        final Set<DiscoveryNode> currentNodes = master ? relevantNodes(state) : org.elasticsearch.core.Set.of();
         Set<DiscoveryNode> missingNodes = null;
         synchronized (mutex) {
             retainAliveNodes(currentNodes);
@@ -157,7 +157,7 @@ public class AutoscalingMemoryInfoService {
                 .map(this::toRoles)
                 .collect(Collectors.toSet());
         }
-        return org.elasticsearch.common.collect.Set.of();
+        return org.elasticsearch.core.Set.of();
     }
 
     private Set<DiscoveryNodeRole> toRoles(SortedSet<String> roleNames) {

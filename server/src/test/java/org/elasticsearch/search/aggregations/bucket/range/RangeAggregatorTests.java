@@ -21,7 +21,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -74,19 +74,19 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMatchesSortedNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 7),
                     new IntPoint(NUMBER_FIELD_NAME, 7)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 2),
                     new IntPoint(NUMBER_FIELD_NAME, 2)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 3),
                     new IntPoint(NUMBER_FIELD_NAME, 3)
                 )
@@ -103,19 +103,19 @@ public class RangeAggregatorTests extends AggregatorTestCase {
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(NUMBER_FIELD_NAME, 7),
                     new IntPoint(NUMBER_FIELD_NAME, 7)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(NUMBER_FIELD_NAME, 2),
                     new IntPoint(NUMBER_FIELD_NAME, 2)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(NUMBER_FIELD_NAME, 3),
                     new IntPoint(NUMBER_FIELD_NAME, 3)
                 )
@@ -135,31 +135,31 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(NUMBER_FIELD_NAME, Integer.MIN_VALUE),
                         new IntPoint(NUMBER_FIELD_NAME, Integer.MIN_VALUE)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(NUMBER_FIELD_NAME, 7),
                         new IntPoint(NUMBER_FIELD_NAME, 7)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(NUMBER_FIELD_NAME, 2),
                         new IntPoint(NUMBER_FIELD_NAME, 2)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(NUMBER_FIELD_NAME, 3),
                         new IntPoint(NUMBER_FIELD_NAME, 3)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(NUMBER_FIELD_NAME, Integer.MAX_VALUE),
                         new IntPoint(NUMBER_FIELD_NAME, Integer.MAX_VALUE)
                     )
@@ -213,13 +213,13 @@ public class RangeAggregatorTests extends AggregatorTestCase {
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(DATE_FIELD_NAME, milli1),
                     new LongPoint(DATE_FIELD_NAME, milli1)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(DATE_FIELD_NAME, milli2),
                     new LongPoint(DATE_FIELD_NAME, milli2)
                 )
@@ -305,7 +305,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             for (long l = start; l < start + 150; l++) {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new SortedNumericDocValuesField(NUMBER_FIELD_NAME, l),
                         new LongPoint(NUMBER_FIELD_NAME, l)
                     )
@@ -489,7 +489,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         SearchLookup lookup = new SearchLookup(s -> null, (ft, l) -> null);
         StringFieldScript.LeafFactory scriptFactory = ctx -> new StringFieldScript(
             "dummy",
-            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.core.Map.of(),
             lookup,
             ctx
         ) {
@@ -502,7 +502,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         debugTestCase(new RangeAggregationBuilder("r").field(NUMBER_FIELD_NAME).addRange(0, 1).addRange(1, 2).addRange(2, 3), query, iw -> {
             for (int d = 0; d < totalDocs; d++) {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new IntPoint(NUMBER_FIELD_NAME, 0),
                         new SortedNumericDocValuesField(NUMBER_FIELD_NAME, 0)
                     )
@@ -511,11 +511,11 @@ public class RangeAggregatorTests extends AggregatorTestCase {
         }, (InternalRange<?, ?> r, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getKey).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
+                equalTo(org.elasticsearch.core.List.of("0.0-1.0", "1.0-2.0", "2.0-3.0"))
             );
             assertThat(
                 r.getBuckets().stream().map(InternalRange.Bucket::getDocCount).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of(totalDocs, 0L, 0L))
+                equalTo(org.elasticsearch.core.List.of(totalDocs, 0L, 0L))
             );
             assertThat(impl, equalTo(RangeAggregator.FromFilters.class));
             Map<?, ?> topLevelDebug = (Map<?, ?>) debug.get("r");

@@ -291,7 +291,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
      */
     public static final class Flow {
 
-        private static final List<Transport> TRANSPORTS_WITH_PORTS = org.elasticsearch.common.collect.List.of(
+        private static final List<Transport> TRANSPORTS_WITH_PORTS = org.elasticsearch.core.List.of(
             Transport.Tcp,
             Transport.Udp,
             Transport.Sctp,

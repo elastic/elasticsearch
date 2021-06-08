@@ -8,7 +8,7 @@
 
 package org.elasticsearch.join.mapper;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -21,10 +21,10 @@ public class JoinFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         MappedFieldType fieldType = new ParentJoinFieldMapper.Builder("field").build(new ContentPath()).fieldType();
 
-        Map<String, String> parentValue = org.elasticsearch.common.collect.Map.of("relation", "parent");
+        Map<String, String> parentValue = org.elasticsearch.core.Map.of("relation", "parent");
         assertEquals(List.of(parentValue), fetchSourceValue(fieldType, parentValue));
 
-        Map<String, String> childValue = org.elasticsearch.common.collect.Map.of("relation", "child", "parent", "1");
+        Map<String, String> childValue = org.elasticsearch.core.Map.of("relation", "child", "parent", "1");
         assertEquals(List.of(childValue), fetchSourceValue(fieldType, childValue));
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

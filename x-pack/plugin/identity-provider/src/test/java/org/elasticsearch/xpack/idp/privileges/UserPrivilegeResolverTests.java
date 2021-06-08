@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -58,7 +58,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
             final Object[] args = inv.getArguments();
             assertThat(args, arrayWithSize(2));
             ActionListener<Set<String>> listener = (ActionListener<Set<String>>) args[args.length - 1];
-            listener.onResponse(org.elasticsearch.common.collect.Set.of(
+            listener.onResponse(org.elasticsearch.core.Set.of(
                 "role:cluster:view", "role:cluster:admin", "role:cluster:operator", "role:cluster:monitor"));
             return null;
         }).when(actionsResolver).getActions(anyString(), any(ActionListener.class));
@@ -71,9 +71,9 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupUser(username);
         setupHasPrivileges(username, app);
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = org.elasticsearch.common.collect.Map.of(
-            "role:cluster:view", org.elasticsearch.common.collect.Set.of("viewer"),
-            "role:cluster:admin", org.elasticsearch.common.collect.Set.of("admin")
+        final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
+            "role:cluster:view", org.elasticsearch.core.Set.of("viewer"),
+            "role:cluster:admin", org.elasticsearch.core.Set.of("admin")
         )::get;
         resolver.resolve(service(app, "cluster:" + randomLong(), roleMapping), future);
         final UserPrivilegeResolver.UserPrivileges privileges = future.get();
@@ -92,7 +92,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupUser(username);
         setupHasPrivileges(username, app, access(resource, viewerAction, false), access(resource, adminAction, false));
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = org.elasticsearch.common.collect.Map.of(
+        final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
             viewerAction, Collections.singleton("viewer"),
             adminAction, Collections.singleton("admin")
         )::get;
@@ -114,7 +114,7 @@ public class UserPrivilegeResolverTests extends ESTestCase {
         setupHasPrivileges(username, app, access(resource, viewerAction, true), access(resource, adminAction, false));
 
         final PlainActionFuture<UserPrivilegeResolver.UserPrivileges> future = new PlainActionFuture<>();
-        final Function<String, Set<String>> roleMapping = org.elasticsearch.common.collect.Map.of(
+        final Function<String, Set<String>> roleMapping = org.elasticsearch.core.Map.of(
             viewerAction, Collections.singleton("viewer"),
             adminAction, Collections.singleton("admin")
         )::get;

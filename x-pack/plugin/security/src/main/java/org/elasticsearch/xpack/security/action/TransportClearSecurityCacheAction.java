@@ -74,7 +74,7 @@ public class TransportClearSecurityCacheAction extends TransportNodesAction<Clea
             cacheInvalidatorRegistry.invalidateCache(request.getCacheName());
         } else {
             cacheInvalidatorRegistry.invalidateByKey(request.getCacheName(),
-                org.elasticsearch.common.collect.List.of(request.getKeys()));
+                org.elasticsearch.core.List.of(request.getKeys()));
         }
         return new ClearSecurityCacheResponse.Node(clusterService.localNode());
     }

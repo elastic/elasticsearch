@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.joda.time.Duration;
 import org.joda.time.ReadableDuration;
 import org.opensaml.saml.saml2.core.NameID;

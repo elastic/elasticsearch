@@ -94,7 +94,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<AggregationSpec> getAggregations() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new AggregationSpec(
                 StringStatsAggregationBuilder.NAME,
                 StringStatsAggregationBuilder::new,
@@ -164,7 +164,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-            return org.elasticsearch.common.collect.List.of(
+            return org.elasticsearch.core.List.of(
                 AnalyticsAggregatorFactory::registerPercentilesAggregator,
                 AnalyticsAggregatorFactory::registerPercentileRanksAggregator,
                 AnalyticsAggregatorFactory::registerHistoBackedSumAggregator,
@@ -186,7 +186,7 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new NamedWriteableRegistry.Entry(TTestState.class, PairedTTestState.NAME, PairedTTestState::new),
             new NamedWriteableRegistry.Entry(TTestState.class, UnpairedTTestState.NAME, UnpairedTTestState::new)
         );

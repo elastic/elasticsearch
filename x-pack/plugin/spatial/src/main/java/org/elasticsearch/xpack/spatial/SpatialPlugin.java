@@ -95,7 +95,7 @@ public class SpatialPlugin extends GeoPlugin implements MapperPlugin, ActionPlug
 
     @Override
     public List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             this::registerGeoShapeCentroidAggregator,
             this::registerGeoShapeGridAggregators,
             SpatialPlugin::registerGeoShapeBoundsAggregator,

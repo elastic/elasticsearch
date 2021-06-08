@@ -64,12 +64,12 @@ public class FrozenStorageDeciderService implements AutoscalingDeciderService {
 
     @Override
     public List<Setting<?>> deciderSettings() {
-        return org.elasticsearch.common.collect.List.of(PERCENTAGE);
+        return org.elasticsearch.core.List.of(PERCENTAGE);
     }
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return org.elasticsearch.common.collect.List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        return org.elasticsearch.core.List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
     public static class FrozenReason implements AutoscalingDeciderResult.Reason {

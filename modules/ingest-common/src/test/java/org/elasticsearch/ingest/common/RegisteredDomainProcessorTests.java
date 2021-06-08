@@ -65,7 +65,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             false
         );
 
-        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.core.Map.of());
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class);
@@ -129,7 +129,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.core.Map.of());
         IngestDocument output = processor.execute(input);
 
         String domain = output.getFieldValue(domainField, String.class, expectedDomain == null);

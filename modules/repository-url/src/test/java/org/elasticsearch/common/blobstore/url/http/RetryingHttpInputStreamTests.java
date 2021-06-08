@@ -41,17 +41,17 @@ public class RetryingHttpInputStreamTests extends ESTestCase {
             .thenReturn(firstChunkSize)
             .thenThrow(new IOException());
         final Map<String, String> firstResponseHeaders =
-            org.elasticsearch.common.collect.Map.of("Content-Length", Integer.toString(blobSize));
+            org.elasticsearch.core.Map.of("Content-Length", Integer.toString(blobSize));
 
         final HttpResponseInputStream secondHttpResponseInputStream = mock(HttpResponseInputStream.class);
         when(secondHttpResponseInputStream.read(any(), anyInt(), anyInt()))
             .thenReturn(blobSize - firstChunkSize)
             .thenReturn(-1);
         final Map<String, String> secondResponseHeaders =
-            org.elasticsearch.common.collect.Map.of("Content-Range",
+            org.elasticsearch.core.Map.of("Content-Range",
                 String.format(Locale.ROOT, "bytes %d-%d/%d", firstChunkSize, blobSize - 1, blobSize));
 
-        final List<MockHttpResponse> responses = org.elasticsearch.common.collect.List.of(
+        final List<MockHttpResponse> responses = org.elasticsearch.core.List.of(
             new MockHttpResponse(firstHttpResponseInputStream, RestStatus.OK.getStatus(), firstResponseHeaders),
             new MockHttpResponse(secondHttpResponseInputStream, RestStatus.PARTIAL_CONTENT.getStatus(), secondResponseHeaders) {
                 @Override

@@ -24,7 +24,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
@@ -93,12 +93,10 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 .execute(ActionListener.wrap(response -> {
                     if (response.isExists()) {
                         listener.onResponse(
-                            new GetPipelineResponse(
-                                org.elasticsearch.common.collect.Map.of(response.getId(), response.getSourceAsBytesRef())
-                            )
+                            new GetPipelineResponse(org.elasticsearch.core.Map.of(response.getId(), response.getSourceAsBytesRef()))
                         );
                     } else {
-                        listener.onResponse(new GetPipelineResponse(org.elasticsearch.common.collect.Map.of()));
+                        listener.onResponse(new GetPipelineResponse(org.elasticsearch.core.Map.of()));
                     }
                 }, e -> handleFailure(e, listener)));
         } else {

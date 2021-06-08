@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -59,18 +60,18 @@ public class StringScriptFieldWildcardQueryTests extends AbstractStringScriptFie
     @Override
     public void testMatches() {
         StringScriptFieldWildcardQuery query = new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "test", "a*b", false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("astuffb")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("Astuffb")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("fffff")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("a")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("b")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("aasdf")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("dsfb")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("astuffb", "fffff")));
+        assertTrue(query.matches(List.of("astuffb")));
+        assertFalse(query.matches(List.of("Astuffb")));
+        assertFalse(query.matches(List.of("fffff")));
+        assertFalse(query.matches(List.of("a")));
+        assertFalse(query.matches(List.of("b")));
+        assertFalse(query.matches(List.of("aasdf")));
+        assertFalse(query.matches(List.of("dsfb")));
+        assertTrue(query.matches(List.of("astuffb", "fffff")));
 
         StringScriptFieldWildcardQuery ciQuery = new StringScriptFieldWildcardQuery(randomScript(), leafFactory, "test", "a*b", true);
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("Astuffb")));
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("astuffB", "fffff")));
+        assertTrue(ciQuery.matches(List.of("Astuffb")));
+        assertTrue(ciQuery.matches(List.of("astuffB", "fffff")));
 
     }
 

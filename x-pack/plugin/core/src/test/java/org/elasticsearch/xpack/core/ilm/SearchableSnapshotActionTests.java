@@ -72,7 +72,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
@@ -93,7 +93,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     }
 
     private List<StepKey> expectedStepKeysNoForceMerge(String phase) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),

@@ -38,7 +38,7 @@ public class NormalizeTests extends BasePipelineAggregationTestCase<NormalizePip
         String invalidNormalizer = randomFrom(NormalizePipelineAggregationBuilder.NAME_MAP.keySet()) + randomAlphaOfLength(10);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
             () -> new NormalizePipelineAggregationBuilder(builder.getName(), builder.format(), invalidNormalizer,
-                org.elasticsearch.common.collect.List.of(builder.getBucketsPaths())));
+                org.elasticsearch.core.List.of(builder.getBucketsPaths())));
         assertThat(exception.getMessage(), equalTo("invalid method [" + invalidNormalizer + "]"));
     }
 

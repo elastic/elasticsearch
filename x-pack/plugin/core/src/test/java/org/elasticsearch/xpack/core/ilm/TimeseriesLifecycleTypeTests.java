@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
@@ -193,7 +193,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
         Map<String, LifecycleAction> actions = new HashMap<>();
         actions.put(TEST_MIGRATE_ACTION.getWriteableName(), new MigrateAction(true));
         actions.put(TEST_ALLOCATE_ACTION.getWriteableName(), TEST_ALLOCATE_ACTION);
-        List<Phase> phases = org.elasticsearch.common.collect.List.of(
+        List<Phase> phases = org.elasticsearch.core.List.of(
             new Phase(WARM_PHASE, TimeValue.ZERO, actions), new Phase(COLD_PHASE, TimeValue.ZERO, actions)
         );
 
@@ -219,68 +219,68 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testValidateActionsFollowingSearchableSnapshot() {
         {
-            Phase hotPhase = new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME,
+            Phase hotPhase = new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction("repo")));
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME,
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.core.Map.of(ShrinkAction.NAME,
                 new ShrinkAction(1, null)));
-            Phase coldPhase = new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME,
+            Phase coldPhase = new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME,
                 new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot
-                    (org.elasticsearch.common.collect.List.of(hotPhase, warmPhase, coldPhase)));
+                    (org.elasticsearch.core.List.of(hotPhase, warmPhase, coldPhase)));
             assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
                     " which are not allowed after a managed index is mounted as a searchable snapshot"));
         }
 
         {
             Phase warmPhase = new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+                org.elasticsearch.core.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
             Phase coldPhase = new Phase("cold", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+                org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
             Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction()));
+                org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(
-                    org.elasticsearch.common.collect.List.of(warmPhase, coldPhase, frozenPhase)));
+                    org.elasticsearch.core.List.of(warmPhase, coldPhase, frozenPhase)));
             assertThat(e.getMessage(), is("phases [frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
                     " which are not allowed after a managed index is mounted as a searchable snapshot"));
         }
 
         {
             Phase hotPhase = new Phase("hot", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+                org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
             Phase warmPhase = new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
+                org.elasticsearch.core.Map.of(ShrinkAction.NAME, new ShrinkAction(1, null)));
             Phase coldPhase = new Phase("cold", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
+                org.elasticsearch.core.Map.of(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
             Phase frozenPhase = new Phase("frozen", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction()));
+                org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(
-                    org.elasticsearch.common.collect.List.of(hotPhase, warmPhase, coldPhase, frozenPhase)));
+                    org.elasticsearch.core.List.of(hotPhase, warmPhase, coldPhase, frozenPhase)));
             assertThat(e.getMessage(), is("phases [warm,frozen] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
                     " which are not allowed after a managed index is mounted as a searchable snapshot"));
         }
 
         {
-            Phase hot = new Phase("hot", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(RolloverAction.NAME,
+            Phase hot = new Phase("hot", TimeValue.ZERO, org.elasticsearch.core.Map.of(RolloverAction.NAME,
                 new RolloverAction(null, null, null, 1L), SearchableSnapshotAction.NAME,
                 new SearchableSnapshotAction(randomAlphaOfLengthBetween(4, 10))));
             Phase warm = new Phase("warm", TimeValue.ZERO,
-                org.elasticsearch.common.collect.Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
-            Phase cold = new Phase("cold", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME, new FreezeAction()));
+                org.elasticsearch.core.Map.of(ForceMergeAction.NAME, new ForceMergeAction(1, null)));
+            Phase cold = new Phase("cold", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME, new FreezeAction()));
             IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
                 () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(
-                    org.elasticsearch.common.collect.List.of(warm, hot, cold)));
+                    org.elasticsearch.core.List.of(warm, hot, cold)));
             assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [forcemerge, freeze, shrink, rollup] actions" +
                     " which are not allowed after a managed index is mounted as a searchable snapshot"));
         }
 
         {
-            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(FreezeAction.NAME,
+            Phase frozenPhase = new Phase("frozen", TimeValue.ZERO, org.elasticsearch.core.Map.of(FreezeAction.NAME,
                 new FreezeAction(), SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo")));
             try {
-                TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(org.elasticsearch.common.collect.List.of(frozenPhase));
+                TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(org.elasticsearch.core.List.of(frozenPhase));
             } catch (Exception e) {
                 fail("unexpected exception while validating phase [ "+ frozenPhase +" ] but got [" + e.getMessage()+ "]");
             }
@@ -299,8 +299,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
     public void testGetOrderedPhasesInsertsMigrateAction() {
         Map<String, Phase> phaseMap = new HashMap<>();
-        phaseMap.put(HOT_PHASE, new Phase(HOT_PHASE, TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()));
-        phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, org.elasticsearch.common.collect.Map.of()));
+        phaseMap.put(HOT_PHASE, new Phase(HOT_PHASE, TimeValue.ZERO, org.elasticsearch.core.Map.of()));
+        phaseMap.put(WARM_PHASE, new Phase(WARM_PHASE, TimeValue.ZERO, org.elasticsearch.core.Map.of()));
 
         List<Phase> orderedPhases = TimeseriesLifecycleType.INSTANCE.getOrderedPhases(phaseMap);
         assertTrue(isSorted(orderedPhases, Phase::getName, ORDERED_VALID_PHASES));

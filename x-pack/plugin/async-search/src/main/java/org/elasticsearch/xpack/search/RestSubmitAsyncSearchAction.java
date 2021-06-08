@@ -30,7 +30,7 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(POST, "/_async_search"),
             new Route(POST, "/{index}/_async_search")
         );

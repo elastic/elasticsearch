@@ -54,7 +54,7 @@ public class AggregateMetricMapperPlugin extends Plugin implements MapperPlugin,
 
     @Override
     public java.util.List<Consumer<ValuesSourceRegistry.Builder>> getAggregationExtentions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             AggregateMetricsAggregatorsRegistrar::registerSumAggregator,
             AggregateMetricsAggregatorsRegistrar::registerAvgAggregator,
             AggregateMetricsAggregatorsRegistrar::registerMinAggregator,

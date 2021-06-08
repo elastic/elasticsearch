@@ -103,7 +103,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
+        List<Index> backingIndices = org.elasticsearch.core.List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder()
                 .put(indexMetadata, true)

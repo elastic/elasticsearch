@@ -8,7 +8,7 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.hamcrest.Matcher;
 
 import static java.util.Collections.singletonMap;

@@ -108,7 +108,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     }
 
     private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
-        return org.elasticsearch.common.collect.Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
+        return org.elasticsearch.core.Map.of("base_path", Repository.BASE_PATH_SETTING.get(metadata.settings()),
             "container", Repository.CONTAINER_SETTING.get(metadata.settings()));
     }
 

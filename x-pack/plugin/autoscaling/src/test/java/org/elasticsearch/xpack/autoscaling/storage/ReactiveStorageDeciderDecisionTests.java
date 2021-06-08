@@ -388,7 +388,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         AllocationDecider... allocationDeciders
     ) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
-            createContext(state, org.elasticsearch.common.collect.Set.of(role)),
+            createContext(state, org.elasticsearch.core.Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
             createAllocationDeciders(allocationDeciders),
             DATA_TIER_ALLOCATION_DECIDER
@@ -406,10 +406,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
-        TestAutoscalingDeciderContext context = createContext(
-            state,
-            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE)
-        );
+        TestAutoscalingDeciderContext context = createContext(state, org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
         if (context.currentCapacity != null) {
             assertThat(
@@ -521,7 +518,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private TestAutoscalingDeciderContext createContext(DiscoveryNodeRole role) {
-        return createContext(state, org.elasticsearch.common.collect.Set.of(role));
+        return createContext(state, org.elasticsearch.core.Set.of(role));
     }
 
     private static TestAutoscalingDeciderContext createContext(ClusterState state, Set<DiscoveryNodeRole> roles) {
@@ -658,8 +655,8 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             nodeName,
             UUIDs.randomBase64UUID(),
             buildNewFakeTransportAddress(),
-            org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Set.of(role),
+            org.elasticsearch.core.Map.of(),
+            org.elasticsearch.core.Set.of(role),
             Version.CURRENT
         );
     }

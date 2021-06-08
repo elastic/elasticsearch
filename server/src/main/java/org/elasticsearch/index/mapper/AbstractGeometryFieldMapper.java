@@ -9,7 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -132,7 +132,7 @@ class NodeDeprecationChecks {
 
         boolean anyRealmEnabled = false;
         final Set<String> unconfiguredBasicRealms =
-            new HashSet<>(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
+            new HashSet<>(org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (Map.Entry<RealmConfig.RealmIdentifier, Settings> realmSetting: realmSettings.entrySet()) {
             anyRealmEnabled = anyRealmEnabled || realmSetting.getValue().getAsBoolean(RealmSettings.ENABLED_SETTING_KEY, true);
             unconfiguredBasicRealms.remove(realmSetting.getKey().getType());
@@ -141,7 +141,7 @@ class NodeDeprecationChecks {
         final String details;
         if (false == anyRealmEnabled) {
             final List<String> explicitlyDisabledBasicRealms =
-                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                Sets.difference(org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
                     unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
             if (explicitlyDisabledBasicRealms.isEmpty()) {
                 return null;

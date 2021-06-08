@@ -30,7 +30,7 @@ public class GetApiKeyResponseTests extends ESTestCase {
         boolean withExpiration = randomBoolean();
         ApiKey apiKeyInfo = createApiKeyInfo((withApiKeyName) ? randomAlphaOfLength(4) : null, randomAlphaOfLength(5), Instant.now(),
             (withExpiration) ? Instant.now() : null, false, randomAlphaOfLength(4), randomAlphaOfLength(5),
-            randomBoolean() ? null : org.elasticsearch.common.collect.Map.of(
+            randomBoolean() ? null : org.elasticsearch.core.Map.of(
                 randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
         GetApiKeyResponse response = new GetApiKeyResponse(Collections.singletonList(apiKeyInfo));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -46,9 +46,9 @@ public class GetApiKeyResponseTests extends ESTestCase {
         ApiKey apiKeyInfo1 = createApiKeyInfo("name1", "id-1", Instant.ofEpochMilli(100000L), Instant.ofEpochMilli(10000000L), false,
                 "user-a", "realm-x", null);
         ApiKey apiKeyInfo2 = createApiKeyInfo("name2", "id-2", Instant.ofEpochMilli(100000L), Instant.ofEpochMilli(10000000L), true,
-                "user-b", "realm-y", org.elasticsearch.common.collect.Map.of());
+                "user-b", "realm-y", org.elasticsearch.core.Map.of());
         ApiKey apiKeyInfo3 = createApiKeyInfo(null, "id-3", Instant.ofEpochMilli(100000L), null, true,
-            "user-c", "realm-z", org.elasticsearch.common.collect.Map.of("foo", "bar"));
+            "user-c", "realm-z", org.elasticsearch.core.Map.of("foo", "bar"));
         GetApiKeyResponse response = new GetApiKeyResponse(Arrays.asList(apiKeyInfo1, apiKeyInfo2, apiKeyInfo3));
         XContentBuilder builder = XContentFactory.jsonBuilder();
         response.toXContent(builder, ToXContent.EMPTY_PARAMS);

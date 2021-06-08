@@ -16,6 +16,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -84,7 +85,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> {
                 final DocValueFormat docValueFormat;
                 if (format == null && valuesSourceConfig.valueSourceType() == CoreValuesSourceType.DATE) {
@@ -142,7 +143,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
         builder.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),

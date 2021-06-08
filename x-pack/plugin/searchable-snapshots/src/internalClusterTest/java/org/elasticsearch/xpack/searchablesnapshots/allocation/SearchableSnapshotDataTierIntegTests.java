@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
@@ -76,9 +77,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
         client().admin()
             .indices()
             .updateSettings(
-                new UpdateSettingsRequest(mountedIndexName).settings(
-                    org.elasticsearch.common.collect.Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier)
-                )
+                new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))
             )
             .actionGet();
     }

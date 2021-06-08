@@ -19,10 +19,10 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -159,7 +159,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
-        service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.common.collect.Set.of(), new PlainActionFuture<>());
+        service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), new PlainActionFuture<>());
         verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
     }
 
@@ -213,7 +213,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     new String[]{"superuser"},
                     "Bruce Banner",
                     "hulk@test.com",
-                    org.elasticsearch.common.collect.Map.of(),
+                    org.elasticsearch.core.Map.of(),
                     true
                 ),
                 new User("authenticated_user", new String[]{"other"})
@@ -224,7 +224,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 new String[]{"superuser"},
                 "Bruce Banner",
                 "hulk@test.com",
-                org.elasticsearch.common.collect.Map.of(),
+                org.elasticsearch.core.Map.of(),
                 true
             );
         }
@@ -569,7 +569,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         roleDescriptors = service.parseRoleDescriptors(apiKeyId, roleBytes);
         assertEquals(2, roleDescriptors.size());
         assertEquals(
-            org.elasticsearch.common.collect.Set.of("reporting_user", "superuser"),
+            org.elasticsearch.core.Set.of("reporting_user", "superuser"),
             roleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toSet()));
     }
 
@@ -810,7 +810,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String apiKey3 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials3 = new ApiKeyCredentials(docId3, new SecureString(apiKey3.toCharArray()));
         final List<RoleDescriptor> keyRoles =
-            org.elasticsearch.common.collect.List.of(RoleDescriptor.parse(
+            org.elasticsearch.core.List.of(RoleDescriptor.parse(
                 "key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON));
         final Map<String, Object> metadata3 =
             mockKeyDocument(service, docId3, apiKey3, new User("banner", "superuser"),
@@ -1011,14 +1011,14 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(new User("alice"), new RealmRef("file", "file", "node-1"), null);
         final CreateApiKeyRequest request1 = new CreateApiKeyRequest("name", null, null,
-            org.elasticsearch.common.collect.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
+            org.elasticsearch.core.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
         final PlainActionFuture<CreateApiKeyResponse> future1 = new PlainActionFuture<>();
         service.createApiKey(authentication, request1, Collections.emptySet(), future1);
         final IllegalArgumentException e1 = expectThrows(IllegalArgumentException.class, future1::actionGet);
         assertThat(e1.getMessage(), containsString("API metadata requires all nodes to be at least [7.3.0]"));
 
         final CreateApiKeyRequest request2 = new CreateApiKeyRequest("name", null, null,
-            randomFrom(org.elasticsearch.common.collect.Map.of(), null));
+            randomFrom(org.elasticsearch.core.Map.of(), null));
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
         final PlainActionFuture<CreateApiKeyResponse> future2 = new PlainActionFuture<>();
@@ -1031,11 +1031,11 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata == null) {
-            when(apiKeyAuthentication.getMetadata()).thenReturn(org.elasticsearch.common.collect.Map.of());
+            when(apiKeyAuthentication.getMetadata()).thenReturn(org.elasticsearch.core.Map.of());
         } else {
             final BytesReference metadataBytes = XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON);
             when(apiKeyAuthentication.getMetadata()).thenReturn(
-                org.elasticsearch.common.collect.Map.of(API_KEY_METADATA_KEY, metadataBytes));
+                org.elasticsearch.core.Map.of(API_KEY_METADATA_KEY, metadataBytes));
         }
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
@@ -1065,7 +1065,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             XContentBuilder keyDocSource = apiKeyService.newDocument(
                 new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
                 userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT,
-                randomBoolean() ? null : org.elasticsearch.common.collect.Map.of(
+                randomBoolean() ? null : org.elasticsearch.core.Map.of(
                     randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
                 XContentHelper.createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE,
@@ -1149,7 +1149,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         sourceMap.put("creator", creatorMap);
         sourceMap.put("api_key_invalidated", false);
         // We don't want an empty map here for consistency because newDocument method drops empty metadata
-        sourceMap.put("metadata_flattened", randomValueOtherThan(org.elasticsearch.common.collect.Map.of(), ApiKeyTests::randomMetadata));
+        sourceMap.put("metadata_flattened", randomValueOtherThan(org.elasticsearch.core.Map.of(), ApiKeyTests::randomMetadata));
         return sourceMap;
     }
 
@@ -1179,13 +1179,13 @@ public class ApiKeyServiceTests extends ESTestCase {
             0,
             new BytesArray("{\"a role\": {\"cluster\": [\"all\"]}}"),
             new BytesArray("{\"limited role\": {\"cluster\": [\"all\"]}}"),
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "principal", "test_user",
                 "full_name", "test user",
                 "email", "test@user.com",
                 "realm", "realm1",
                 "realm_type", "realm_type1",
-                "metadata", org.elasticsearch.common.collect.Map.of()
+                "metadata", org.elasticsearch.core.Map.of()
             ),
             metadataBytes
         );

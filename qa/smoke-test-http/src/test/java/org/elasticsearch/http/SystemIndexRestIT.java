@@ -136,7 +136,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                                                  IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
                                                  IndexNameExpressionResolver indexNameExpressionResolver,
                                                  Supplier<DiscoveryNodes> nodesInCluster) {
-            return org.elasticsearch.common.collect.List.of(new AddDocRestHandler());
+            return org.elasticsearch.core.List.of(new AddDocRestHandler());
         }
 
         @Override
@@ -202,7 +202,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
 
             @Override
             public List<Route> routes() {
-                return org.elasticsearch.common.collect.List.of(new Route(POST, "/_sys_index_test/add_doc/{id}"));
+                return org.elasticsearch.core.List.of(new Route(POST, "/_sys_index_test/add_doc/{id}"));
             }
 
             @Override
@@ -210,7 +210,7 @@ public class SystemIndexRestIT extends HttpSmokeTestCase {
                 IndexRequest indexRequest = new IndexRequest(SYSTEM_INDEX_NAME);
                 indexRequest.id(request.param("id"));
                 indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                indexRequest.source(org.elasticsearch.common.collect.Map.of("some_field", "some_value"));
+                indexRequest.source(org.elasticsearch.core.Map.of("some_field", "some_value"));
                 return channel -> client.index(indexRequest,
                     new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
             }

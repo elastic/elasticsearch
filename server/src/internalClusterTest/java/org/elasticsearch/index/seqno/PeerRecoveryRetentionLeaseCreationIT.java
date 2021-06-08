@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.IndicesService;
@@ -61,7 +62,7 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                RetentionLeases.FORMAT.writeAndCleanup(new RetentionLeases(1, version, org.elasticsearch.common.collect.List.of()), path);
+                RetentionLeases.FORMAT.writeAndCleanup(new RetentionLeases(1, version, List.of()), path);
                 return super.onNodeStopped(nodeName);
             }
         });

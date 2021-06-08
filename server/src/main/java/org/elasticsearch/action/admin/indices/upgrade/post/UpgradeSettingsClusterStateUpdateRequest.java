@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.indices.upgrade.post;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ack.ClusterStateUpdateRequest;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.Map;
 

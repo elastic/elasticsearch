@@ -50,11 +50,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -858,7 +858,7 @@ public class RestoreService implements ClusterStateApplier {
             featureStatesToRestore = Collections.emptyMap();
         } else {
             // Otherwise, handle the list of requested feature states
-            final Set<String> requestedStates = org.elasticsearch.common.collect.Set.of(requestedFeatureStates);
+            final Set<String> requestedStates = org.elasticsearch.core.Set.of(requestedFeatureStates);
             if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
                 throw new SnapshotRestoreException(snapshot, "the feature_states value [" + NO_FEATURE_STATES_VALUE +
                     "] indicates that no feature states should be restored, but other feature states were requested: " + requestedStates);

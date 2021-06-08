@@ -1,4 +1,4 @@
-[[java-rest-high-search-point-in-time]]
+[[java-rest-high-point-in-time]]
 
 === Open a point in time
 

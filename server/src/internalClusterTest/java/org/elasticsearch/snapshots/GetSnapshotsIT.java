@@ -17,9 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -62,16 +60,40 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testResponseSizeLimit() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final List<String> names = createNSnapshots(repoName, randomIntBetween(6, 20));
+        final List<SnapshotInfo> allSnapshotsByName = allSnapshotsSorted(names, repoName, GetSnapshotsAction.SortBy.NAME);
+        assertSorted(
+                allSnapshotsByName,
+                (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()))
+        );
+        final List<SnapshotInfo> batch1 = sortedWithSize(repoName, GetSnapshotsAction.SortBy.NAME, 2);
+        assertEquals(batch1, allSnapshotsByName.subList(0, 2));
+    }
+
     private List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames, String repoName, GetSnapshotsAction.SortBy sortBy) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin()
-            .prepareGetSnapshots(repoName)
-            .sortBy(sortBy)
-            .get()
-            .getSnapshots(repoName);
+                .prepareGetSnapshots(repoName)
+                .sortBy(sortBy)
+                .get()
+                .getSnapshots(repoName);
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
             assertThat(snapshotInfo.snapshotId().getName(), is(in(allSnapshotNames)));
         }
+        return snapshotInfos;
+    }
+
+    private List<SnapshotInfo> sortedWithSize(String repoName, GetSnapshotsAction.SortBy sortBy, int size) {
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin()
+            .prepareGetSnapshots(repoName)
+            .sortBy(sortBy)
+            .size(size)
+            .get()
+            .getSnapshots(repoName);
+        assertThat(snapshotInfos, hasSize(size));
         return snapshotInfos;
     }
 

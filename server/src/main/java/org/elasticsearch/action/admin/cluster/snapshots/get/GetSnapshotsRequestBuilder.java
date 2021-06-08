@@ -97,4 +97,9 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         request.pagination(request.after(), sortBy, request.size());
         return this;
     }
+
+    public GetSnapshotsRequestBuilder size(int size) {
+        request.pagination(request.after(), request.sort(), size);
+        return this;
+    }
 }

@@ -93,6 +93,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 request.ignoreUnavailable(),
                 request.verbose(),
                 (CancellableTask) task,
+                request.size(),
                 request.sort(),
                 listener
         );
@@ -104,6 +105,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                               boolean ignoreUnavailable,
                                               boolean verbose,
                                               CancellableTask cancellableTask,
+                                              int size,
                                               GetSnapshotsAction.SortBy sortBy,
                                               ActionListener<GetSnapshotsResponse> listener) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -128,6 +130,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     verbose,
                     cancellableTask,
                     sortBy,
+                    size,
                     groupedActionListener.delegateResponse((groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
@@ -140,11 +143,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private void getSingleRepoSnapshotInfo(SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
                                            boolean ignoreUnavailable, boolean verbose, CancellableTask task,
-                                           GetSnapshotsAction.SortBy sortBy,
+                                           GetSnapshotsAction.SortBy sortBy, int size,
                                            ActionListener<List<SnapshotInfo>> listener) {
         final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
         final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, sortBy)) {
+        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, size, sortBy)) {
             SnapshotId snapshotId = snapshotInfo.snapshotId();
             allSnapshotIds.put(snapshotId.getName(), snapshotId);
             currentSnapshots.add(snapshotInfo);
@@ -158,7 +161,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         repositoryDataListener.whenComplete(repositoryData -> loadSnapshotInfos(snapshotsInProgress, repo, snapshots,
-                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, task, sortBy, listener),
+                ignoreUnavailable, verbose, allSnapshotIds, currentSnapshots, repositoryData, task, size, sortBy, listener),
             listener::onFailure);
     }
 
@@ -169,7 +172,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * @param repositoryName repository name
      * @return list of snapshots
      */
-    private static List<SnapshotInfo> sortedCurrentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName,
+    private static List<SnapshotInfo> sortedCurrentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName, int size,
                                                              GetSnapshotsAction.SortBy sortBy) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries =
@@ -177,7 +180,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(new SnapshotInfo(entry));
         }
-        return sortSnapshots(snapshotList, sortBy);
+        return sortSnapshots(snapshotList, sortBy, size);
     }
 
 
@@ -189,6 +192,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                    List<SnapshotInfo> currentSnapshots,
                                    @Nullable RepositoryData repositoryData,
                                    CancellableTask task,
+                                   int size,
                                    GetSnapshotsAction.SortBy sortBy,
                                    ActionListener<List<SnapshotInfo>> listener) {
         if (task.isCancelled()) {
@@ -230,15 +234,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         if (verbose) {
-            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, listener);
+            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, size, listener);
         } else {
             final List<SnapshotInfo> snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
-                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, sortBy);
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, size, sortBy);
             } else {
                 // only want current snapshots
-                snapshotInfos = sortSnapshots(currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()), sortBy);
+                snapshotInfos =
+                    sortSnapshots(currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()), sortBy, size);
             }
             listener.onResponse(snapshotInfos);
         }
@@ -259,6 +264,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                            boolean ignoreUnavailable,
                            CancellableTask task,
                            GetSnapshotsAction.SortBy sortBy,
+                           int size,
                            ActionListener<List<SnapshotInfo>> listener) {
         if (task.isCancelled()) {
             listener.onFailure(new TaskCancelledException("task cancelled"));
@@ -284,7 +290,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Collection<Void>> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy));
+            listener.onResponse(sortSnapshots(snapshotList, sortBy, size));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(Collections.emptyList());
@@ -368,6 +374,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
                                                                final RepositoryData repositoryData,
                                                                final List<SnapshotInfo> currentSnapshots,
+                                                               final int size,
                                                                final GetSnapshotsAction.SortBy sortBy) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
         for (SnapshotInfo snapshotInfo : currentSnapshots) {
@@ -390,7 +397,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), Collections.emptyList(),
                 repositoryData.getSnapshotState(snapshotId)));
         }
-        return sortSnapshots(snapshotInfos, sortBy);
+        return sortSnapshots(snapshotInfos, sortBy, size);
     }
 
     private static final Comparator<SnapshotInfo> BY_START_TIME =
@@ -404,7 +411,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
 
-    private static List<SnapshotInfo> sortSnapshots(List<SnapshotInfo> snapshotInfos, GetSnapshotsAction.SortBy sortBy) {
+    private static List<SnapshotInfo> sortSnapshots(List<SnapshotInfo> snapshotInfos, GetSnapshotsAction.SortBy sortBy, int size) {
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
             case START_TIME:
@@ -423,6 +430,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 throw new AssertionError("unknown sort column [" + sortBy + "]");
         }
         CollectionUtil.timSort(snapshotInfos, comparator);
-        return List.copyOf(snapshotInfos);
+        return List.copyOf(size > 0 && size < snapshotInfos.size() ? snapshotInfos.subList(0, size) : snapshotInfos);
     }
 }

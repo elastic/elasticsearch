@@ -72,8 +72,19 @@ request. So,
 `metrics` selects the fields of the "top" document to return. You can request
 a single metric with something like `"metric": {"field": "m"}` or multiple
 metrics by requesting a list of metrics like `"metric": [{"field": "m"}, {"field": "i"}`.
-The fields can be <<number,numbers>>, <<keyword,keywords>>, or <<ip,ips>>.
-Here is a more complete example:
+
+`metrics.field` supports the following field types:
+
+* <<boolean,`boolean`>>
+* <<ip,`ip`>>
+* <<keyword,keywords>>
+* <<number,numbers>>
+
+<<runtime,Runtime fields>> of corresponding types are also supported.
+`metrics.field` doesn't support fields with <<array,array values>>. A
+`top_metric` aggregation on array values may return inconsistent results.
+
+The following example runs a `top_metrics` aggregation on several field types.
 
 [source,console,id=search-aggregations-metrics-top-metrics-list-of-metrics]
 ----

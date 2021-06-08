@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotReq
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

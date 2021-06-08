@@ -9,6 +9,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;

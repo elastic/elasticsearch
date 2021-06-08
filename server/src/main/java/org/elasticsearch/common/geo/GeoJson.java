@@ -10,7 +10,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;

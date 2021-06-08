@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;

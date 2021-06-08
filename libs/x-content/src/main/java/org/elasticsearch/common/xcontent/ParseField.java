@@ -5,10 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-package org.elasticsearch.common;
+package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.xcontent.DeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.util.Collections;

@@ -15,7 +15,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;

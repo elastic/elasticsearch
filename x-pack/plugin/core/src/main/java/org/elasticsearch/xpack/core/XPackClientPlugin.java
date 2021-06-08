@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

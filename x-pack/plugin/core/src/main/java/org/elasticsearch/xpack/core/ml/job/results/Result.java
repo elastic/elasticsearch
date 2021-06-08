@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ml.job.results;
 
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 /**
  * A wrapper for concrete result objects plus meta information.

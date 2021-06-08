@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

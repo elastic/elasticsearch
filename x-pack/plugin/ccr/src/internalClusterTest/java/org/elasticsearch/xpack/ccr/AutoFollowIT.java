@@ -13,13 +13,13 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.CcrIntegTestCase;
@@ -514,13 +514,45 @@ public class AutoFollowIT extends CcrIntegTestCase {
         assertThat(followerClient().admin().indices().prepareStats("copy-*").get().getIndices().size(), equalTo(leaderIndices.get()));
     }
 
+    public void testAutoFollowExclusion() throws Exception {
+        Settings leaderIndexSettings = Settings.builder()
+            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
+            .build();
+
+        putAutoFollowPatterns("my-pattern1", new String[] {"logs-*"}, Collections.singletonList("logs-2018*"));
+
+        createLeaderIndex("logs-201801", leaderIndexSettings);
+        AutoFollowStats autoFollowStats = getAutoFollowStats();
+        assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedFollowIndices(), equalTo(0L));
+        assertThat(autoFollowStats.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+
+        createLeaderIndex("logs-201701", leaderIndexSettings);
+        assertLongBusy(() -> {
+            AutoFollowStats autoFollowStatsResponse = getAutoFollowStats();
+            assertThat(autoFollowStatsResponse.getNumberOfSuccessfulFollowIndices(), equalTo(1L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedFollowIndices(), greaterThanOrEqualTo(0L));
+            assertThat(autoFollowStatsResponse.getNumberOfFailedRemoteClusterStateRequests(), equalTo(0L));
+        });
+        assertTrue(ESIntegTestCase.indexExists("copy-logs-201701", followerClient()));
+        assertFalse(ESIntegTestCase.indexExists("copy-logs-201801", followerClient()));
+    }
+
     private void putAutoFollowPatterns(String name, String[] patterns) {
+        putAutoFollowPatterns(name, patterns, Collections.emptyList());
+    }
+
+    private void putAutoFollowPatterns(String name, String[] patterns, List<String> exclusionPatterns) {
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request();
         request.setName(name);
         request.setRemoteCluster("leader_cluster");
         request.setLeaderIndexPatterns(Arrays.asList(patterns));
+        request.setLeaderIndexExclusionPatterns(exclusionPatterns);
         // Need to set this, because following an index in the same cluster
         request.setFollowIndexNamePattern("copy-{{leader_index}}");
+
         assertTrue(followerClient().execute(PutAutoFollowPatternAction.INSTANCE, request).actionGet().isAcknowledged());
     }
 

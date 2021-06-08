@@ -474,12 +474,13 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             new PutAutoFollowPatternRequest(
                 "my_pattern", // <1>
                 "local", // <2>
-                Arrays.asList("logs-*", "metrics-*") // <3>
+                Arrays.asList("logs-*", "metrics-*"), // <3>
+                Arrays.asList("logs-excluded", "metrics-excluded") // <4>
         );
-        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <4>
+        request.setFollowIndexNamePattern("copy-{{leader_index}}"); // <5>
         Settings settings =
             Settings.builder().put("index.number_of_replicas", 0L).build();
-        request.setSettings(settings); // <5>
+        request.setSettings(settings); // <6>
         // end::ccr-put-auto-follow-pattern-request
 
         // tag::ccr-put-auto-follow-pattern-execute

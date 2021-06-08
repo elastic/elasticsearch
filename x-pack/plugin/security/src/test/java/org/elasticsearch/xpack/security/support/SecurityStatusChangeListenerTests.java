@@ -81,6 +81,11 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
             "Active license is now [BASIC]; Security is disabled"
         ));
         listener.licenseStateChanged();
+        assertWarnings("The default behavior of disabling security on basic"
+            + " licenses is deprecated. A later version of Elasticsearch will set [xpack.security.enabled] to \"true\" "
+            + "by default, regardless of the license level."
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
+            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
 
         logAppender.assertAllExpectationsMatched();
     }
@@ -104,6 +109,11 @@ public class SecurityStatusChangeListenerTests extends ESTestCase {
                 Version.CURRENT.minor + "/security-minimal-setup.html to enable security."
         ));
         listener.licenseStateChanged();
+        assertWarnings("The default behavior of disabling security on trial"
+            + " licenses is deprecated. A later version of Elasticsearch will set [xpack.security.enabled] to \"true\" "
+            + "by default, regardless of the license level."
+            + "See https://www.elastic.co/guide/en/elasticsearch/reference/7.14/security-minimal-setup.html to enable security, "
+            + "or explicitly disable security by setting [xpack.security.enabled] to false in elasticsearch.yml");
 
         when(licenseState.getOperationMode()).thenReturn(License.OperationMode.BASIC);
         logAppender.addExpectation(new MockLogAppender.UnseenEventExpectation(

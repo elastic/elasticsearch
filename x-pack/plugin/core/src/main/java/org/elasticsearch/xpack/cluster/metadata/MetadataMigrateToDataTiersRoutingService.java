@@ -117,60 +117,62 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
     static List<String> migrateIlmPolicies(Metadata.Builder mb, ClusterState currentState, String nodeAttrName,
                                            NamedXContentRegistry xContentRegistry, Client client) {
-        List<String> migratedPolicies = new ArrayList<>();
         IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
-        if (currentLifecycleMetadata != null) {
-            Map<String, LifecyclePolicyMetadata> currentPolicies = currentLifecycleMetadata.getPolicyMetadatas();
-            SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentPolicies);
-            for (Map.Entry<String, LifecyclePolicyMetadata> policyMetadataEntry : currentPolicies.entrySet()) {
-                LifecyclePolicy lifecyclePolicy = policyMetadataEntry.getValue().getPolicy();
-                LifecyclePolicy newLifecylePolicy = null;
-                for (Map.Entry<String, Phase> phaseEntry : lifecyclePolicy.getPhases().entrySet()) {
-                    Phase phase = phaseEntry.getValue();
-                    AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
-                    if (allocateActionDefinesRoutingRules(nodeAttrName, allocateAction)) {
-                        Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                        // this phase contains an allocate action that defines a require rule for the attribute name so we'll remove all the
-                        // rules to allow for the migrate action to be injected
-                        if (allocateAction.getNumberOfReplicas() != null) {
-                            // keep the number of replicas configuration
-                            AllocateAction updatedAllocateAction =
-                                new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
-                            actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
-                            logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
-                                phase.getName(), allocateAction);
-                        } else {
-                            // remove the action altogether
-                            actionMap.remove(allocateAction.getWriteableName());
-                            logger.debug("ILM policy [{}], phase [{}]: removed the allocate action", lifecyclePolicy.getName(),
-                                phase.getName());
-                        }
+        if (currentLifecycleMetadata == null) {
+            return Collections.emptyList();
+        }
 
-                        Phase updatedPhase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
-                        Map<String, Phase> updatedPhases =
-                            new HashMap<>(newLifecylePolicy == null ? lifecyclePolicy.getPhases() : newLifecylePolicy.getPhases());
-                        updatedPhases.put(phaseEntry.getKey(), updatedPhase);
-                        newLifecylePolicy = new LifecyclePolicy(lifecyclePolicy.getName(), updatedPhases);
+        List<String> migratedPolicies = new ArrayList<>();
+        Map<String, LifecyclePolicyMetadata> currentPolicies = currentLifecycleMetadata.getPolicyMetadatas();
+        SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentPolicies);
+        for (Map.Entry<String, LifecyclePolicyMetadata> policyMetadataEntry : currentPolicies.entrySet()) {
+            LifecyclePolicy lifecyclePolicy = policyMetadataEntry.getValue().getPolicy();
+            LifecyclePolicy newLifecylePolicy = null;
+            for (Map.Entry<String, Phase> phaseEntry : lifecyclePolicy.getPhases().entrySet()) {
+                Phase phase = phaseEntry.getValue();
+                AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
+                if (allocateActionDefinesRoutingRules(nodeAttrName, allocateAction)) {
+                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
+                    // this phase contains an allocate action that defines a require rule for the attribute name so we'll remove all the
+                    // rules to allow for the migrate action to be injected
+                    if (allocateAction.getNumberOfReplicas() != null) {
+                        // keep the number of replicas configuration
+                        AllocateAction updatedAllocateAction =
+                            new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
+                        actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
+                        logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
+                            phase.getName(), allocateAction);
+                    } else {
+                        // remove the action altogether
+                        actionMap.remove(allocateAction.getWriteableName());
+                        logger.debug("ILM policy [{}], phase [{}]: removed the allocate action", lifecyclePolicy.getName(),
+                            phase.getName());
                     }
-                }
 
-                if (newLifecylePolicy != null) {
-                    // we updated at least one phase
-                    long nextVersion = policyMetadataEntry.getValue().getVersion() + 1L;
-                    LifecyclePolicyMetadata newPolicyMetadata = new LifecyclePolicyMetadata(newLifecylePolicy,
-                        policyMetadataEntry.getValue().getHeaders(), nextVersion, Instant.now().toEpochMilli());
-                    LifecyclePolicyMetadata oldPolicyMetadata = newPolicies.put(policyMetadataEntry.getKey(), newPolicyMetadata);
-                    assert oldPolicyMetadata != null :
-                        "we must only update policies, not create new ones, but " + policyMetadataEntry.getKey() + " didn't exist";
-
-                    updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata);
-                    migratedPolicies.add(policyMetadataEntry.getKey());
+                    Phase updatedPhase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
+                    Map<String, Phase> updatedPhases =
+                        new HashMap<>(newLifecylePolicy == null ? lifecyclePolicy.getPhases() : newLifecylePolicy.getPhases());
+                    updatedPhases.put(phaseEntry.getKey(), updatedPhase);
+                    newLifecylePolicy = new LifecyclePolicy(lifecyclePolicy.getName(), updatedPhases);
                 }
             }
 
-            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
-            mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+            if (newLifecylePolicy != null) {
+                // we updated at least one phase
+                long nextVersion = policyMetadataEntry.getValue().getVersion() + 1L;
+                LifecyclePolicyMetadata newPolicyMetadata = new LifecyclePolicyMetadata(newLifecylePolicy,
+                    policyMetadataEntry.getValue().getHeaders(), nextVersion, Instant.now().toEpochMilli());
+                LifecyclePolicyMetadata oldPolicyMetadata = newPolicies.put(policyMetadataEntry.getKey(), newPolicyMetadata);
+                assert oldPolicyMetadata != null :
+                    "we must only update policies, not create new ones, but " + policyMetadataEntry.getKey() + " didn't exist";
+
+                updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata);
+                migratedPolicies.add(policyMetadataEntry.getKey());
+            }
         }
+
+        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
+        mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
         return migratedPolicies;
     }
 

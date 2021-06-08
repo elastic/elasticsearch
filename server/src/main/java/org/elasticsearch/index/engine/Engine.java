@@ -98,6 +98,7 @@ public abstract class Engine implements Closeable {
     public static final String MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID = "max_unsafe_auto_id_timestamp";
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
+    protected static final String DOC_STATS_SOURCE = "doc_stats";
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -174,7 +175,7 @@ public abstract class Engine implements Closeable {
         // index.refresh_interval=-1 won't see any doc stats updates at all. This change will give more accurate statistics
         // when indexing but not refreshing in general. Yet, if a refresh happens the internal searcher is refresh as well so we are
         // safe here.
-        try (Searcher searcher = acquireSearcher("docStats", SearcherScope.INTERNAL)) {
+        try (Searcher searcher = acquireSearcher(DOC_STATS_SOURCE, SearcherScope.INTERNAL)) {
             return docsStats(searcher.getIndexReader());
         }
     }

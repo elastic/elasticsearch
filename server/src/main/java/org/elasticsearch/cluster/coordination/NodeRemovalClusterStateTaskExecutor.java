@@ -78,15 +78,10 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         }
 
         final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
+        final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
+        final ClusterState finalState = allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks));
 
-        return getTaskClusterTasksResult(currentState, tasks, remainingNodesClusterState);
-    }
-
-    protected ClusterTasksResult<Task> getTaskClusterTasksResult(ClusterState currentState, List<Task> tasks,
-                                                                 ClusterState remainingNodesClusterState) {
-        ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-        final ClusterTasksResult.Builder<Task> resultBuilder = ClusterTasksResult.<Task>builder().successes(tasks);
-        return resultBuilder.build(allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks)));
+        return ClusterTasksResult.<Task>builder().successes(tasks).build(finalState);
     }
 
     // visible for testing

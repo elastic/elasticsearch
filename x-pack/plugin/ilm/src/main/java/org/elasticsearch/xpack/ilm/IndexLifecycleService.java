@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -27,23 +28,33 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.RollupStep;
+import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
+import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
+import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
 import java.io.Closeable;
 import java.time.Clock;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Set;
 import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
@@ -52,7 +63,7 @@ import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDatePars
  * A service which runs the {@link LifecyclePolicy}s associated with indexes.
  */
 public class IndexLifecycleService
-    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener {
+    implements ClusterStateListener, ClusterStateApplier, SchedulerEngine.Listener, Closeable, IndexEventListener, ShutdownAwarePlugin {
     private static final Logger logger = LogManager.getLogger(IndexLifecycleService.class);
     private static final Set<String> IGNORE_STEPS_MAINTENANCE_REQUESTED = Set.of(ShrinkStep.NAME, RollupStep.NAME);
     private volatile boolean isMaster = false;
@@ -388,5 +399,57 @@ public class IndexLifecycleService
     // visible for testing
     PolicyStepsRegistry getPolicyRegistry() {
         return policyRegistry;
+    }
+
+    static Set<String> indicesOnShuttingDownNodesInDangerousStep(ClusterState state, String nodeId) {
+        final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(state, SingleNodeShutdownMetadata.Type.REMOVE);
+        if (shutdownNodes.isEmpty()) {
+            return Collections.emptySet();
+        }
+
+        Set<String> indicesPreventingShutdown = StreamSupport.stream(state.metadata().indices().spliterator(), false)
+            // Filter out to only consider managed indices
+            .filter(indexToMetadata -> Strings.hasText(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexToMetadata.value.getSettings())))
+            // Only look at indices in the shrink action
+            .filter(indexToMetadata ->
+                ShrinkAction.NAME.equals(LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getAction()))
+            // Only look at indices on a step that may potentially be dangerous if we removed the node
+            .filter(indexToMetadata -> {
+                String step = LifecycleExecutionState.fromIndexMetadata(indexToMetadata.value).getStep();
+                return SetSingleNodeAllocateStep.NAME.equals(step) ||
+                    CheckShrinkReadyStep.NAME.equals(step) ||
+                    ShrinkStep.NAME.equals(step) ||
+                    ShrunkShardsAllocatedStep.NAME.equals(step);
+            })
+            // Only look at indices where the node picked for the shrink is the node marked as shutting down
+            .filter(indexToMetadata -> {
+                String nodePicked = indexToMetadata.value.getSettings()
+                    .get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id");
+                return nodeId.equals(nodePicked);
+            })
+            .map(indexToMetadata -> indexToMetadata.key)
+            .collect(Collectors.toSet());
+        logger.trace("with nodes marked as shutdown for removal {}, indices {} are preventing shutdown",
+            shutdownNodes, indicesPreventingShutdown);
+        return indicesPreventingShutdown;
+    }
+
+    @Override
+    public boolean safeToShutdown(String nodeId, SingleNodeShutdownMetadata.Type shutdownType) {
+        switch (shutdownType) {
+            case RESTART:
+                // It is safe to restart during ILM operation
+                return true;
+            case REMOVE:
+                Set<String> indices = indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
+                return indices.isEmpty();
+            default:
+                throw new IllegalArgumentException("unknown shutdown type: " + shutdownType);
+        }
+    }
+
+    @Override
+    public void signalShutdown(Collection<String> shutdownNodeIds) {
+        // TODO: in the future we could take proactive measures for when a shutdown is actually triggered
     }
 }

@@ -62,8 +62,23 @@ public class SingleNodeShutdownStatus implements Writeable, ToXContentObject {
     }
 
     public SingleNodeShutdownMetadata.Status overallStatus() {
-        // TODO: make this value calculated based on the status of all other pieces
-        return SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        return SingleNodeShutdownMetadata.Status.combine(
+            migrationStatus().getStatus(),
+            pluginsStatus().getStatus(),
+            persistentTasksStatus().getStatus()
+        );
+    }
+
+    public ShutdownShardMigrationStatus migrationStatus() {
+        return this.shardMigrationStatus;
+    }
+
+    public ShutdownPersistentTasksStatus persistentTasksStatus() {
+        return this.persistentTasksStatus;
+    }
+
+    public ShutdownPluginsStatus pluginsStatus() {
+        return this.pluginsStatus;
     }
 
     @Override

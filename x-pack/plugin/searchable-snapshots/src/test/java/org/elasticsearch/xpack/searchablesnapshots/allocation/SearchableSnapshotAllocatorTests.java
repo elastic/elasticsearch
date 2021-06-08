@@ -120,7 +120,11 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         assertEquals(1, reroutesTriggered.get());
         if (existingCacheSizes.values().stream().allMatch(size -> size == 0L)) {
-            assertFalse("If there are no existing caches the allocator should not take a decision", allocation.routingNodesChanged());
+            assertThat(
+                "If there are no existing caches the allocator should not take a decision",
+                allocation.routingNodes().assignedShards(shardId),
+                empty()
+            );
         } else {
             assertTrue(allocation.routingNodesChanged());
             final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
@@ -211,7 +215,6 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             testFrozenCacheSizeService()
         );
         allocateAllUnassigned(allocation, allocator);
-        assertFalse(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
     }

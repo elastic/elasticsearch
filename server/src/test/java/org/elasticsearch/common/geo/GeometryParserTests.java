@@ -42,7 +42,7 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
             assertEquals(new Point(100, 0),
                 format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
@@ -104,7 +104,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
             assertEquals(new Point(100, 0),
                 format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
@@ -139,7 +139,7 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
 
-            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            GeometryParserFormat format = GeometryParserFormat.geometryFormat(parser);
             assertNull(format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
 
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");

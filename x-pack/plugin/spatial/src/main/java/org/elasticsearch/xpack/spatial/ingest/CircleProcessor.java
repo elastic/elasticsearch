@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.spatial.ingest;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeometryParser;
+import org.elasticsearch.common.geo.GeometryParserFormat;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -80,7 +80,7 @@ public final class CircleProcessor extends AbstractProcessor {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
             parser.nextToken(); // shape value
-            GeometryParser.PARSER_FORMAT geometryFormat = GeometryParser.geometryFormat(parser);
+            GeometryParserFormat geometryFormat = GeometryParserFormat.geometryFormat(parser);
             Geometry geometry = geometryFormat.fromXContent(StandardValidator.instance(true), true, true, parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;

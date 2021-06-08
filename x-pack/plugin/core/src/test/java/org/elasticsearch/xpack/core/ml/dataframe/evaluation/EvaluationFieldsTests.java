@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import static java.util.stream.Collectors.toList;

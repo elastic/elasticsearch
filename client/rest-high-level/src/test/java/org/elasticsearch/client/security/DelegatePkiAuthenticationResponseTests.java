@@ -10,7 +10,7 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authc.Authentication;

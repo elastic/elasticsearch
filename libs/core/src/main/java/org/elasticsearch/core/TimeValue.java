@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.unit;
+package org.elasticsearch.core;
 
 import java.util.Locale;
 import java.util.Objects;

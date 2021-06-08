@@ -10,7 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;

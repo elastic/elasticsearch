@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.core;
 
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;

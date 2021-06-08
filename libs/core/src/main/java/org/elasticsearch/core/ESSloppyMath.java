@@ -6,16 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.lease;
-
-import java.io.Closeable;
+package org.elasticsearch.core;
 
 /**
- * Specialization of {@link Closeable} that may only throw a {@link RuntimeException}.
+ * Similar to Lucene's SloppyMath, but for additional math functions.
  */
-public interface Releasable extends Closeable {
+public class ESSloppyMath {
 
-    @Override
-    void close();
+    private ESSloppyMath() {}
 
+    public static double sinh(double value) {
+        return FastMath.sinh(value);
+    }
+
+    public static double atan(double value) {
+        return FastMath.atan(value);
+    }
 }

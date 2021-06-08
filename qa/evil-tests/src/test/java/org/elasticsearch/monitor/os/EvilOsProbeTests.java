@@ -9,7 +9,7 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

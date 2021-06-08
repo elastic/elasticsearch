@@ -6,12 +6,16 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.core;
+
+import java.io.Closeable;
 
 /**
- * A {@link Runnable}-like interface which allows throwing checked exceptions.
+ * Specialization of {@link Closeable} that may only throw a {@link RuntimeException}.
  */
-@FunctionalInterface
-public interface CheckedRunnable<E extends Exception> {
-    void run() throws E;
+public interface Releasable extends Closeable {
+
+    @Override
+    void close();
+
 }

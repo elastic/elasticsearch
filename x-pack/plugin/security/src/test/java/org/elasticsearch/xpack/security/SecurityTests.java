@@ -547,6 +547,8 @@ public class SecurityTests extends ESTestCase {
             UsageService usageService = new UsageService();
             Security security = new Security(settings, null);
 
+            // Verify Security rest wrapper is about to be installed
+            // We will throw later if another wrapper is already installed
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "Security rest wrapper", ActionModule.class.getName(), Level.DEBUG,
                 "Using REST wrapper from plugin org.elasticsearch.xpack.security.Security"

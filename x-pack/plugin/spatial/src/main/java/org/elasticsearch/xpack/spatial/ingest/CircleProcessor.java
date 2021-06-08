@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -35,7 +36,6 @@ import java.util.Map;
  */
 public final class CircleProcessor extends AbstractProcessor {
     public static final String TYPE = "circle";
-    static final GeometryParser PARSER = new GeometryParser(true, true, true);
     static final int MINIMUM_NUMBER_OF_SIDES = 4;
     static final int MAXIMUM_NUMBER_OF_SIDES = 1000;
 
@@ -80,8 +80,8 @@ public final class CircleProcessor extends AbstractProcessor {
             parser.nextToken(); // START_OBJECT
             parser.nextToken(); // "shape" field key
             parser.nextToken(); // shape value
-            GeometryParser.PARSER_FORMAT geometryFormat = PARSER.geometryFormat(parser);
-            Geometry geometry = PARSER.parse(parser);
+            GeometryParser.PARSER_FORMAT geometryFormat = GeometryParser.geometryFormat(parser);
+            Geometry geometry = geometryFormat.fromXContent(StandardValidator.instance(true), true, true, parser);
             if (ShapeType.CIRCLE.equals(geometry.type())) {
                 Circle circle = (Circle) geometry;
                 int numSides = numSides(circle.getRadiusMeters());

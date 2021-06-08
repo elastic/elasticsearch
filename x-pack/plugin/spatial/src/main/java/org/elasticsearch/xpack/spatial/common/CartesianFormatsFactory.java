@@ -26,7 +26,7 @@ public class CartesianFormatsFactory {
     private static final Map<String, Function<Geometry, Object>> FORMATS = new HashMap<>();
     static {
         FORMATS.put(GEOJSON, GeoJson::toMap);
-        FORMATS.put(WKT, WellKnownText.INSTANCE::toWKT);
+        FORMATS.put(WKT, WellKnownText::toWKT);
     }
 
     /**

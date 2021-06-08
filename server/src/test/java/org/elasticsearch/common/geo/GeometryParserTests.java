@@ -21,6 +21,7 @@ import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -41,9 +42,9 @@ public class GeometryParserTests extends ESTestCase {
 
         try (XContentParser parser = createParser(pointGeoJson)) {
             parser.nextToken();
-            GeometryParser geometryParser = new GeometryParser(true, randomBoolean(), randomBoolean());
-            GeometryParser.PARSER_FORMAT format = geometryParser.geometryFormat(parser);
-            assertEquals(new Point(100, 0), geometryParser.parse(parser));
+            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            assertEquals(new Point(100, 0),
+                format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder();
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             assertEquals("{\"type\":\"Point\",\"coordinates\":[100.0,10.0]}", Strings.toString(newGeoJson));
@@ -103,9 +104,9 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            GeometryParser geometryParser = new GeometryParser(true, randomBoolean(), randomBoolean());
-            GeometryParser.PARSER_FORMAT format = geometryParser.geometryFormat(parser);
-            assertEquals(new Point(100, 0), geometryParser.parse(parser));
+            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            assertEquals(new Point(100, 0),
+                format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             format.toXContent(new Point(100, 10), newGeoJson, ToXContent.EMPTY_PARAMS);
             newGeoJson.endObject();
@@ -137,9 +138,9 @@ public class GeometryParserTests extends ESTestCase {
             parser.nextToken(); // Start object
             parser.nextToken(); // Field Name
             parser.nextToken(); // Field Value
-            GeometryParser geometryParser = new GeometryParser(true, randomBoolean(), randomBoolean());
-            GeometryParser.PARSER_FORMAT format = geometryParser.geometryFormat(parser);
-            assertNull(geometryParser.parse(parser));
+
+            GeometryParser.PARSER_FORMAT format = GeometryParser.geometryFormat(parser);
+            assertNull(format.fromXContent(StandardValidator.instance(true), randomBoolean(), randomBoolean(), parser));
 
             XContentBuilder newGeoJson = XContentFactory.jsonBuilder().startObject().field("val");
             // if we serialize non-null value - it should be serialized as geojson

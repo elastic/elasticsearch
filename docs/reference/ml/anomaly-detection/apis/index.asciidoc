@@ -46,6 +46,8 @@ include::open-job.asciidoc[leveloffset=+2]
 include::post-data.asciidoc[leveloffset=+2]
 //PREVIEW
 include::preview-datafeed.asciidoc[leveloffset=+2]
+//RESET
+include::reset-job.asciidoc[leveloffset=+2]
 //REVERT
 include::revert-snapshot.asciidoc[leveloffset=+2]
 //SET/START/STOP

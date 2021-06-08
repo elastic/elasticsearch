@@ -9,9 +9,12 @@ package org.elasticsearch.xpack.ilm.actions;
 
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
@@ -57,10 +60,12 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class SearchableSnapshotActionIT extends ESRestTestCase {
 
@@ -458,6 +463,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
         assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
+
+        assertBusy(() -> assertTrue(
+            "Expecting the mounted index to be deleted and to be converted to an alias",
+            aliasExists(searchableSnapMountedIndexName, SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index))
+        );
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {

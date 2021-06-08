@@ -445,7 +445,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 comparator = BY_INDICES_COUNT;
                 break;
             default:
-                throw new AssertionError("unknown sort column [" + sortBy + "]");
+                throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
         CollectionUtil.timSort(snapshotInfos, comparator);
         int startIndex = 0;

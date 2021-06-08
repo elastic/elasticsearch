@@ -61,6 +61,7 @@ public class PutLifecycleAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public ActionRequestValidationException validate() {
+            this.policy.validate();
             ActionRequestValidationException err = null;
             String phaseTimingErr = TimeseriesLifecycleType.validateMonotonicallyIncreasingPhaseTimings(this.policy.getPhases().values());
             if (Strings.hasText(phaseTimingErr)) {

@@ -11,11 +11,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongSet;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
@@ -40,34 +40,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Supplier;
 
 public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript.LeafFactory> {
 
-    static final DateFieldScript.Factory PARSE_FROM_SOURCE
-        = (field, params, lookup, formatter) -> (DateFieldScript.LeafFactory) ctx -> new DateFieldScript
-        (
-            field,
-            params,
-            lookup,
-            formatter,
-            ctx
-        ) {
-        @Override
-        public void execute() {
-            for (Object v : extractFromSource(field)) {
-                try {
-                    emit(formatter.parseMillis(Objects.toString(v)));
-                } catch (Exception e) {
-                    // ignore
-                }
-            }
-        }
-    };
-
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(name ->
-        new Builder<>(name, DateFieldScript.CONTEXT, PARSE_FROM_SOURCE) {
+        new Builder<>(name, DateFieldScript.CONTEXT, DateFieldScript.PARSE_FROM_SOURCE) {
             private final FieldMapper.Parameter<String> format = FieldMapper.Parameter.stringParam(
                 "format",
                 true,
@@ -112,7 +90,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
     private final DateMathParser dateMathParser;
 
     public DateScriptFieldType(String name, DateFormatter dateTimeFormatter) {
-        this(name, PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
+        this(name, DateFieldScript.PARSE_FROM_SOURCE, dateTimeFormatter, null, Collections.emptyMap(), (builder, params) -> {
             if (DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern().equals(dateTimeFormatter.pattern()) == false) {
                 builder.field("format", dateTimeFormatter.pattern());
             }

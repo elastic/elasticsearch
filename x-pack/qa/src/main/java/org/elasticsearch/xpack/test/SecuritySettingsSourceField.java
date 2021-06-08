@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.test;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.nio.CharBuffer;

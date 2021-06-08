@@ -95,7 +95,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -138,6 +138,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     public static final RequestOptions LEGACY_TEMPLATE_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
+
+    public static final String FROZEN_INDICES_DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given " +
+        "improvements in heap memory utilization. They will be removed in a future release.";
 
     public void testIndicesExists() throws IOException {
         // Index present
@@ -1530,13 +1533,16 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         createIndex("test", Settings.EMPTY);
         RestHighLevelClient client = highLevelClient();
 
+        final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+
         ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
-            client.indices()::freezeAsync);
+            client.indices()::freezeAsync, freezeIndexOptions);
         assertTrue(freeze.isShardsAcknowledged());
         assertTrue(freeze.isAcknowledged());
 
         ShardsAcknowledgedResponse unfreeze = execute(new UnfreezeIndexRequest("test"), client.indices()::unfreeze,
-            client.indices()::unfreezeAsync);
+            client.indices()::unfreezeAsync, freezeIndexOptions);
         assertTrue(unfreeze.isShardsAcknowledged());
         assertTrue(unfreeze.isAcknowledged());
     }
@@ -1637,7 +1643,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
         assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
         assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0L)); // No data in here
-        assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
+        // Only asserting existence of store stats, testing any concrete value makes this test flaky.
+        assertThat(dataStreamStat.getStoreSize(), notNullValue());
 
         DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
         response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);

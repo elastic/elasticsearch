@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.coordination.ClusterBootstrapService;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -417,14 +417,20 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
 
     public void testSystemCallFilterCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
-        BootstrapContext context = randomBoolean() ? createTestContext(Settings.builder().put("bootstrap.system_call_filter", true)
-            .build(), null) : emptyContext;
+        final BootstrapContext context;
+        if (randomBoolean()) {
+            context = createTestContext(Settings.builder().put("bootstrap.system_call_filter", true).build(), null);
+        } else {
+            context = emptyContext;
+        }
 
         final BootstrapChecks.SystemCallFilterCheck systemCallFilterEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
             }
+
         };
 
         final NodeValidationException e = expectThrows(
@@ -432,22 +438,10 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             () -> BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck)));
         assertThat(
             e.getMessage(),
-            containsString("system call filters failed to install; " +
-                "check the logs and fix your configuration or disable system call filters at your own risk"));
+            containsString("system call filters failed to install; check the logs and fix your configuration"));
 
         isSystemCallFilterInstalled.set(true);
         BootstrapChecks.check(context, true, Collections.singletonList(systemCallFilterEnabledCheck));
-        BootstrapContext context_1 = createTestContext(Settings.builder().put("bootstrap.system_call_filter", false).build(), null);
-        final BootstrapChecks.SystemCallFilterCheck systemCallFilterNotEnabledCheck = new BootstrapChecks.SystemCallFilterCheck() {
-            @Override
-            boolean isSystemCallFilterInstalled() {
-                return isSystemCallFilterInstalled.get();
-            }
-        };
-        isSystemCallFilterInstalled.set(false);
-        BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
-        isSystemCallFilterInstalled.set(true);
-        BootstrapChecks.check(context_1, true, Collections.singletonList(systemCallFilterNotEnabledCheck));
     }
 
     public void testMightForkCheck() throws NodeValidationException {
@@ -482,6 +476,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnErrorCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
@@ -491,6 +486,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             String onError() {
                 return onError.get();
             }
+
         };
 
         final String command = randomAlphaOfLength(16);
@@ -502,14 +498,15 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             e -> assertThat(
                 e.getMessage(),
                 containsString(
-                    "OnError [" + command + "] requires forking but is prevented by system call filters " +
-                        "([bootstrap.system_call_filter=true]); upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
+                    "OnError [" + command + "] requires forking but is prevented by system call filters;" +
+                        " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 
     public void testOnOutOfMemoryErrorCheck() throws NodeValidationException {
         final AtomicBoolean isSystemCallFilterInstalled = new AtomicBoolean();
         final AtomicReference<String> onOutOfMemoryError = new AtomicReference<>();
         final BootstrapChecks.MightForkCheck check = new BootstrapChecks.OnOutOfMemoryErrorCheck() {
+
             @Override
             boolean isSystemCallFilterInstalled() {
                 return isSystemCallFilterInstalled.get();
@@ -519,6 +516,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
             String onOutOfMemoryError() {
                 return onOutOfMemoryError.get();
             }
+
         };
 
         final String command = randomAlphaOfLength(16);
@@ -531,7 +529,7 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
                 e.getMessage(),
                 containsString(
                     "OnOutOfMemoryError [" + command + "]"
-                        + " requires forking but is prevented by system call filters ([bootstrap.system_call_filter=true]);"
+                        + " requires forking but is prevented by system call filters;"
                         + " upgrade to at least Java 8u92 and use ExitOnOutOfMemoryError")));
     }
 

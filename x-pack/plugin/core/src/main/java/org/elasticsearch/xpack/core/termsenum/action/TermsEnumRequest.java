@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,6 +31,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     private String field;
     private String string;
+    private String searchAfter;
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
     long taskStartTimeMillis;
@@ -44,6 +45,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         super(in);
         field = in.readString();
         string = in.readString();
+        searchAfter = in.readOptionalString();
         caseInsensitive = in.readBoolean();
         size = in.readVInt();
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
@@ -69,7 +71,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
             validationException = ValidateActions.addValidationError("Timeout cannot be null", validationException);
         } else {
             if (timeout().getSeconds() > 60) {
-                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute", 
+                validationException = ValidateActions.addValidationError("Timeout cannot be > 1 minute",
                     validationException);
             }
         }
@@ -105,6 +107,20 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     }
 
     /**
+     * The string after which to find matching field values (enables pagination of previous request)
+     */
+    public String searchAfter() {
+        return searchAfter;
+    }
+
+    /**
+     * The string after which to find matching field values (enables pagination of previous request)
+     */
+    public void searchAfter(String searchAfter) {
+        this.searchAfter = searchAfter;
+    }
+
+    /**
      *  The number of terms to return
      */
     public int size() {
@@ -117,7 +133,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public void size(int size) {
         this.size = size;
     }
-    
+
     /**
      * If case insensitive matching is required
      */
@@ -137,17 +153,18 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
      */
     public void indexFilter(QueryBuilder indexFilter) {
         this.indexFilter = indexFilter;
-    }    
-    
+    }
+
     public QueryBuilder indexFilter() {
         return indexFilter;
-    }    
-    
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(field);
         out.writeString(string);
+        out.writeOptionalString(searchAfter);
         out.writeBoolean(caseInsensitive);
         out.writeVInt(size);
         out.writeOptionalNamedWriteable(indexFilter);
@@ -157,20 +174,26 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public String toString() {
         return "[" + Arrays.toString(indices) + "] field[" + field + "], string[" + string + "] "  + " size=" + size + " timeout="
             + timeout().getMillis() + " case_insensitive="
-            + caseInsensitive + " indexFilter = "+ indexFilter;
+            + caseInsensitive + " indexFilter = "+ indexFilter +
+            " searchAfter[" + searchAfter + "]" ;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("field", field);
-        builder.field("string", string);
+        if (string != null) {
+            builder.field("string", string);
+        }
+        if (searchAfter != null) {
+            builder.field("search_after", searchAfter);
+        }
         builder.field("size", size);
         builder.field("timeout", timeout().getMillis());
         builder.field("case_insensitive", caseInsensitive);
         if (indexFilter != null) {
             builder.field("index_filter", indexFilter);
-        }        
+        }
         return builder.endObject();
     }
 }

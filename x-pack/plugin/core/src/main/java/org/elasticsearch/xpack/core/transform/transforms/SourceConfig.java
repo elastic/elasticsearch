@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -124,8 +125,8 @@ public class SourceConfig implements Writeable, ToXContentObject {
             .collect(toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public boolean isValid() {
-        return queryConfig.isValid();
+    public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+        return queryConfig.validate(validationException);
     }
 
     public boolean requiresRemoteCluster() {

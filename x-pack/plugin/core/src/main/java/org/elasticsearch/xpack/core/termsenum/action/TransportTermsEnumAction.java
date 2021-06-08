@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -303,13 +303,23 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 );
                 final MappedFieldType mappedFieldType = indexShard.mapperService().fieldType(request.field());
                 if (mappedFieldType != null) {
-                    TermsEnum terms = mappedFieldType.getTerms(request.caseInsensitive(), request.string(), queryShardContext);
+                    TermsEnum terms = mappedFieldType.getTerms(
+                        request.caseInsensitive(),
+                        request.string() == null ? "" : request.string(),
+                        queryShardContext,
+                        request.searchAfter()
+                    );
                     if (terms != null) {
                         shardTermsEnums.add(terms);
                     }
                 }
             }
+            if (shardTermsEnums.size() == 0) {
+                // No term enums available
+                return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
+            }
             MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
+
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -335,7 +345,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 if (termsList.size() >= shard_size) {
                     break;
                 }
-            }
+            };
 
         } catch (Exception e) {
             error = ExceptionsHelper.stackTrace(e);

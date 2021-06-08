@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -30,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.StringContains.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
 
@@ -533,5 +534,15 @@ public class IndexSettingsTests extends ESTestCase {
         Version createdVersion = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion).build();
         assertTrue(IndexSettings.INDEX_SOFT_DELETES_SETTING.get(settings));
+    }
+
+    public void testCustomDataPathDeprecated() {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.INDEX_DATA_PATH_SETTING.getKey(), "my-custom-dir")
+            .build();
+        IndexMetadata metadata = newIndexMeta("test", settings);
+        IndexSettings indexSettings = new IndexSettings(metadata, Settings.EMPTY);
+        assertThat(indexSettings.hasCustomDataPath(), is(true));
+        assertSettingDeprecationsAndWarnings(new Setting[] { IndexMetadata.INDEX_DATA_PATH_SETTING });
     }
 }

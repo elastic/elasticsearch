@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
@@ -20,10 +21,12 @@ import java.text.ParseException;
 public class WKTGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "wkt";
 
-    private final WellKnownText wellKnownTextParser;
+    private final GeometryValidator validator;
+    private final boolean coerce;
 
-    public WKTGeometryFormat(WellKnownText wellKnownTextParser) {
-        this.wellKnownTextParser = wellKnownTextParser;
+    public WKTGeometryFormat(GeometryValidator validator, boolean coerce) {
+        this.validator = validator;
+        this.coerce = coerce;
     }
 
     @Override
@@ -36,13 +39,13 @@ public class WKTGeometryFormat implements GeometryFormat<Geometry> {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        return wellKnownTextParser.fromWKT(parser.text());
+        return WellKnownText.fromWKT(validator, coerce, parser.text());
     }
 
     @Override
     public XContentBuilder toXContent(Geometry geometry, XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (geometry != null) {
-            return builder.value(wellKnownTextParser.toWKT(geometry));
+            return builder.value(WellKnownText.toWKT(geometry));
         } else {
             return builder.nullValue();
         }
@@ -50,6 +53,6 @@ public class WKTGeometryFormat implements GeometryFormat<Geometry> {
 
     @Override
     public String toXContentAsObject(Geometry geometry) {
-        return wellKnownTextParser.toWKT(geometry);
+        return WellKnownText.toWKT(geometry);
     }
 }

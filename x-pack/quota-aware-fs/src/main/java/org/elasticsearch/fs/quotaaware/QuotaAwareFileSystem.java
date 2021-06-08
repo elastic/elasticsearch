@@ -7,7 +7,7 @@
 
 package org.elasticsearch.fs.quotaaware;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.file.FileStore;

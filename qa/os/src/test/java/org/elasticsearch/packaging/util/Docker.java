@@ -13,7 +13,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.fluent.Request;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -638,5 +638,12 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    /**
+     * Restarts the current docker container.
+     */
+    public static void restartContainer() {
+        sh.run("docker restart " + containerId);
     }
 }

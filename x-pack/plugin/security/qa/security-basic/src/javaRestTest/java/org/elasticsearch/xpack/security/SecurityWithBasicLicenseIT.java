@@ -11,7 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
@@ -39,6 +39,10 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
         assertAuthenticateWithApiKey(keyAndId, true);
 
         assertFailToGetToken();
+        // Service account token works independently to oauth2 token service
+        final String bearerString = createServiceAccountToken();
+        assertAuthenticateWithServiceAccountToken(bearerString);
+
         assertAddRoleWithDLS(false);
         assertAddRoleWithFLS(false);
     }
@@ -220,6 +224,23 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(401));
             assertThat(e.getMessage(), containsString("missing authentication credentials for REST request"));
         }
+    }
+
+    private String createServiceAccountToken() throws IOException {
+        final Request request = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
+        final Response response = adminClient().performRequest(request);
+        assertOK(response);
+        @SuppressWarnings("unchecked")
+        final Map<String, ?> tokenMap = (Map<String, ?>) responseAsMap(response).get("token");
+        return String.valueOf(tokenMap.get("value"));
+    }
+
+    private void assertAuthenticateWithServiceAccountToken(String bearerString) throws IOException {
+        Request request = new Request("GET", "/_security/_authenticate");
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + bearerString));
+        final Response response = client().performRequest(request);
+        assertOK(response);
+        assertEquals("elastic/fleet-server", responseAsMap(response).get("username"));
     }
 
     private void assertAddRoleWithDLS(boolean shouldSucceed) throws IOException {

@@ -8,8 +8,10 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
@@ -113,4 +115,29 @@ public class NodeDeprecationChecks {
         return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 
+    static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (Environment.PATH_SHARED_DATA_SETTING.exists(settings)) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", Environment.PATH_SHARED_DATA_SETTING.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
+                "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
+            final String details = "Found shared data path configured. Discontinue use of this setting.";
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        }
+        return null;
+    }
+
+    static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
+            String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                String.format(Locale.ROOT, "setting [%s] is deprecated and will not be available in a future version", key),
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                    "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
+                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key)
+            );
+        }
+
+        return null;
+    }
 }

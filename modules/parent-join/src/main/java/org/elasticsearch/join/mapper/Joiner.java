@@ -19,13 +19,14 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.join.mapper.ParentJoinFieldMapper.JoinFieldType;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 /**
  * Utility class to help build join queries and aggregations, based on a join_field
@@ -36,24 +37,23 @@ public final class Joiner {
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(SearchExecutionContext context) {
-        return getJoiner(context.getFieldTypes());
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
     public static Joiner getJoiner(AggregationContext context) {
-        return getJoiner(context.getFieldTypes());
+        return getJoiner(context.getMatchingFieldNames("*").stream().map(context::getFieldType));
     }
 
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    static Joiner getJoiner(Collection<MappedFieldType> fieldTypes) {
-        JoinFieldType ft = ParentJoinFieldMapper.getJoinFieldType(fieldTypes);
-        return ft != null ? ft.getJoiner() : null;
+    static Joiner getJoiner(Stream<MappedFieldType> fieldTypes) {
+        Optional<JoinFieldType> joinType = fieldTypes.filter(ft -> ft instanceof JoinFieldType).map(ft -> (JoinFieldType) ft).findFirst();
+        return joinType.map(JoinFieldType::getJoiner).orElse(null);
     }
-
     private final Map<String, Set<String>> parentsToChildren = new HashMap<>();
     private final Map<String, String> childrenToParents = new HashMap<>();
 
@@ -178,5 +178,4 @@ public final class Joiner {
         }
         return conflicted == false;
     }
-
 }

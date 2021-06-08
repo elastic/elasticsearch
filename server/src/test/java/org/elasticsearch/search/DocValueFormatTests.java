@@ -270,7 +270,11 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = randomLong();
         // Convert to seconds
         millis -= (millis % 1000);
-        assertEquals("failed formatting for tz " + zone, millis, formatter.parseLong(formatter.format(millis), false, () -> {throw new UnsupportedOperationException("don't use now");}));
+        assertEquals(
+            "failed formatting for tz " + zone,
+            millis,
+            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
     }
 
     public void testDateHMSTimezone() {
@@ -287,8 +291,16 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000l;
         assertEquals("2021-06-01T17:18:38", utc.format(millis));
         assertEquals("2021-06-02T02:18:38", tokyo.format(millis));
-        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {throw new UnsupportedOperationException("don't use now");}));
-        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {throw new UnsupportedOperationException("don't use now");}));
+        assertEquals(
+            "couldn't parse UTC",
+            millis,
+            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+        assertEquals(
+            "couldn't parse Tokyo",
+            millis,
+            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
     }
 
     public void testDateTimeWithTimezone() {
@@ -306,7 +318,15 @@ public class DocValueFormatTests extends ESTestCase {
         long millis = 1622567918000l;
         assertEquals("20210601T171838Z", utc.format(millis));
         assertEquals("20210602T021838+09:00", tokyo.format(millis));
-        assertEquals("couldn't parse UTC", millis, utc.parseLong(utc.format(millis), false, () -> {throw new UnsupportedOperationException("don't use now");}));
-        assertEquals("couldn't parse Tokyo", millis, tokyo.parseLong(tokyo.format(millis), false, () -> {throw new UnsupportedOperationException("don't use now");}));
+        assertEquals(
+            "couldn't parse UTC",
+            millis,
+            utc.parseLong(utc.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+        assertEquals(
+            "couldn't parse Tokyo",
+            millis,
+            tokyo.parseLong(tokyo.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
     }
 }

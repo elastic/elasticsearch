@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.opensaml.security.x509.X509Credential;
 
 import java.util.Collections;

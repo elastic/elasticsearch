@@ -6,14 +6,14 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.core;
 
-import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
- * A {@link Consumer}-like interface which allows throwing checked exceptions.
+ * A {@link Function}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
-public interface CheckedConsumer<T, E extends Exception> {
-    void accept(T t) throws E;
+public interface CheckedFunction<T, R, E extends Exception> {
+    R apply(T t) throws E;
 }

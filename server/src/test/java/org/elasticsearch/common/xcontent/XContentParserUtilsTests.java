@@ -10,7 +10,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;

@@ -15,7 +15,7 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.AnyRo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.CompositeType;
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 

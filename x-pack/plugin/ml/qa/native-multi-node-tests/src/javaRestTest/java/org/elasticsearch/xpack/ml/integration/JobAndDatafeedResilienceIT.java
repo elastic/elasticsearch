@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;

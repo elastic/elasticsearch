@@ -6,9 +6,8 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.lease;
+package org.elasticsearch.core;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;

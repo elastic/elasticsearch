@@ -6,14 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common;
-
-import java.util.function.Function;
+package org.elasticsearch.core;
 
 /**
- * A {@link Function}-like interface which allows throwing checked exceptions.
+ * A {@link Runnable}-like interface which allows throwing checked exceptions.
  */
 @FunctionalInterface
-public interface CheckedFunction<T, R, E extends Exception> {
-    R apply(T t) throws E;
+public interface CheckedRunnable<E extends Exception> {
+    void run() throws E;
 }

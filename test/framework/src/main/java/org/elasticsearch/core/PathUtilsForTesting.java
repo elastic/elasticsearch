@@ -6,9 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.io;
+package org.elasticsearch.core;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.core.PathUtils;
 
 import java.nio.file.FileSystem;
 

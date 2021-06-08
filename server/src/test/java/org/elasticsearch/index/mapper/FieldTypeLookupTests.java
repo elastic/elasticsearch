@@ -21,7 +21,6 @@ import java.util.Set;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
-import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -64,23 +63,17 @@ public class FieldTypeLookupTests extends ESTestCase {
         FieldAliasMapper alias2 = new FieldAliasMapper("barometer", "barometer", "bar");
 
         TestRuntimeField runtimeField = new TestRuntimeField("baz", "type");
-        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("baro",
-            Collections.singletonMap("meter", new TestRuntimeField("meter", "test")));
 
         FieldTypeLookup lookup = new FieldTypeLookup("_doc", List.of(field1, field2, field3), List.of(alias1, alias2),
-            List.of(runtimeField, dynamicRuntimeField));
+            List.of(runtimeField));
 
         {
             Collection<String> names = lookup.getMatchingFieldNames("*");
-            assertThat(names, containsInAnyOrder("foo", "food", "bar", "baz", "barometer", "baro.meter"));
+            assertThat(names, containsInAnyOrder("foo", "food", "bar", "baz", "barometer"));
         }
         {
             Collection<String> names = lookup.getMatchingFieldNames("b*");
-            assertThat(names, containsInAnyOrder("bar", "baz", "barometer", "baro.meter"));
-        }
-        {
-            Collection<String> names = lookup.getMatchingFieldNames("baro.anything");
-            assertThat(names, containsInAnyOrder("baro.anything"));
+            assertThat(names, containsInAnyOrder("bar", "baz", "barometer"));
         }
         {
             Collection<String> names = lookup.getMatchingFieldNames("baro.any*");
@@ -145,16 +138,13 @@ public class FieldTypeLookupTests extends ESTestCase {
         TestRuntimeField fieldOverride = new TestRuntimeField("field", "type");
         TestRuntimeField subfieldOverride = new TestRuntimeField("object.subfield", "type");
         TestRuntimeField runtime = new TestRuntimeField("runtime", "type");
-        TestDynamicRuntimeField dynamicRuntimeField = new TestDynamicRuntimeField("flattened",
-            Collections.singletonMap("sub", new TestRuntimeField("sub", "ip")));
 
         FieldTypeLookup fieldTypeLookup = new FieldTypeLookup("_doc", List.of(field, concrete, subfield, flattened), emptyList(),
-            List.of(fieldOverride, runtime, subfieldOverride, dynamicRuntimeField));
+            List.of(fieldOverride, runtime, subfieldOverride));
         assertThat(fieldTypeLookup.get("field"), instanceOf(TestRuntimeField.class));
         assertThat(fieldTypeLookup.get("object.subfield"), instanceOf(TestRuntimeField.class));
         assertThat(fieldTypeLookup.get("concrete"), instanceOf(MockFieldMapper.FakeFieldType.class));
         assertThat(fieldTypeLookup.get("runtime"), instanceOf(TestRuntimeField.class));
-        assertThat(fieldTypeLookup.get("flattened.sub").typeName(), equalTo("ip"));
     }
 
     public void testRuntimeFieldsSourcePaths() {
@@ -181,20 +171,6 @@ public class FieldTypeLookupTests extends ESTestCase {
             assertEquals(1, sourcePaths.size());
             assertTrue(sourcePaths.contains("object.subfield"));
         }
-    }
-
-    public void testDynamicRuntimeFields() {
-        FieldTypeLookup fieldTypeLookup = new FieldTypeLookup("_doc", emptyList(), emptyList(),
-            Collections.singletonList(new TestDynamicRuntimeField("test")));
-
-        assertNull(fieldTypeLookup.get("test"));
-        assertEquals(0, fieldTypeLookup.getMatchingFieldNames("test").size());
-
-        String fieldName = "test." + randomAlphaOfLengthBetween(3, 6);
-        assertEquals(KeywordFieldMapper.CONTENT_TYPE, fieldTypeLookup.get(fieldName).typeName());
-        Set<String> matchingFieldNames = fieldTypeLookup.getMatchingFieldNames(fieldName);
-        assertEquals(1, matchingFieldNames.size());
-        assertEquals(fieldName, matchingFieldNames.iterator().next());
     }
 
     public void testFlattenedLookup() {

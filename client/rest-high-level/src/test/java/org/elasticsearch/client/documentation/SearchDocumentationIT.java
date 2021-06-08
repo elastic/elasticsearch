@@ -743,8 +743,8 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         openRequest.keepAlive(TimeValue.timeValueMinutes(30)); // <2>
         OpenPointInTimeResponse openResponse = client.openPointInTime(openRequest, RequestOptions.DEFAULT);
         String pitId = openResponse.getPointInTimeId(); // <3>
-        assertNotNull(pitId);
         // end::open-point-in-time
+        assertNotNull(pitId);
 
         // tag::search-point-in-time
         SearchRequest searchRequest = new SearchRequest();
@@ -752,14 +752,15 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         pointInTimeBuilder.setKeepAlive("2m"); // <2>
         searchRequest.source(new SearchSourceBuilder().pointInTimeBuilder(pointInTimeBuilder)); // <3>
         SearchResponse searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
         // end::search-point-in-time
+        assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
 
         // tag::close-point-in-time
         ClosePointInTimeRequest closeRequest = new ClosePointInTimeRequest(pitId); // <1>
         ClearScrollResponse closeResponse = client.closePointInTime(closeRequest, RequestOptions.DEFAULT);
-        assertTrue(closeResponse.isSucceeded());
+        boolean succeeded = closeResponse.isSucceeded();
         // end::close-point-in-time
+        assertTrue(succeeded);
 
         // Open a point in time with optional arguments
         {
@@ -794,21 +795,20 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         assertSame(RestStatus.OK, bulkResponse.status());
         assertFalse(bulkResponse.hasFailures());
 
-        // tag::search-after-with-point-in-time
         OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts");
         openRequest.keepAlive(TimeValue.timeValueMinutes(20));
-        String pitId = client.openPointInTime(openRequest, RequestOptions.DEFAULT).getPointInTimeId(); // <1>
+        String pitId = client.openPointInTime(openRequest, RequestOptions.DEFAULT).getPointInTimeId();
         assertNotNull(pitId);
 
         SearchResponse searchResponse = null;
         int totalHits = 0;
         do {
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("field").size(5)); // <2>
+            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("field").size(5));
             if (searchResponse != null) {
                 final SearchHit[] lastHits = searchResponse.getHits().getHits();
-                searchRequest.source().searchAfter(lastHits[lastHits.length - 1].getSortValues()); // <3>
+                searchRequest.source().searchAfter(lastHits[lastHits.length - 1].getSortValues());
             }
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId)); // <4>
+            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
             searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
             assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
             totalHits += searchResponse.getHits().getHits().length;
@@ -818,7 +818,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
 
         ClearScrollResponse closeResponse = client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT); // <5>
         assertTrue(closeResponse.isSucceeded());
-        // end::search-after-with-point-in-time
     }
 
     public void testSearchTemplateWithInlineScript() throws Exception {

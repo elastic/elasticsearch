@@ -128,41 +128,11 @@ public final class MetadataMigrateToDataTiersRoutingService {
         Map<String, LifecyclePolicyMetadata> currentPolicies = currentLifecycleMetadata.getPolicyMetadatas();
         SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentPolicies);
         for (Map.Entry<String, LifecyclePolicyMetadata> policyMetadataEntry : currentPolicies.entrySet()) {
-            LifecyclePolicy lifecyclePolicy = policyMetadataEntry.getValue().getPolicy();
-            LifecyclePolicy newLifecylePolicy = null;
-            for (Map.Entry<String, Phase> phaseEntry : lifecyclePolicy.getPhases().entrySet()) {
-                Phase phase = phaseEntry.getValue();
-                AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
-                if (allocateActionDefinesRoutingRules(nodeAttrName, allocateAction)) {
-                    Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
-                    // this phase contains an allocate action that defines a require rule for the attribute name so we'll remove all the
-                    // rules to allow for the migrate action to be injected
-                    if (allocateAction.getNumberOfReplicas() != null) {
-                        // keep the number of replicas configuration
-                        AllocateAction updatedAllocateAction =
-                            new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
-                        actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
-                        logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
-                            phase.getName(), allocateAction);
-                    } else {
-                        // remove the action altogether
-                        actionMap.remove(allocateAction.getWriteableName());
-                        logger.debug("ILM policy [{}], phase [{}]: removed the allocate action", lifecyclePolicy.getName(),
-                            phase.getName());
-                    }
-
-                    Phase updatedPhase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
-                    Map<String, Phase> updatedPhases =
-                        new HashMap<>(newLifecylePolicy == null ? lifecyclePolicy.getPhases() : newLifecylePolicy.getPhases());
-                    updatedPhases.put(phaseEntry.getKey(), updatedPhase);
-                    newLifecylePolicy = new LifecyclePolicy(lifecyclePolicy.getName(), updatedPhases);
-                }
-            }
-
-            if (newLifecylePolicy != null) {
+            LifecyclePolicy newLifecyclePolicy = migrateSingleILMPolicy(nodeAttrName, policyMetadataEntry.getValue().getPolicy());
+            if (newLifecyclePolicy != null) {
                 // we updated at least one phase
                 long nextVersion = policyMetadataEntry.getValue().getVersion() + 1L;
-                LifecyclePolicyMetadata newPolicyMetadata = new LifecyclePolicyMetadata(newLifecylePolicy,
+                LifecyclePolicyMetadata newPolicyMetadata = new LifecyclePolicyMetadata(newLifecyclePolicy,
                     policyMetadataEntry.getValue().getHeaders(), nextVersion, Instant.now().toEpochMilli());
                 LifecyclePolicyMetadata oldPolicyMetadata = newPolicies.put(policyMetadataEntry.getKey(), newPolicyMetadata);
                 assert oldPolicyMetadata != null :
@@ -176,6 +146,40 @@ public final class MetadataMigrateToDataTiersRoutingService {
         IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
         mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
         return migratedPolicies;
+    }
+
+    @Nullable
+    private static LifecyclePolicy migrateSingleILMPolicy(String nodeAttrName, LifecyclePolicy lifecyclePolicy) {
+        LifecyclePolicy newLifecyclePolicy = null;
+        for (Map.Entry<String, Phase> phaseEntry : lifecyclePolicy.getPhases().entrySet()) {
+            Phase phase = phaseEntry.getValue();
+            AllocateAction allocateAction = (AllocateAction) phase.getActions().get(AllocateAction.NAME);
+            if (allocateActionDefinesRoutingRules(nodeAttrName, allocateAction)) {
+                Map<String, LifecycleAction> actionMap = new HashMap<>(phase.getActions());
+                // this phase contains an allocate action that defines a require rule for the attribute name so we'll remove all the
+                // rules to allow for the migrate action to be injected
+                if (allocateAction.getNumberOfReplicas() != null) {
+                    // keep the number of replicas configuration
+                    AllocateAction updatedAllocateAction =
+                        new AllocateAction(allocateAction.getNumberOfReplicas(), null, null, null);
+                    actionMap.put(allocateAction.getWriteableName(), updatedAllocateAction);
+                    logger.debug("ILM policy [{}], phase [{}]: updated the allocate action to [{}]", lifecyclePolicy.getName(),
+                        phase.getName(), allocateAction);
+                } else {
+                    // remove the action altogether
+                    actionMap.remove(allocateAction.getWriteableName());
+                    logger.debug("ILM policy [{}], phase [{}]: removed the allocate action", lifecyclePolicy.getName(),
+                        phase.getName());
+                }
+
+                Phase updatedPhase = new Phase(phase.getName(), phase.getMinimumAge(), actionMap);
+                Map<String, Phase> updatedPhases =
+                    new HashMap<>(newLifecyclePolicy == null ? lifecyclePolicy.getPhases() : newLifecyclePolicy.getPhases());
+                updatedPhases.put(phaseEntry.getKey(), updatedPhase);
+                newLifecyclePolicy = new LifecyclePolicy(lifecyclePolicy.getName(), updatedPhases);
+            }
+        }
+        return newLifecyclePolicy;
     }
 
     static boolean allocateActionDefinesRoutingRules(String nodeAttrName, @Nullable AllocateAction allocateAction) {

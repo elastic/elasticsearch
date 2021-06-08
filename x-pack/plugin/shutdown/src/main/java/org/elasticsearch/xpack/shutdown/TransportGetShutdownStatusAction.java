@@ -104,7 +104,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId(), ),
+                        shardMigrationStatus(state, ns.getNodeId(), ns.getType()),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
@@ -120,7 +120,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId(), ),
+                        shardMigrationStatus(state, ns.getNodeId(), ns.getType()),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )

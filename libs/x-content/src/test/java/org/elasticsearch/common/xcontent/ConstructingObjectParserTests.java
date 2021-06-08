@@ -10,7 +10,6 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParserTests.NamedObject;

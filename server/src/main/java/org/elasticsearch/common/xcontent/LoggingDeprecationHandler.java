@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;

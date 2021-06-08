@@ -18,7 +18,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -55,7 +54,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
         private final ScriptService scriptService;
         private final IntConsumer multiBucketConsumer;
         private final PipelineTree pipelineTreeRoot;
-        private CancellableTask cancellableTask;
+        private final Supplier<Boolean> isCanceled;
         /**
          * Supplies the pipelines when the result of the reduce is serialized
          * to node versions that need pipeline aggregators to be serialized
@@ -67,8 +66,8 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * Build a {@linkplain ReduceContext} to perform a partial reduction.
          */
         public static ReduceContext forPartialReduction(BigArrays bigArrays, ScriptService scriptService,
-                Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
-            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization);
+                Supplier<PipelineTree> pipelineTreeForBwcSerialization, Supplier<Boolean> isCanceled) {
+            return new ReduceContext(bigArrays, scriptService, (s) -> {}, null, pipelineTreeForBwcSerialization, isCanceled);
         }
 
         /**
@@ -76,18 +75,19 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * @param pipelineTreeRoot The root of tree of pipeline aggregations for this request
          */
         public static ReduceContext forFinalReduction(BigArrays bigArrays, ScriptService scriptService,
-                IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot) {
+                IntConsumer multiBucketConsumer, PipelineTree pipelineTreeRoot, Supplier<Boolean> isCanceled) {
             return new ReduceContext(bigArrays, scriptService, multiBucketConsumer,
-                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot);
+                    requireNonNull(pipelineTreeRoot, "prefer EMPTY to null"), () -> pipelineTreeRoot, isCanceled);
         }
 
         private ReduceContext(BigArrays bigArrays, ScriptService scriptService, IntConsumer multiBucketConsumer,
-                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization) {
+                PipelineTree pipelineTreeRoot, Supplier<PipelineTree> pipelineTreeForBwcSerialization, Supplier<Boolean> isCanceled) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
             this.pipelineTreeForBwcSerialization = pipelineTreeForBwcSerialization;
+            this.isCanceled = isCanceled;
         }
 
         /**
@@ -128,16 +128,14 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * the maximum number of buckets allowed in a response
          */
         public void consumeBucketsAndMaybeBreak(int size) {
-            if (cancellableTask != null && cancellableTask.isCancelled()) {
-                String exceptionMessage = String.format(
-                    "Stopping aggregation reduce because search task %d was cancelled", cancellableTask.getId());
-                throw new TaskCancelledException(exceptionMessage);
+            if (isCanceled.get()) {
+                throw new TaskCancelledException("Cancelled");
             }
             multiBucketConsumer.accept(size);
         }
 
-        public void setCancellableTask(CancellableTask cancellableTask) {
-            this.cancellableTask = cancellableTask;
+        public Supplier<Boolean> isCanceled() {
+            return isCanceled;
         }
     }
 

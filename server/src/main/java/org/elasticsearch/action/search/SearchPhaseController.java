@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -55,19 +54,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.IntFunction;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
 
     private final NamedWriteableRegistry namedWriteableRegistry;
-    private final Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder;
 
     public SearchPhaseController(NamedWriteableRegistry namedWriteableRegistry,
-            Function<SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
+                 BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContextBuilder> requestToAggReduceContextBuilder) {
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
@@ -584,8 +584,8 @@ public final class SearchPhaseController {
         }
     }
 
-    InternalAggregation.ReduceContextBuilder getReduceContext(SearchRequest request) {
-        return requestToAggReduceContextBuilder.apply(request);
+    InternalAggregation.ReduceContextBuilder getReduceContext(Supplier<Boolean> isCanceled, SearchRequest request) {
+        return requestToAggReduceContextBuilder.apply(isCanceled, request);
     }
 
     /**
@@ -593,12 +593,13 @@ public final class SearchPhaseController {
      */
     QueryPhaseResultConsumer newSearchPhaseResults(Executor executor,
                                                    CircuitBreaker circuitBreaker,
+                                                   Supplier<Boolean> isCanceled,
                                                    SearchProgressListener listener,
                                                    SearchRequest request,
                                                    int numShards,
                                                    Consumer<Exception> onPartialMergeFailure) {
         return new QueryPhaseResultConsumer(request, executor, circuitBreaker,
-            this,  listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
+            this, isCanceled, listener, namedWriteableRegistry, numShards, onPartialMergeFailure);
     }
 
     static final class TopDocsStats {

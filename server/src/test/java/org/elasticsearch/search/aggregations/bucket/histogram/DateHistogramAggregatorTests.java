@@ -1313,7 +1313,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
                     List.of(result),
-                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
+                    ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY,
+                        () -> false)
                 );
                 assertThat(
                     result.getBuckets().stream().map(InternalDateHistogram.Bucket::getKeyAsString).collect(toList()),

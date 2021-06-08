@@ -270,7 +270,7 @@ public class RollupResponseTranslator {
         // it was a result from another shard
         InternalAggregations currentTree = InternalAggregations.EMPTY;
         InternalAggregation.ReduceContext finalReduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-                reduceContext.bigArrays(), reduceContext.scriptService(), b -> {}, PipelineTree.EMPTY);
+                reduceContext.bigArrays(), reduceContext.scriptService(), b -> {}, PipelineTree.EMPTY, reduceContext.isCanceled());
         for (SearchResponse rolledResponse : rolledResponses) {
             List<InternalAggregation> unrolledAggs = new ArrayList<>(rolledResponse.getAggregations().asList().size());
             for (Aggregation agg : rolledResponse.getAggregations()) {

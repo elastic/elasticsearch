@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 
 import java.util.Map;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -51,7 +52,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
 
     private final NodeClient nodeClient;
-    private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
+    private final BiFunction<Supplier<Boolean>, SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
     private final ThreadContext threadContext;
     private final AsyncTaskIndexService<AsyncSearchResponse> store;
@@ -67,7 +68,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                             TransportSearchAction searchAction) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.nodeClient = nodeClient;
-        this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
+        this.requestToAggReduceContextBuilder = (task, request) -> searchService.aggReduceContextBuilder(task, request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
@@ -143,10 +144,11 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
                 AsyncExecutionId searchId = new AsyncExecutionId(docID, new TaskId(nodeClient.getLocalNodeId(), id));
-                Supplier<InternalAggregation.ReduceContext> aggReduceContextSupplier =
-                        () -> requestToAggReduceContextBuilder.apply(request.getSearchRequest());
+                Function<Supplier<Boolean>, Supplier<InternalAggregation.ReduceContext>> aggReduceContextSupplierFactory =
+                        (isCancelled) -> () -> requestToAggReduceContextBuilder.apply(isCancelled, request.getSearchRequest());
                 return new AsyncSearchTask(id, type, action, parentTaskId, this::buildDescription, keepAlive,
-                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(), aggReduceContextSupplier);
+                    originHeaders, taskHeaders, searchId, store.getClientWithOrigin(), nodeClient.threadPool(),
+                    aggReduceContextSupplierFactory);
             }
         };
         searchRequest.setParentTask(new TaskId(nodeClient.getLocalNodeId(), submitTask.getId()));

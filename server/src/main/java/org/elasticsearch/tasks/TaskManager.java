@@ -21,7 +21,6 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -96,8 +95,6 @@ public class TaskManager implements ClusterStateApplier {
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
-    private Map<Integer, CancellableTask> searchRequestIdToCancellableTask = new HashMap<>();
-
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
         this.taskHeaders = new ArrayList<>(taskHeaders);
@@ -140,9 +137,6 @@ public class TaskManager implements ClusterStateApplier {
 
         if (task instanceof CancellableTask) {
             registerCancellableTask(task);
-            if (request instanceof SearchRequest) {
-                searchRequestIdToCancellableTask.put(System.identityHashCode(request), (CancellableTask) task);
-            }
         } else {
             Task previousTask = tasks.put(task.getId(), task);
             assert previousTask == null;
@@ -727,9 +721,5 @@ public class TaskManager implements ClusterStateApplier {
             assert false : "TaskCancellationService is not initialized";
             throw new IllegalStateException("TaskCancellationService is not initialized");
         }
-    }
-
-    public CancellableTask getCancellableTaskForSearchRequest(SearchRequest searchRequest) {
-        return searchRequestIdToCancellableTask.get(System.identityHashCode(searchRequest));
     }
 }

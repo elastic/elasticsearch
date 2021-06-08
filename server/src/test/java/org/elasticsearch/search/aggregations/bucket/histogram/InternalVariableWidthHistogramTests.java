@@ -141,7 +141,7 @@ public class InternalVariableWidthHistogramTests extends
             new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, () -> false);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
@@ -184,7 +184,7 @@ public class InternalVariableWidthHistogramTests extends
             new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, () -> false);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
@@ -251,7 +251,7 @@ public class InternalVariableWidthHistogramTests extends
             new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, () -> false);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram1);
@@ -296,7 +296,7 @@ public class InternalVariableWidthHistogramTests extends
             new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, () -> false);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
@@ -352,7 +352,7 @@ public class InternalVariableWidthHistogramTests extends
             new MultiBucketConsumerService.MultiBucketConsumer(DEFAULT_MAX_BUCKETS,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY);
+            bigArrays, mockScriptService, bucketConsumer, PipelineAggregator.PipelineTree.EMPTY, () -> false);
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);

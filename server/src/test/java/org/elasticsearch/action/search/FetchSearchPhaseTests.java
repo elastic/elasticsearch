@@ -38,10 +38,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     public void testShortcutQueryAndFetchOptimization() {
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 1, exc  -> {});
         boolean hasHits = randomBoolean();
         final int numHits;
@@ -84,9 +84,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFetchTwoDocument() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
@@ -146,9 +146,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testFailFetchOneDoc() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
@@ -210,10 +210,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(numHits);
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), numHits, exc  -> {});
         for (int i = 0; i < numHits; i++) {
             QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", i),
@@ -269,10 +269,10 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testExceptionFailsPhase() {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results =
             controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-                new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
                 mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = randomIntBetween(2, 10);
         QuerySearchResult queryResult = new QuerySearchResult(new ShardSearchContextId("", 123),
@@ -329,9 +329,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
     public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), s -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         QueryPhaseResultConsumer results = controller.newSearchPhaseResults(EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), () -> false, SearchProgressListener.NOOP,
             mockSearchPhaseContext.getRequest(), 2, exc  -> {});
         int resultSetSize = 1;
         final ShardSearchContextId ctx1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);

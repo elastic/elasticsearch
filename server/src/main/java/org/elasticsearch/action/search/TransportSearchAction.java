@@ -55,6 +55,7 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -290,7 +291,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 if (shouldMinimizeRoundtrips(rewritten)) {
                     final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
                     ccsRemoteReduce(parentTaskId, rewritten, localIndices, remoteClusterIndices, timeProvider,
-                        searchService.aggReduceContextBuilder(rewritten),
+                        searchService.aggReduceContextBuilder(((CancellableTask) task)::isCancelled, rewritten),
                         remoteClusterService, threadPool, listener,
                         (r, l) -> executeLocalSearch(
                             task, timeProvider, r, localIndices, clusterState, l, searchContext, searchAsyncActionProvider));
@@ -792,7 +793,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             }, clusters, searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis));
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(executor,
-                circuitBreaker, task.getProgressListener(), searchRequest, shardIterators.size(),
+                circuitBreaker, task::isCancelled, task.getProgressListener(), searchRequest, shardIterators.size(),
                 exc -> searchTransportService.cancelSearchTask(task, "failed to merge result [" + exc.getMessage() + "]"));
             AbstractSearchAsyncAction<? extends SearchPhaseResult> searchAsyncAction;
             switch (searchRequest.searchType()) {

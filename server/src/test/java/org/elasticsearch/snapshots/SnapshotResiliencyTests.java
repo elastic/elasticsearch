@@ -1580,7 +1580,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
                 final SearchService searchService = new SearchService(clusterService, indicesService, threadPool, scriptService,
                     bigArrays, new FetchPhase(Collections.emptyList()), responseCollectorService, new NoneCircuitBreakerService(),
-                    EmptySystemIndices.INSTANCE.getExecutorSelector(), transportService.getTaskManager());
+                    EmptySystemIndices.INSTANCE.getExecutorSelector());
                 SearchPhaseController searchPhaseController = new SearchPhaseController(
                     writableRegistry(), searchService::aggReduceContextBuilder);
                 actions.put(SearchAction.INSTANCE,

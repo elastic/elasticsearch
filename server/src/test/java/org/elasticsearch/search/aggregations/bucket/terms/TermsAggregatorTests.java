@@ -1192,7 +1192,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             }
             InternalAggregation.ReduceContext ctx = InternalAggregation.ReduceContext.forFinalReduction(
                     new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                    null, b -> {}, PipelineTree.EMPTY);
+                    null, b -> {}, PipelineTree.EMPTY, () -> false);
             for (InternalAggregation internalAgg : aggs) {
                 InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
                 assertTrue(mergedAggs instanceof DoubleTerms);
@@ -1929,7 +1929,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             new MultiBucketConsumerService.MultiBucketConsumer(Integer.MAX_VALUE,
                 new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST));
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-            bigArrays, getMockScriptService(), reduceBucketConsumer, PipelineTree.EMPTY);
+            bigArrays, getMockScriptService(), reduceBucketConsumer, PipelineTree.EMPTY, () -> false);
 
         T topLevel  = (T) agg.buildTopLevel();
         T result = (T) topLevel.reduce(Collections.singletonList(topLevel), context);

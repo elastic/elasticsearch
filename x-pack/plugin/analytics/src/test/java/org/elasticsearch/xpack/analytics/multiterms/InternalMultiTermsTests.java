@@ -7,21 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
-import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -41,6 +26,21 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.search.DocValueFormat.UNSIGNED_LONG_SHIFTED;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.DOUBLE;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.LONG;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms.KeyConverter.UNSIGNED_LONG;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
 
 public class InternalMultiTermsTests extends InternalAggregationTestCase<InternalMultiTerms> {
 
@@ -313,7 +313,8 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forPartialReduction(
             bigArrays,
             mockScriptService,
-            () -> PipelineAggregator.PipelineTree.EMPTY
+            () -> PipelineAggregator.PipelineTree.EMPTY,
+            () -> false
         );
 
         InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);

@@ -146,10 +146,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
         searchRequest.allowPartialSearchResults(false);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task::isCancelled, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
@@ -244,10 +244,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task::isCancelled, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         final List<Object> responses = new ArrayList<>();
         SearchQueryThenFetchAsyncAction newSearchAsyncAction = new SearchQueryThenFetchAsyncAction(logger,
@@ -339,10 +339,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task::isCancelled, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
@@ -439,10 +439,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             }
         };
         SearchPhaseController controller = new SearchPhaseController(
-            writableRegistry(), r -> InternalAggregationTestCase.emptyReduceContextBuilder());
+            writableRegistry(), (t, r) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         SearchTask task = new SearchTask(0, "n/a", "n/a", () -> "test", null, Collections.emptyMap());
         QueryPhaseResultConsumer resultConsumer = new QueryPhaseResultConsumer(searchRequest, EsExecutors.DIRECT_EXECUTOR_SERVICE,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task.getProgressListener(), writableRegistry(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), controller, task::isCancelled, task.getProgressListener(), writableRegistry(),
             shardsIter.size(), exc -> {});
         CountDownLatch latch = new CountDownLatch(1);
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,

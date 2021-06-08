@@ -8,7 +8,6 @@
 package org.elasticsearch.search.aggregations.bucket.filter;
 
 import io.github.nik9000.mapmatcher.MapMatcher;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -532,7 +531,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                         context.bigArrays(),
                         getMockScriptService(),
                         b -> {},
-                        PipelineTree.EMPTY
+                        PipelineTree.EMPTY,
+                        () -> false
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;

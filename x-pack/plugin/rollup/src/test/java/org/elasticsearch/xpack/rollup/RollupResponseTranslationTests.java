@@ -98,12 +98,14 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(), equalTo("foo"));
 
         e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(failure,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(), equalTo("foo"));
 
         e = expectThrows(RuntimeException.class,
@@ -120,7 +122,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.translateResponse(failure,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(), equalTo("rollup failure"));
     }
 
@@ -134,7 +137,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.combineResponses(failure,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -179,7 +183,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -197,7 +201,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         SearchResponse response = RollupResponseTranslator.translateResponse(msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false));
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
         assertThat(responseAggs.asList().size(), equalTo(0));
@@ -214,7 +218,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         ScriptService scriptService = mock(ScriptService.class);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class, () -> RollupResponseTranslator.combineResponses(msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false)));
         assertThat(e.getMessage(), equalTo("Index [[foo]] was not found, likely because it was deleted while the request was in-flight. " +
             "Rollup does not support partial search results, please try the request again."));
     }
@@ -270,7 +274,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false);
 
         SearchResponse finalResponse = RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{item}, context);
         assertNotNull(finalResponse);
@@ -285,7 +289,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false);
 
         ResourceNotFoundException e = expectThrows(ResourceNotFoundException.class,
                 () -> RollupResponseTranslator.translateResponse(new MultiSearchResponse.Item[]{missing}, context));
@@ -319,7 +323,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(), containsString("Expected [bizzbuzz] to be a FilterAggregation"));
     }
 
@@ -348,7 +353,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
         Exception e = expectThrows(RuntimeException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch,
-                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY)));
+                        InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                            () -> false)));
         assertThat(e.getMessage(),
                 equalTo("Expected [filter_foo] to be a FilterAggregation, but was [InternalMax]"));
     }
@@ -402,7 +408,8 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
 
 
         SearchResponse response = RollupResponseTranslator.combineResponses(msearch,
-                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY));
+                InternalAggregation.ReduceContext.forFinalReduction(bigArrays, scriptService, b -> {}, PipelineTree.EMPTY,
+                    () -> false));
         assertNotNull(response);
         Aggregations responseAggs = response.getAggregations();
         assertNotNull(responseAggs);
@@ -508,7 +515,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false);
         ClassCastException e = expectThrows(ClassCastException.class,
                 () -> RollupResponseTranslator.combineResponses(msearch, reduceContext));
         assertThat(e.getMessage(),
@@ -590,7 +597,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
         ScriptService scriptService = mock(ScriptService.class);
         InternalAggregation.ReduceContext context = InternalAggregation.ReduceContext.forFinalReduction(
-                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY);
+                bigArrays, scriptService, b -> {}, PipelineTree.EMPTY, () -> false);
 
         InternalAggregation reduced = ((InternalDateHistogram)unrolled).reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo("{\"histo\":{\"buckets\":[{\"key_as_string\":\"1970-01-01T00:00:00.100Z\",\"key\":100," +

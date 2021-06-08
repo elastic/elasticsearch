@@ -112,9 +112,7 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
-import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -132,6 +130,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -222,12 +221,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private final AtomicInteger openScrollContexts = new AtomicInteger();
     private final String sessionId = UUIDs.randomBase64UUID();
 
-    private final TaskManager taskManager;
-
     public SearchService(ClusterService clusterService, IndicesService indicesService,
                          ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays, FetchPhase fetchPhase,
                          ResponseCollectorService responseCollectorService, CircuitBreakerService circuitBreakerService,
-                         ExecutorSelector executorSelector, TaskManager taskManager) {
+                         ExecutorSelector executorSelector) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -240,7 +237,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.multiBucketConsumerService = new MultiBucketConsumerService(clusterService, settings,
             circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
         this.executorSelector = executorSelector;
-        this.taskManager = taskManager;
 
         TimeValue keepAliveInterval = KEEPALIVE_INTERVAL_SETTING.get(settings);
         setKeepAlives(DEFAULT_KEEPALIVE_SETTING.get(settings), MAX_KEEPALIVE_SETTING.get(settings));
@@ -1342,25 +1338,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * Returns a builder for {@link InternalAggregation.ReduceContext}. This
      * builder retains a reference to the provided {@link SearchRequest}.
      */
-    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(SearchRequest request) {
-        CancellableTask cancellableTask = taskManager.getCancellableTaskForSearchRequest(request);
-
+    public InternalAggregation.ReduceContextBuilder aggReduceContextBuilder(Supplier<Boolean> isCanceled, SearchRequest request) {
         return new InternalAggregation.ReduceContextBuilder() {
             @Override
             public InternalAggregation.ReduceContext forPartialReduction() {
-                ReduceContext reduceContext = InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
-                        () -> requestToPipelineTree(request));
-                reduceContext.setCancellableTask(cancellableTask);
-                return reduceContext;
+                return  InternalAggregation.ReduceContext.forPartialReduction(bigArrays, scriptService,
+                        () -> requestToPipelineTree(request), isCanceled);
             }
 
             @Override
             public ReduceContext forFinalReduction() {
                 PipelineTree pipelineTree = requestToPipelineTree(request);
-                ReduceContext reduceContext = InternalAggregation.ReduceContext.forFinalReduction(
-                        bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree);
-                reduceContext.setCancellableTask(cancellableTask);
-                return reduceContext;
+                return InternalAggregation.ReduceContext.forFinalReduction(
+                        bigArrays, scriptService, multiBucketConsumerService.create(), pipelineTree, isCanceled);
             }
         };
     }

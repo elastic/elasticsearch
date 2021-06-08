@@ -12,16 +12,21 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.GeometryValidator;
 
 import java.io.IOException;
 
 public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
     public static final String NAME = "geojson";
 
-    private final GeoJson geoJsonParser;
+    private final GeometryValidator validator;
+    private final boolean coerce;
+    private final boolean rightOrientation;
 
-    public GeoJsonGeometryFormat(GeoJson geoJsonParser) {
-        this.geoJsonParser = geoJsonParser;
+    public GeoJsonGeometryFormat(GeometryValidator validator, boolean coerce, boolean rightOrientation) {
+        this.validator = validator;
+        this.coerce = coerce;
+        this.rightOrientation = rightOrientation;
     }
 
     @Override
@@ -34,7 +39,7 @@ public class GeoJsonGeometryFormat implements GeometryFormat<Geometry> {
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return null;
         }
-        return geoJsonParser.fromXContent(parser);
+        return GeoJson.fromXContent(validator, coerce, rightOrientation, parser);
     }
 
     @Override

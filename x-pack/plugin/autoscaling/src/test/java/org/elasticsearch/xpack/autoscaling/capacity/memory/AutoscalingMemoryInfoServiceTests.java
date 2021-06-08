@@ -434,14 +434,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode newNode(String nodeName, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(),
-            buildNewFakeTransportAddress(),
-            Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return new DiscoveryNode(nodeName, UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT);
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {

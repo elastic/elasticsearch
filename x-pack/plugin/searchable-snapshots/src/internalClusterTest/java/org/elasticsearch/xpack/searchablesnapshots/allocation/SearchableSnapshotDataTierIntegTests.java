@@ -77,9 +77,7 @@ public class SearchableSnapshotDataTierIntegTests extends BaseFrozenSearchableSn
         client().admin()
             .indices()
             .updateSettings(
-                new UpdateSettingsRequest(mountedIndexName).settings(
-                    Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier)
-                )
+                new UpdateSettingsRequest(mountedIndexName).settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))
             )
             .actionGet();
     }

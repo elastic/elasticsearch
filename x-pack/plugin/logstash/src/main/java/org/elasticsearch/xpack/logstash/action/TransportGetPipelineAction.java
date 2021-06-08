@@ -93,9 +93,7 @@ public class TransportGetPipelineAction extends HandledTransportAction<GetPipeli
                 .execute(ActionListener.wrap(response -> {
                     if (response.isExists()) {
                         listener.onResponse(
-                            new GetPipelineResponse(
-                                org.elasticsearch.core.Map.of(response.getId(), response.getSourceAsBytesRef())
-                            )
+                            new GetPipelineResponse(org.elasticsearch.core.Map.of(response.getId(), response.getSourceAsBytesRef()))
                         );
                     } else {
                         listener.onResponse(new GetPipelineResponse(org.elasticsearch.core.Map.of()));

@@ -109,19 +109,11 @@ public class AggConstructionContentionBenchmark {
     public void setup() {
         switch (breaker) {
             case "real":
-                breakerService = new HierarchyCircuitBreakerService(
-                    Settings.EMPTY,
-                    org.elasticsearch.core.List.of(),
-                    clusterSettings
-                );
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, org.elasticsearch.core.List.of(), clusterSettings);
                 break;
             case "preallocate":
                 preallocateBreaker = true;
-                breakerService = new HierarchyCircuitBreakerService(
-                    Settings.EMPTY,
-                    org.elasticsearch.core.List.of(),
-                    clusterSettings
-                );
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, org.elasticsearch.core.List.of(), clusterSettings);
                 break;
             case "noop":
                 breakerService = new NoneCircuitBreakerService();

@@ -112,9 +112,7 @@ public abstract class AutoscalingTestCase extends ESTestCase {
 
     public static SortedMap<String, Settings> randomAutoscalingDeciders() {
         return new TreeMap<>(
-            List.of(randomFixedDecider())
-                .stream()
-                .collect(Collectors.toMap(d -> FixedAutoscalingDeciderService.NAME, Function.identity()))
+            List.of(randomFixedDecider()).stream().collect(Collectors.toMap(d -> FixedAutoscalingDeciderService.NAME, Function.identity()))
         );
     }
 

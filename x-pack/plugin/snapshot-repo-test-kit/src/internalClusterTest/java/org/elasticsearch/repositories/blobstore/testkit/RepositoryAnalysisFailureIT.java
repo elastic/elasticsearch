@@ -73,11 +73,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(
-            TestPlugin.class,
-            LocalStateCompositeXPackPlugin.class,
-            SnapshotRepositoryTestKit.class
-        );
+        return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
     @Before

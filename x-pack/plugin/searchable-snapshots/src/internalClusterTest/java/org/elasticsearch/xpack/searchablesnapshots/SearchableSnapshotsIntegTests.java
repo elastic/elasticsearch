@@ -759,8 +759,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
 
-        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.core.List.of(indexName))
-            .snapshotId();
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.core.List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);

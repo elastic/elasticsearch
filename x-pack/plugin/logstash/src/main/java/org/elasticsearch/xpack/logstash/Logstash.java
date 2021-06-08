@@ -82,11 +82,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.core.List.of(
-            new RestPutPipelineAction(),
-            new RestGetPipelineAction(),
-            new RestDeletePipelineAction()
-        );
+        return org.elasticsearch.core.List.of(new RestPutPipelineAction(), new RestGetPipelineAction(), new RestDeletePipelineAction());
     }
 
     @Override

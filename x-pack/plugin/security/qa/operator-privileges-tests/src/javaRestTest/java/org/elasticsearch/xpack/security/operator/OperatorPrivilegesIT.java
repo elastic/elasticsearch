@@ -120,12 +120,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     public void testUpdateOperatorSettings() throws IOException {
         final Map<String, Object> settings = new HashMap<>(
-            org.elasticsearch.core.Map.of(
-                "xpack.security.http.filter.enabled",
-                "false",
-                "xpack.security.transport.filter.enabled",
-                "false"
-            )
+            org.elasticsearch.core.Map.of("xpack.security.http.filter.enabled", "false", "xpack.security.transport.filter.enabled", "false")
         );
         final boolean extraSettings = randomBoolean();
         if (extraSettings) {

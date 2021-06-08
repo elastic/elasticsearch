@@ -49,9 +49,6 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.core.List.of(
-            new RestGetRepositoriesMeteringAction(),
-            new RestClearRepositoriesMeteringArchiveAction()
-        );
+        return org.elasticsearch.core.List.of(new RestGetRepositoriesMeteringAction(), new RestClearRepositoriesMeteringArchiveAction());
     }
 }

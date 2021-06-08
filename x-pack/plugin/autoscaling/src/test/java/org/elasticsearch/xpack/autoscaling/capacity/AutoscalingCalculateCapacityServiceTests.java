@@ -205,13 +205,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
-                            "nodeId",
-                            buildNewFakeTransportAddress(),
-                            org.elasticsearch.core.Map.of(),
-                            roles,
-                            Version.CURRENT
-                        )
+                        new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), org.elasticsearch.core.Map.of(), roles, Version.CURRENT)
                     )
             )
             .build();

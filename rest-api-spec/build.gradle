@@ -121,7 +121,9 @@ tasks.named("yamlRestCompatTest").configure {
     'search/160_exists_query/Test exists query on _type field',
     //type information is not stored, hence the the index will be found
     'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
-    // 85 - 13 = 72 tests won't be fixed
+    // asserting about type not found won't work as we ignore the type information
+    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+    // 87 - 14 = 73 tests won't be fixed
     'bulk/11_basic_with_types/Array of objects',
     'bulk/11_basic_with_types/Empty _id',
     'bulk/11_basic_with_types/Empty _id with op_type create',
@@ -138,14 +140,6 @@ tasks.named("yamlRestCompatTest").configure {
     'count/11_basic_with_types/count body without query element',
     'count/11_basic_with_types/count with body',
     'count/11_basic_with_types/count with empty body',
-    'explain/10_basic/Basic explain',
-    'explain/10_basic/Basic explain with alias',
-    'explain/11_basic_with_types/Basic explain',
-    'explain/11_basic_with_types/Basic explain with alias',
-    'explain/20_source_filtering/Source filtering',
-    'explain/21_source_filtering_with_types/Source filtering',
-    'explain/31_query_string_with_types/explain with query_string parameters',
-    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
     'field_caps/30_filter/Field caps with index filter',
     'get_source/11_basic_with_types/Basic with types',
     'get_source/16_default_values_with_types/Default values',

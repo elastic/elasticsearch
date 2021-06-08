@@ -56,20 +56,33 @@ public final class GeoJson {
     private static final ParseField FIELD_ORIENTATION = new ParseField("orientation");
     private static final ParseField FIELD_RADIUS = new ParseField("radius");
 
-    private final boolean rightOrientation;
-    private final boolean coerce;
-    private final GeometryValidator validator;
+    private enum CONTEXT {
+        TT(true, true), FF(false, false), TF(true, false), FT(false, true);
 
-    public GeoJson(boolean rightOrientation, boolean coerce, GeometryValidator validator) {
-        this.rightOrientation = rightOrientation;
-        this.coerce = coerce;
-        this.validator = validator;
+        private final boolean rightOrientation;
+        private final boolean coerce;
+
+        CONTEXT(boolean coerce, boolean rightOrientation){
+            this.coerce = coerce;
+            this.rightOrientation = rightOrientation;
+        }
+
+        static CONTEXT getContext(boolean coerce, boolean rightOrientation){
+            if (coerce) {
+                return rightOrientation ? TT : TF;
+            } else {
+                return rightOrientation ? FT : FF;
+            }
+        }
     }
 
-    public Geometry fromXContent(XContentParser parser)
+    private GeoJson() {
+    }
+
+    public static Geometry fromXContent(GeometryValidator validator, boolean coerce, boolean rightOrientation, XContentParser parser)
         throws IOException {
         try (XContentSubParser subParser = new XContentSubParser(parser)) {
-            Geometry geometry = PARSER.apply(subParser, this);
+            Geometry geometry = PARSER.apply(subParser, CONTEXT.getContext(coerce, rightOrientation));
             validator.validate(geometry);
             return geometry;
         }
@@ -334,7 +347,7 @@ public final class GeoJson {
         return root;
     }
 
-    private static final ConstructingObjectParser<Geometry, GeoJson> PARSER =
+    private static final ConstructingObjectParser<Geometry, CONTEXT> PARSER =
         new ConstructingObjectParser<>("geojson", true, (a, c) -> {
             String type = (String) a[0];
             CoordinateNode coordinates = (CoordinateNode) a[1];

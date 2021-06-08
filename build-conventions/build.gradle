@@ -72,7 +72,7 @@ project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
          */
         int i = 0;
         classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(s ->
-                s.setOutput("out/eclipse"+i)
+                s.setOutput("out/eclipse"+i++)
         )
     }
 })

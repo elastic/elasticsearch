@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
@@ -28,7 +29,8 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RestMultiGetActionTests extends RestActionTestCase {
-    final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
+    XContentType VND_TYPE = randomVendorType();
+    List<String> contentTypeHeader = Collections.singletonList(compatibleMediaType(VND_TYPE, RestApiVersion.V_7));
 
     @Before
     public void setUpAction() {
@@ -49,7 +51,7 @@ public class RestMultiGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInBody() throws Exception {
-        XContentBuilder content = XContentFactory.jsonBuilder().startObject()
+        XContentBuilder content = XContentFactory.contentBuilder(VND_TYPE).startObject()
             .startArray("docs")
             .startObject()
             .field("_index", "some_index")

@@ -1157,6 +1157,10 @@ public abstract class ESTestCase extends LuceneTestCase {
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
     }
 
+    public XContentType randomVendorType() {
+        return randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
+    }
+
     public static class GeohashGenerator extends CodepointSetGenerator {
         private static final char[] ASCII_SET = "0123456789bcdefghjkmnpqrstuvwxyz".toCharArray();
 

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.job.persistence.overallbuckets;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;

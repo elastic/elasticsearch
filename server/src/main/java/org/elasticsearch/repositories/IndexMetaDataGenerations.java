@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotId;
 
 import java.util.Collection;

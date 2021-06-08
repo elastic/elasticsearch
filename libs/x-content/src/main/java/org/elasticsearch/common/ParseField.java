@@ -9,6 +9,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentLocation;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.util.Collections;
 import java.util.HashSet;

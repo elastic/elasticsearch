@@ -10,9 +10,9 @@ package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Arrays;
 import java.util.List;

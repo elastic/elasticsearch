@@ -8,11 +8,8 @@
 
 package org.elasticsearch.rest.action.search;
 
-import junit.framework.TestCase;
 import org.elasticsearch.action.explain.ExplainResponse;
-import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.common.RestApiVersion;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;

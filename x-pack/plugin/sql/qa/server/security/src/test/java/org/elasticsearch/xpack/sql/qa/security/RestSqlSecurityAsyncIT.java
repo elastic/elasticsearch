@@ -117,7 +117,6 @@ public class RestSqlSecurityAsyncIT extends ESRestTestCase {
 
         Response deleteResp = deleteAsyncSqlSearch(id, "manage_user");
         assertOK(deleteResp);
-
     }
 
     static String extractResponseId(Response response) throws IOException {

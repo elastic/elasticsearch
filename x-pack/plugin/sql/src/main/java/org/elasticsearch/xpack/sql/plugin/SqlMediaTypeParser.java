@@ -42,24 +42,26 @@ public class SqlMediaTypeParser {
             // enforce CBOR response for drivers and CLI (unless instructed differently through the config param)
             return XContentType.CBOR;
         } else if (request.hasParam(URL_PARAM_FORMAT)) {
-            return validateColumnarRequest(sqlRequest.columnar(),
-                MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT)), request);
+            return validateColumnarRequest(sqlRequest.columnar(), mediaTypeFromParams(request), request);
         }
 
-        return getResponseMediaType(request);
+        return mediaTypeFromHeaders(request);
     }
 
     public static MediaType getResponseMediaType(RestRequest request) {
-        MediaType mediaType;
+        return request.hasParam(URL_PARAM_FORMAT)
+            ? checkNonNullMediaType(mediaTypeFromParams(request), request)
+            : mediaTypeFromHeaders(request);
+    }
 
-        if (request.hasParam(URL_PARAM_FORMAT)) {
-            mediaType = MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT));
-        } else {
-            ParsedMediaType acceptType = request.getParsedAccept();
-            mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
-        }
-
+    private static MediaType mediaTypeFromHeaders(RestRequest request) {
+        ParsedMediaType acceptType = request.getParsedAccept();
+        MediaType mediaType = acceptType != null ? acceptType.toMediaType(MEDIA_TYPE_REGISTRY) : request.getXContentType();
         return checkNonNullMediaType(mediaType, request);
+    }
+
+    private static MediaType mediaTypeFromParams(RestRequest request) {
+        return MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT));
     }
 
     private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType, RestRequest request) {

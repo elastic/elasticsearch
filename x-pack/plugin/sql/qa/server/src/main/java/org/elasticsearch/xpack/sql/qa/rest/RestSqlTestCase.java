@@ -975,7 +975,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         Tuple<String, String> response = runSqlAsText(query, "text/csv");
         assertEquals(expected, response.v1());
 
-        response = runSqlAsTextFormat(query, "csv");
+        response = runSqlAsTextWithFormat(query, "csv");
         assertEquals(expected, response.v1());
     }
 
@@ -1038,7 +1038,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         String query = "SELECT * FROM test ORDER BY number";
         Tuple<String, String> response = runSqlAsText(query, "text/tab-separated-values");
         assertEquals(expected, response.v1());
-        response = runSqlAsTextFormat(query, "tsv");
+        response = runSqlAsTextWithFormat(query, "tsv");
         assertEquals(expected, response.v1());
     }
 
@@ -1158,7 +1158,6 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         }
         request.setJsonEntity(bulk.toString());
         client().performRequest(request);
-
     }
 
     private static Tuple<String, String> runSqlAsText(String sql, String accept) throws IOException {
@@ -1188,7 +1187,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
      * Run SQL as text using the {@code format} parameter to specify the format
      * rather than an {@code Accept} header.
      */
-    private static Tuple<String, String> runSqlAsTextFormat(String sql, String format) throws IOException {
+    private static Tuple<String, String> runSqlAsTextWithFormat(String sql, String format) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");
         request.addParameter("format", format);
@@ -1236,7 +1235,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         };
 
         for (String format : contentMap.keySet()) {
-            Response response = runSqlAsTextFormat(builder, format);
+            Response response = runSqlAsTextWithFormat(builder, format);
 
             assertEquals(contentMap.get(format), responseBody(response));
 
@@ -1269,7 +1268,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 .keepAlive("1d") // keep "forever"
                 .mode(mode)
                 .binaryFormat(false); // prevent JDBC mode to (ignore `format` and) enforce CBOR
-            Response response = runSqlAsTextFormat(builder, format);
+            Response response = runSqlAsTextWithFormat(builder, format);
 
             Character csvDelimiter = ',';
 
@@ -1346,10 +1345,10 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     static Response runSql(RequestObjectBuilder builder) throws IOException {
-        return runSqlAsTextFormat(builder, null);
+        return runSqlAsTextWithFormat(builder, null);
     }
 
-    static Response runSqlAsTextFormat(RequestObjectBuilder builder, @Nullable String format) throws IOException {
+    static Response runSqlAsTextWithFormat(RequestObjectBuilder builder, @Nullable String format) throws IOException {
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.addParameter("error_trace", "true");   // Helps with debugging in case something crazy happens on the server.
         request.addParameter("pretty", "true");        // Improves error reporting readability

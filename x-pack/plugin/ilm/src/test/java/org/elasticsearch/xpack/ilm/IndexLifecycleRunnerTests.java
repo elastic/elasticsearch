@@ -111,7 +111,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     public void prepare() {
         threadPool = new TestThreadPool("test");
         noopClient = new NoOpClient(threadPool);
-        historyStore = new NoOpHistoryStore();
+        historyStore = new NoOpHistoryStore(noopClient);
     }
 
     @After
@@ -552,6 +552,77 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 "\"state\":{\"phase\":\"phase\",\"action\":\"action\",\"step\":\"async_action_step\",\"step_time\":\"0\"}}"));
     }
 
+    public void testRunAsyncActionReturningFalseEntersError() throws Exception {
+        String policyName = "foo";
+        StepKey stepKey = new StepKey("phase", "action", "async_action_step");
+        StepKey nextStepKey = new StepKey("phase", "action", "cluster_state_action_step");
+        MockAsyncActionStep step = new MockAsyncActionStep(stepKey, nextStepKey);
+        MockClusterStateActionStep nextStep = new MockClusterStateActionStep(nextStepKey, null);
+        MockPolicyStepsRegistry stepRegistry = createMultiStepPolicyStepRegistry(policyName, Arrays.asList(step, nextStep));
+        stepRegistry.setResolver((i, k) -> {
+            if (stepKey.equals(k)) {
+                return step;
+            } else if (nextStepKey.equals(k)) {
+                return nextStep;
+            } else {
+                fail("should not try to retrieve different step");
+                return null;
+            }
+        });
+        LifecycleExecutionState les = LifecycleExecutionState.builder()
+            .setPhase("phase")
+            .setAction("action")
+            .setStep("async_action_step")
+            .build();
+        IndexMetadata indexMetadata = IndexMetadata.builder("test")
+            .settings(Settings.builder()
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+            .putCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY, les.asMap())
+            .build();
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        DiscoveryNode node = clusterService.localNode();
+        IndexLifecycleMetadata ilm = new IndexLifecycleMetadata(Collections.emptyMap(), OperationMode.RUNNING);
+        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+            .metadata(Metadata.builder()
+                .put(indexMetadata, true)
+                .putCustom(IndexLifecycleMetadata.TYPE, ilm))
+            .nodes(DiscoveryNodes.builder()
+                .add(node)
+                .masterNodeId(node.getId())
+                .localNodeId(node.getId()))
+            .build();
+        ClusterServiceUtils.setState(clusterService, state);
+        IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        step.setLatch(latch);
+        step.setWillComplete(false);
+        ClusterState before = clusterService.state();
+        runner.maybeRunAsyncAction(before, indexMetadata, policyName, stepKey);
+
+        // Wait for the action step to finish
+        awaitLatch(latch, 5, TimeUnit.SECONDS);
+
+        assertThat(step.getExecuteCount(), equalTo(1L));
+
+        try {
+            assertBusy(() -> {
+                ILMHistoryItem historyItem = historyStore.getItems().stream()
+                    .findFirst()
+                    .orElseThrow(() -> new AssertionError("failed to register ILM history"));
+                assertThat(historyItem.toString(),
+                    containsString("\"{\\\"type\\\":\\\"illegal_state_exception\\\",\\\"reason\\\":" +
+                        "\\\"unknown exception for step {\\\\\\\"phase\\\\\\\":\\\\\\\"phase\\\\\\\",\\\\\\\"action" +
+                        "\\\\\\\":\\\\\\\"action\\\\\\\",\\\\\\\"name\\\\\\\":\\\\\\\"async_action_step\\\\\\\"} in policy foo\\\""));
+            });
+        } finally {
+            clusterService.close();
+        }
+    }
+
     public void testRunPeriodicStep() throws Exception {
         String policyName = "foo";
         StepKey stepKey = new StepKey("phase", "action", "cluster_state_action_step");
@@ -880,7 +951,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
     static class MockAsyncActionStep extends AsyncActionStep {
 
         private Exception exception;
-        private boolean willComplete;
+        private boolean willComplete = true;
         private boolean indexSurvives = true;
         private long executeCount = 0;
         private CountDownLatch latch;
@@ -1178,11 +1249,12 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         return new MockPolicyStepsRegistry(lifecyclePolicyMap, firstStepMap, stepMap, REGISTRY, client);
     }
 
-    private class NoOpHistoryStore extends ILMHistoryStore {
+    private static class NoOpHistoryStore extends ILMHistoryStore {
+        private static final Logger logger = LogManager.getLogger(NoOpHistoryStore.class);
 
         private final List<ILMHistoryItem> items = new ArrayList<>();
 
-        NoOpHistoryStore() {
+        NoOpHistoryStore(Client noopClient) {
             super(Settings.EMPTY, noopClient, null, null);
         }
 

@@ -105,4 +105,12 @@ public class SmileXContent implements XContent {
                                                        RestApiVersion restApiVersion) throws IOException {
         return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(is), restApiVersion);
     }
+
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                       byte[] data, int offset, int length, RestApiVersion restApiVersion)
+        throws IOException {
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(data, offset, length),
+            restApiVersion);
+    }
 }

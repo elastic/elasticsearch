@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -295,7 +296,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<ObjectMapper> nestedMappings() {
+    public List<NestedObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
@@ -622,12 +623,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         }
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
             mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
-        }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
+        return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 
     /**

@@ -1057,8 +1057,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public XContentBuilder directFieldAsBase64(String name, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         if (contentType() != XContentType.JSON) {
-            assert false : "writableFieldAsBase64 supports only JSON format";
-            throw new UnsupportedOperationException("writableFieldAsBase64 supports only JSON format");
+            assert false : "directFieldAsBase64 supports only JSON format";
+            throw new UnsupportedOperationException("directFieldAsBase64 supports only JSON format");
         }
         generator.writeDirectField(name, os -> {
             os.write('\"');

@@ -23,7 +23,9 @@ import org.apache.http.message.BasicRequestLine;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.entity.NByteArrayEntity;
 import org.apache.http.nio.entity.NStringEntity;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -33,6 +35,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MainRequest;
 import org.elasticsearch.client.core.MainResponse;
 import org.elasticsearch.client.ilm.AllocateAction;
@@ -83,6 +86,7 @@ import org.elasticsearch.client.transform.transforms.RetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
@@ -92,6 +96,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.cbor.CborXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.index.rankeval.DiscountedCumulativeGain;
@@ -110,11 +115,13 @@ import org.elasticsearch.search.aggregations.matrix.stats.MatrixStatsAggregation
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.RequestMatcher;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestSpec;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -140,6 +147,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.hasItems;
 import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.argThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -171,9 +179,51 @@ public class RestHighLevelClientTests extends ESTestCase {
     private RestHighLevelClient restHighLevelClient;
 
     @Before
-    public void initClient() {
+    public void initClient() throws IOException {
         restClient = mock(RestClient.class);
         restHighLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+        mockGetRoot(restClient);
+    }
+
+    /**
+     * Mock rest client to return a valid response to async GET "/"
+     */
+    static void mockGetRoot(RestClient restClient) throws IOException{
+        mockGetRoot(restClient, Build.CURRENT, true);
+    }
+
+    /**
+     *  Mock rest client to return a valid response to async GET "/"
+     */
+    public static void mockGetRoot(RestClient restClient, Build build, boolean setProductHeader) throws IOException {
+        org.elasticsearch.action.main.MainResponse mainResp = new org.elasticsearch.action.main.MainResponse(
+            "node",
+            Version.fromString(build.getQualifiedVersion().replace("-SNAPSHOT", "")),
+            new ClusterName("cluster"),
+            "uuid",
+            build
+        );
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
+        mainResp.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.close();
+        NByteArrayEntity entity = new NByteArrayEntity(baos.toByteArray(), ContentType.APPLICATION_JSON);
+
+        Response response = mock(Response.class);
+        when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
+        when(response.getEntity()).thenReturn(entity);
+        if (setProductHeader) {
+            when(response.getHeader("X-Elastic-Product")).thenReturn("Elasticsearch");
+        }
+
+        when(restClient
+            .performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                    ((ResponseListener)i.getArguments()[1]).onSuccess(response);
+                    return Cancellable.NO_OP;
+                }
+            );
     }
 
     public void testCloseIsIdempotent() throws IOException {
@@ -949,6 +999,61 @@ public class RestHighLevelClientTests extends ESTestCase {
             api -> assertTrue(api + " API is either not defined in the spec or already supported by the high-level client",
                 apiUnsupported.remove(api)));
         assertThat("Some API are not supported but they should be: " + apiUnsupported, apiUnsupported.size(), equalTo(0));
+    }
+
+    private static void doTestProductCompatibilityCheck(
+        boolean shouldBeAccepted, String version, boolean setProductHeader) throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+
+        RestClient restClient = mock(RestClient.class);
+
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, version);
+        mockGetRoot(restClient, build, setProductHeader);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        if (shouldBeAccepted) {
+            assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
+        } else {
+            expectThrows(ElasticsearchException.class, () ->
+                highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+            );
+        }
+    }
+
+    public void testProductCompatibilityCheck() throws Exception {
+        // Version < 6.0.0
+        doTestProductCompatibilityCheck(false, "5.0.0", false);
+
+        // Version < 6.0.0, product header
+        doTestProductCompatibilityCheck(false, "5.0.0", true);
+
+        // Version 6.x -
+        doTestProductCompatibilityCheck(true, "6.0.0", false);
+
+        // Version 7.x, x < 14
+        doTestProductCompatibilityCheck(true, "7.0.0", false);
+
+        // Version 7.14, no product header
+        doTestProductCompatibilityCheck(false, "7.14.0", false);
+
+        // Version 7.14, product header
+        doTestProductCompatibilityCheck(true, "7.14.0", true);
+
+        // Version 8.x, no product header
+        doTestProductCompatibilityCheck(false, "8.0.0", false);
+
+        // Version 8.x, product header
+        doTestProductCompatibilityCheck(true, "8.0.0", true);
     }
 
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {

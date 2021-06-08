@@ -9,6 +9,8 @@
 package org.elasticsearch.client;
 
 import org.apache.http.HttpEntity;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -67,6 +69,8 @@ import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -205,6 +209,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -244,9 +250,15 @@ import static java.util.stream.Collectors.toList;
  */
 public class RestHighLevelClient implements Closeable {
 
+    private static final Logger logger = LogManager.getLogger(RestHighLevelClient.class);
+
+    // To be called using performClientRequest and performClientRequestAsync to ensure version compatibility check
     private final RestClient client;
     private final NamedXContentRegistry registry;
     private final CheckedConsumer<RestClient, IOException> doClose;
+
+    /** Do not access directly but through getVersionValidationFuture() */
+    private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
     private final IndicesClient indicesClient = new IndicesClient(this);
     private final ClusterClient clusterClient = new ClusterClient(this);
@@ -1715,7 +1727,7 @@ public class RestHighLevelClient implements Closeable {
         req.setOptions(options);
         Response response;
         try {
-            response = client.performRequest(req);
+            response = performClientRequest(req);
         } catch (ResponseException e) {
             if (ignores.contains(e.getResponse().getStatusLine().getStatusCode())) {
                 try {
@@ -1755,7 +1767,7 @@ public class RestHighLevelClient implements Closeable {
         req.setOptions(options);
         Response response;
         try {
-            response = client.performRequest(req);
+            response = performClientRequest(req);
         } catch (ResponseException e) {
             if (RestStatus.NOT_FOUND.getStatus() == e.getResponse().getStatusLine().getStatusCode()) {
                 return Optional.empty();
@@ -1854,7 +1866,7 @@ public class RestHighLevelClient implements Closeable {
         req.setOptions(options);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
-        return client.performRequestAsync(req, responseListener);
+        return performClientRequestAsync(req, responseListener);
     }
 
 
@@ -1920,7 +1932,7 @@ public class RestHighLevelClient implements Closeable {
         req.setOptions(options);
         ResponseListener responseListener = wrapResponseListener404sOptional(response -> parseEntity(response.getEntity(),
                 entityParser), listener);
-        return client.performRequestAsync(req, responseListener);
+        return performClientRequestAsync(req, responseListener);
     }
 
     final <Resp> ResponseListener wrapResponseListener404sOptional(CheckedFunction<Response, Resp, IOException> responseConverter,
@@ -2000,6 +2012,164 @@ public class RestHighLevelClient implements Closeable {
 
     protected static boolean convertExistsResponse(Response response) {
         return response.getStatusLine().getStatusCode() == 200;
+    }
+
+    private Cancellable performClientRequestAsync(Request request, ResponseListener listener) {
+
+        ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
+
+        CompletableFuture<Void> cancelFlag = new CompletableFuture<Void>();
+        Cancellable result = new Cancellable() {
+            @Override
+            public void cancel() {
+                cancelFlag.complete(null);
+            }
+
+            @Override
+            void runIfNotCancelled(Runnable runnable) {
+                if (cancelFlag.isDone()) {
+                    throw newCancellationException();
+                }
+                runnable.run();
+            }
+        };
+
+        versionCheck.addListener(new ActionListener<Optional<String>>() {
+            @Override
+            public void onResponse(Optional<String> validation) {
+                if (validation.isEmpty()) {
+                    Cancellable call = client.performRequestAsync(request, listener);
+                    // Propagate cancellation
+                    cancelFlag.whenComplete((r, t) -> call.cancel());
+                } else {
+                    listener.onFailure(new ElasticsearchException(validation.get()));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
+
+        return result;
+    };
+
+    private Response performClientRequest(Request request) throws IOException {
+
+        Optional<String> versionValidation;
+        try {
+            versionValidation = getVersionValidationFuture().get();
+        } catch (InterruptedException | ExecutionException e) {
+            // Unlikely to happen
+            throw new ElasticsearchException(e);
+        }
+
+        if (versionValidation.isEmpty()) {
+            return client.performRequest(request);
+        } else {
+            throw new ElasticsearchException(versionValidation.get());
+        }
+    }
+
+    /**
+     * Returns a future that asynchronously validates Elasticsearch product version. It's result if an optional string: if empty validation
+     * was successful, if present it contains the validation error.
+     */
+    private ListenableFuture<Optional<String>> getVersionValidationFuture() {
+        ListenableFuture<Optional<String>> currentFuture = this.versionValidationFuture;
+        if (currentFuture != null) {
+            return currentFuture;
+        } else {
+            synchronized (this) {
+                // Re-check in synchronized block
+                currentFuture = this.versionValidationFuture;
+                if (currentFuture != null) {
+                    return currentFuture;
+                }
+                ListenableFuture<Optional<String>> future = new ListenableFuture<>();
+                this.versionValidationFuture = future;
+
+                Request req = new Request("GET", "/");
+                client.performRequestAsync(req, new ResponseListener() {
+                    @Override
+                    public void onSuccess(Response response) {
+                        Optional<String> validation;
+                        try {
+                            validation = getVersionValidation(response);
+                        } catch (Exception e) {
+                            logger.error("Failed to parse info response", e);
+                            validation = Optional.of("Failed to parse info response. Check logs for detailed information - " +
+                                e.getMessage());
+                        }
+                        future.onResponse(validation);
+                    }
+
+                    @Override
+                    public void onFailure(Exception exception) {
+                        // Fail the requests (this one and the ones waiting for it) and clear the future
+                        // so that we retry the next time the client executes a request.
+                        versionValidationFuture = null;
+                        future.onFailure(exception);
+                    }
+                });
+
+                return future;
+            }
+        }
+    }
+
+    /**
+     * Validates that the response info() is a compatible Elasticsearch version.
+     *
+     * @return an optional string. If empty, version is compatible. Otherwise, it's the message to return to the application.
+     */
+    private Optional<String> getVersionValidation(Response response) throws IOException {
+        int statusCode = response.getStatusLine().getStatusCode();
+        if (statusCode == 401 || statusCode == 403) {
+            return Optional.empty();
+        }
+
+        MainResponse mainResponse;
+        try {
+            mainResponse = parseEntity(response.getEntity(), MainResponse::fromXContent);
+        } catch (ResponseException e) {
+            throw parseResponseException(e);
+        }
+
+        String version = mainResponse.getVersion().getNumber();
+        if (Strings.hasLength(version) == false) {
+            return Optional.of("Missing version.number in info response");
+        }
+
+        String[] parts = version.split("\\.");
+        if (parts.length < 2) {
+            return Optional.of("Wrong version.number format in info response");
+        }
+
+        int major = Integer.parseInt(parts[0]);
+        int minor = Integer.parseInt(parts[1]);
+
+        if (major < 6) {
+            return Optional.of("Elasticsearch version 6 or more is required");
+        }
+        if (major == 6 || (major == 7 && minor < 14)) {
+            return Optional.empty();
+        }
+
+        String header = response.getHeader("X-Elastic-Product");
+        if (header == null) {
+            return Optional.of(
+                "Missing [X-Elastic-Product] header. Please check that you are connecting to an Elasticsearch " +
+                    "instance, and that any networking filters are preserving that header."
+            );
+        }
+
+        if ("Elasticsearch".equals(header) == false) {
+            return Optional.of("Invalid value [" + header + "] for [X-Elastic-Product] header.");
+        }
+
+        return Optional.empty();
     }
 
     /**

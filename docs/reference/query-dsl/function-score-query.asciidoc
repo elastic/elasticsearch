@@ -142,11 +142,15 @@ GET /_search
       "query": {
         "match": { "message": "elasticsearch" }
       },
-      "script_score": {
-        "script": {
-          "source": "Math.log(2 + doc['my-int'].value)"
+      "functions": [
+        {
+          "script_score": {
+            "script": {
+              "source": "Math.log(2 + doc['my-int'].value)"
+            }
+          }
         }
-      }
+      ]
     }
   }
 }

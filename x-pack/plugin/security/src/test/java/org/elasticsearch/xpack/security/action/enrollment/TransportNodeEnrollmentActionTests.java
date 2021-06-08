@@ -78,7 +78,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
         final Settings httpSettings = Settings.builder()
             .put("keystore.path", "elastic-certificates.p12")
             .put("keystore.password", "password")
-            .put("keystore.key_password", "password")
             .build();
         final SSLConfiguration httpSslConfiguration = new SSLConfiguration(httpSettings);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(httpSslConfiguration);

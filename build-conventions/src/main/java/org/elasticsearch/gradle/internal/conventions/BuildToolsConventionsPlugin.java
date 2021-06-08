@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.conventions;
 
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.tasks.bundling.Jar;
@@ -17,10 +18,11 @@ import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
 
-public class BasicBuildToolConventionsPlugin implements Plugin<Project> {
+public class BuildToolsConventionsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPlugins().apply(LicenseHeadersPrecommitPlugin.class);
         int defaultParallel = ParallelDetector.findDefaultParallel(project);
         project.getTasks().withType(Test.class).configureEach(test -> {
             test.onlyIf((t) -> Util.getBooleanProperty("tests.fips.enabled", false) == false);

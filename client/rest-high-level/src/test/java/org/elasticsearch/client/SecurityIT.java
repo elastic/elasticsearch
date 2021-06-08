@@ -156,7 +156,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteRoleResponse.isFound(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")
+    //@AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")
     public void testEnrollNode() throws Exception {
         final NodeEnrollmentResponse nodeEnrollmentResponse =
             execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);

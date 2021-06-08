@@ -12,6 +12,7 @@ import org.apache.commons.io.FileUtils;
 import org.apache.tools.ant.taskdefs.condition.Os;
 import org.elasticsearch.gradle.LoggedExec;
 import org.gradle.api.Action;
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.logging.LogLevel;
@@ -34,7 +35,8 @@ import static org.elasticsearch.gradle.internal.util.JavaUtil.getJavaHome;
  * */
 public class BwcSetupExtension {
 
-    private static final String MINIMUM_COMPILER_VERSION_PATH = "buildSrc/src/main/resources/minimumCompilerVersion";
+    private static final String MINIMUM_COMPILER_VERSION_PATH = "src/main/resources/minimumCompilerVersion";
+    private static final Version BUILD_TOOL_MINIMUM_VERSION = Version.fromString("7.14.0");
     private final Project project;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
     private final Provider<InternalDistributionBwcSetupPlugin.BwcTaskThrottle> bwcTaskThrottleProvider;
@@ -65,8 +67,8 @@ public class BwcSetupExtension {
             loggedExec.setWorkingDir(checkoutDir.get());
             loggedExec.doFirst(t -> {
                 // Execution time so that the checkouts are available
-                String[] versionArray = readFromFile(new File(checkoutDir.get(), MINIMUM_COMPILER_VERSION_PATH)).split("\\.");
-                String minimumCompilerVersion = versionArray[versionArray.length - 1];
+                String compilerVersionInfoPath = minimumCompilerVersionPath(unreleasedVersionInfo.get().version);
+                String minimumCompilerVersion = readFromFile(new File(checkoutDir.get(), compilerVersionInfoPath));
                 loggedExec.environment("JAVA_HOME", getJavaHome(Integer.parseInt(minimumCompilerVersion)));
             });
 
@@ -106,6 +108,12 @@ public class BwcSetupExtension {
             loggedExec.setErrorOutput(new IndentingOutputStream(System.err, unreleasedVersionInfo.get().version));
             configAction.execute(loggedExec);
         });
+    }
+
+    private String minimumCompilerVersionPath(Version bwcVersion) {
+        return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION)) ?
+                "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH :
+                "buildSrc/" + MINIMUM_COMPILER_VERSION_PATH;
     }
 
     private static class IndentingOutputStream extends OutputStream {

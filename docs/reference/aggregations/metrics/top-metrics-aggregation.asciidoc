@@ -80,10 +80,9 @@ metrics by requesting a list of metrics like `"metrics": [{"field": "m"}, {"fiel
 * <<keyword,keywords>>
 * <<number,numbers>>
 
-<<runtime,Runtime fields>> of corresponding types, except `keyword` runtime
-fields, are also supported. `metrics.field` doesn't support fields with
-<<array,array values>>. A `top_metric` aggregation on array values may return
-inconsistent results.
+Except keywords, <<runtime,runtime fields>> of corresponding types are also
+supported. `metrics.field` doesn't support fields with <<array,array values>>. A
+`top_metric` aggregation on array values may return inconsistent results.
 
 The following example runs a `top_metrics` aggregation on several field types.
 

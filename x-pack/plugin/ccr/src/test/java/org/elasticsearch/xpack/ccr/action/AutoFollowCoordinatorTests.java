@@ -7,15 +7,14 @@
 package org.elasticsearch.xpack.ccr.action;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -26,8 +25,6 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -37,7 +34,6 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
@@ -2159,11 +2155,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         }
     }
 
-    public void testDeprecationWarningIsEmittedWhenASystemIndexIsAutoFollowed() throws Exception {
+    public void testDeprecationWarningsAreEmittedWhenASystemIndexIsAutoFollowed() throws Exception {
         // Set up a mock log appender to watch for the log message we expect
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation.xpack.ccr.action.AutoFollowCoordinator"), mockLogAppender);
-        mockLogAppender.start();
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 
@@ -2214,12 +2207,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             routingTableBuilder.add(IndexRoutingTable.builder(indexMetadata.getIndex())
                 .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
                 .build());
-
-            mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-                "ccr_auto_follow_system_indices",
-                "org.elasticsearch.deprecation.xpack.ccr.action.AutoFollowCoordinator",
-                DeprecationLogger.DEPRECATION,
-                "Auto following a leader system index " + indexName + " will not work in the next major version"));
         }
 
         final ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
@@ -2263,12 +2250,17 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
         assertThat(results, notNullValue());
         assertThat(results.size(), equalTo(1));
 
+        List<String> expectedDeprecationWarnings = new ArrayList<>(nbLeaderSystemIndices);
         for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
             assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(true));
             assertThat(followedIndices.contains(index.key), is(true));
+            final String indexName = index.value.getIndex().getName();
+            expectedDeprecationWarnings.add(
+                "Auto following a leader system index " + indexName + " will not work in the next major version"
+            );
         }
 
-        mockLogAppender.assertAllExpectationsMatched();
+        assertWarnings(expectedDeprecationWarnings.toArray(new String[0]));
     }
 
     private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {

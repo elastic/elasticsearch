@@ -318,9 +318,6 @@ tasks.named('splitPackagesAudit').configure {
     'org.apache.lucene.index.OneMergeHelper',
     'org.apache.lucene.index.ShuffleForcedMergePolicy',
 
-    // CompletableContext in core needs to be moved!
-    'org.elasticsearch.common.util.concurrent.*',
-
     // Joda should own its own packages! This should be a simple move.
     'org.joda.time.format.StrictISODateTimeFormat',
 

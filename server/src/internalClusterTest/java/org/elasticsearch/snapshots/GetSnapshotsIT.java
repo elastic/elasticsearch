@@ -10,17 +10,16 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.function.BiConsumer;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
@@ -43,23 +42,22 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final Collection<String> allSnapshotNames = new HashSet<>(snapshotNamesWithIndex);
         allSnapshotNames.addAll(snapshotNamesWithoutIndex);
 
-
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(repoName);
         assertSorted(defaultSorting, (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1)));
         assertSorted(
-            allSnapshotsSorted(repoName, GetSnapshotsAction.SortBy.NAME),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.NAME),
             (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()))
         );
         assertSorted(
-            allSnapshotsSorted(repoName, GetSnapshotsAction.SortBy.DURATION),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.DURATION),
             (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()))
         );
         assertSorted(
-            allSnapshotsSorted(repoName, GetSnapshotsAction.SortBy.INDICES),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.INDICES),
             (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()))
         );
         assertSorted(
-            allSnapshotsSorted(repoName, GetSnapshotsAction.SortBy.START_TIME),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.START_TIME),
             (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()))
         );
     }

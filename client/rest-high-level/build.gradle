@@ -67,7 +67,7 @@ tasks.named('forbiddenApisMain').configure {
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
-File httpCaKeystore = file("./httpCa.p12");
+File httpCaKeystore = file("./elastic-certificates.p12");
 File transportKeystore = file("./transport.p12");
 
 tasks.named("integTest").configure {

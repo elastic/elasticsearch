@@ -104,7 +104,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId()),
+                        shardMigrationStatus(state, ns.getNodeId(), ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
@@ -120,7 +120,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId()),
+                        shardMigrationStatus(state, ns.getNodeId(), ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
@@ -133,7 +133,16 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         listener.onResponse(response);
     }
 
-    private ShutdownShardMigrationStatus shardMigrationStatus(ClusterState currentState, String nodeId) {
+    private ShutdownShardMigrationStatus shardMigrationStatus(
+        ClusterState currentState,
+        String nodeId,
+        SingleNodeShutdownMetadata.Type shutdownType
+    ) {
+        // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
+        if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
+            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
+        }
+
         // First, check if there are any shards currently on this node, and if there are any relocating shards
         int currentShardsOnNode = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
         int currentlyRelocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);

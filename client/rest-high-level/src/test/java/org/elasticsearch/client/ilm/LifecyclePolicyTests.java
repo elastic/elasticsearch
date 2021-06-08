@@ -9,7 +9,7 @@ package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;

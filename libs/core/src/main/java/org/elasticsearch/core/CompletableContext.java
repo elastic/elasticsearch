@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common.concurrent;
+package org.elasticsearch.core;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.function.BiConsumer;

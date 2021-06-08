@@ -6,7 +6,7 @@ eclipse.preferences.version=1
 # (e.g. crashing eclipse etc)
 # org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
 # org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
-# org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
+# org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.core.Nullable
 # org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
 # org.eclipse.jdt.core.compiler.problem.nonnullParameterAnnotationDropped=warning
 # org.eclipse.jdt.core.compiler.problem.nullAnnotationInferenceConflict=warning

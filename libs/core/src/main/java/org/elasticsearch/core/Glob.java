@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.common;
+package org.elasticsearch.core;
 
 /**
  * Utility class for glob-like matching

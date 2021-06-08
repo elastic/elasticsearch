@@ -44,7 +44,7 @@ tasks.named("yamlRestCompatTest").configure {
 }
 
 tasks.named('splitPackagesAudit').configure {
-    // Lucene packages should be owned by Lucene!
+    // o.e.i.analysis is owned by server. Move these to an icu package
   ignoreClasses 'org.elasticsearch.index.analysis.ICUCollationKeyFilter',
     'org.elasticsearch.index.analysis.IcuAnalyzerProvider',
     'org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory',

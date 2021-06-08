@@ -41,7 +41,7 @@ public class BucketHelpers {
      *
      * "insert_zeros": empty buckets will be filled with zeros for all metrics
      * "skip": empty buckets will simply be ignored
-     * "none": for empty buckets the values provided by the metrics will still be used if they are available
+     * "keep_values": for empty buckets the values provided by the metrics will still be used if they are available
      */
     public enum GapPolicy implements Writeable {
         INSERT_ZEROS((byte) 0, "insert_zeros", false) {

@@ -94,7 +94,8 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                         PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                         JobState jobState = MlTasks.getJobState(job.getId(), tasks);
                         if (request.isForce() == false && jobState.equals(JobState.CLOSED) == false) {
-                            listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
+                            listener.onFailure(ExceptionsHelper.conflictStatusException(
+                                Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_REVERT)));
                             return;
                         }
                         if (MlTasks.getSnapshotUpgraderTask(jobId, request.getSnapshotId(), tasks) != null) {

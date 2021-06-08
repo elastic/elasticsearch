@@ -14,6 +14,8 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.ScriptContext;
@@ -49,11 +51,11 @@ public class DateFieldScriptTests extends FieldScriptTestCase<DateFieldScript.Fa
 
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 DateFieldScript script = new DateFieldScript(
                     "test",
-                    org.elasticsearch.common.collect.Map.of(),
+                    Map.of(),
                     new SearchLookup(field -> null, (ft, lookup) -> null),
                     DateFormatter.forPattern(randomDateFormatterPattern()).withLocale(randomLocale(random())),
                     reader.leaves().get(0)

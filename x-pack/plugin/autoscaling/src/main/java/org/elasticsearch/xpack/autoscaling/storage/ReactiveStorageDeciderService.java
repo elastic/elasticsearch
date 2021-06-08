@@ -82,12 +82,12 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     @Override
     public List<Setting<?>> deciderSettings() {
-        return org.elasticsearch.common.collect.List.of();
+        return org.elasticsearch.core.List.of();
     }
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             DiscoveryNodeRole.DATA_ROLE,
             DiscoveryNodeRole.DATA_CONTENT_NODE_ROLE,
             DiscoveryNodeRole.DATA_HOT_NODE_ROLE,

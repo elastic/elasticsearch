@@ -18,7 +18,7 @@ import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.FieldMemoryStats;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.search.suggest.completion.CompletionStats;

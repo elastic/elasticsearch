@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -45,7 +46,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
             new TreeSet<>(
                 randomSubsetOf(
                     randomIntBetween(1, 5),
-                    org.elasticsearch.common.collect.List.of("data", "data_content", "data_hot", "data_warm", "data_cold")
+                    List.of("data", "data_content", "data_hot", "data_warm", "data_cold")
                 )
             ),
             mutateAutoscalingDeciders(policy.deciders())

@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.ParseField;
 
 import java.io.IOException;

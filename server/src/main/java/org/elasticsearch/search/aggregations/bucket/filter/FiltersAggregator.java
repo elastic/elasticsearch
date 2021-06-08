@@ -227,7 +227,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             String otherBucketKey, AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(filters.size() + (otherBucketKey == null ? 0 : 1)), metadata);
-        this.filters = org.elasticsearch.common.collect.List.copyOf(filters);
+        this.filters = org.elasticsearch.core.List.copyOf(filters);
         this.keyed = keyed;
         this.otherBucketKey = otherBucketKey;
     }
@@ -522,7 +522,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             IntPredicate[] docFilters = new IntPredicate[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx); 
+                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx);
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override

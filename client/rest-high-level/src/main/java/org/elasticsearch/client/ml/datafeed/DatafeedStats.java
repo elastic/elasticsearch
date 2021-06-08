@@ -8,7 +8,7 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.client.ml.NodeAttributes;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;

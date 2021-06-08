@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;
@@ -42,7 +42,7 @@ public final class ShardGenerations {
     private final Map<IndexId, List<String>> shardGenerations;
 
     private ShardGenerations(Map<IndexId, List<String>> shardGenerations) {
-        this.shardGenerations = org.elasticsearch.common.collect.Map.copyOf(shardGenerations);
+        this.shardGenerations = org.elasticsearch.core.Map.copyOf(shardGenerations);
     }
 
     private static final Pattern IS_NUMBER = Pattern.compile("^\\d+$");

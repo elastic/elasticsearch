@@ -255,7 +255,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     private static Geometry boxToGeo(GeoBoundingBox geoBox) {
         // turn into polygon
         if (geoBox.right() < geoBox.left() && geoBox.right() != -180) {
-            return new MultiPolygon(org.elasticsearch.common.collect.List.of(
+            return new MultiPolygon(org.elasticsearch.core.List.of(
                 new Polygon(new LinearRing(
                     new double[] { -180, geoBox.right(), geoBox.right(), -180, -180 },
                     new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() })),

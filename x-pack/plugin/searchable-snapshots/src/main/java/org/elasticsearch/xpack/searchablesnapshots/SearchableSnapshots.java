@@ -32,10 +32,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -43,7 +43,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.env.Environment;
@@ -102,7 +102,6 @@ import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshot
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.HasFrozenCacheAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotAllocationDecider;
 import org.elasticsearch.xpack.searchablesnapshots.allocation.decider.SearchableSnapshotEnableAllocationDecider;
-import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.PersistentCache;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
@@ -112,7 +111,6 @@ import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnaps
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestRepositoryStatsAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.upgrade.SearchableSnapshotIndexMetadataUpgrader;
 
 import java.io.IOException;
@@ -295,7 +293,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<Setting<?>> getSettings() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             SNAPSHOT_REPOSITORY_UUID_SETTING,
             SNAPSHOT_REPOSITORY_NAME_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,
@@ -398,7 +396,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     @Override
     public List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
         if (DiscoveryNode.canContainData(settings)) {
-            return org.elasticsearch.common.collect.List.of(
+            return org.elasticsearch.core.List.of(
                 new SearchableSnapshotIndexFoldersDeletionListener(cacheService::get, frozenCacheService::get)
             );
         }
@@ -407,7 +405,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             SystemIndexDescriptor.builder()
                 .setIndexPattern(SNAPSHOT_BLOB_CACHE_INDEX)
                 .setDescription("Contains cached data of blob store repositories")
@@ -432,7 +430,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
-        return org.elasticsearch.common.collect.Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
+        return org.elasticsearch.core.Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, (indexSettings, shardPath) -> {
             final RepositoriesService repositories = repositoriesServiceSupplier.get();
             assert repositories != null;
             final CacheService cache = cacheService.get();
@@ -496,7 +494,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
-        return org.elasticsearch.common.collect.Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, e -> {
+        return org.elasticsearch.core.Map.of(SNAPSHOT_DIRECTORY_FACTORY_KEY, e -> {
             final Store store = e.config().getStore();
             store.incRef();
             return new Engine.IndexCommitRef(emptyIndexCommit(store.directory()), store::decRef);
@@ -505,7 +503,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new ActionHandler<>(SearchableSnapshotsStatsAction.INSTANCE, TransportSearchableSnapshotsStatsAction.class),
             new ActionHandler<>(ClearSearchableSnapshotsCacheAction.INSTANCE, TransportClearSearchableSnapshotsCacheAction.class),
             new ActionHandler<>(MountSearchableSnapshotAction.INSTANCE, TransportMountSearchableSnapshotAction.class),
@@ -529,7 +527,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),
             new RestMountSearchableSnapshotAction(),
@@ -540,7 +538,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Map<String, ExistingShardsAllocator> getExistingShardsAllocators() {
-        return org.elasticsearch.common.collect.Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, allocator.get());
+        return org.elasticsearch.core.Map.of(SearchableSnapshotAllocator.ALLOCATOR_NAME, allocator.get());
     }
 
     // overridable by tests
@@ -550,7 +548,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new SearchableSnapshotAllocationDecider(() -> getLicenseState().isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS)),
             new SearchableSnapshotRepositoryExistsAllocationDecider(),
             new SearchableSnapshotEnableAllocationDecider(settings, clusterSettings),
@@ -560,7 +558,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        return org.elasticsearch.common.collect.List.of(executorBuilders(settings));
+        return org.elasticsearch.core.List.of(executorBuilders(settings));
     }
 
     @Override

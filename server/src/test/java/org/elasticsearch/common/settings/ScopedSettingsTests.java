@@ -13,7 +13,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.index.IndexModule;
@@ -286,14 +286,14 @@ public class ScopedSettingsTests extends ESTestCase {
 
             @Override
             public Iterator<Setting<?>> settings() {
-                return org.elasticsearch.common.collect.List.<Setting<?>>of(baseSetting).iterator();
+                return org.elasticsearch.core.List.<Setting<?>>of(baseSetting).iterator();
             }
         };
         final Setting<String> dependingSetting = Setting.simpleString(prefix + "foo.depending", dependingValidator, scopeProperty);
 
         final AbstractScopedSettings service = nodeSetting ?
-            new ClusterSettings(Settings.EMPTY, org.elasticsearch.common.collect.Set.of(baseSetting, dependingSetting)) :
-            new IndexScopedSettings(Settings.EMPTY, org.elasticsearch.common.collect.Set.of(baseSetting, dependingSetting));
+            new ClusterSettings(Settings.EMPTY, org.elasticsearch.core.Set.of(baseSetting, dependingSetting)) :
+            new IndexScopedSettings(Settings.EMPTY, org.elasticsearch.core.Set.of(baseSetting, dependingSetting));
 
         service.validate(Settings.builder().put(baseSetting.getKey(), "1").put(dependingSetting.getKey(), 1).build(), true);
         service.validate(Settings.builder().put(dependingSetting.getKey(), "1").build(), false);

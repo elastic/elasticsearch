@@ -32,8 +32,8 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
         this.principal = principal;
         this.nodeName = nodeName;
         this.tokenInfos = tokenInfos == null ?
-            org.elasticsearch.common.collect.List.of() :
-            org.elasticsearch.common.collect.List.copyOf(tokenInfos.stream().sorted().collect(Collectors.toList()));
+            org.elasticsearch.core.List.of() :
+            org.elasticsearch.core.List.copyOf(tokenInfos.stream().sorted().collect(Collectors.toList()));
     }
 
     public GetServiceAccountCredentialsResponse(StreamInput in) throws IOException {
@@ -71,11 +71,11 @@ public class GetServiceAccountCredentialsResponse extends ActionResponse impleme
             .field("node_name", nodeName)
             .field("count", tokenInfos.size())
             .field("tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.INDEX, org.elasticsearch.common.collect.List.of())) {
+        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.INDEX, org.elasticsearch.core.List.of())) {
             info.toXContent(builder, params);
         }
         builder.endObject().field("file_tokens").startObject();
-        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.FILE, org.elasticsearch.common.collect.List.of())) {
+        for (TokenInfo info : tokenInfosBySource.getOrDefault(TokenInfo.TokenSource.FILE, org.elasticsearch.core.List.of())) {
             info.toXContent(builder, params);
         }
         builder.endObject().endObject();

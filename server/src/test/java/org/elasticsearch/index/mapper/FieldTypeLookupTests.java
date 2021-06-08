@@ -8,7 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.index.mapper.TypeFieldMapper.TypeFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -109,8 +110,8 @@ public class FieldTypeLookupTests extends ESTestCase {
 
         FieldTypeLookup lookup = new FieldTypeLookup("_doc", Arrays.asList(field, otherField), emptyList(), emptyList());
 
-        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field"));
-        assertEquals(org.elasticsearch.common.collect.Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field"));
+        assertEquals(Set.of("other_field", "field"), lookup.sourcePaths("field.subfield1"));
     }
 
     public void testTypeLookup() {

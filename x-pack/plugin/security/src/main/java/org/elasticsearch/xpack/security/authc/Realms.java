@@ -178,7 +178,7 @@ public class Realms implements Iterable<Realm> {
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
         Set<String> unconfiguredBasicRealms = new HashSet<>(
-            org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
+            org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
             final RealmConfig.RealmIdentifier identifier = entry.getKey();
             if (false == entry.getValue().hasValue(RealmSettings.ORDER_SETTING_KEY)) {
@@ -381,7 +381,7 @@ public class Realms implements Iterable<Realm> {
     private void logDeprecationForImplicitlyDisabledBasicRealms(List<Realm> realms, Set<String> unconfiguredBasicRealms) {
         if (realms.isEmpty()) {  // No available realm
             final List<String> explicitlyDisabledBasicRealms =
-                Sets.difference(org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
+                Sets.difference(org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE),
                     unconfiguredBasicRealms).stream().sorted().collect(Collectors.toList());
             if (explicitlyDisabledBasicRealms.isEmpty()) {
                 return;

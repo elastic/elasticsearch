@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;

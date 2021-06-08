@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ilm;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine.Schedule;
 
 import java.util.Objects;

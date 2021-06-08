@@ -26,7 +26,7 @@ public class RestSimulateIndexTemplateAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_index_template/_simulate_index/{name}"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_index_template/_simulate_index/{name}"));
     }
 
     @Override

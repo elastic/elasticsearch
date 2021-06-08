@@ -27,7 +27,7 @@ public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
     }
 
     @Override

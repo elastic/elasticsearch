@@ -12,10 +12,10 @@ import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
@@ -166,10 +166,10 @@ public class ShrinkActionIT extends ESRestTestCase {
         String originalIndex = index + "-000001";
 
         // add a policy
-        Map<String, LifecycleAction> hotActions = org.elasticsearch.common.collect.Map.of(
+        Map<String, LifecycleAction> hotActions = org.elasticsearch.core.Map.of(
             RolloverAction.NAME, new RolloverAction(null, null, null, 1L),
             ShrinkAction.NAME, new ShrinkAction(expectedFinalShards, null));
-        Map<String, Phase> phases = org.elasticsearch.common.collect.Map.of(
+        Map<String, Phase> phases = org.elasticsearch.core.Map.of(
             "hot", new Phase("hot", TimeValue.ZERO, hotActions));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, phases);
         Request createPolicyRequest = new Request("PUT", "_ilm/policy/" + policy);
@@ -232,7 +232,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         // all shards to be active and we want that to happen as part of the shrink action)
         MigrateAction migrateAction = new MigrateAction(false);
         ShrinkAction shrinkAction = new ShrinkAction(expectedFinalShards, null);
-        Phase phase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(migrateAction.getWriteableName(),
+        Phase phase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.core.Map.of(migrateAction.getWriteableName(),
             migrateAction, shrinkAction.getWriteableName(), shrinkAction));
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, singletonMap(phase.getName(), phase));
         XContentBuilder builder = jsonBuilder();

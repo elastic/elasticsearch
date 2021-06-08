@@ -27,9 +27,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponse.Clusters;
 import org.elasticsearch.action.search.SearchResponseSections;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -96,7 +96,7 @@ public class SequenceSpecTests extends ESTestCase {
 
     static class ImplicitTbExtractor extends EmptyHitExtractor {
         static final ImplicitTbExtractor INSTANCE = new ImplicitTbExtractor();
-        
+
         @Override
         public Long extract(SearchHit hit) {
             return (long) hit.docId();

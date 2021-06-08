@@ -33,7 +33,7 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new ActionHandler<>(RepositoriesMeteringAction.INSTANCE, TransportRepositoriesStatsAction.class),
             new ActionHandler<>(ClearRepositoriesMeteringArchiveAction.INSTANCE, TransportClearRepositoriesStatsArchiveAction.class)
         );
@@ -49,7 +49,7 @@ public final class RepositoriesMeteringPlugin extends Plugin implements ActionPl
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new RestGetRepositoriesMeteringAction(),
             new RestClearRepositoriesMeteringArchiveAction()
         );

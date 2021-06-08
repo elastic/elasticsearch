@@ -40,7 +40,7 @@ public class ShardLimitValidator {
     public static final Setting<Integer> SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN =
         Setting.intSetting("cluster.max_shards_per_node.frozen", 3000, 1, Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final String FROZEN_GROUP = "frozen";
-    static final Set<String> VALID_GROUPS = org.elasticsearch.common.collect.Set.of("normal", FROZEN_GROUP);
+    static final Set<String> VALID_GROUPS = org.elasticsearch.core.Set.of("normal", FROZEN_GROUP);
     public static final Setting<String> INDEX_SETTING_SHARD_LIMIT_GROUP =
         Setting.simpleString("index.shard_limit.group", "normal",
             value -> {

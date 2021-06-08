@@ -9,7 +9,8 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
@@ -35,7 +36,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         ValuesSourceRegistry.Builder registry = new ValuesSourceRegistry.Builder();
         MaxAggregationBuilder.registerAggregators(registry);
-        withAggregationContext(registry.build(), mapperService, org.elasticsearch.common.collect.List.of(), null, context -> {
+        withAggregationContext(registry.build(), mapperService, List.of(), null, context -> {
             AggregatorFactories.Builder sub = AggregatorFactories.builder();
             sub.addAggregator(new MaxAggregationBuilder("test").field("foo"));
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, sub, null);
@@ -46,11 +47,11 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
 
     public void testBuildCallsAdapt() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(), context -> {
+        withAggregationContext(mapperService, List.of(), context -> {
             AggregatorFactory factory = new DummyAdaptingAggregatorFactory("test", context, null, AggregatorFactories.builder(), null);
             Aggregator adapting = factory.create(null, CardinalityUpperBound.ONE);
-            assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
-            assertThat(adapting.buildTopLevel().getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of("dog", "woof")));
+            assertThat(adapting.buildEmptyAggregation().getMetadata(), equalTo(org.elasticsearch.core.Map.of("dog", "woof")));
+            assertThat(adapting.buildTopLevel().getMetadata(), equalTo(org.elasticsearch.core.Map.of("dog", "woof")));
         });
     }
 
@@ -91,7 +92,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         @Override
         protected InternalAggregation adapt(InternalAggregation delegateResult) {
             InternalAggregation result = mock(InternalAggregation.class);
-            when(result.getMetadata()).thenReturn(org.elasticsearch.common.collect.Map.of("dog", "woof"));
+            when(result.getMetadata()).thenReturn(org.elasticsearch.core.Map.of("dog", "woof"));
             return result;
         }
     }

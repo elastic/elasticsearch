@@ -56,7 +56,7 @@ public class ScriptedMetricAggContexts {
     public abstract static class MapScript {
 
         private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+        private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of(
                 "doc", value -> {
                     deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "map-script_doc",
                             "Accessing variable [doc] via [params.doc] from within an scripted metric agg map script "

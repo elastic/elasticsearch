@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -45,7 +45,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID + "}")
                 .replaces(GET, BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID + "}", RestApiVersion.V_7).build(),
             Route.builder(GET, BASE_PATH + "trained_models")
@@ -98,7 +98,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return org.elasticsearch.common.collect.Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, EXCLUDE_GENERATED);
+        return org.elasticsearch.core.Set.of(TrainedModelConfig.DECOMPRESS_DEFINITION, EXCLUDE_GENERATED);
     }
 
     private static class RestToXContentListenerWithDefaultValues<T extends ToXContentObject> extends RestToXContentListener<T> {

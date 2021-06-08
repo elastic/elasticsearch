@@ -61,8 +61,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -92,7 +92,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                         };
                     }
                 });
-                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of(1L, 0L, 1L)));
+                assertThat(results, equalTo(org.elasticsearch.core.List.of(1L, 0L, 1L)));
             }
         }
     }
@@ -100,8 +100,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BooleanScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
@@ -116,8 +116,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -129,7 +129,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Booleans booleans = (ScriptDocValues.Booleans) getDoc().get("test");
@@ -145,10 +145,10 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true, false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(3));
@@ -159,7 +159,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -170,7 +170,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -181,8 +181,8 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -233,7 +233,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(1));
@@ -241,14 +241,14 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(0));
                 assertThat(
                     searcher.count(
-                        build("xor_param", org.elasticsearch.common.collect.Map.of("param", false)).termQuery(true, mockContext())
+                        build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(true, mockContext())
                     ),
                     equalTo(1)
                 );
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(false, mockContext())), equalTo(1));
@@ -257,7 +257,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(searcher.count(simpleMappedFieldType().termQuery(true, mockContext())), equalTo(0));
                 assertThat(
                     searcher.count(
-                        build("xor_param", org.elasticsearch.common.collect.Map.of("param", false)).termQuery(false, mockContext())
+                        build("xor_param", org.elasticsearch.core.Map.of("param", false)).termQuery(false, mockContext())
                     ),
                     equalTo(1)
                 );
@@ -273,57 +273,57 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [true]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(true, true), mockContext())),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, true), mockContext())),
                     equalTo(1)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of("true", "true"), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("true", "true"), mockContext())
                     ),
                     equalTo(1)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(false, false), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())
                     ),
                     equalTo(0)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(true, false), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())
                     ),
                     equalTo(1)
                 );
             }
         }
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [false]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(false, false), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(false, false), mockContext())
                     ),
                     equalTo(1)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of("false", "false"), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("false", "false"), mockContext())
                     ),
                     equalTo(1)
                 );
                 assertThat(searcher.count(simpleMappedFieldType().termsQuery(singletonList(null), mockContext())), equalTo(1));
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(true, true), mockContext())),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, true), mockContext())),
                     equalTo(0)
                 );
                 assertThat(
                     searcher.count(
-                        simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(true, false), mockContext())
+                        simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(true, false), mockContext())
                     ),
                     equalTo(1)
                 );
@@ -333,7 +333,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
 
     public void testEmptyTermsQueryDegeneratesIntoMatchNone() {
         assertThat(
-            simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of(), mockContext()),
+            simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of(), mockContext()),
             instanceOf(MatchNoDocsQuery.class)
         );
     }
@@ -342,11 +342,11 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         switch (randomInt(2)) {
             case 0:
-                return ft.termsQuery(org.elasticsearch.common.collect.List.of(true), ctx);
+                return ft.termsQuery(org.elasticsearch.core.List.of(true), ctx);
             case 1:
-                return ft.termsQuery(org.elasticsearch.common.collect.List.of(false), ctx);
+                return ft.termsQuery(org.elasticsearch.core.List.of(false), ctx);
             case 2:
-                return ft.termsQuery(org.elasticsearch.common.collect.List.of(false, true), ctx);
+                return ft.termsQuery(org.elasticsearch.core.List.of(false, true), ctx);
             default:
                 throw new UnsupportedOperationException();
         }

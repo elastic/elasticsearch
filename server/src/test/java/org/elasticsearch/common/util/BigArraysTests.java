@@ -12,7 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -392,7 +392,7 @@ public class BigArraysTests extends ESTestCase {
         try (
             HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(
                 Settings.EMPTY,
-                org.elasticsearch.common.collect.List.of(),
+                org.elasticsearch.core.List.of(),
                 clusterSettings
             )
         ) {

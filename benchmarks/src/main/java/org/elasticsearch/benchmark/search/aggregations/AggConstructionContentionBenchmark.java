@@ -15,8 +15,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -88,7 +88,7 @@ import java.util.function.Function;
 @State(Scope.Benchmark)
 @Threads(Threads.MAX)
 public class AggConstructionContentionBenchmark {
-    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.common.collect.List.of());
+    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of());
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
     private final Index index = new Index("test", "uuid");
@@ -111,7 +111,7 @@ public class AggConstructionContentionBenchmark {
             case "real":
                 breakerService = new HierarchyCircuitBreakerService(
                     Settings.EMPTY,
-                    org.elasticsearch.common.collect.List.of(),
+                    org.elasticsearch.core.List.of(),
                     clusterSettings
                 );
                 break;
@@ -119,7 +119,7 @@ public class AggConstructionContentionBenchmark {
                 preallocateBreaker = true;
                 breakerService = new HierarchyCircuitBreakerService(
                     Settings.EMPTY,
-                    org.elasticsearch.common.collect.List.of(),
+                    org.elasticsearch.core.List.of(),
                     clusterSettings
                 );
                 break;

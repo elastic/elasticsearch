@@ -222,6 +222,6 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
+        return org.elasticsearch.core.List.of(CoreValuesSourceType.GEOPOINT, GeoShapeValuesSourceType.instance());
     }
 }

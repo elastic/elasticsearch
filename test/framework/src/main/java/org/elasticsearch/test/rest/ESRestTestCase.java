@@ -33,15 +33,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -828,7 +828,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                 // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified
                 //field or that doesn't support data streams so it's safe to ignore
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
-                if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+                if (org.elasticsearch.core.Set.of(404, 405, 500).contains(statusCode) == false) {
                     throw ee;
                 }
             }

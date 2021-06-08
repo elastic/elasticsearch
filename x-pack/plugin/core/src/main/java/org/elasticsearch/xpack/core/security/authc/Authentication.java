@@ -237,7 +237,7 @@ public class Authentication implements ToXContentObject {
             final String tokenSource = (String) getMetadata().get(ServiceAccountSettings.TOKEN_SOURCE_FIELD);
             assert tokenSource != null : "token source cannot be null";
             builder.field(User.Fields.TOKEN.getPreferredName(),
-                org.elasticsearch.common.collect.Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
+                org.elasticsearch.core.Map.of("name", tokenName, "type", ServiceAccountSettings.REALM_TYPE + "_" + tokenSource));
         }
         builder.field(User.Fields.METADATA.getPreferredName(), user.metadata());
         builder.field(User.Fields.ENABLED.getPreferredName(), user.enabled());

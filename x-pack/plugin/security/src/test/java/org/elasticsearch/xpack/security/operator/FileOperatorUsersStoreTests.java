@@ -15,6 +15,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -95,7 +97,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         // user operator_1 with non realm auth type is not an operator
         assertFalse(fileOperatorUsersStore.isOperatorUser(
             new Authentication(operator_1, fileRealm, fileRealm, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of())));
+                Map.of())));
 
         // Run as user operator_1 is not an operator
         final User runAsOperator_1 = new User(operator_1, new User(randomAlphaOfLengthBetween(5, 8), randomRoles()));
@@ -136,10 +138,10 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             assertEquals(2, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("operator_1", "operator_2"),
+                Set.of("operator_1", "operator_2"),
                 "file"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("operator_3"), null), groups.get(1));
+                Set.of("operator_3"), null), groups.get(1));
 
             // Content does not change, the groups should not be updated
             try (BufferedWriter writer = Files.newBufferedWriter(inUseFile, StandardCharsets.UTF_8, StandardOpenOption.APPEND)) {
@@ -156,7 +158,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
                 final List<FileOperatorUsersStore.Group> newGroups = fileOperatorUsersStore.getOperatorUsersDescriptor().getGroups();
                 assertEquals(3, newGroups.size());
                 assertEquals(new FileOperatorUsersStore.Group(
-                    org.elasticsearch.common.collect.Set.of("operator_4")), newGroups.get(2));
+                    Set.of("operator_4")), newGroups.get(2));
             });
 
             // Add mal-formatted entry
@@ -208,7 +210,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
             assertEquals(1, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("operator_1")), groups.get(0));
+                Set.of("operator_1")), groups.get(0));
         }
 
         config = ""
@@ -223,9 +225,9 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
             assertEquals(2, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("operator_1", "operator_2"), "file1"), groups.get(0));
+                Set.of("operator_1", "operator_2"), "file1"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("internal_system")), groups.get(1));
+                Set.of("internal_system")), groups.get(1));
         }
 
         config = ""
@@ -239,9 +241,9 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             final List<FileOperatorUsersStore.Group> groups = FileOperatorUsersStore.parseConfig(in).getGroups();
             assertEquals(2, groups.size());
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("internal_system"), "file1"), groups.get(0));
+                Set.of("internal_system"), "file1"), groups.get(0));
             assertEquals(new FileOperatorUsersStore.Group(
-                org.elasticsearch.common.collect.Set.of("operator_1", "operator_2")), groups.get(1));
+                Set.of("operator_1", "operator_2")), groups.get(1));
         }
     }
 

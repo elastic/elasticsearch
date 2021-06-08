@@ -29,7 +29,7 @@ public class RestGetServiceAccountAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(GET, "/_security/service"),
             new Route(GET, "/_security/service/{namespace}"),
             new Route(GET, "/_security/service/{namespace}/{service}")

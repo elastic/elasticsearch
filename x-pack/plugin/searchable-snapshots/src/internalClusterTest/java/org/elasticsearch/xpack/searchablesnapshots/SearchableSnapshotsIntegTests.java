@@ -759,7 +759,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
 
-        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.common.collect.List.of(indexName))
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.core.List.of(indexName))
             .snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
@@ -1007,7 +1007,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String dataRepoName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(dataRepoName, "fs");
 
-        final SnapshotId dataSnapshot = createSnapshot(dataRepoName, "data-snapshot", org.elasticsearch.common.collect.List.of(indexName))
+        final SnapshotId dataSnapshot = createSnapshot(dataRepoName, "data-snapshot", org.elasticsearch.core.List.of(indexName))
             .snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
@@ -1026,7 +1026,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final SnapshotId backupSnapshot = createSnapshot(
             backupRepoName,
             "backup-snapshot",
-            org.elasticsearch.common.collect.List.of(restoredIndexName)
+            org.elasticsearch.core.List.of(restoredIndexName)
         ).snapshotId();
 
         // Clear out data & the repo that contains it

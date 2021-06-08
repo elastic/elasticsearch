@@ -195,9 +195,9 @@ public class ForEachProcessorTests extends ESTestCase {
 
         ForEachProcessor processor = new ForEachProcessor(
                 "_tag", null, "values", new CompoundProcessor(false,
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new UppercaseProcessor("_tag_upper", null, "_ingest._value", false, "_ingest._value")),
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new AppendProcessor("_tag", null, template, (model) -> (Collections.singletonList("added")), true))
         ), false);
         processor.execute(ingestDocument, (result, e) -> {});

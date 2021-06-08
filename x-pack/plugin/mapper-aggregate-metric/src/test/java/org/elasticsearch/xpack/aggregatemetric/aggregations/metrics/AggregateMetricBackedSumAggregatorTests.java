@@ -14,7 +14,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -45,14 +45,14 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     public void testMatchesNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
                 )
             );
 
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(50)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
                 )
@@ -85,21 +85,21 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     public void testQueryFiltering() throws IOException {
         testCase(new TermQuery(new Term("match", "yes")), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(2))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StringField("match", "yes", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(20)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new StringField("match", "no", Field.Store.NO),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.sum), Double.doubleToLongBits(40)),
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.value_count), Double.doubleToLongBits(5))
@@ -120,7 +120,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
     private AggregateDoubleMetricFieldType createDefaultFieldType(String fieldName) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(fieldName);
 
-        for (Metric m : org.elasticsearch.common.collect.List.of(Metric.value_count, Metric.sum)) {
+        for (Metric m : org.elasticsearch.core.List.of(Metric.value_count, Metric.sum)) {
             String subfieldName = subfieldName(fieldName, m);
             NumberFieldMapper.NumberFieldType subfield = new NumberFieldMapper.NumberFieldType(
                 subfieldName,
@@ -141,7 +141,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
+        return org.elasticsearch.core.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
     }
 
     @Override
@@ -151,7 +151,7 @@ public class AggregateMetricBackedSumAggregatorTests extends AggregatorTestCase 
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,

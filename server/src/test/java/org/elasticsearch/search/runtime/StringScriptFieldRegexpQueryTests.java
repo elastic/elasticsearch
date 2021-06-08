@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -93,13 +94,13 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             0,
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("astuffb")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("astuffB")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("fffff")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("ab")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("aasdf")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("dsfb")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("astuffb", "fffff")));
+        assertTrue(query.matches(List.of("astuffb")));
+        assertFalse(query.matches(List.of("astuffB")));
+        assertFalse(query.matches(List.of("fffff")));
+        assertFalse(query.matches(List.of("ab")));
+        assertFalse(query.matches(List.of("aasdf")));
+        assertFalse(query.matches(List.of("dsfb")));
+        assertTrue(query.matches(List.of("astuffb", "fffff")));
 
         StringScriptFieldRegexpQuery ciQuery = new StringScriptFieldRegexpQuery(
             randomScript(),
@@ -110,8 +111,8 @@ public class StringScriptFieldRegexpQueryTests extends AbstractStringScriptField
             RegExp.ASCII_CASE_INSENSITIVE,
             Operations.DEFAULT_MAX_DETERMINIZED_STATES
         );
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("astuffB")));
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("Astuffb", "fffff")));
+        assertTrue(ciQuery.matches(List.of("astuffB")));
+        assertTrue(ciQuery.matches(List.of("Astuffb", "fffff")));
     }
 
     @Override

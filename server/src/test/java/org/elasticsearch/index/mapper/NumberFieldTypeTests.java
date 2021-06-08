@@ -639,7 +639,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
             .fieldType();
         assertEquals(Collections.singletonList(3), fetchSourceValue(mapper, 3.14));
         assertEquals(Collections.singletonList(42), fetchSourceValue(mapper, "42.9"));
-        assertEquals(org.elasticsearch.common.collect.List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
+        assertEquals(org.elasticsearch.core.List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
             .nullValue(2.71f)
@@ -659,11 +659,11 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
          * {@code .000625} is, for example, the precision loss of using
          * a half float reflected back into a float.
          */
-        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F), fetchSourceValue(mapper, 3.14));
-        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F), fetchSourceValue(mapper, 3.14F));
-        assertEquals(org.elasticsearch.common.collect.List.of(3.0F), fetchSourceValue(mapper, 3));
-        assertEquals(org.elasticsearch.common.collect.List.of(42.90625F), fetchSourceValue(mapper, "42.9"));
-        assertEquals(org.elasticsearch.common.collect.List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
-        assertEquals(org.elasticsearch.common.collect.List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
+        assertEquals(org.elasticsearch.core.List.of(3.140625F), fetchSourceValue(mapper, 3.14));
+        assertEquals(org.elasticsearch.core.List.of(3.140625F), fetchSourceValue(mapper, 3.14F));
+        assertEquals(org.elasticsearch.core.List.of(3.0F), fetchSourceValue(mapper, 3));
+        assertEquals(org.elasticsearch.core.List.of(42.90625F), fetchSourceValue(mapper, "42.9"));
+        assertEquals(org.elasticsearch.core.List.of(47.125F), fetchSourceValue(mapper, 47.1231234));
+        assertEquals(org.elasticsearch.core.List.of(3.140625F, 42.90625F), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
     }
 }

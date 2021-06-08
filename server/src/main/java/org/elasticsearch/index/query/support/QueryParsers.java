@@ -9,7 +9,7 @@
 package org.elasticsearch.index.query.support;
 
 import org.apache.lucene.search.MultiTermQuery;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 

@@ -486,16 +486,16 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
             .build(new ContentPath())
             .fieldType();
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+        Map<String, Object> longRange = org.elasticsearch.core.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
             fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
             .format("yyyy/MM/dd||epoch_millis")
             .build(new ContentPath())
             .fieldType();
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", 597429487111L);
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
+        Map<String, Object> dateRange = org.elasticsearch.core.Map.of("lt", "1990/12/29", "gte", 597429487111L);
+        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
             fetchSourceValue(dateMapper, dateRange));
     }
 
@@ -503,18 +503,18 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true, Version.CURRENT)
             .build(new ContentPath())
             .fieldType();
-        Map<String, Object> longRange = org.elasticsearch.common.collect.Map.of("gte", 3.14, "lt", "42.9");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("gte", 3L, "lt", 42L)),
+        Map<String, Object> longRange = org.elasticsearch.core.Map.of("gte", 3.14, "lt", "42.9");
+        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("gte", 3L, "lt", 42L)),
             fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true, Version.CURRENT)
             .format("strict_date_time")
             .build(new ContentPath())
             .fieldType();
-        Map<String, Object> dateRange = org.elasticsearch.common.collect.Map.of("lt", "1990-12-29T00:00:00.000Z");
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "1990/12/29")),
+        Map<String, Object> dateRange = org.elasticsearch.core.Map.of("lt", "1990-12-29T00:00:00.000Z");
+        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "1990/12/29")),
             fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));
-        assertEquals(Collections.singletonList(org.elasticsearch.common.collect.Map.of("lt", "662428800000")),
+        assertEquals(Collections.singletonList(org.elasticsearch.core.Map.of("lt", "662428800000")),
             fetchSourceValue(dateMapper, dateRange,"epoch_millis"));
     }
 }

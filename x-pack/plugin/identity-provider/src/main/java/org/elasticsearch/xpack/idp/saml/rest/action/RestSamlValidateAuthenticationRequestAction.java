@@ -46,7 +46,7 @@ public class RestSamlValidateAuthenticationRequestAction extends IdpBaseRestHand
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_idp/saml/validate"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_idp/saml/validate"));
     }
 
     @Override

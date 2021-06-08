@@ -386,7 +386,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         reduceContext.consumeBucketsAndMaybeBreak(counter.size);
 
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(
-            org.elasticsearch.common.collect.List.of(emptyBucketInfo.subAggregations),
+            org.elasticsearch.core.List.of(emptyBucketInfo.subAggregations),
             reduceContext
         );
         ListIterator<Bucket> iter = list.listIterator();

@@ -368,16 +368,16 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
 
         @Override
         public List<Setting<?>> getSettings() {
-            return org.elasticsearch.common.collect.List.of(ENABLED);
+            return org.elasticsearch.core.List.of(ENABLED);
         }
 
         @Override
         public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
             if (ENABLED.get(settings) == false) {
-                return org.elasticsearch.common.collect.List.of();
+                return org.elasticsearch.core.List.of();
             }
             final String name = "wait_for_snapshot_blob_cache_shards_active";
-            return org.elasticsearch.common.collect.List.of(new AllocationDecider() {
+            return org.elasticsearch.core.List.of(new AllocationDecider() {
 
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {

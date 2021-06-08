@@ -49,8 +49,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.collect.Map.ofEntries;
-import static org.elasticsearch.common.collect.Map.entry;
+import static org.elasticsearch.core.Map.ofEntries;
+import static org.elasticsearch.core.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 

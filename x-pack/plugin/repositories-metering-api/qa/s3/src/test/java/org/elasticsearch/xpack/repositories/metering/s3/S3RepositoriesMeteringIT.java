@@ -21,7 +21,7 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return org.elasticsearch.common.collect.Map.of(
+        return org.elasticsearch.core.Map.of(
             "bucket",
             getProperty("test.s3.bucket"),
             "base_path",
@@ -45,11 +45,11 @@ public class S3RepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRes
 
     @Override
     protected List<String> readCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("GetObject", "ListObjects");
+        return org.elasticsearch.core.List.of("GetObject", "ListObjects");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("PutObject");
+        return org.elasticsearch.core.List.of("PutObject");
     }
 }

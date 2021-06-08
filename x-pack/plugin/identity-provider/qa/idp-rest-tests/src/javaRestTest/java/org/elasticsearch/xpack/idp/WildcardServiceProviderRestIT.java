@@ -12,7 +12,7 @@ import org.elasticsearch.client.security.user.User;
 import org.elasticsearch.client.security.user.privileges.ApplicationResourcePrivileges;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,7 +39,7 @@ public class WildcardServiceProviderRestIT extends IdpRestTestCase {
 
     @Before
     public void defineApplicationPrivileges() throws IOException {
-        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.common.collect.Map.of(
+        super.createApplicationPrivileges("elastic-cloud", org.elasticsearch.core.Map.of(
             "deployment_admin", Set.of("sso:admin"),
             "deployment_viewer", Set.of("sso:viewer")
         ));

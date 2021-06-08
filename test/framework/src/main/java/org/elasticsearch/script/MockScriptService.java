@@ -47,11 +47,11 @@ public class MockScriptService extends ScriptService {
 
             @Override
             public Set<ScriptContext<?>> getSupportedContexts() {
-                return org.elasticsearch.common.collect.Set.of(context);
+                return org.elasticsearch.core.Set.of(context);
             }
         };
-        return new MockScriptService(Settings.EMPTY, org.elasticsearch.common.collect.Map.of("lang", engine),
-            org.elasticsearch.common.collect.Map.of(context.name, context)) {
+        return new MockScriptService(Settings.EMPTY, org.elasticsearch.core.Map.of("lang", engine),
+            org.elasticsearch.core.Map.of(context.name, context)) {
             @Override
             protected StoredScriptSource getScriptFromClusterState(String id) {
                 return storedLookup.get(id);

@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.security.authc.saml;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.NamedFormatter;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.Before;

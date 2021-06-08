@@ -22,7 +22,7 @@ public class FileLineParserTests extends ESTestCase {
     public void testParse() throws IOException {
         Path path = getDataPath("../authc/support/role_mapping.yml");
 
-        final Map<Integer, String> lines = new HashMap<>(org.elasticsearch.common.collect.Map.of(
+        final Map<Integer, String> lines = new HashMap<>(org.elasticsearch.core.Map.of(
             7, "security:",
             8, "  - \"cn=avengers,ou=marvel,o=superheros\"",
             9, "  - \"cn=shield,ou=marvel,o=superheros\"",

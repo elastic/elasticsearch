@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -45,7 +46,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
     protected AggregateDoubleMetricFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
         AggregateDoubleMetricFieldType fieldType = new AggregateDoubleMetricFieldType(name, meta);
-        for (AggregateDoubleMetricFieldMapper.Metric m : org.elasticsearch.common.collect.List.of(
+        for (AggregateDoubleMetricFieldMapper.Metric m : List.of(
             AggregateDoubleMetricFieldMapper.Metric.min,
             AggregateDoubleMetricFieldMapper.Metric.max
         )) {
@@ -82,14 +83,14 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
         final double defaultValue = 45.8;
         final Map<String, Object> metric = Collections.singletonMap("min", defaultValue);
-        assertEquals(org.elasticsearch.common.collect.List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
         final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
         final double defaultValue = 45.8;
-        final Map<String, Object> metric = org.elasticsearch.common.collect.Map.of("min", 14.2, "max", defaultValue);
-        assertEquals(org.elasticsearch.common.collect.List.of(defaultValue), fetchSourceValue(fieldType, metric));
+        final Map<String, Object> metric = org.elasticsearch.core.Map.of("min", 14.2, "max", defaultValue);
+        assertEquals(List.of(defaultValue), fetchSourceValue(fieldType, metric));
     }
 
     /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
@@ -97,19 +98,19 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
         final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(10)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(2))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(4)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(1))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                List.of(
                     new NumericDocValuesField(subfieldName("field", Metric.max), Double.doubleToLongBits(7)),
                     new NumericDocValuesField(subfieldName("field", Metric.min), Double.doubleToLongBits(4))
                 )
@@ -132,7 +133,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchExecutionContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchExecutionContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 Map<String, ScriptDocValues<?>> doc = getDoc();

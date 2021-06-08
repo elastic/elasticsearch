@@ -76,7 +76,7 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    private static final Set<String> RUNTIME_TYPES = org.elasticsearch.common.collect.Set.of(
+    private static final Set<String> RUNTIME_TYPES = org.elasticsearch.core.Set.of(
         BooleanFieldMapper.CONTENT_TYPE,
         DateFieldMapper.CONTENT_TYPE,
         NumberType.DOUBLE.typeName(),
@@ -89,7 +89,7 @@ public abstract class CoreTestTranslater {
     protected abstract Map<String, Object> dynamicTemplateFor();
 
     protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields() {
-        return Collections.singletonMap("mapping", org.elasticsearch.common.collect.Map.of("index", false, "doc_values", false));
+        return Collections.singletonMap("mapping", org.elasticsearch.core.Map.of("index", false, "doc_values", false));
     }
 
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields() {
@@ -109,7 +109,7 @@ public abstract class CoreTestTranslater {
 
             @Override
             public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
-                Map<String, String> params = org.elasticsearch.common.collect.Map.of("name", "hack_dynamic_mappings", "create", "true");
+                Map<String, String> params = org.elasticsearch.core.Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
                 for (String type : RUNTIME_TYPES) {
                     /*
@@ -128,26 +128,26 @@ public abstract class CoreTestTranslater {
                     HashMap<String, Object> map = new HashMap<>();
                     map.put("match_mapping_type", type);
                     map.putAll(dynamicTemplateFor());
-                    dynamicTemplates.add(org.elasticsearch.common.collect.Map.of(type, map));
+                    dynamicTemplates.add(org.elasticsearch.core.Map.of(type, map));
                 }
-                Map<String, Object> indexTemplate = org.elasticsearch.common.collect.Map.of(
+                Map<String, Object> indexTemplate = org.elasticsearch.core.Map.of(
                     "settings",
-                    org.elasticsearch.common.collect.Map.of(),
+                    org.elasticsearch.core.Map.of(),
                     "mappings",
-                    org.elasticsearch.common.collect.Map.of("dynamic_templates", dynamicTemplates)
+                    org.elasticsearch.core.Map.of("dynamic_templates", dynamicTemplates)
                 );
-                List<Map<String, Object>> bodies = org.elasticsearch.common.collect.List.of(
-                    org.elasticsearch.common.collect.Map.ofEntries(
-                        org.elasticsearch.common.collect.Map.entry("index_patterns", "*"),
-                        org.elasticsearch.common.collect.Map.entry("priority", Integer.MAX_VALUE - 1),
-                        org.elasticsearch.common.collect.Map.entry("template", indexTemplate)
+                List<Map<String, Object>> bodies = org.elasticsearch.core.List.of(
+                    org.elasticsearch.core.Map.ofEntries(
+                        org.elasticsearch.core.Map.entry("index_patterns", "*"),
+                        org.elasticsearch.core.Map.entry("priority", Integer.MAX_VALUE - 1),
+                        org.elasticsearch.core.Map.entry("template", indexTemplate)
                     )
                 );
                 ClientYamlTestResponse response = executionContext.callApi(
                     "indices.put_index_template",
                     params,
                     bodies,
-                    org.elasticsearch.common.collect.Map.of()
+                    org.elasticsearch.core.Map.of()
                 );
                 assertThat(response.getStatusCode(), equalTo(200));
                 // There are probably some warning about overlapping templates. Ignore them.
@@ -179,7 +179,7 @@ public abstract class CoreTestTranslater {
                 candidate.getName(),
                 new SetupSection(candidate.getSetupSection().getSkipSection(), setup),
                 candidate.getTeardownSection(),
-                org.elasticsearch.common.collect.List.of()
+                org.elasticsearch.core.List.of()
             );
         }
 

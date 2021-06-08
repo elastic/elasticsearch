@@ -83,7 +83,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true)
                 .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                    org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex()))).build()
+                    org.elasticsearch.core.List.of(sourceIndexMetadata.getIndex()))).build()
         ).build();
 
         expectThrows(IllegalStateException.class,
@@ -105,7 +105,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        List<Index> backingIndices = org.elasticsearch.common.collect.List
+        List<Index> backingIndices = org.elasticsearch.core.List
             .of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder()
@@ -148,7 +148,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        List<Index> backingIndices = org.elasticsearch.common.collect.List
+        List<Index> backingIndices = org.elasticsearch.core.List
             .of(sourceIndexMetadata.getIndex(), writeIndexMetadata.getIndex());
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder()
@@ -191,7 +191,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
         IndexMetadata targetIndexMetadata = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        List<Index> backingIndices = org.elasticsearch.common.collect.List.of(
+        List<Index> backingIndices = org.elasticsearch.core.List.of(
             sourceIndexMetadata.getIndex(),
             writeIndexMetadata.getIndex()
         );

@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -410,7 +411,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testDeprecatedBasicLicenseSettings() {
-        Collection<Setting<Boolean>> deprecatedXpackSettings = org.elasticsearch.common.collect.Set.of(
+        Collection<Setting<Boolean>> deprecatedXpackSettings = Set.of(
             XPackSettings.ENRICH_ENABLED_SETTING,
             XPackSettings.FLATTENED_ENABLED,
             XPackSettings.INDEX_LIFECYCLE_ENABLED,
@@ -470,7 +471,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings =
             Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
         final PluginsAndModules pluginsAndModules =
-            new PluginsAndModules(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of());
+            new PluginsAndModules(org.elasticsearch.core.List.of(), org.elasticsearch.core.List.of());
         final List<DeprecationIssue> issues =
             DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
                 c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE));
@@ -534,7 +535,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private String randomRealmTypeOtherThanFileOrNative() {
-        return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
+        return randomValueOtherThanMany(t -> Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
     }
 

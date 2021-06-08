@@ -7,11 +7,9 @@
 
 package org.elasticsearch.xpack.deprecation;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -22,13 +20,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
-import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -194,43 +188,5 @@ public class ClusterDeprecationChecks {
             "Index templates " + templatesWithMultipleTypes
             + " define multiple types and so will cause errors when used in index creation"
             );
-    }
-
-    static DeprecationIssue checkAutoFollowedSystemIndices(ClusterState state) {
-        AutoFollowMetadata autoFollowMetadata = state.metadata().custom(AutoFollowMetadata.TYPE);
-        final List<String> followedLeaderIndexUUIDs;
-        if (autoFollowMetadata == null) {
-            followedLeaderIndexUUIDs = Collections.emptyList();
-        } else {
-            followedLeaderIndexUUIDs = autoFollowMetadata.getFollowedLeaderIndexUUIDs()
-                .values()
-                .stream()
-                .flatMap(Collection::stream)
-                .collect(Collectors.toList());
-        }
-
-        Set<String> systemIndexFollowers = new HashSet<>();
-        for (ObjectObjectCursor<String, IndexMetadata> indexEntry : state.metadata().getIndices()) {
-            final IndexMetadata indexMetadata = indexEntry.value;
-            final Map<String, String> ccrMetadata = indexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
-            if (ccrMetadata == null) {
-                continue;
-            }
-            final String leaderIndexUUID = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
-            if (indexMetadata.isSystem() && followedLeaderIndexUUIDs.contains(leaderIndexUUID)) {
-                systemIndexFollowers.add(indexMetadata.getIndex().getName());
-            }
-        }
-
-        if (systemIndexFollowers.isEmpty()) {
-            return null;
-        }
-
-        return new DeprecationIssue(DeprecationIssue.Level.WARNING,
-            "Some auto followed indices follow remote system indices",
-            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
-            "Auto followed indices " + systemIndexFollowers
-                + " follow remote system indices and this behaviour will change in the next major version."
-        );
     }
 }

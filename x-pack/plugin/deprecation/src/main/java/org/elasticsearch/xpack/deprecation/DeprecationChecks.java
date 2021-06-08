@@ -39,8 +39,7 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
-            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
-            ClusterDeprecationChecks::checkAutoFollowedSystemIndices
+            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
         ));
 
     static final List<TriFunction<Settings, PluginsAndModules, ClusterState, DeprecationIssue>> NODE_SETTINGS_CHECKS;

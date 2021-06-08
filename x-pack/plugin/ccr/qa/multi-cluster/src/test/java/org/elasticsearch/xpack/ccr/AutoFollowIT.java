@@ -843,52 +843,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         deleteAutoFollowPattern(client(), autoFollowPattern);
     }
 
-    public void testFollowSystemIndexTriggersDeprecationWarnings() throws Exception {
-        final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
-        final String autoFollowPatternName = "pattern-" + testPrefix;
-
-        try {
-            if ("leader".equals(targetCluster)) {
-                final Request request = new Request("POST", "/" + TaskResultsService.TASK_INDEX + "/_doc/123");
-                XContentBuilder document = jsonBuilder();
-                document.startObject();
-                document.field("completed", true);
-                document.endObject();
-
-                // Avoid throwing a warning exception since we're writing into a system index
-                request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> false));
-                request.setJsonEntity(Strings.toString(document));
-                assertOK(adminClient().performRequest(request));
-                ensureGreen(TaskResultsService.TASK_INDEX);
-            } else {
-                final WarningFailureException exception = expectThrows(WarningFailureException.class,
-                    () -> createAutoFollowPattern(client(),
-                        autoFollowPatternName,
-                        TaskResultsService.TASK_INDEX,
-                        "leader_cluster",
-                        WarningsHandler.STRICT));
-
-                final List<String> warnings = exception.getResponse().getWarnings();
-                boolean expectedWarningMessageFound = warnings.stream()
-                    .anyMatch(warning ->
-                        warning.startsWith("Auto following a system index [" + TaskResultsService.TASK_INDEX) &&
-                            warning.endsWith("will not work in the next major version"));
-                assertThat(
-                    "Expected to find a warning about auto following system indices but the warnings are: " + warnings,
-                    expectedWarningMessageFound,
-                    equalTo(true)
-                );
-
-            }
-        } finally {
-            cleanUpFollower(
-                Collections.emptyList(),
-                Collections.emptyList(),
-                singletonList(autoFollowPatternName)
-            );
-        }
-    }
-
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {
         return getNumberOfSuccessfulFollowedIndices(client());
     }

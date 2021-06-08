@@ -195,7 +195,6 @@ class ClientTransformIndexer extends TransformIndexer {
                         );
                     }
                 } else {
-                    auditBulkFailures = true;
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)

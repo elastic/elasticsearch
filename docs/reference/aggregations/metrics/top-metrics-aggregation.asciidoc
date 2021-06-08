@@ -70,8 +70,8 @@ request. So,
 ==== `metrics`
 
 `metrics` selects the fields of the "top" document to return. You can request
-a single metric with something like `"metric": {"field": "m"}` or multiple
-metrics by requesting a list of metrics like `"metric": [{"field": "m"}, {"field": "i"}`.
+a single metric with something like `"metrics": {"field": "m"}` or multiple
+metrics by requesting a list of metrics like `"metrics": [{"field": "m"}, {"field": "i"}`.
 
 `metrics.field` supports the following field types:
 

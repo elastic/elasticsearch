@@ -5,7 +5,7 @@ setup:
       reason: "compatible from 8.x to 7.x"
       features:
         - "headers"
-        - "warnings_regex"
+        - "allowed_warnings_regex"
 
 ---
 "Get hot threads":
@@ -14,8 +14,8 @@ setup:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      nodes.hotthreads: {}
-      warnings_regex:
+      nodes.hot_threads: {}
+      allowed_warnings_regex:
         - ".*hot_?threads.* is a deprecated endpoint.*"
   - match:
       $body: /:::/

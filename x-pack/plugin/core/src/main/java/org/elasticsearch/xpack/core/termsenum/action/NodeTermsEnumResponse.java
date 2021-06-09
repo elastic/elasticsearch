@@ -41,6 +41,14 @@ class NodeTermsEnumResponse extends TransportResponse {
         this.complete = complete;
     }
 
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeCollection(terms);
+        out.writeOptionalString(error);
+        out.writeBoolean(complete);
+        out.writeString(nodeId);
+    }
+
     public List<TermCount> terms() {
         return this.terms;
     }
@@ -52,17 +60,8 @@ class NodeTermsEnumResponse extends TransportResponse {
     public String getNodeId() {
         return nodeId;
     }
-        
-    public boolean getComplete() {
+
+    public boolean isComplete() {
         return complete;
-    }
-
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(terms);
-        out.writeOptionalString(error);
-        out.writeBoolean(complete);
-        out.writeString(nodeId);
     }
 }

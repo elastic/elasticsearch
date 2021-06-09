@@ -8,10 +8,13 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -60,6 +63,55 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         for (GetSnapshotsAction.SortBy sort : GetSnapshotsAction.SortBy.values()) {
             logger.info("--> testing pagination for [{}]", sort);
             doTestResponseSizeLimit(sort, repoName, names);
+        }
+    }
+
+    public void testSortAndPaginateWithInProgress() throws Exception {
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final Collection<String> allSnapshotNames = new HashSet<>(createNSnapshots(repoName, randomIntBetween(3, 20)));
+        createIndexWithContent("test-index-1");
+        allSnapshotNames.addAll(createNSnapshots(repoName, randomIntBetween(3, 20)));
+        createIndexWithContent("test-index-2");
+
+        final int inProgressCount = randomIntBetween(6, 20);
+        final List<ActionFuture<CreateSnapshotResponse>> inProgressSnapshots = new ArrayList<>(inProgressCount);
+        blockAllDataNodes(repoName);
+        for (int i = 0; i < inProgressCount; i++) {
+            final String snapshotName = "snap-" + i;
+            allSnapshotNames.add(snapshotName);
+            inProgressSnapshots.add(startFullSnapshot(repoName, snapshotName));
+        }
+        awaitNumberOfSnapshotsInProgress(inProgressCount);
+
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+
+        unblockAllDataNodes(repoName);
+        for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
+            assertSuccessful(inProgressSnapshot);
+        }
+
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+    }
+
+    private void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsAction.SortBy sort) {
+        final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort);
+
+        for (int i = 1; i <= allSnapshotNames.size(); i++) {
+            final List<SnapshotInfo> subsetSorted = sortedWithSize(repoName, sort, i);
+            assertEquals(subsetSorted, allSorted.subList(0, i));
+        }
+
+        for (int j = 0; j < allSnapshotNames.size(); j++) {
+            final SnapshotInfo after = allSorted.get(j);
+            for (int i = 1; i < allSnapshotNames.size() - j; i++) {
+                final List<SnapshotInfo> subsetSorted = sortedWithSize(repoName, sort, after, i);
+                assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
+            }
         }
     }
 

@@ -509,10 +509,7 @@ public class Docker {
         // the version through here
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p555);
 
-        String architecture = System.getProperty("os.arch", "x86_64");
-        if (architecture.equals("amd64")) {
-            architecture = "x86_64";
-        }
+        final String architecture = getArchitecture();
         Stream.of("autodetect", "categorize", "controller", "data_frame_analyzer", "normalize", "pytorch_inference")
             .forEach(executableName -> {
                 final Path executablePath = es.modules.resolve("x-pack-ml/platform/linux-" + architecture + "/bin/" + executableName);
@@ -625,5 +622,13 @@ public class Docker {
      */
     public static void restartContainer() {
         sh.run("docker restart " + containerId);
+    }
+
+    private static String getArchitecture() {
+        String architecture = System.getProperty("os.arch", "x86_64");
+        if (architecture.equals("amd64")) {
+            architecture = "x86_64";
+        }
+        return architecture;
     }
 }

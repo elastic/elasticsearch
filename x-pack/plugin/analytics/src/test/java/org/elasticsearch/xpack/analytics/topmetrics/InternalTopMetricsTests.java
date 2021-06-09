@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.analytics.topmetrics;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.analytics.ParsedTopMetrics;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;

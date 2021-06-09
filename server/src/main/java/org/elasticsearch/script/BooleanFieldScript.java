@@ -9,7 +9,7 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;

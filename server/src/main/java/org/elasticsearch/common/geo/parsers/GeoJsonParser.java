@@ -10,10 +10,10 @@ package org.elasticsearch.common.geo.parsers;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.builders.CircleBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentSubParser;
@@ -92,7 +92,7 @@ abstract class GeoJsonParser {
                             malformedException = "cannot have [" + ShapeParser.FIELD_ORIENTATION + "] with type set to [" + shapeType + "]";
                         }
                         subParser.nextToken();
-                        orientation = ShapeBuilder.Orientation.fromString(subParser.text());
+                        orientation = Orientation.fromString(subParser.text());
                     } else {
                         subParser.nextToken();
                         subParser.skipChildren();

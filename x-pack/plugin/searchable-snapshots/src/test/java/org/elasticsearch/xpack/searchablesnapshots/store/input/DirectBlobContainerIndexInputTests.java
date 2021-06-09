@@ -10,7 +10,7 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.CachedBlob;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.store.ESIndexInputTestCase;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;

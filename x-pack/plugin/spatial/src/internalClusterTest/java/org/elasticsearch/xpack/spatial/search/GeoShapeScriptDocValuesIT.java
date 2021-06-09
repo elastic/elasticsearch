@@ -22,6 +22,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -147,10 +149,19 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
                 return true;
             }
         }, () -> GeometryTestUtils.randomGeometry(false)));
+        doTestGeometry(geometry);
+    }
+
+    public void testPolygonDateline() throws Exception {
+        Geometry geometry = new Polygon(new LinearRing(new double[]{170, 190, 190, 170, 170}, new double[]{-5, -5, 5, 5, -5}));
+        doTestGeometry(geometry);
+    }
+
+    private void doTestGeometry(Geometry geometry) throws IOException  {
         client().prepareIndex("test").setId("1")
             .setSource(jsonBuilder().startObject()
                 .field("name", "TestPosition")
-                .field("location", WellKnownText.INSTANCE.toWKT(geometry))
+                .field("location", WellKnownText.toWKT(geometry))
                 .endObject())
             .get();
 

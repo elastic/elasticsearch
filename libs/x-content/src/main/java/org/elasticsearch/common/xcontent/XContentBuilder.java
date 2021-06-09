@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.ByteArrayOutputStream;
 import java.io.Closeable;

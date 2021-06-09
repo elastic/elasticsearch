@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -104,7 +105,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId(), ns.getType()),
+                        shardMigrationStatus(
+                            state,
+                            ns.getNodeId(),
+                            ns.getType(),
+                            allocationDeciders,
+                            clusterInfoService,
+                            snapshotsInfoService,
+                            allocationService
+                        ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
@@ -120,7 +129,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 .map(
                     ns -> new SingleNodeShutdownStatus(
                         ns,
-                        shardMigrationStatus(state, ns.getNodeId(), ns.getType()),
+                        shardMigrationStatus(
+                            state,
+                            ns.getNodeId(),
+                            ns.getType(),
+                            allocationDeciders,
+                            clusterInfoService,
+                            snapshotsInfoService,
+                            allocationService
+                        ),
                         new ShutdownPersistentTasksStatus(),
                         new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
@@ -133,10 +150,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         listener.onResponse(response);
     }
 
-    private ShutdownShardMigrationStatus shardMigrationStatus(
+    // pkg-private for testing
+    static ShutdownShardMigrationStatus shardMigrationStatus(
         ClusterState currentState,
         String nodeId,
-        SingleNodeShutdownMetadata.Type shutdownType
+        SingleNodeShutdownMetadata.Type shutdownType,
+        AllocationDeciders allocationDeciders,
+        ClusterInfoService clusterInfoService,
+        SnapshotsInfoService snapshotsInfoService,
+        AllocationService allocationService
     ) {
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
@@ -173,7 +195,19 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .shardsWithState(ShardRoutingState.STARTED)
             .stream()
             .map(shardRouting -> new Tuple<>(shardRouting, allocationService.explainShardAllocation(shardRouting, allocation)))
-            .filter(pair -> pair.v2().getMoveDecision().canRemain() == false && pair.v2().getMoveDecision().forceMove() == false)
+            // Given that we're checking the status of a node that's shutting down, no shards should be allowed to remain
+            .filter(pair -> {
+                assert pair.v2().getMoveDecision().canRemain() == false : "shard ["
+                    + pair
+                    + "] can remain on node ["
+                    + nodeId
+                    + "], but that node is shutting down";
+                return pair.v2().getMoveDecision().canRemain() == false;
+            })
+            // It's okay if some are throttled, they'll move eventually
+            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.THROTTLED) == false)
+            // These shards will move as soon as possible
+            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
             .findFirst();
 
         if (unmovableShard.isPresent()) {

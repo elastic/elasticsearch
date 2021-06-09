@@ -118,7 +118,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
         public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                  Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
         }
 
         @Override

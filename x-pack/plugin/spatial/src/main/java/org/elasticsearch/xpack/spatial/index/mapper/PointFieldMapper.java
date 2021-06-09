@@ -164,7 +164,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
 
         private PointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                CartesianPointParser parser, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, true, parser, meta);
+            super(name, indexed, stored, hasDocValues, parser, meta);
             this.queryProcessor = new ShapeQueryPointProcessor();
         }
 

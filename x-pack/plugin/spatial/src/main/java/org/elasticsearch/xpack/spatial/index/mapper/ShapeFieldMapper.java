@@ -109,7 +109,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         public ShapeFieldType(String name, boolean indexed, Orientation orientation,
                               Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
 

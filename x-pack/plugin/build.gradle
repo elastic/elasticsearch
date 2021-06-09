@@ -94,6 +94,18 @@ tasks.named("yamlRestTest").configure {
   dependsOn "copyExtraResources"
 }
 
+tasks.named("transformV7RestTests").configure({ task ->
+  task.replaceKeyInDo("license.delete", "xpack-license.delete")
+  task.replaceKeyInDo("license.get", "xpack-license.get")
+  task.replaceKeyInDo("license.get_basic_status", "xpack-license.get_basic_status")
+  task.replaceKeyInDo("license.get_trial_status", "xpack-license.get_trial_status")
+  task.replaceKeyInDo("license.post", "xpack-license.post")
+  task.replaceKeyInDo("license.post_start_basic", "xpack-license.post_start_basic")
+  task.replaceKeyInDo("license.post_start_trial", "xpack-license.post_start_trial")
+
+  task.addAllowedWarningRegex(".*_xpack/license.* is deprecated.*")
+})
+
 tasks.named("yamlRestCompatTest").configure {
   /*
    * We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each

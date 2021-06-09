@@ -81,6 +81,10 @@ public class TermsEnumResponse extends BroadcastResponse {
         return terms;
     }
 
+    public boolean isComplete() {
+        return complete;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

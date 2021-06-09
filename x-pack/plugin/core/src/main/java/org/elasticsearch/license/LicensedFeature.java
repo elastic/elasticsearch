@@ -80,6 +80,7 @@ public abstract class LicensedFeature {
         return new Momentary(name, licenseLevel, false);
     }
 
+    @Deprecated
     public static Persistent persistentLenient(String name, License.OperationMode licenseLevel) {
         return new Persistent(name, licenseLevel, false);
     }

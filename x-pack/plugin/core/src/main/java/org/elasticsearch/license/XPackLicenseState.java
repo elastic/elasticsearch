@@ -93,7 +93,7 @@ public class XPackLicenseState {
         // NOTE: this is temporary. The Feature enum will go away in favor of LicensedFeature.
         // Embedding the feature instance here is a stopgap to allow smaller initial PR,
         // followed by PRs to convert the current consumers of the license state.
-        final LicensedFeature feature;
+        final LicensedFeature.Momentary feature;
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
             assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
@@ -505,7 +505,7 @@ public class XPackLicenseState {
 
     @Deprecated
     public boolean checkFeature(Feature feature) {
-        return checkFeature(feature.feature);
+        return feature.feature.check(this);
     }
 
     /**
@@ -513,14 +513,14 @@ public class XPackLicenseState {
      */
     @SuppressForbidden(reason = "Argument to Math.abs() is definitely not Long.MIN_VALUE")
     protected boolean checkFeature(LicensedFeature feature) {
-        boolean allowed = isAllowed(feature);
+        boolean allowed = feature.checkWithoutTracking(this);
         LongAccumulator maxEpochAccumulator = lastUsed.get(feature);
-        final long licenseExpiryDate = getLicenseExpiryDate();
-        final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (maxEpochAccumulator != null) {
             maxEpochAccumulator.accumulate(epochMillisProvider.getAsLong());
         }
 
+        final long licenseExpiryDate = getLicenseExpiryDate();
+        final long diff = licenseExpiryDate - System.currentTimeMillis();
         if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 &&
             LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
             final long days = TimeUnit.MILLISECONDS.toDays(diff);
@@ -534,18 +534,14 @@ public class XPackLicenseState {
         return allowed;
     }
 
-    @Deprecated
-    public boolean isAllowed(Feature feature) {
-        return isAllowed(feature.feature);
-    }
-
     /**
      * Checks whether the given feature is allowed by the current license.
      * <p>
      * This method should only be used when serializing whether a feature is allowed for telemetry.
      */
-    protected boolean isAllowed(LicensedFeature feature) {
-        return isAllowedByLicense(feature.minimumOperationMode, feature.needsActive);
+    @Deprecated
+    public boolean isAllowed(Feature feature) {
+        return feature.feature.checkWithoutTracking(this);
     }
 
     /**

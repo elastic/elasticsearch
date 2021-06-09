@@ -50,7 +50,11 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
     }
 
     public void setQueryString(String queryString) {
-        this.queryString = queryString;
+        if (this.queryString == null) {
+            this.queryString = queryString;
+        } else {
+            throw new IllegalArgumentException("Must use either [queryString] or [query_string], not both at the same time");
+        }
     }
 
     public String getRealmName() {

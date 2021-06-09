@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
@@ -68,7 +69,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
 
-    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = org.elasticsearch.common.collect.List.of(
+    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
         DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
         DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
         DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,

@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -1207,7 +1207,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
             new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),

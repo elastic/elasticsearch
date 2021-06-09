@@ -18,7 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -110,7 +110,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(numDocs, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.elasticsearch.core.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -142,7 +142,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.elasticsearch.core.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -252,7 +252,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(0, internalMissing.getDocCount());
                 assertFalse(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.elasticsearch.core.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -269,7 +269,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
         for (int i = 0; i < numDocs; i++) {
             if (randomBoolean()) {
                 final long randomLong = randomLong();
-                docs.add(org.elasticsearch.common.collect.Set.of(
+                docs.add(org.elasticsearch.core.Set.of(
                     new SortedNumericDocValuesField(aggFieldType.name(), randomLong),
                     new SortedNumericDocValuesField(aggFieldType.name(), randomLong + 1)
                 ));
@@ -288,7 +288,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingAggField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.elasticsearch.core.List.of(aggFieldType, anotherFieldType)
         );
     }
 
@@ -329,13 +329,13 @@ public class MissingAggregatorTests extends AggregatorTestCase {
                 assertEquals(finalDocsMissingField, internalMissing.getDocCount());
                 assertTrue(AggregationInspectionHelper.hasValue(internalMissing));
             },
-            org.elasticsearch.common.collect.List.of(aggFieldType, anotherFieldType)
+            org.elasticsearch.core.List.of(aggFieldType, anotherFieldType)
         );
     }
 
     public void testMultiValuedFieldWithFieldScriptWithParams() throws IOException {
         final long threshold = 10;
-        final Map<String, Object> params = org.elasticsearch.common.collect.Map.of("field", "agg_field", "threshold", threshold);
+        final Map<String, Object> params = org.elasticsearch.core.Map.of("field", "agg_field", "threshold", threshold);
         fieldScriptTestCase(new Script(ScriptType.INLINE, MockScriptEngine.NAME, FIELD_SCRIPT_PARAMS, params), threshold);
     }
 
@@ -359,7 +359,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
             if (firstValue < threshold && secondValue < threshold) {
                 docsBelowThreshold++;
             }
-            docs.add(org.elasticsearch.common.collect.Set.of(
+            docs.add(org.elasticsearch.core.Set.of(
                 new SortedNumericDocValuesField(aggFieldType.name(), firstValue),
                 new SortedNumericDocValuesField(aggFieldType.name(), secondValue)
             ));
@@ -405,7 +405,7 @@ public class MissingAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,

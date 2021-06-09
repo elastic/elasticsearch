@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.jdk.JavaVersion;
@@ -317,8 +318,8 @@ public class DateFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, 1589578382123L));
     }
 
     public void testFormatPreserveNanos() throws IOException {
@@ -329,7 +330,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         assertEquals(ft.dateTimeFormatter, DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER);
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
     }
 
     public void testFetchDocValuesNanos() throws IOException {
@@ -339,9 +340,9 @@ public class DateFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
         DocValueFormat format = ft.docValueFormat(null, null);
         String date = "2020-05-15T21:33:02.123456789Z";
-        assertEquals(org.elasticsearch.common.collect.List.of(date), fetchFromDocValues(mapperService, ft, format, date));
+        assertEquals(List.of(date), fetchFromDocValues(mapperService, ft, format, date));
         assertEquals(
-            org.elasticsearch.common.collect.List.of("2020-05-15T21:33:02.123Z"),
+            List.of("2020-05-15T21:33:02.123Z"),
             fetchFromDocValues(mapperService, ft, format, 1589578382123L)
         );
     }

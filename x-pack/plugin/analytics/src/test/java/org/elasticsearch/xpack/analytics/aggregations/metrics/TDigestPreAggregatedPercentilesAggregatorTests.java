@@ -23,7 +23,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;

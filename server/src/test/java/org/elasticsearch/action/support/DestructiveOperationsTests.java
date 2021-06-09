@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;

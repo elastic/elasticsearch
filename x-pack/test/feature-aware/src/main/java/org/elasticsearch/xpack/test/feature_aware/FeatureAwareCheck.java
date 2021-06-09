@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.test.feature_aware;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.objectweb.asm.ClassReader;

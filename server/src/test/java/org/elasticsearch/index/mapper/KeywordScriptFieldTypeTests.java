@@ -54,12 +54,12 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2, 1]}"))));
             List<String> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType ft = build("append_param", org.elasticsearch.common.collect.Map.of("param", "-suffix"));
+                KeywordScriptFieldType ft = build("append_param", org.elasticsearch.core.Map.of("param", "-suffix"));
                 StringScriptFieldData ifd = ft.fielddataBuilder("test", mockContext()::lookup).build(null, null);
                 searcher.search(new MatchAllDocsQuery(), new Collector() {
                     @Override
@@ -85,7 +85,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                         };
                     }
                 });
-                assertThat(results, equalTo(org.elasticsearch.common.collect.List.of("1-suffix", "1-suffix", "2-suffix")));
+                assertThat(results, equalTo(org.elasticsearch.core.List.of("1-suffix", "1-suffix", "2-suffix")));
             }
         }
     }
@@ -93,9 +93,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"d\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"d\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 BinaryScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder("test", mockContext()::lookup).build(null, null);
@@ -111,9 +111,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aaa\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"a\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aaa\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -125,7 +125,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(org.elasticsearch.common.collect.Map.of(), searchContext.lookup(), ctx) {
+                        return new ScoreScript(org.elasticsearch.core.Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
@@ -141,8 +141,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
@@ -153,15 +153,15 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     public void testFuzzyQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             // No edits, matches
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
             // Single insertion, matches
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caat\"]}"))));
             // Single transposition, matches
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cta\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cta\"]}"))));
             // Two insertions, no match
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caaat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"caaat\"]}"))));
             // Totally wrong, no match
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -193,9 +193,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testPrefixQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().prefixQuery("cat", null, mockContext())), equalTo(2));
@@ -218,9 +218,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -261,9 +261,9 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testRegexpQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cat\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"cata\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"dog\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
@@ -287,11 +287,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", org.elasticsearch.common.collect.Map.of("param", "-suffix"));
+                KeywordScriptFieldType fieldType = build("append_param", org.elasticsearch.core.Map.of("param", "-suffix"));
                 assertThat(searcher.count(fieldType.termQuery("1-suffix", mockContext())), equalTo(1));
             }
         }
@@ -305,14 +305,14 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [3]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [3]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [4]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(
-                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.common.collect.List.of("1", "2"), mockContext())),
+                    searcher.count(simpleMappedFieldType().termsQuery(org.elasticsearch.core.List.of("1", "2"), mockContext())),
                     equalTo(2)
                 );
             }
@@ -326,8 +326,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testWildcardQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aab\"]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"b\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().wildcardQuery("a*b", null, mockContext())), equalTo(1));
@@ -349,11 +349,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
     public void testMatchQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [1]}"))));
+            iw.addDocument(org.elasticsearch.core.List.of(new StoredField("_source", new BytesRef("{\"foo\": [2]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                KeywordScriptFieldType fieldType = build("append_param", org.elasticsearch.common.collect.Map.of("param", "-Suffix"));
+                KeywordScriptFieldType fieldType = build("append_param", org.elasticsearch.core.Map.of("param", "-Suffix"));
                 SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
                 Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));

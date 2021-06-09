@@ -17,22 +17,22 @@ import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.SpatialPrefixTree;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.XShapeCollection;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 /**
  * FieldMapper for indexing {@link org.locationtech.spatial4j.shape.Shape}s.
@@ -301,10 +302,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
     private static class LegacyGeoShapeParser extends Parser<ShapeBuilder<?, ?, ?>> {
 
-        private final GeometryParser geometryParser;
-
         private LegacyGeoShapeParser() {
-            this.geometryParser = new GeometryParser(true, true, true);
         }
 
         @Override
@@ -318,12 +316,6 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             } catch (ElasticsearchParseException e) {
                 onMalformed.accept(e);
             }
-        }
-
-        @Override
-        public Object format(ShapeBuilder<?, ?, ?> value, String format) {
-            Geometry geometry = value.buildGeometry();
-            return geometryParser.geometryFormat(format).toXContentAsObject(geometry);
         }
     }
 
@@ -361,7 +353,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                            SearchExecutionContext context) {
+                                   SearchExecutionContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
         }
 
@@ -440,6 +432,12 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
                 return termStrategy;
             }
             throw new IllegalArgumentException("Unknown prefix tree strategy [" + strategyName + "]");
+        }
+
+        @Override
+        protected Function<ShapeBuilder<?, ?, ?>, Object> getFormatter(String format) {
+            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
+            return (g) -> formatter.apply(g.buildGeometry());
         }
     }
 

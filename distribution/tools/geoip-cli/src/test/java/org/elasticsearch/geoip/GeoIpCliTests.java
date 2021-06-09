@@ -109,7 +109,7 @@ public class GeoIpCliTests extends LuceneTestCase {
     }
 
     private void verifyTarball(Map<String, byte[]> data) throws Exception {
-        for (String tgz : org.elasticsearch.common.collect.List.of("a.tgz", "b.tgz")) {
+        for (String tgz : org.elasticsearch.core.List.of("a.tgz", "b.tgz")) {
             try (
                 TarArchiveInputStream tis = new TarArchiveInputStream(
                     new GZIPInputStream(new BufferedInputStream(Files.newInputStream(target.resolve(tgz))))

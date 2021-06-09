@@ -110,7 +110,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return new IndexAnalyzers(
             singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
                 "other_lowercase", new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()),
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new LowercaseNormalizer())

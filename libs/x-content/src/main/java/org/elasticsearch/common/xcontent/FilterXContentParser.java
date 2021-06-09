@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 
 import java.io.IOException;
 import java.nio.CharBuffer;

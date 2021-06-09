@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authc.oidc;
 import org.apache.http.HttpHost;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -34,13 +34,13 @@ public class OpenIdConnectRealmSettings {
     }
 
     public static final List<String> SUPPORTED_SIGNATURE_ALGORITHMS =
-        org.elasticsearch.common.collect.List.of(
+        org.elasticsearch.core.List.of(
             "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "ES256", "ES384", "ES512", "PS256", "PS384", "PS512");
-    private static final List<String> RESPONSE_TYPES = org.elasticsearch.common.collect.List.of(
+    private static final List<String> RESPONSE_TYPES = org.elasticsearch.core.List.of(
         "code", "id_token", "id_token token");
-    public static final List<String> CLIENT_AUTH_METHODS = org.elasticsearch.common.collect.List.of(
+    public static final List<String> CLIENT_AUTH_METHODS = org.elasticsearch.core.List.of(
         "client_secret_basic", "client_secret_post", "client_secret_jwt");
-    public static final List<String> SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS = org.elasticsearch.common.collect.List.of(
+    public static final List<String> SUPPORTED_CLIENT_AUTH_JWT_ALGORITHMS = org.elasticsearch.core.List.of(
         "HS256", "HS384", "HS512");
     public static final String TYPE = "oidc";
 

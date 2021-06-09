@@ -29,6 +29,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
@@ -201,14 +202,14 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
 
     private static IndexAnalyzers createIndexAnalyzers() {
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
-            org.elasticsearch.common.collect.Map.ofEntries(
-                org.elasticsearch.common.collect.Map.entry("lowercase",
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.ofEntries(
+                Map.entry("lowercase",
                     new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
-                org.elasticsearch.common.collect.Map.entry("other_lowercase",
+                Map.entry("other_lowercase",
                     new NamedAnalyzer("other_lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer()))
             ),
-            org.elasticsearch.common.collect.Map.of(
+            Map.of(
                 "lowercase",
                 new NamedAnalyzer(
                     "lowercase",

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -95,7 +95,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         Map<String, Object> ipFilterUsage = ipFilterUsage(ipFilter);
         Map<String, Object> anonymousUsage = singletonMap("enabled", AnonymousUser.isAnonymousEnabled(settings));
         Map<String, Object> fips140Usage = fips140Usage(settings);
-        Map<String, Object> operatorPrivilegesUsage = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> operatorPrivilegesUsage = org.elasticsearch.core.Map.of(
             "available", licenseState.isAllowed(XPackLicenseState.Feature.OPERATOR_PRIVILEGES),
             "enabled", OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED.get(settings)
         );

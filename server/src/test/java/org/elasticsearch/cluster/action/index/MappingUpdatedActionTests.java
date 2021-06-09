@@ -20,7 +20,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction.AdjustableSem
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;

@@ -66,12 +66,12 @@ public class FrozenShardsDeciderService implements AutoscalingDeciderService {
 
     @Override
     public List<Setting<?>> deciderSettings() {
-        return org.elasticsearch.common.collect.List.of(MEMORY_PER_SHARD);
+        return org.elasticsearch.core.List.of(MEMORY_PER_SHARD);
     }
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return org.elasticsearch.common.collect.List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        return org.elasticsearch.core.List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
     public static class FrozenShardsReason implements AutoscalingDeciderResult.Reason {

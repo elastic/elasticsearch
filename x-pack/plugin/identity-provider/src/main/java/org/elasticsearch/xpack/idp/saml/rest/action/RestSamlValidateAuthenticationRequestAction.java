@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,7 +46,7 @@ public class RestSamlValidateAuthenticationRequestAction extends IdpBaseRestHand
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_idp/saml/validate"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_idp/saml/validate"));
     }
 
     @Override

@@ -11,7 +11,7 @@ import java.util.Set;
 
 public class Constants {
 
-    public static final Set<String> NON_OPERATOR_ACTIONS = org.elasticsearch.common.collect.Set.of(
+    public static final Set<String> NON_OPERATOR_ACTIONS = org.elasticsearch.core.Set.of(
         // "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_capacity",
         "cluster:admin/autoscaling/get_autoscaling_policy",

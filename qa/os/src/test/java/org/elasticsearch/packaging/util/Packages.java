@@ -335,7 +335,7 @@ public class Packages {
         REMOVE
     }
 
-    private static Map<PackageManagerCommand, String> RPM_OPTIONS = org.elasticsearch.common.collect.Map.of(
+    private static Map<PackageManagerCommand, String> RPM_OPTIONS = org.elasticsearch.core.Map.of(
         PackageManagerCommand.QUERY,
         "-qe",
         PackageManagerCommand.INSTALL,
@@ -348,7 +348,7 @@ public class Packages {
         "-e"
     );
 
-    private static Map<PackageManagerCommand, String> DEB_OPTIONS = org.elasticsearch.common.collect.Map.of(
+    private static Map<PackageManagerCommand, String> DEB_OPTIONS = org.elasticsearch.core.Map.of(
         PackageManagerCommand.QUERY,
         "-s",
         PackageManagerCommand.INSTALL,

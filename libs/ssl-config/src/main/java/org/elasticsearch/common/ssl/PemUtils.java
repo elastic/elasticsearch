@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import javax.crypto.Cipher;
 import javax.crypto.EncryptedPrivateKeyInfo;

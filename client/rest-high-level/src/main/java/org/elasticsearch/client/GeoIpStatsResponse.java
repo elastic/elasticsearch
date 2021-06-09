@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -141,8 +141,8 @@ public class GeoIpStatsResponse implements ToXContentObject {
         private final Map<String, DatabaseInfo> databases;
 
         public NodeInfo(Collection<String> filesInTemp, Map<String, DatabaseInfo> databases) {
-            this.filesInTemp = org.elasticsearch.common.collect.List.copyOf(filesInTemp);
-            this.databases = org.elasticsearch.common.collect.Map.copyOf(databases);
+            this.filesInTemp = org.elasticsearch.core.List.copyOf(filesInTemp);
+            this.databases = org.elasticsearch.core.Map.copyOf(databases);
         }
 
         public List<String> getFilesInTemp() {

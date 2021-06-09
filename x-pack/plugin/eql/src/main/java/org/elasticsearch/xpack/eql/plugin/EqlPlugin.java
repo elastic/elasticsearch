@@ -91,7 +91,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
             new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
             new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),

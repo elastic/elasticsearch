@@ -164,7 +164,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(
                         index.index(),
-                        i -> org.elasticsearch.common.collect.Set.of()
+                        i -> org.elasticsearch.core.Set.of()
                     );
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();

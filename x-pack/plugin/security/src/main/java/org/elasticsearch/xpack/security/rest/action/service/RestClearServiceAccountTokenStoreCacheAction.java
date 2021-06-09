@@ -32,7 +32,7 @@ public class RestClearServiceAccountTokenStoreCacheAction extends SecurityBaseRe
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(POST, "/_security/service/{namespace}/{service}/credential/token/{name}/_clear_cache"));
     }
 

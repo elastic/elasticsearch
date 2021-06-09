@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -79,18 +80,18 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
     @Override
     public void testMatches() {
         StringScriptFieldFuzzyQuery query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 1, 0, false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foa")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo", "bar")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("bar")));
+        assertTrue(query.matches(List.of("foo")));
+        assertTrue(query.matches(List.of("foa")));
+        assertTrue(query.matches(List.of("foo", "bar")));
+        assertFalse(query.matches(List.of("bar")));
         query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 0, 0, false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("foa")));
+        assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("foa")));
         query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 2, 0, false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foa")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("faa")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("faaa")));
+        assertTrue(query.matches(List.of("foo")));
+        assertTrue(query.matches(List.of("foa")));
+        assertTrue(query.matches(List.of("faa")));
+        assertFalse(query.matches(List.of("faaa")));
     }
 
     @Override

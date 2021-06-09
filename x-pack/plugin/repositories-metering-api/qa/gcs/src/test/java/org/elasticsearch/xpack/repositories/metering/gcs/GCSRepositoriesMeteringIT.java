@@ -21,7 +21,7 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected Map<String, String> repositoryLocation() {
-        return org.elasticsearch.common.collect.Map.of(
+        return org.elasticsearch.core.Map.of(
             "bucket",
             getProperty("test.gcs.bucket"),
             "base_path",
@@ -44,11 +44,11 @@ public class GCSRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPIRe
 
     @Override
     protected List<String> readCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("GetObject", "ListObjects");
+        return org.elasticsearch.core.List.of("GetObject", "ListObjects");
     }
 
     @Override
     protected List<String> writeCounterKeys() {
-        return org.elasticsearch.common.collect.List.of("InsertObject");
+        return org.elasticsearch.core.List.of("InsertObject");
     }
 }

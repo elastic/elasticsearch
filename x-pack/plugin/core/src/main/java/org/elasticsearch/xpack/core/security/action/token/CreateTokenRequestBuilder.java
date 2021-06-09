@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action.token;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 
 /**

@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -125,10 +125,10 @@ public class FileOperatorUsersStore {
     }
 
     private static final OperatorUsersDescriptor EMPTY_OPERATOR_USERS_DESCRIPTOR = new OperatorUsersDescriptor(
-        org.elasticsearch.common.collect.List.of());
+        org.elasticsearch.core.List.of());
 
     static final class Group {
-        private static final Set<String> SINGLETON_REALM_TYPES = org.elasticsearch.common.collect.Set.of(
+        private static final Set<String> SINGLETON_REALM_TYPES = org.elasticsearch.core.Set.of(
             FileRealmSettings.TYPE, NativeRealmSettings.TYPE, ReservedRealm.TYPE);
 
         private final Set<String> usernames;
@@ -238,7 +238,7 @@ public class FileOperatorUsersStore {
     private static final ConstructingObjectParser<Group, Void> GROUP_PARSER = new ConstructingObjectParser<>(
         "operator_privileges.operator.group", false,
         (Object[] arr) -> new Group(
-            org.elasticsearch.common.collect.Set.copyOf((List<String>)arr[0]),
+            org.elasticsearch.core.Set.copyOf((List<String>)arr[0]),
             (String) arr[1],
             (String) arr[2],
             (String) arr[3]

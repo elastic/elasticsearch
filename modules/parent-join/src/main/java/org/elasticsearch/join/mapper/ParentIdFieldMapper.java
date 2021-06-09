@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -75,7 +76,7 @@ public final class ParentIdFieldMapper extends FieldMapper {
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // Although this is an internal field, we return it in the list of all field types. So we
             // provide an empty value fetcher here instead of throwing an error.
-            return lookup -> org.elasticsearch.common.collect.List.of();
+            return lookup -> List.of();
         }
 
         @Override

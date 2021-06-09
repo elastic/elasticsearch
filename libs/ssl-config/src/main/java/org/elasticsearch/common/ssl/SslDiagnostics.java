@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;

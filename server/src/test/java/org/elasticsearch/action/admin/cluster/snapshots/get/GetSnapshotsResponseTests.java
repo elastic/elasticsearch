@@ -12,6 +12,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
@@ -41,7 +42,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
     @Override
     protected ToXContent.Params getToXContentParams() {
         // Explicitly include the index details, excluded by default, since this is required for a faithful round-trip
-        return new ToXContent.MapParams(org.elasticsearch.common.collect.Map.of(INDEX_DETAILS_XCONTENT_PARAM, "true"));
+        return new ToXContent.MapParams(Map.of(INDEX_DETAILS_XCONTENT_PARAM, "true"));
     }
 
     @Override

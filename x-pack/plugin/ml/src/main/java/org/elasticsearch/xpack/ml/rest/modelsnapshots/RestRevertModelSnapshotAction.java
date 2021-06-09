@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.modelsnapshots;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,7 +29,7 @@ public class RestRevertModelSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert")
                 .replaces(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/model_snapshots/{" + SNAPSHOT_ID + "}/_revert",
                     RestApiVersion.V_7).build()

@@ -21,7 +21,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

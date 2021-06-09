@@ -515,7 +515,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
-        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.common.collect.Set.of(
+        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.core.Set.of(
             SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
         );

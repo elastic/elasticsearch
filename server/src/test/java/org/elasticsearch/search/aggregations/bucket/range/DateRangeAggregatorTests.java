@@ -24,7 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
@@ -89,13 +89,13 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     public void testMatchesSortedNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
                     new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedNumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
                     new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
                 )
@@ -112,13 +112,13 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
     public void testMatchesNumericDocValues() throws IOException {
         testBothResolutions(new MatchAllDocsQuery(), (iw, resolution) -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T1)),
                     new LongPoint(DATE_FIELD_NAME, resolution.convert(T1))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(DATE_FIELD_NAME, resolution.convert(T2)),
                     new LongPoint(DATE_FIELD_NAME, resolution.convert(T2))
                 )
@@ -159,31 +159,31 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(DATE_FIELD_NAME, Long.MIN_VALUE),
                         new LongPoint(DATE_FIELD_NAME, Long.MIN_VALUE)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(DATE_FIELD_NAME, 7),
                         new LongPoint(DATE_FIELD_NAME, 7)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(DATE_FIELD_NAME, 2),
                         new LongPoint(DATE_FIELD_NAME, 2)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(DATE_FIELD_NAME, 3),
                         new LongPoint(DATE_FIELD_NAME, 3)
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(DATE_FIELD_NAME, Long.MAX_VALUE),
                         new LongPoint(DATE_FIELD_NAME, Long.MAX_VALUE)
                     )
@@ -240,13 +240,13 @@ public class DateRangeAggregatorTests extends AggregatorTestCase {
 
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(NUMBER_FIELD_NAME, 7),
                     new IntPoint(NUMBER_FIELD_NAME, 7)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(NUMBER_FIELD_NAME, 1),
                     new IntPoint(NUMBER_FIELD_NAME, 1)
                 )

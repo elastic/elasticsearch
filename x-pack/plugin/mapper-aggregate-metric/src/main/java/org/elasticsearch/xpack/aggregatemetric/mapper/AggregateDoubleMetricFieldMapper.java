@@ -153,7 +153,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return org.elasticsearch.common.collect.List.of(ignoreMalformed, metrics, defaultMetric, meta);
+            return org.elasticsearch.core.List.of(ignoreMalformed, metrics, defaultMetric, meta);
         }
 
         @Override

@@ -74,7 +74,7 @@ public class TransportClearPrivilegesCacheAction extends TransportNodesAction<Cl
             cacheInvalidatorRegistry.invalidateCache("application_privileges");
         } else {
             cacheInvalidatorRegistry.invalidateByKey("application_privileges",
-                org.elasticsearch.common.collect.List.of(request.getApplicationNames()));
+                org.elasticsearch.core.List.of(request.getApplicationNames()));
         }
         if (request.clearRolesCache()) {
             rolesStore.invalidateAll();

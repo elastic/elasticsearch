@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
@@ -49,7 +50,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
         store2 = mock(ServiceAccountTokenStore.class);
         store3 = mock(ServiceAccountTokenStore.class);
         compositeStore = new CompositeServiceAccountTokenStore(
-            org.elasticsearch.common.collect.List.of(store1, store2, store3), threadContext);
+            List.of(store1, store2, store3), threadContext);
     }
 
     public void testAuthenticate() throws ExecutionException, InterruptedException {
@@ -137,7 +138,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
                 if (store1Error) {
                     listener.onFailure(e);
                 } else {
-                    listener.onResponse(org.elasticsearch.common.collect.List.of());
+                    listener.onResponse(List.of());
                 }
             }
             return null;
@@ -158,7 +159,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
                 listener.onResponse(tokenInfos);
             } else  {
                 if (store1Error) {
-                    listener.onResponse(org.elasticsearch.common.collect.List.of());
+                    listener.onResponse(List.of());
                 } else {
                     listener.onFailure(e);
                 }
@@ -170,7 +171,7 @@ public class CompositeServiceAccountTokenStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             final ActionListener<Collection<TokenInfo>> listener =
                 (ActionListener<Collection<TokenInfo>>) invocationOnMock.getArguments()[1];
-            listener.onResponse(org.elasticsearch.common.collect.List.of());
+            listener.onResponse(List.of());
             return null;
         }).when(store3).findTokensFor(any(), any());
 

@@ -78,8 +78,7 @@ public class SearchableSnapshotEnableAllocationDeciderIntegTests extends BaseSea
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
 
-        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.common.collect.List.of(indexName))
-            .snapshotId();
+        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", org.elasticsearch.core.List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
         return mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY);
     }

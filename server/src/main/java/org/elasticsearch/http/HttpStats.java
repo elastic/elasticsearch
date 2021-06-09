@@ -32,7 +32,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     }
 
     public HttpStats(long serverOpen, long totalOpened) {
-        this(org.elasticsearch.common.collect.List.of(), serverOpen, totalOpened);
+        this(org.elasticsearch.core.List.of(), serverOpen, totalOpened);
     }
 
     public HttpStats(StreamInput in) throws IOException {
@@ -41,7 +41,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             clientStats = in.readList(ClientStats::new);
         } else {
-            clientStats = org.elasticsearch.common.collect.List.of();
+            clientStats = org.elasticsearch.core.List.of();
         }
     }
 

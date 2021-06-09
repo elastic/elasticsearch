@@ -10,8 +10,7 @@ package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.parsers.ShapeParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -95,7 +94,7 @@ public final class GeoJson {
             @Override
             public XContentBuilder visit(Circle circle) throws IOException {
                 builder.field(FIELD_RADIUS.getPreferredName(), DistanceUnit.METERS.toString(circle.getRadiusMeters()));
-                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.field(FIELD_COORDINATES.getPreferredName());
                 return coordinatesToXContent(circle.getY(), circle.getX(), circle.getZ());
             }
 
@@ -110,7 +109,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(Line line) throws IOException {
-                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.field(FIELD_COORDINATES.getPreferredName());
                 return coordinatesToXContent(line);
             }
 
@@ -121,7 +120,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(MultiLine multiLine) throws IOException {
-                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.field(FIELD_COORDINATES.getPreferredName());
                 builder.startArray();
                 for (int i = 0; i < multiLine.size(); i++) {
                     coordinatesToXContent(multiLine.get(i));
@@ -131,7 +130,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(MultiPoint multiPoint) throws IOException {
-                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.startArray(FIELD_COORDINATES.getPreferredName());
                 for (int i = 0; i < multiPoint.size(); i++) {
                     Point p = multiPoint.get(i);
                     builder.startArray().value(p.getX()).value(p.getY());
@@ -145,7 +144,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(MultiPolygon multiPolygon) throws IOException {
-                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.startArray(FIELD_COORDINATES.getPreferredName());
                 for (int i = 0; i < multiPolygon.size(); i++) {
                     builder.startArray();
                     coordinatesToXContent(multiPolygon.get(i));
@@ -156,13 +155,13 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(Point point) throws IOException {
-                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.field(FIELD_COORDINATES.getPreferredName());
                 return coordinatesToXContent(point.getY(), point.getX(), point.getZ());
             }
 
             @Override
             public XContentBuilder visit(Polygon polygon) throws IOException {
-                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.startArray(FIELD_COORDINATES.getPreferredName());
                 coordinatesToXContent(polygon.getPolygon());
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                     coordinatesToXContent(polygon.getHole(i));
@@ -172,7 +171,7 @@ public final class GeoJson {
 
             @Override
             public XContentBuilder visit(Rectangle rectangle) throws IOException {
-                builder.startArray(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                builder.startArray(FIELD_COORDINATES.getPreferredName());
                 coordinatesToXContent(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ()); // top left
                 coordinatesToXContent(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ()); // bottom right
                 return builder.endArray();
@@ -221,7 +220,7 @@ public final class GeoJson {
             @Override
             public Void visit(Circle circle) {
                 root.put(FIELD_RADIUS.getPreferredName(), DistanceUnit.METERS.toString(circle.getRadiusMeters()));
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coordinatesToList(circle.getY(), circle.getX(), circle.getZ()));
+                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(circle.getY(), circle.getX(), circle.getZ()));
                 return null;
             }
 
@@ -238,7 +237,7 @@ public final class GeoJson {
 
             @Override
             public Void visit(Line line) {
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coordinatesToList(line));
+                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(line));
                 return null;
             }
 
@@ -253,7 +252,7 @@ public final class GeoJson {
                 for (int i = 0; i < multiLine.size(); i++) {
                     lines.add(coordinatesToList(multiLine.get(i)));
                 }
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), lines);
+                root.put(FIELD_COORDINATES.getPreferredName(), lines);
                 return null;
             }
 
@@ -270,7 +269,7 @@ public final class GeoJson {
                     }
                     points.add(point);
                 }
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), points);
+                root.put(FIELD_COORDINATES.getPreferredName(), points);
                 return null;
             }
 
@@ -280,13 +279,13 @@ public final class GeoJson {
                 for (int i = 0; i < multiPolygon.size(); i++) {
                     polygons.add(coordinatesToList(multiPolygon.get(i)));
                 }
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), polygons);
+                root.put(FIELD_COORDINATES.getPreferredName(), polygons);
                 return null;
             }
 
             @Override
             public Void visit(Point point) {
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coordinatesToList(point.getY(), point.getX(), point.getZ()));
+                root.put(FIELD_COORDINATES.getPreferredName(), coordinatesToList(point.getY(), point.getX(), point.getZ()));
                 return null;
             }
 
@@ -297,7 +296,7 @@ public final class GeoJson {
                 for (int i = 0; i < polygon.getNumberOfHoles(); i++) {
                     coords.add(coordinatesToList(polygon.getHole(i)));
                 }
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coords);
+                root.put(FIELD_COORDINATES.getPreferredName(), coords);
                 return null;
             }
 
@@ -306,7 +305,7 @@ public final class GeoJson {
                 List<Object> coords = new ArrayList<>(2);
                 coords.add(coordinatesToList(rectangle.getMaxY(), rectangle.getMinX(), rectangle.getMinZ())); // top left
                 coords.add(coordinatesToList(rectangle.getMinY(), rectangle.getMaxX(), rectangle.getMaxZ())); // bottom right
-                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coords);
+                root.put(FIELD_COORDINATES.getPreferredName(), coords);
                 return null;
             }
 

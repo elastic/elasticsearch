@@ -78,7 +78,7 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(LocalStateSearchableSnapshots.class);
+        return org.elasticsearch.core.List.of(LocalStateSearchableSnapshots.class);
     }
 
     @Override

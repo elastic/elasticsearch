@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

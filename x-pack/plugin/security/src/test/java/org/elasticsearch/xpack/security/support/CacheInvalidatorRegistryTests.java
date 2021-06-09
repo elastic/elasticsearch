@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.security.support;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry.CacheInvalidator;
 import org.junit.Before;
@@ -67,15 +69,15 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final CacheInvalidator invalidator2 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("service2", invalidator2);
 
-        cacheInvalidatorRegistry.invalidateByKey("service2", org.elasticsearch.common.collect.List.of("k1", "k2"));
+        cacheInvalidatorRegistry.invalidateByKey("service2", List.of("k1", "k2"));
         verify(invalidator1, never()).invalidate(any());
-        verify(invalidator2).invalidate(org.elasticsearch.common.collect.List.of("k1", "k2"));
+        verify(invalidator2).invalidate(List.of("k1", "k2"));
 
         // Trying to invalidate entries from a non-existing cache will throw error
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class,
                 () -> cacheInvalidatorRegistry.invalidateByKey("non-exist",
-                    org.elasticsearch.common.collect.List.of("k1", "k2")));
+                    List.of("k1", "k2")));
         assertThat(e.getMessage(), containsString("No cache named [non-exist] is found"));
     }
 
@@ -104,20 +106,20 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
 
         final NullPointerException e1 =
             expectThrows(NullPointerException.class, () -> cacheInvalidatorRegistry.registerAlias(null,
-                org.elasticsearch.common.collect.Set.of()));
+                Set.of()));
         assertThat(e1.getMessage(), containsString("cache alias cannot be null"));
 
         final IllegalArgumentException e2 =
             expectThrows(IllegalArgumentException.class, () -> cacheInvalidatorRegistry.registerAlias("alias1",
-                org.elasticsearch.common.collect.Set.of()));
+                Set.of()));
         assertThat(e2.getMessage(), containsString("cache names cannot be empty for aliasing"));
 
         cacheInvalidatorRegistry.registerAlias("alias1",
-            randomFrom(org.elasticsearch.common.collect.Set.of("cache1"), org.elasticsearch.common.collect.Set.of("cache1", "cache2")));
+            randomFrom(Set.of("cache1"), Set.of("cache1", "cache2")));
 
         final IllegalArgumentException e3 =
             expectThrows(IllegalArgumentException.class, () -> cacheInvalidatorRegistry.registerAlias("alias1",
-                org.elasticsearch.common.collect.Set.of("cache1")));
+                Set.of("cache1")));
         assertThat(e3.getMessage(), containsString("cache alias already exists"));
 
         // validation should pass
@@ -127,7 +129,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
     public void testValidateWillThrowForClashingAliasAndCacheNames() {
         final CacheInvalidator invalidator1 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("cache1", invalidator1);
-        cacheInvalidatorRegistry.registerAlias("cache1", org.elasticsearch.common.collect.Set.of("cache1"));
+        cacheInvalidatorRegistry.registerAlias("cache1", Set.of("cache1"));
         final IllegalStateException e =
             expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
         assertThat(e.getMessage(), containsString("cache alias cannot clash with cache name"));
@@ -136,7 +138,7 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
     public void testValidateWillThrowForNotFoundCacheNames() {
         final CacheInvalidator invalidator1 = mock(CacheInvalidator.class);
         cacheInvalidatorRegistry.registerCacheInvalidator("cache1", invalidator1);
-        cacheInvalidatorRegistry.registerAlias("alias1", org.elasticsearch.common.collect.Set.of("cache1", "cache2"));
+        cacheInvalidatorRegistry.registerAlias("alias1", Set.of("cache1", "cache2"));
         final IllegalStateException e =
             expectThrows(IllegalStateException.class, () -> cacheInvalidatorRegistry.validate());
         assertThat(e.getMessage(), containsString("cache names not found: [cache2]"));

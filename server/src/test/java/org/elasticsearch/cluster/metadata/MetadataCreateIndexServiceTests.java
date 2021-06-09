@@ -35,7 +35,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -787,7 +787,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         assertThat(
             expectThrows(IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, org.elasticsearch.common.collect.Set.of(), newIndex,
+                () -> clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(), newIndex,
                     (state, reason) -> state, null)).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -812,7 +812,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         };
 
         ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState,
-            org.elasticsearch.common.collect.Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata, rerouteRoutingTable, null);
+            org.elasticsearch.core.Set.of(INDEX_READ_ONLY_BLOCK), newIndexMetadata, rerouteRoutingTable, null);
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
@@ -841,7 +841,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
 
-        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, org.elasticsearch.common.collect.Set.of(
+        ClusterState updatedClusterState = clusterStateCreateIndex(currentClusterState, org.elasticsearch.core.Set.of(
             INDEX_READ_ONLY_BLOCK), newIndexMetadata, (clusterState, y) -> clusterState, metadataTransformer);
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).containsKey("my-index"));
         assertNotNull(updatedClusterState.metadata().findAllAliases(new String[]{"my-index"}).get("my-index"));

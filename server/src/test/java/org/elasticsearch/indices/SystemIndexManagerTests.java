@@ -34,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,7 +79,7 @@ public class SystemIndexManagerTests extends ESTestCase {
     private static final SystemIndices.Feature FEATURE = new SystemIndices.Feature(
         "foo",
         "a test feature",
-        org.elasticsearch.common.collect.List.of(DESCRIPTOR)
+        org.elasticsearch.core.List.of(DESCRIPTOR)
     );
 
     private Client client;
@@ -107,9 +108,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.common.collect.List.of(d2))));
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -145,9 +146,9 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setOrigin("FAKE_ORIGIN")
             .build();
 
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of(
-            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.common.collect.List.of(d1)),
-            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.common.collect.List.of(d2))));;
+        SystemIndices systemIndices = new SystemIndices(Map.of(
+            "index 1", new SystemIndices.Feature("index 1", "index 1 feature", org.elasticsearch.core.List.of(d1)),
+            "index 2", new SystemIndices.Feature("index 2", "index 2 feature", org.elasticsearch.core.List.of(d2))));;
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final List<SystemIndexDescriptor> eligibleDescriptors = manager.getEligibleDescriptors(
@@ -162,7 +163,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
@@ -174,7 +175,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade unhealthy indices.
      */
     public void testManagerSkipsIndicesWithRedStatus() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -188,7 +189,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(5);
@@ -201,7 +202,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState();
@@ -214,7 +215,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));
@@ -227,7 +228,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
      */
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings(null)));
@@ -240,7 +241,7 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager submits the expected request for an index whose mappings are out-of-date.
      */
     public void testManagerSubmitsPutRequest() {
-        SystemIndices systemIndices = new SystemIndices(org.elasticsearch.common.collect.Map.of("MyIndex", FEATURE));
+        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
         SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
 
         final ClusterState.Builder clusterStateBuilder = createClusterState(Strings.toString(getMappings("1.0.0")));

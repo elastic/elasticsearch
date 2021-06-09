@@ -34,7 +34,7 @@ public class RestClearApiKeyCacheAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_security/api_key/{ids}/_clear_cache"));
     }
 
     @Override

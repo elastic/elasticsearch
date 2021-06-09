@@ -111,7 +111,10 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (headers.containsKey("Warning")) {
-                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    if (headers.containsKey("X-elastic-product")) {
+                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
                     }
                     return headers;
                 }

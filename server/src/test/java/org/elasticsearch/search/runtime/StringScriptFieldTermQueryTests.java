@@ -12,6 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
@@ -60,14 +61,14 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
     @Override
     public void testMatches() {
         StringScriptFieldTermQuery query = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("foO")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("bar")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo", "bar")));
+        assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("foO")));
+        assertFalse(query.matches(List.of("bar")));
+        assertTrue(query.matches(List.of("foo", "bar")));
 
         StringScriptFieldTermQuery ciQuery = new StringScriptFieldTermQuery(randomScript(), leafFactory, "test", "foo", true);
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("Foo")));
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("fOo", "bar")));
+        assertTrue(ciQuery.matches(List.of("Foo")));
+        assertTrue(ciQuery.matches(List.of("fOo", "bar")));
     }
 
     @Override
@@ -90,6 +91,6 @@ public class StringScriptFieldTermQueryTests extends AbstractStringScriptFieldQu
                 fail();
             }
         });
-        assertThat(allTerms, equalTo(org.elasticsearch.common.collect.Set.of(new Term(query.fieldName(), query.term()))));
+        assertThat(allTerms, equalTo(org.elasticsearch.core.Set.of(new Term(query.fieldName(), query.term()))));
     }
 }

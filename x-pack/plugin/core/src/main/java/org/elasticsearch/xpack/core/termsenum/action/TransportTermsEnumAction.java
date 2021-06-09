@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.MemoizedSupplier;
+import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
@@ -303,7 +303,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                         request.caseInsensitive(),
                         request.string() == null ? "" : request.string(),
                         queryShardContext,
-                        request.searchAfter()                        
+                        request.searchAfter()
                     );
                     if (terms != null) {
                         shardTermsEnums.add(terms);
@@ -315,7 +315,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
             }
             MultiShardTermsEnum te = new MultiShardTermsEnum(shardTermsEnums.toArray(new TermsEnum[0]));
-            
+
 
             int shard_size = request.size();
             // All the above prep might take a while - do a timer check now before we continue further.
@@ -350,27 +350,27 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         }
         return new NodeTermsEnumResponse(request.nodeId(), termsList, error, true);
     }
-    
-    // TODO remove this so we can shift code to server module - write a separate Interceptor class to 
-    // rewrite requests according to security rules 
+
+    // TODO remove this so we can shift code to server module - write a separate Interceptor class to
+    // rewrite requests according to security rules
     private boolean canAccess(
         ShardId shardId,
         NodeTermsEnumRequest request,
         XPackLicenseState frozenLicenseState,
-        ThreadContext threadContext        
+        ThreadContext threadContext
     ) throws IOException {
         if (frozenLicenseState.isSecurityEnabled()) {
-            MemoizedSupplier<Boolean> licenseChecker = new MemoizedSupplier<>(() -> 
+            MemoizedSupplier<Boolean> licenseChecker = new MemoizedSupplier<>(() ->
                 frozenLicenseState.checkFeature(Feature.SECURITY_DLS_FLS));
             IndicesAccessControl indicesAccessControl = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
             IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(shardId.getIndexName());
 
-         
+
             if (indexAccessControl != null) {
                 final boolean dls = indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions();
                 if ( dls && licenseChecker.get()) {
-                    // Check to see if any of the roles defined for the current user rewrite to match_all 
-                    
+                    // Check to see if any of the roles defined for the current user rewrite to match_all
+
                     SecurityContext securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
                     final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
                     final SearchExecutionContext queryShardContext = indexService.newSearchExecutionContext(
@@ -590,7 +590,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         request.startTimerOnDataNode();
 
         // DLS/FLS check copied from ResizeRequestInterceptor - check permissions and
-        // any index_filter canMatch checks on network thread before allocating work        
+        // any index_filter canMatch checks on network thread before allocating work
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
         final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
         for (ShardId shardId : request.shardIds().toArray(new ShardId[0])) {
@@ -605,13 +605,13 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
         if (request.shardIds().size() == 0) {
             listener.onResponse(new NodeTermsEnumResponse(request.nodeId(), Collections.emptyList(), null, true));
         } else {
-            // Use the search threadpool if its queue is empty            
+            // Use the search threadpool if its queue is empty
             assert transportService.getThreadPool()
                 .executor(
                     ThreadPool.Names.SEARCH
                 ) instanceof EsThreadPoolExecutor : "SEARCH threadpool must be an instance of ThreadPoolExecutor";
             EsThreadPoolExecutor ex = (EsThreadPoolExecutor) transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
-            final String executorName = ex.getQueue().size() == 0 ? ThreadPool.Names.SEARCH : shardExecutor;            
+            final String executorName = ex.getQueue().size() == 0 ? ThreadPool.Names.SEARCH : shardExecutor;
             transportService.getThreadPool()
                 .executor(executorName)
                 .execute(ActionRunnable.supply(listener, () -> dataNodeOperation(request, task)));

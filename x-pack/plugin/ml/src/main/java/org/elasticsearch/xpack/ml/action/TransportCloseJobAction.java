@@ -235,7 +235,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
 
     void checkDatafeedsHaveStopped(Collection<String> jobIds, PersistentTasksCustomMetadata tasksMetadata,
                                    ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(jobIds, ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(jobIds, ActionListener.wrap(
                 datafeedIds -> {
                     for (String datafeedId : datafeedIds) {
                         DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasksMetadata);

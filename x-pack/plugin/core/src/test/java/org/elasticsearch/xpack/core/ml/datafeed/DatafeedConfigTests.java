@@ -101,8 +101,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         return createRandomizedDatafeedConfigBuilder(jobId, datafeedId, bucketSpanMillis).build();
     }
 
-    private static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder(datafeedId, jobId);
+    static DatafeedConfig.Builder createRandomizedDatafeedConfigBuilder(String jobId, String datafeedId, long bucketSpanMillis) {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder();
+        if (jobId != null) {
+            builder.setJobId(jobId);
+        }
+        if (datafeedId != null) {
+            builder.setId(datafeedId);
+        }
         builder.setIndices(randomStringList(1, 10));
         if (randomBoolean()) {
             builder.setQueryProvider(createRandomValidQueryProvider(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));

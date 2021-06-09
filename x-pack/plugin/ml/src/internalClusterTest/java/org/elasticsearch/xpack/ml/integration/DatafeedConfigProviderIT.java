@@ -336,15 +336,21 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Set<String>> datafeedIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList("new-job"), actionListener),
-                datafeedIdsHolder, exceptionHolder);
+        blockingCall(
+            actionListener -> datafeedConfigProvider.findDatafeedIdsForJobIds(
+                Collections.singletonList("new-job"),
+                actionListener
+            ),
+            datafeedIdsHolder,
+            exceptionHolder
+        );
         assertThat(datafeedIdsHolder.get(), empty());
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList("j2"), actionListener),
+        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList("j2"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
         assertThat(datafeedIdsHolder.get(), contains("foo-2"));
 
-        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedsForJobIds(Arrays.asList("j3", "j1"), actionListener),
+        blockingCall(actionListener -> datafeedConfigProvider.findDatafeedIdsForJobIds(Arrays.asList("j3", "j1"), actionListener),
                 datafeedIdsHolder, exceptionHolder);
         assertThat(datafeedIdsHolder.get(), contains("bar-1", "foo-1"));
     }

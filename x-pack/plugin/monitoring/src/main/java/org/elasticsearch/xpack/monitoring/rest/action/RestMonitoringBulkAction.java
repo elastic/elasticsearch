@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
+import static org.elasticsearch.core.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 

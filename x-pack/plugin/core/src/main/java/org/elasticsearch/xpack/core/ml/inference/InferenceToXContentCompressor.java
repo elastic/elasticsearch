@@ -8,10 +8,9 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -29,8 +28,6 @@ import org.elasticsearch.xpack.core.ml.inference.utils.SimpleBoundedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Map;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -47,24 +44,24 @@ public final class InferenceToXContentCompressor {
 
     private InferenceToXContentCompressor() {}
 
-    public static <T extends ToXContentObject> String deflate(T objectToCompress) throws IOException {
+    public static <T extends ToXContentObject> BytesReference deflate(T objectToCompress) throws IOException {
         BytesReference reference = XContentHelper.toXContent(objectToCompress, XContentType.JSON, false);
         return deflate(reference);
     }
 
-    public static <T> T inflate(String compressedString,
+    public static <T> T inflate(BytesReference compressedBytes,
                                 CheckedFunction<XContentParser, T, IOException> parserFunction,
                                 NamedXContentRegistry xContentRegistry) throws IOException {
-        return inflate(compressedString, parserFunction, xContentRegistry, MAX_INFLATED_BYTES);
+        return inflate(compressedBytes, parserFunction, xContentRegistry, MAX_INFLATED_BYTES);
     }
 
-    static <T> T inflate(String compressedString,
+    static <T> T inflate(BytesReference compressedBytes,
                          CheckedFunction<XContentParser, T, IOException> parserFunction,
                          NamedXContentRegistry xContentRegistry,
                          long maxBytes) throws IOException {
         try(XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE,
-            inflate(compressedString, maxBytes))) {
+            inflate(compressedBytes, maxBytes))) {
             return parserFunction.apply(parser);
         } catch (XContentParseException parseException) {
             SimpleBoundedInputStream.StreamSizeExceededException streamSizeCause =
@@ -82,32 +79,31 @@ public final class InferenceToXContentCompressor {
         }
     }
 
-    static Map<String, Object> inflateToMap(String compressedString) throws IOException {
+    static Map<String, Object> inflateToMap(BytesReference compressedBytes) throws IOException {
         // Don't need the xcontent registry as we are not deflating named objects.
         try(XContentParser parser = JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
             LoggingDeprecationHandler.INSTANCE,
-            inflate(compressedString, MAX_INFLATED_BYTES))) {
+            inflate(compressedBytes, MAX_INFLATED_BYTES))) {
             return parser.mapOrdered();
         }
     }
 
-    static InputStream inflate(String compressedString, long streamSize) throws IOException {
-        byte[] compressedBytes = Base64.getDecoder().decode(compressedString.getBytes(StandardCharsets.UTF_8));
+    static InputStream inflate(BytesReference compressedBytes, long streamSize) throws IOException {
         // If the compressed length is already too large, it make sense that the inflated length would be as well
         // In the extremely small string case, the compressed data could actually be longer than the compressed stream
-        if (compressedBytes.length > Math.max(100L, streamSize)) {
+        if (compressedBytes.length() > Math.max(100L, streamSize)) {
             throw new CircuitBreakingException("compressed stream is longer than maximum allowed bytes [" + streamSize + "]",
                 CircuitBreaker.Durability.PERMANENT);
         }
-        InputStream gzipStream = new GZIPInputStream(new BytesArray(compressedBytes).streamInput(), BUFFER_SIZE);
+        InputStream gzipStream = new GZIPInputStream(compressedBytes.streamInput(), BUFFER_SIZE);
         return new SimpleBoundedInputStream(gzipStream, streamSize);
     }
 
-    private static String deflate(BytesReference reference) throws IOException {
+    private static BytesReference deflate(BytesReference reference) throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         try (OutputStream compressedOutput = new GZIPOutputStream(out, BUFFER_SIZE)) {
             reference.writeTo(compressedOutput);
         }
-        return new String(Base64.getEncoder().encode(BytesReference.toBytes(out.bytes())), StandardCharsets.UTF_8);
+        return out.bytes();
     }
 }

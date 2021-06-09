@@ -21,7 +21,7 @@ import com.google.api.client.http.HttpUnsuccessfulResponseHandler;
 import com.google.api.client.util.ExponentialBackOff;
 import com.google.api.client.util.Sleeper;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;

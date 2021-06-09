@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.test.ESTestCase;

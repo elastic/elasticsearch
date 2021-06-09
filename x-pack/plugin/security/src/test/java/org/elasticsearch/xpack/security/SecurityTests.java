@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,10 +36,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
@@ -84,7 +80,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
@@ -92,7 +87,6 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -529,7 +523,33 @@ public class SecurityTests extends ESTestCase {
         }
     }
 
-    public void testSecurityHandlerIsAlwaysInstalled() throws IllegalAccessException {
+    public void testSecurityPluginInstallsRestHandlerWrapperEvenIfSecurityIsDisabled() throws IllegalAccessException {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", false)
+            .put("path.home", createTempDir())
+            .build();
+        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        ThreadPool threadPool = new TestThreadPool(getTestName());
+
+        try {
+            UsageService usageService = new UsageService();
+            Security security = new Security(settings, null);
+
+            ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
+                threadPool, Arrays.asList(security), null, null, usageService, null);
+            actionModule.initRestHandlers(null);
+
+            assertTrue(security.getRestHandlerWrapper(threadPool.getThreadContext()) != null);
+
+        } finally {
+            threadPool.shutdown();
+        }
+
+    }
+
+    public void testSecurityRestHandlerWrapperCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
@@ -565,44 +585,6 @@ public class SecurityTests extends ESTestCase {
             threadPool.shutdown();
             appender.stop();
             Loggers.removeAppender(amLogger, appender);
-        }
-    }
-
-    public void test3rdPartyHandlerIsNotInstalled() {
-        Settings settings = Settings.builder()
-            .put("xpack.security.enabled", false)
-            .put("path.home", createTempDir())
-            .build();
-
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
-        ThreadPool threadPool = new TestThreadPool(getTestName());
-
-        class FakeHandler implements RestHandler {
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            }
-        }
-        ActionPlugin secPlugin = new ActionPlugin() {
-            @Override
-            public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-                return handler -> new FakeHandler();
-            }
-        };
-
-        try {
-            UsageService usageService = new UsageService();
-            Security security = new Security(settings, null);
-
-            Exception e = expectThrows(IllegalArgumentException.class, () ->
-                new ActionModule(settingsModule.getSettings(),
-                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, Arrays.asList(security, secPlugin), null, null, usageService, null)
-            );
-            assertThat(e.getMessage(), endsWith("plugin tried to install a custom REST wrapper. This functionality is not available " +
-                "anymore."));
-        } finally {
-            threadPool.shutdown();
         }
     }
 

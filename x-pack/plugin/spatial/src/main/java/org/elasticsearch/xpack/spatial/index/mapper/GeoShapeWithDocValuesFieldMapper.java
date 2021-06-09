@@ -139,7 +139,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, false, hasDocValues, false, parser, orientation, meta);
+            super(name, indexed, false, hasDocValues, parser, orientation, meta);
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {

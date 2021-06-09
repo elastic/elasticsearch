@@ -123,15 +123,22 @@ public class DocumentFieldTests extends ESTestCase {
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                     return Tuple.tuple(listField, listField);
                 case 2:
-                    List<Object> objectValues = randomList(1, 5, () ->
-                        Map.of(randomAlphaOfLength(5), randomInt(),
-                            randomAlphaOfLength(5), randomBoolean(),
-                            randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                    List<Object> objectValues = randomList(1, 5, () -> mapWithRandomKeys());
                     DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                     return Tuple.tuple(objectField, objectField);
                 default:
                     throw new IllegalStateException();
             }
         }
+    }
+
+    public static Map<String, Object> mapWithRandomKeys() {
+        String k1 = randomAlphaOfLength(5);
+        String k2 = randomValueOtherThan(k1, () -> randomAlphaOfLength(5));
+        String k3 = randomValueOtherThanMany(t -> t.equals(k1) || t.equals(k2), () -> randomAlphaOfLength(5));
+
+        return Map.of(k1, randomInt(),
+            k2, randomBoolean(),
+            k3, randomAlphaOfLength(10));
     }
 }

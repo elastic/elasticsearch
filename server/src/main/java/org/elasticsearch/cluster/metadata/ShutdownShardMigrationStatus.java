@@ -41,6 +41,18 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         this.reason = in.readOptionalString();
     }
 
+    public long getShardsRemaining() {
+        return shardsRemaining;
+    }
+
+    public String getReason() {
+        return reason;
+    }
+
+    public SingleNodeShutdownMetadata.Status getStatus() {
+        return status;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -58,10 +70,6 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         out.writeEnum(status);
         out.writeLong(shardsRemaining);
         out.writeOptionalString(reason);
-    }
-
-    public SingleNodeShutdownMetadata.Status getStatus() {
-        return status;
     }
 
     @Override

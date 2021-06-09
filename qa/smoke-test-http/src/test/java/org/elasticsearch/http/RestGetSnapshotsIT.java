@@ -91,7 +91,19 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         final List<String> names = AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(6, 20));
         for (GetSnapshotsAction.SortBy sort : GetSnapshotsAction.SortBy.values()) {
             logger.info("--> testing pagination for [{}]", sort);
-            doTestResponseSizeLimit(sort, repoName, names);
+            final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort);
+            final List<SnapshotInfo> batch1 = sortedWithLimit(repoName, sort, null, 2);
+            assertEquals(batch1, allSnapshotsSorted.subList(0, 2));
+            final List<SnapshotInfo> batch2 = sortedWithLimit(repoName, sort, batch1.get(1), 2);
+            assertEquals(batch2, allSnapshotsSorted.subList(2, 4));
+            final int lastBatch = names.size() - batch1.size() - batch2.size();
+            final List<SnapshotInfo> batch3 = sortedWithLimit(repoName, sort, batch2.get(1), lastBatch);
+            assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), names.size()));
+            final List<SnapshotInfo> batch3NoLimit = sortedWithLimit(repoName, sort, batch2.get(1), 0);
+            assertEquals(batch3, batch3NoLimit);
+            final List<SnapshotInfo> batch3LargeLimit =
+                    sortedWithLimit(repoName, sort, batch2.get(1), lastBatch + randomIntBetween(1, 100));
+            assertEquals(batch3, batch3LargeLimit);
         }
     }
 
@@ -141,28 +153,17 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
-            final List<SnapshotInfo> subsetSorted = sortedWithSize(repoName, sort, i);
+            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, i);
             assertEquals(subsetSorted, allSorted.subList(0, i));
         }
 
         for (int j = 0; j < allSnapshotNames.size(); j++) {
             final SnapshotInfo after = allSorted.get(j);
             for (int i = 1; i < allSnapshotNames.size() - j; i++) {
-                final List<SnapshotInfo> subsetSorted = sortedWithSize(repoName, sort, after, i);
+                final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, after, i);
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));
             }
         }
-    }
-
-    private void doTestResponseSizeLimit(GetSnapshotsAction.SortBy sort, String repoName, List<String> snapshotNames) throws IOException {
-        final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(snapshotNames, repoName, sort);
-        final List<SnapshotInfo> batch1 = sortedWithSize(repoName, sort, 2);
-        assertEquals(batch1, allSnapshotsSorted.subList(0, 2));
-        final List<SnapshotInfo> batch2 = sortedWithSize(repoName, sort, batch1.get(1), 2);
-        assertEquals(batch2, allSnapshotsSorted.subList(2, 4));
-        final int lastBatch = snapshotNames.size() - batch1.size() - batch2.size();
-        final List<SnapshotInfo> batch3 = sortedWithSize(repoName, sort, batch2.get(1), lastBatch);
-        assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), snapshotNames.size()));
     }
 
     private static List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames,
@@ -183,7 +184,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         return new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
     }
 
-    private static List<SnapshotInfo> sortedWithSize(String repoName, GetSnapshotsAction.SortBy sortBy, int size) throws IOException {
+    private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsAction.SortBy sortBy, int size) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         request.addParameter("size", String.valueOf(size));
@@ -203,17 +204,19 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         return snapshotInfos;
     }
 
-    private static List<SnapshotInfo> sortedWithSize(String repoName,
-                                                     GetSnapshotsAction.SortBy sortBy,
-                                                     SnapshotInfo after,
-                                                     int size) throws IOException {
+    private static List<SnapshotInfo> sortedWithLimit(String repoName,
+                                                      GetSnapshotsAction.SortBy sortBy,
+                                                      SnapshotInfo after,
+                                                      int size) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
-        request.addParameter("size", String.valueOf(size));
-        request.addParameter("after", GetSnapshotsRequest.After.from(after, sortBy).value() + "," + after.snapshotId().getName());
+        if (size != 0 || randomBoolean()) {
+            request.addParameter("size", String.valueOf(size));
+        }
+        if (after != null) {
+            request.addParameter("after", GetSnapshotsRequest.After.from(after, sortBy).value() + "," + after.snapshotId().getName());
+        }
         final Response response = getRestClient().performRequest(request);
-        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(repoName, response);
-        assertThat(snapshotInfos, hasSize(size));
-        return snapshotInfos;
+        return readSnapshotInfos(repoName, response);
     }
 }

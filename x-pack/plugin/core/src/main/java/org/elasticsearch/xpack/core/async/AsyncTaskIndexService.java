@@ -188,8 +188,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<IndexResponse> listener) throws IOException {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
-            listener = ActionListener.runBefore(listener, buffer::close);
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer)
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
                 .startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
@@ -217,8 +218,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<UpdateResponse> listener) {
         try {
             final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
-            listener = ActionListener.runBefore(listener, buffer::close);
-            final XContentBuilder source = XContentFactory.jsonBuilder(buffer)
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
                 .startObject()
                 .field(RESPONSE_HEADERS_FIELD, responseHeaders)
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))

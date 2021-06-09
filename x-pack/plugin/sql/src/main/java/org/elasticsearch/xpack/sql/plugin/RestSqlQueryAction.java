@@ -50,7 +50,7 @@ public class RestSqlQueryAction extends BaseRestHandler {
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
-            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new SqlResponseFormatter(channel, request, sqlRequest));
+            cancellableClient.execute(SqlQueryAction.INSTANCE, sqlRequest, new SqlResponseListener(channel, request, sqlRequest));
         };
     }
 

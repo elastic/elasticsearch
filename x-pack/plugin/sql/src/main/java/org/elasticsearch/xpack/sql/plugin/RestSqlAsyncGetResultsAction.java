@@ -42,7 +42,7 @@ public class RestSqlAsyncGetResultsAction extends BaseRestHandler {
         if (request.hasParam(KEEP_ALIVE_NAME)) {
             get.setKeepAlive(request.paramAsTime(KEEP_ALIVE_NAME, get.getKeepAlive()));
         }
-        return channel -> client.execute(SqlAsyncGetResultsAction.INSTANCE, get, new SqlResponseFormatter(channel, request));
+        return channel -> client.execute(SqlAsyncGetResultsAction.INSTANCE, get, new SqlResponseListener(channel, request));
     }
 
     @Override

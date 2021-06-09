@@ -1273,7 +1273,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             Character csvDelimiter = ',';
 
             assertEquals(200, response.getStatusLine().getStatusCode());
-            assertEquals(response.getHeader(HEADER_NAME_ASYNC_PARTIAL), response.getHeader(HEADER_NAME_ASYNC_RUNNING));
+            assertTrue(response.getHeader(HEADER_NAME_ASYNC_PARTIAL).equals(response.getHeader(HEADER_NAME_ASYNC_RUNNING)));
             String asyncId = response.getHeader(HEADER_NAME_ASYNC_ID);
             assertTrue(hasText(asyncId));
 

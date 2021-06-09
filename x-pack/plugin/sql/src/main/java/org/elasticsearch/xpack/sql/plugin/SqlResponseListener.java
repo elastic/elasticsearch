@@ -29,14 +29,14 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_CURSOR;
 import static org.elasticsearch.xpack.sql.proto.Protocol.HEADER_NAME_TOOK_NANOS;
 import static org.elasticsearch.xpack.sql.proto.Protocol.URL_PARAM_DELIMITER;
 
-class SqlResponseFormatter extends RestResponseListener<SqlQueryResponse> {
+class SqlResponseListener extends RestResponseListener<SqlQueryResponse> {
 
     private final long startNanos = System.nanoTime();
     private final MediaType mediaType;
     private final RestRequest request;
 
 
-    SqlResponseFormatter(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
+    SqlResponseListener(RestChannel channel, RestRequest request, SqlQueryRequest sqlRequest) {
         super(channel);
         this.request = request;
 
@@ -55,7 +55,7 @@ class SqlResponseFormatter extends RestResponseListener<SqlQueryResponse> {
         }
     }
 
-    SqlResponseFormatter(RestChannel channel, RestRequest request) {
+    SqlResponseListener(RestChannel channel, RestRequest request) {
         super(channel);
         this.request = request;
         this.mediaType = SqlMediaTypeParser.getResponseMediaType(request);

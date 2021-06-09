@@ -9,7 +9,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Base implementation for a hash table that is paged, recycles arrays and grows in-place.

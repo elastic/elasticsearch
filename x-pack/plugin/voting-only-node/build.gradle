@@ -11,9 +11,3 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
-
-tasks.named('splitPackagesAudit').configure {
-  // o.e.cluster is owned by server, rename these
-  ignoreClasses 'org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet',
-    'org.elasticsearch.cluster.coordination.VotingOnlyNodePlugin'
-}

@@ -11,6 +11,8 @@ package org.elasticsearch.gradle.internal;
 import org.codehaus.groovy.runtime.DefaultGroovyMethods;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
+import org.elasticsearch.gradle.internal.precommit.JarHellPrecommitPlugin;
+import org.elasticsearch.gradle.internal.precommit.SplitPackagesAuditPrecommitPlugin;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
@@ -42,6 +44,7 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DependenciesGraphPlugin.class);
 
         InternalPrecommitTasks.create(project, true);
+        project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
     }
 
     public static void configureLicenseAndNotice(final Project project) {

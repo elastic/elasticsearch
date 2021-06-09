@@ -13,8 +13,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.benchmark.BenchmarkTask;
 import org.elasticsearch.client.benchmark.metrics.Sample;
 import org.elasticsearch.client.benchmark.metrics.SampleRecorder;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.locationtech.spatial4j.shape.Circle;

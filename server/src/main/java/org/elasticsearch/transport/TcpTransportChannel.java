@@ -9,7 +9,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicBoolean;

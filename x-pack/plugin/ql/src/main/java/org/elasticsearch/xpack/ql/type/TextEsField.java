@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.Map;

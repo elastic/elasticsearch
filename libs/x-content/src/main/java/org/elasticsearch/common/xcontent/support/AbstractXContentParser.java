@@ -8,9 +8,9 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParseException;

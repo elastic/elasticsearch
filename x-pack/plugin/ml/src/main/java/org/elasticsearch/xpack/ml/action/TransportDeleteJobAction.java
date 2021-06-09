@@ -11,7 +11,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -338,7 +340,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                     cancelTasksRequest.setReason("deleting job");
                     cancelTasksRequest.setActions(ResetJobAction.NAME);
                     cancelTasksRequest.setTaskId(resetTaskInfo.getTaskId());
-                    client.admin().cluster().cancelTasks(cancelTasksRequest, ActionListener.wrap(
+                    executeAsyncWithOrigin(client, ML_ORIGIN, CancelTasksAction.INSTANCE, cancelTasksRequest, ActionListener.wrap(
                         cancelTasksResponse -> listener.onResponse(true),
                         e -> {
                             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
@@ -360,6 +362,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         listTasksRequest.setActions(ResetJobAction.NAME);
         listTasksRequest.setDescriptions(MlTasks.JOB_TASK_ID_PREFIX + jobId);
         listTasksRequest.setDetailed(true);
-        client.admin().cluster().listTasks(listTasksRequest, listTasksListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, ListTasksAction.INSTANCE, listTasksRequest, listTasksListener);
     }
 }

@@ -11,7 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -48,6 +50,9 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Objects;
 import java.util.Optional;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 public class TransportResetJobAction extends AcknowledgedTransportMasterNodeAction<ResetJobAction.Request> {
 
@@ -120,7 +125,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         listTasksRequest.setDescriptions(MlTasks.JOB_TASK_ID_PREFIX + jobId);
         listTasksRequest.setDetailed(true);
         listTasksRequest.setNodes(currentTaskId.getNodeId());
-        client.admin().cluster().listTasks(listTasksRequest, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, ListTasksAction.INSTANCE, listTasksRequest, ActionListener.wrap(
             listTasksResponse -> {
                 Optional<TaskInfo> existingResetTask = listTasksResponse.getTasks().stream()
                     .filter(taskInfo -> taskInfo.getTaskId().equals(currentTaskId) == false).findAny();
@@ -142,7 +147,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         getTaskRequest.setTaskId(existingTask.getTaskId());
         getTaskRequest.setWaitForCompletion(true);
         getTaskRequest.setTimeout(request.timeout());
-        client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(
             getTaskResponse -> {
                 TaskResult taskResult = getTaskResponse.getTask();
                 if (taskResult.isCompleted()) {

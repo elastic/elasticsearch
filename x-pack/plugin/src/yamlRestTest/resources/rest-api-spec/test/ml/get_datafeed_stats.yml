@@ -188,7 +188,7 @@ setup:
   - is_true: datafeeds.0.node.name
   - is_true: datafeeds.0.node.transport_address
   - is_true: datafeeds.0.running_state
-  - is_true: datafeeds.0.running_state.is_real_time
+  - is_true: datafeeds.0.running_state.real_time_configured
 
 ---
 "Test get stats for started datafeed contains timing stats":

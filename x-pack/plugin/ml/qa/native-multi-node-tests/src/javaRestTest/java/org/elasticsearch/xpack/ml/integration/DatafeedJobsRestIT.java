@@ -13,11 +13,10 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -1034,10 +1033,10 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 Response datafeedStatsResponse = client().performRequest(new Request("GET",
                     MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
                 String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
-                assertThat(body, containsString("\"is_real_time\":true"));
+                assertThat(body, containsString("\"real_time_configured\":true"));
                 assertThat(body, anyOf(
-                    containsString("\"finished_look_back\":true"),
-                    containsString("\"finished_look_back\":false")
+                    containsString("\"real_time_running\":true"),
+                    containsString("\"real_time_running\":false")
                 ));
             } catch (Exception e1) {
                 throw new RuntimeException(e1);
@@ -1081,8 +1080,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 Response datafeedStatsResponse = client().performRequest(new Request("GET",
                     MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
                 String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
-                assertThat(body, containsString("\"is_real_time\":true"));
-                assertThat(body, containsString("\"finished_look_back\":true"));
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"real_time_running\":true"));
             } catch (Exception e1) {
                 throw new RuntimeException(e1);
             }

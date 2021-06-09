@@ -110,14 +110,14 @@ provided if the {dfeed} is started.
 --
 [%collapsible%open]
 ====
-`is_real_time`:::
+`real_time_configured`:::
 (boolean) Indicates if the {dfeed} is "real-time"; meaning that the {dfeed}
 has no configured `end` time.
 
-`finished_look_back`:::
-(boolean) Has the {dfeed} finished running on the available past data. For {dfeeds}
-that without a configured `end` time, this means that the {dfeed} is now running on
-"real-time" data.
+`real_time_running`:::
+(boolean) Indicates whether the {dfeed} has finished running on the available
+past data. For {dfeeds} without a configured `end` time, this means that
+the {dfeed} is now running on "real-time" data.
 ====
 --
 

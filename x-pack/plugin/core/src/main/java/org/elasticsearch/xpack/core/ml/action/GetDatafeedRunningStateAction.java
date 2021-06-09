@@ -73,18 +73,18 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
         public static class RunningState implements Writeable, ToXContentObject {
 
             // Is the datafeed a "realtime" datafeed, meaning it was started without an end_time
-            private final boolean isRealTime;
-            // Has the look back finished.
-            private final boolean finishedLookBack;
+            private final boolean realTimeConfigured;
+            // Has the look back finished and are we now running on "real-time" data
+            private final boolean realTimeRunning;
 
-            public RunningState(boolean isRealTime, boolean finishedLookBack) {
-                this.isRealTime = isRealTime;
-                this.finishedLookBack = finishedLookBack;
+            public RunningState(boolean realTimeConfigured, boolean realTimeRunning) {
+                this.realTimeConfigured = realTimeConfigured;
+                this.realTimeRunning = realTimeRunning;
             }
 
             public RunningState(StreamInput in) throws IOException {
-                this.isRealTime = in.readBoolean();
-                this.finishedLookBack = in.readBoolean();
+                this.realTimeConfigured = in.readBoolean();
+                this.realTimeRunning = in.readBoolean();
             }
 
             @Override
@@ -92,25 +92,25 @@ public class GetDatafeedRunningStateAction extends ActionType<GetDatafeedRunning
                 if (this == o) return true;
                 if (o == null || getClass() != o.getClass()) return false;
                 RunningState that = (RunningState) o;
-                return isRealTime == that.isRealTime && finishedLookBack == that.finishedLookBack;
+                return realTimeConfigured == that.realTimeConfigured && realTimeRunning == that.realTimeRunning;
             }
 
             @Override
             public int hashCode() {
-                return Objects.hash(isRealTime, finishedLookBack);
+                return Objects.hash(realTimeConfigured, realTimeRunning);
             }
 
             @Override
             public void writeTo(StreamOutput out) throws IOException {
-                out.writeBoolean(isRealTime);
-                out.writeBoolean(finishedLookBack);
+                out.writeBoolean(realTimeConfigured);
+                out.writeBoolean(realTimeRunning);
             }
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 builder.startObject();
-                builder.field("is_real_time", isRealTime);
-                builder.field("finished_look_back", finishedLookBack);
+                builder.field("real_time_configured", realTimeConfigured);
+                builder.field("real_time_running", realTimeRunning);
                 builder.endObject();
                 return builder;
             }

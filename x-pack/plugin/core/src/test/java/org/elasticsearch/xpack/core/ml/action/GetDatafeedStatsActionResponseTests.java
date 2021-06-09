@@ -117,8 +117,8 @@ public class GetDatafeedStatsActionResponseTests extends AbstractWireSerializing
         assertThat(dfStatsMap, hasKey("running_state"));
 
         Map<String, Object> runningStateMap = (Map<String, Object>) dfStatsMap.get("running_state");
-        assertThat(runningStateMap, hasKey("is_real_time"));
-        assertThat(runningStateMap, hasKey("finished_look_back"));
+        assertThat(runningStateMap, hasKey("real_time_configured"));
+        assertThat(runningStateMap, hasKey("real_time_running"));
 
         Map<String, Object> nodeMap = (Map<String, Object>) dfStatsMap.get("node");
         assertThat(nodeMap, hasEntry("id", "df-node-id"));

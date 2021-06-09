@@ -78,7 +78,7 @@ public class CcrAutoFollowInfoFetcher {
             remoteClusterAutoFollowedIndices.size()
         );
 
-        // When a system index is followed we don't copy over it's isSystem flag into IndexMetadata
+        // When a system index is followed we don't copy over the isSystem flag into IndexMetadata
         // We need to fetch the remote cluster state in order to check whether or not the following index
         // follows a leader system index.
         for (Map.Entry<String, List<AutoFollowedIndex>> remoteAutoFollowedIndicesEntry : remoteClusterAutoFollowedIndices.entrySet()) {

@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ccr;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
@@ -19,13 +18,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -35,8 +33,8 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
-import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.CcrAutoFollowInfoFetcher;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.CcrStatsAction;
 import org.elasticsearch.xpack.core.ccr.action.DeleteAutoFollowPatternAction;
@@ -47,8 +45,6 @@ import org.elasticsearch.xpack.core.ccr.action.GetAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -60,8 +56,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -83,28 +77,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
         return org.elasticsearch.core.List.of(FakeSystemIndexPlugin.class, SecondFakeSystemIndexPlugin.class);
     }
 
-
     public static class FakeSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
-
-        public static final Settings SETTINGS = Settings.builder()
-            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-            .build();
-
         public static final String SYSTEM_INDEX_NAME = ".test-system-idx";
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(SystemIndexDescriptor.builder()
-                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                .setDescription("Test system index")
-                .setPrimaryIndex(SYSTEM_INDEX_NAME)
-                .setMappings(getSystemIndexMappings())
-                .setSettings(SETTINGS)
-                .setOrigin(getClass().getName())
-                .setVersionMetaKey("version")
-                .build()
-            );
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test"));
         }
 
         @Override
@@ -114,38 +92,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public String getFeatureDescription() {
-            return "Another simple test plugin";
-        }
-
-        private static XContentBuilder getSystemIndexMappings() {
-            try {
-                final XContentBuilder builder = jsonBuilder();
-
-                builder.startObject();
-                {
-                    builder.startObject(SINGLE_MAPPING_NAME);
-                    builder.field("dynamic", "strict");
-                    {
-                        builder.startObject("_meta");
-                        builder.field("version", Version.CURRENT.toString());
-                        builder.endObject();
-                    }
-                    {
-                        builder.startObject("properties");
-                        {
-                            builder.startObject("completed");
-                            builder.field("type", "boolean");
-                            builder.endObject();
-                        }
-                        builder.endObject();
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-                return builder;
-            } catch (IOException e) {
-                throw new UncheckedIOException("Failed to build index mappings", e);
-            }
+            return "FakeSystemIndexPlugin";
         }
     }
 
@@ -154,16 +101,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(SystemIndexDescriptor.builder()
-                .setIndexPattern(SYSTEM_INDEX_NAME + "*")
-                .setDescription("Test system index")
-                .setPrimaryIndex(SYSTEM_INDEX_NAME)
-                .setMappings(FakeSystemIndexPlugin.getSystemIndexMappings())
-                .setSettings(FakeSystemIndexPlugin.SETTINGS)
-                .setOrigin(getClass().getName())
-                .setVersionMetaKey("version")
-                .build()
-            );
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test"));
         }
 
         @Override

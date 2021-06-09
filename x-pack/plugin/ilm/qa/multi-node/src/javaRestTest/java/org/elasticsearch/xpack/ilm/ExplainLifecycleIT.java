@@ -15,7 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.ilm.DeleteAction;
@@ -61,6 +61,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         alias = "alias-" + randomAlphaOfLength(5);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71010")
     public void testExplainFilters() throws Exception {
         String goodIndex = index + "-good-000001";
         String errorIndex = index + "-error";

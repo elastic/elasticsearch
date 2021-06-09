@@ -108,3 +108,8 @@ tasks.register("integTest", Test) {
 tasks.register("verifyVersions") {
   dependsOn "test"
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // for now we always run tests with the classpath, so we are ok with split packages for tests 
+  onlyIf { false }
+}

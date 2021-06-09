@@ -9,9 +9,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -53,30 +53,22 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
 
-        /**
-         * Given a parsed value and a format string, formats the value into a plain Java object.
-         *
-         * Supported formats include 'geojson' and 'wkt'. The different formats are defined
-         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
-         */
-        public abstract Object format(T value, String format);
-
-        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, String format) {
+        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, Function<T, Object> formatter) {
             try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(format(v, format)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(formatter.apply(v)), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
         }
     }
 
-    public abstract static class AbstractGeometryFieldType extends MappedFieldType {
+    public abstract static class AbstractGeometryFieldType<T> extends MappedFieldType {
 
-        protected final Parser<?> geometryParser;
+        protected final Parser<T> geometryParser;
         protected final boolean parsesArrayValue;
 
         protected AbstractGeometryFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                                            boolean parsesArrayValue, Parser<?> geometryParser, Map<String, String> meta) {
+                                            boolean parsesArrayValue, Parser<T> geometryParser, Map<String, String> meta) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.NONE, meta);
             this.parsesArrayValue = parsesArrayValue;
             this.geometryParser = geometryParser;
@@ -88,16 +80,20 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     + name() + "]");
         }
 
+        /**
+         * Gets the formatter. If the method return null, then the format is unsupported and an error is thrown.
+         */
+        protected abstract Function<T, Object> getFormatter(String format);
+
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
+            Function<T, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
             if (parsesArrayValue) {
                 return new ArraySourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         List<Object> values = new ArrayList<>();
-                        geometryParser.fetchFromSource(value, values::add, geoFormat);
+                        geometryParser.fetchFromSource(value, values::add, formatter);
                         return values;
                     }
                 };
@@ -106,7 +102,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         SetOnce<Object> holder = new SetOnce<>();
-                        geometryParser.fetchFromSource(value, holder::set, geoFormat);
+                        geometryParser.fetchFromSource(value, holder::set, formatter);
                         return holder.get();
                     }
                 };
@@ -116,13 +112,13 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
 
     private final Explicit<Boolean> ignoreMalformed;
     private final Explicit<Boolean> ignoreZValue;
-    private final Parser<? extends T> parser;
+    private final Parser<T> parser;
 
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Map<String, NamedAnalyzer> indexAnalyzers,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<? extends T> parser) {
+                                          Parser<T> parser) {
         super(simpleName, mappedFieldType, indexAnalyzers, multiFields, copyTo, false, null);
         this.ignoreMalformed = ignoreMalformed;
         this.ignoreZValue = ignoreZValue;
@@ -132,7 +128,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     protected AbstractGeometryFieldMapper(String simpleName, MappedFieldType mappedFieldType,
                                           Explicit<Boolean> ignoreMalformed, Explicit<Boolean> ignoreZValue,
                                           MultiFields multiFields, CopyTo copyTo,
-                                          Parser<? extends T> parser) {
+                                          Parser<T> parser) {
         this(simpleName, mappedFieldType, Collections.emptyMap(), ignoreMalformed, ignoreZValue, multiFields, copyTo, parser);
     }
 
@@ -141,7 +137,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         MappedFieldType mappedFieldType,
         MultiFields multiFields,
         CopyTo copyTo,
-        Parser<? extends T> parser,
+        Parser<T> parser,
         String onScriptError
     ) {
         super(simpleName, mappedFieldType, Collections.emptyMap(), multiFields, copyTo, true, onScriptError);
@@ -151,8 +147,8 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
     }
 
     @Override
-    public AbstractGeometryFieldType fieldType() {
-        return (AbstractGeometryFieldType) mappedFieldType;
+    public AbstractGeometryFieldType<T> fieldType() {
+        return (AbstractGeometryFieldType<T>) mappedFieldType;
     }
 
     @Override

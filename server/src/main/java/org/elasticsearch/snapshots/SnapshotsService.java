@@ -55,12 +55,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -2425,16 +2425,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         return dataStreamAliases.values().stream()
             .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
-            .map(alias -> {
-                List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                    .filter(dataStreams::containsKey)
-                    .collect(Collectors.toList());
-                String writeDataStream = alias.getWriteDataStream();
-                if (intersectingDataStreams.contains(writeDataStream) == false) {
-                    writeDataStream = null;
-                }
-                return new DataStreamAlias(alias.getName(), intersectingDataStreams, writeDataStream);
-            }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
+            .map(alias -> alias.intersect(dataStreams::containsKey))
+            .collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
     /**

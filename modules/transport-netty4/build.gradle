@@ -218,3 +218,14 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // transport is owned by server, these should be renamed to netty specific
+  ignoreClasses 'org.elasticsearch.transport.CopyBytesServerSocketChannel',
+    'org.elasticsearch.transport.CopyBytesSocketChannel',
+    'org.elasticsearch.transport.Netty4NioSocketChannel',
+    'org.elasticsearch.transport.Netty4Plugin',
+    'org.elasticsearch.transport.NettyAllocator',
+    'org.elasticsearch.transport.NettyByteBufSizer',
+    'org.elasticsearch.transport.SharedGroupFactory'
+}

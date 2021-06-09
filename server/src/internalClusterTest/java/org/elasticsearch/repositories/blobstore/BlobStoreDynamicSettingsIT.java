@@ -92,7 +92,8 @@ public class BlobStoreDynamicSettingsIT extends AbstractSnapshotIntegTestCase {
         } catch (Exception e) {
             final Throwable ise = ExceptionsHelper.unwrap(e, IllegalStateException.class);
             assertThat(ise, instanceOf(IllegalStateException.class));
-            assertEquals(ise.getMessage(), "trying to modify or unregister repository that is currently used");
+            assertEquals(ise.getMessage(),
+                "trying to modify or unregister repository [test-repo] that is currently used (snapshot is in progress)");
         }
 
         logger.info("--> verify that we can update [{}] dynamically", MockRepository.DUMMY_UPDATABLE_SETTING_NAME);

@@ -154,6 +154,7 @@ public class Constants {
         "cluster:admin/xpack/ml/job/open",
         "cluster:admin/xpack/ml/job/persist",
         "cluster:admin/xpack/ml/job/put",
+        "cluster:admin/xpack/ml/job/reset",
         "cluster:admin/xpack/ml/job/update",
         "cluster:admin/xpack/ml/job/validate",
         "cluster:admin/xpack/ml/job/validate/detector",

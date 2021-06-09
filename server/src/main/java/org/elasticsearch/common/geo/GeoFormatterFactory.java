@@ -35,7 +35,7 @@ public class GeoFormatterFactory {
     public static Function<Geometry, Object> getFormatter(String name) {
         Function<Geometry, Object> format = FORMATTERS.get(name);
         if (format == null) {
-            throw new IllegalArgumentException("Unrecognized geometry format [" + format + "].");
+            throw new IllegalArgumentException("Unrecognized geometry format [" + name + "].");
         }
         return format;
     }

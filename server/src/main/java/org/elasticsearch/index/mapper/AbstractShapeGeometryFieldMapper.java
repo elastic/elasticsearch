@@ -38,9 +38,8 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
         private final Orientation orientation;
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 boolean parsesArrayValue, Parser<T> parser,
-                                                 Orientation orientation, Map<String, String> meta) {
-            super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, parser, meta);
+                                                 Parser<T> parser, Orientation orientation, Map<String, String> meta) {
+            super(name, isSearchable, isStored, hasDocValues, parser, meta);
             this.orientation = orientation;
         }
 
@@ -68,11 +67,6 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                                                Parser<T> parser) {
         this(simpleName, mappedFieldType, Collections.emptyMap(),
             ignoreMalformed, coerce, ignoreZValue, orientation, multiFields, copyTo, parser);
-    }
-
-    @Override
-    public final boolean parsesArrayValue() {
-        return false;
     }
 
     public boolean coerce() {

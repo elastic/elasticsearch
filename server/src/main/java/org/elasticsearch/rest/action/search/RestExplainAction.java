@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.rest.BaseRestHandler;

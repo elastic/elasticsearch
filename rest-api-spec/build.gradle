@@ -121,9 +121,13 @@ tasks.named("yamlRestCompatTest").configure {
     'search/160_exists_query/Test exists query on _type field',
     //type information is not stored, hence the the index will be found
     'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+    // mget - these use cases are no longer valid, because we always default to _doc.
+    // This mean test cases where there is assertion on not finging by type won't work
+    'mget/11_default_index_type/Default index/type',
+    'mget/16_basic_with_types/Basic multi-get',
     // asserting about type not found won't work as we ignore the type information
     'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
-    // 87 - 14 = 73 tests won't be fixed
+    // 89 - 15 = 74 tests won't be fixed
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'count/11_basic_with_types/count body without query element',
@@ -163,22 +167,6 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.upgrade/10_basic/Upgrade indices disallow no indices',
     'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
     'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
-    'mget/10_basic/Basic multi-get',
-    'mget/11_default_index_type/Default index/type',
-    'mget/14_alias_to_multiple_indices/Multi Get with alias that resolves to multiple indices',
-    'mget/16_basic_with_types/Basic multi-get',
-    'mget/17_default_index/Default index/type',
-    'mget/18_non_existent_index_with_types/Non-existent index',
-    'mget/19_missing_metadata_with_types/Missing metadata',
-    'mget/21_alias_to_multiple_indices_with_types/Multi Get with alias that resolves to multiple indices',
-    'mget/22_ids_with_types/IDs',
-    'mget/23_stored_fields_with_types/Stored fields',
-    'mget/41_routing_with_types/Routing',
-    'mget/61_realtime_refresh_with_types/Realtime Refresh',
-    'mget/71_source_filtering_with_types/Source filtering -  exclude field',
-    'mget/71_source_filtering_with_types/Source filtering -  include field',
-    'mget/71_source_filtering_with_types/Source filtering -  include nested field',
-    'mget/71_source_filtering_with_types/Source filtering -  true/false',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
     'search.aggregation/10_histogram/Deprecated _time order',
@@ -302,6 +290,17 @@ tasks.named("transformV7RestTests").configure({ task ->
   // overrides for indices.get_mapping
   task.replaceIsTrue("test_1.mappings.doc", "test_1.mappings._doc")
   task.replaceIsTrue("test_2.mappings.doc", "test_2.mappings._doc")
+  // overrides for mget
+  task.replaceValueInMatch("docs.0._type", "_doc" , "Basic multi-get") // index found, but no doc
+  task.replaceValueInMatch("docs.0._type", "_doc", "Default index/type")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Non-existent index")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Missing metadata")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.1._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
 })
 
 tasks.register('enforceYamlTestConvention').configure {

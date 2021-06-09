@@ -11,7 +11,7 @@ import org.elasticsearch.client.benchmark.ops.bulk.BulkBenchmarkTask;
 import org.elasticsearch.client.benchmark.ops.bulk.BulkRequestExecutor;
 import org.elasticsearch.client.benchmark.ops.search.SearchBenchmarkTask;
 import org.elasticsearch.client.benchmark.ops.search.SearchRequestExecutor;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.lang.management.GarbageCollectorMXBean;

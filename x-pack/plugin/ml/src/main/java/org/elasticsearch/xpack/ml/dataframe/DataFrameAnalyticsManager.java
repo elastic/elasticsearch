@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -86,7 +87,7 @@ public class DataFrameAnalyticsManager {
         this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
     }
 
-    public void execute(DataFrameAnalyticsTask task, ClusterState clusterState) {
+    public void execute(DataFrameAnalyticsTask task, ClusterState clusterState, TimeValue masterNodeTimeout) {
         // With config in hand, determine action to take
         ActionListener<DataFrameAnalyticsConfig> configListener = ActionListener.wrap(
             config -> {
@@ -125,26 +126,28 @@ public class DataFrameAnalyticsManager {
         // Make sure the stats index and alias exist
         ActionListener<Boolean> stateAliasListener = ActionListener.wrap(
             aBoolean -> createStatsIndexAndUpdateMappingsIfNecessary(new ParentTaskAssigningClient(client, task.getParentTaskId()),
-                    clusterState, statsIndexListener), configListener::onFailure
+                    clusterState, masterNodeTimeout, statsIndexListener), configListener::onFailure
         );
 
         // Make sure the state index and alias exist
         AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary(new ParentTaskAssigningClient(client, task.getParentTaskId()),
-                clusterState, expressionResolver, stateAliasListener);
+                clusterState, expressionResolver, masterNodeTimeout, stateAliasListener);
     }
 
-    private void createStatsIndexAndUpdateMappingsIfNecessary(Client client, ClusterState clusterState, ActionListener<Boolean> listener) {
+    private void createStatsIndexAndUpdateMappingsIfNecessary(Client client, ClusterState clusterState, TimeValue masterNodeTimeout,
+                                                              ActionListener<Boolean> listener) {
         ActionListener<Boolean> createIndexListener = ActionListener.wrap(
             aBoolean -> ElasticsearchMappings.addDocMappingIfMissing(
                     MlStatsIndex.writeAlias(),
-                    MlStatsIndex::mapping,
+                    MlStatsIndex::wrappedMapping,
                     client,
                     clusterState,
+                    masterNodeTimeout,
                     listener)
             , listener::onFailure
         );
 
-        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, createIndexListener);
+        MlStatsIndex.createStatsIndexAndAliasIfNecessary(client, clusterState, expressionResolver, masterNodeTimeout, createIndexListener);
     }
 
     private void determineProgressAndResume(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config) {

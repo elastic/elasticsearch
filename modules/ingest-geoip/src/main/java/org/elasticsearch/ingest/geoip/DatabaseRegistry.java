@@ -19,8 +19,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -207,6 +207,7 @@ public final class DatabaseRegistry implements Closeable {
             String remoteMd5 = metadata.getMd5();
             String localMd5 = reference != null ? reference.getMd5() : null;
             if (Objects.equals(localMd5, remoteMd5)) {
+                reference.setLastUpdate(metadata.getLastUpdate());
                 LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
                 return;
             }
@@ -283,7 +284,7 @@ public final class DatabaseRegistry implements Closeable {
 
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                updateDatabase(databaseName, recordedMd5, databaseFile);
+                updateDatabase(databaseName, recordedMd5, databaseFile, metadata.getLastUpdate());
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
@@ -298,10 +299,11 @@ public final class DatabaseRegistry implements Closeable {
             });
     }
 
-    void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
+    void updateDatabase(String databaseFileName, String recordedMd5, Path file, long lastUpdate) {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
+            loader.setLastUpdate(lastUpdate);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();

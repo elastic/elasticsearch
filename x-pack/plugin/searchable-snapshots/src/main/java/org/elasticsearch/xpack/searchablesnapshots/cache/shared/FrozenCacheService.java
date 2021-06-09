@@ -15,17 +15,17 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RelativeByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.env.Environment;
@@ -126,17 +126,6 @@ public class FrozenCacheService implements Releasable {
                             SHARED_CACHE_SETTINGS_PREFIX + "size",
                             value.getStringRep(),
                             roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.joining(","))
-                        );
-                    }
-
-                    @SuppressWarnings("unchecked")
-                    final List<String> dataPaths = (List<String>) settings.get(Environment.PATH_DATA_SETTING);
-                    if (dataPaths.size() > 1) {
-                        throw new SettingsException(
-                            "setting [{}={}] is not permitted on nodes with multiple data paths [{}]",
-                            SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
-                            value.getStringRep(),
-                            String.join(",", dataPaths)
                         );
                     }
                 }
@@ -261,9 +250,9 @@ public class FrozenCacheService implements Releasable {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         long totalFsSize;
         try {
-            totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPaths()[0]));
+            totalFsSize = FsProbe.getTotal(Environment.getFileStore(environment.nodeDataPath()));
         } catch (IOException e) {
-            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPaths()[0] + "]");
+            throw new IllegalStateException("unable to probe size of filesystem [" + environment.nodeDataPath() + "]");
         }
         this.cacheSize = calculateCacheSize(settings, totalFsSize);
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();

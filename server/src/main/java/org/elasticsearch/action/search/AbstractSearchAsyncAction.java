@@ -22,8 +22,8 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
@@ -380,7 +380,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
-            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
+            logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", currentPhase.getName()), cause);
             onPhaseFailure(currentPhase, "all shards failed", cause);
         } else {
             Boolean allowPartialResults = request.allowPartialSearchResults();
@@ -394,7 +394,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
                         Throwable cause = ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
                         logger.debug(() -> new ParameterizedMessage("{} shards failed for phase: [{}]",
-                            numShardFailures, getName()), cause);
+                            numShardFailures, currentPhase.getName()), cause);
                     }
                     onPhaseFailure(currentPhase, "Partial shards failure", null);
                     return;
@@ -430,7 +430,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    ShardSearchFailure[] buildShardFailures() {
+    private ShardSearchFailure[] buildShardFailures() {
         AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
         if (shardFailures == null) {
             return ShardSearchFailure.EMPTY_ARRAY;
@@ -618,8 +618,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
     }
 
-    protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
-                                                       String scrollId, String searchContextId) {
+    private SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
+                                               String scrollId, String searchContextId) {
         int numSuccess = successfulOps.get();
         int numFailures = failures.length;
         assert numSuccess + numFailures == getNumShards()
@@ -629,8 +629,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     boolean buildPointInTimeFromSearchResults() {
-        // TODO: Until we implement the retry mechanism for point in times (i.e., replace an unavailable shard with an equivalent copy),
-        // we can simply return the point in time of the search request.
         return false;
     }
 
@@ -683,7 +681,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
         });
-        Releasables.close(releasables);
         listener.onFailure(exception);
     }
 

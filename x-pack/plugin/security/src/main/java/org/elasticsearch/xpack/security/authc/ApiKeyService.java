@@ -34,16 +34,16 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -51,7 +51,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -1119,6 +1119,27 @@ public class ApiKeyService {
         }
     }
 
+    /**
+     * If the authentication has type of api_key, returns the metadata associated to the
+     * API key.
+     * @param authentication {@link Authentication}
+     * @return A map for the metadata or an empty map if no metadata is found.
+     */
+    public static Map<String, Object> getApiKeyMetadata(Authentication authentication) {
+        if (AuthenticationType.API_KEY != authentication.getAuthenticationType()) {
+            throw new IllegalArgumentException("authentication type must be [api_key], got ["
+                + authentication.getAuthenticationType().name().toLowerCase(Locale.ROOT) + "]");
+        }
+        final Object apiKeyMetadata = authentication.getMetadata().get(ApiKeyService.API_KEY_METADATA_KEY);
+        if (apiKeyMetadata != null) {
+            final Tuple<XContentType, Map<String, Object>> tuple =
+                XContentHelper.convertToMap((BytesReference) apiKeyMetadata, false, XContentType.JSON);
+            return tuple.v2();
+        } else {
+            return Map.of();
+        }
+    }
+
     final class CachedApiKeyHashResult {
         final boolean success;
         final char[] hash;
@@ -1197,11 +1218,10 @@ public class ApiKeyService {
 
         public CachedApiKeyDoc toCachedApiKeyDoc() {
             final MessageDigest digest = MessageDigests.sha256();
-            digest.update(BytesReference.toBytes(roleDescriptorsBytes));
-            final String roleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            final String roleDescriptorsHash = MessageDigests.toHexString(MessageDigests.digest(roleDescriptorsBytes, digest));
             digest.reset();
-            digest.update(BytesReference.toBytes(limitedByRoleDescriptorsBytes));
-            final String limitedByRoleDescriptorsHash = MessageDigests.toHexString(digest.digest());
+            final String limitedByRoleDescriptorsHash =
+                MessageDigests.toHexString(MessageDigests.digest(limitedByRoleDescriptorsBytes, digest));
             return new CachedApiKeyDoc(
                 creationTime,
                 expirationTime,

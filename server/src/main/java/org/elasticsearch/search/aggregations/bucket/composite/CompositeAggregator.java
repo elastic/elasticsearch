@@ -33,7 +33,7 @@ import org.apache.lucene.search.comparators.LongComparator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -348,7 +348,7 @@ final class CompositeAggregator extends BucketsAggregator {
             formats[i] = sources[i].format;
         }
         FieldDoc fieldDoc = SearchAfterBuilder.buildFieldDoc(new SortAndFormats(indexSortPrefix, formats),
-            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length));
+            Arrays.copyOfRange(rawAfterKey.values(), 0, formats.length), null);
         if (indexSortPrefix.getSort().length < sources.length) {
             // include all docs that belong to the partial bucket
             fieldDoc.doc = -1;

@@ -9,7 +9,7 @@
 package org.elasticsearch.monitor.fs;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
 import org.elasticsearch.test.ESTestCase;
@@ -60,6 +60,8 @@ public class FsProbeTests extends ESTestCase {
                     assertThat(deviceStats.previousWritesCompleted, equalTo(-1L));
                     assertThat(deviceStats.currentSectorsWritten, greaterThanOrEqualTo(0L));
                     assertThat(deviceStats.previousSectorsWritten, equalTo(-1L));
+                    assertThat(deviceStats.currentIOTime, greaterThanOrEqualTo(0L));
+                    assertThat(deviceStats.previousIOTime, equalTo(-1L));
                 }
             } else {
                 assertNull(stats.getIoStats());
@@ -178,6 +180,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[0].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(first.devicesStats[0].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[0].currentIOTime, equalTo(1918440L));
+        assertThat(first.devicesStats[0].previousIOTime, equalTo(-1L));
         assertThat(first.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(first.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(first.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -189,6 +193,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(first.devicesStats[1].previousWritesCompleted, equalTo(-1L));
         assertThat(first.devicesStats[1].currentSectorsWritten, equalTo(64126096L));
         assertThat(first.devicesStats[1].previousSectorsWritten, equalTo(-1L));
+        assertThat(first.devicesStats[1].currentIOTime, equalTo(1058193L));
+        assertThat(first.devicesStats[1].previousIOTime, equalTo(-1L));
 
         diskStats.set(Arrays.asList(
                 " 259       0 nvme0n1 336870 0 7928397 82876 10264393 0 182986405 52451610 0 2971042 52536492",
@@ -213,6 +219,8 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[0].previousWritesCompleted, equalTo(8398869L));
         assertThat(second.devicesStats[0].currentSectorsWritten, equalTo(118857776L));
         assertThat(second.devicesStats[0].previousSectorsWritten, equalTo(118857776L));
+        assertThat(second.devicesStats[0].currentIOTime, equalTo(1918444L));
+        assertThat(second.devicesStats[0].previousIOTime, equalTo(1918440L));
         assertThat(second.devicesStats[1].majorDeviceNumber, equalTo(253));
         assertThat(second.devicesStats[1].minorDeviceNumber, equalTo(2));
         assertThat(second.devicesStats[1].deviceName, equalTo("dm-2"));
@@ -224,12 +232,15 @@ public class FsProbeTests extends ESTestCase {
         assertThat(second.devicesStats[1].previousWritesCompleted, equalTo(1371977L));
         assertThat(second.devicesStats[1].currentSectorsWritten, equalTo(64128568L));
         assertThat(second.devicesStats[1].previousSectorsWritten, equalTo(64126096L));
+        assertThat(second.devicesStats[1].currentIOTime, equalTo(1058347L));
+        assertThat(second.devicesStats[1].previousIOTime, equalTo(1058193L));
 
         assertThat(second.totalOperations, equalTo(575L));
         assertThat(second.totalReadOperations, equalTo(261L));
         assertThat(second.totalWriteOperations, equalTo(314L));
         assertThat(second.totalReadKilobytes, equalTo(2392L));
         assertThat(second.totalWriteKilobytes, equalTo(1236L));
+        assertThat(second.totalIOTimeInMillis, equalTo(158L));
     }
 
     public void testAdjustForHugeFilesystems() throws Exception {

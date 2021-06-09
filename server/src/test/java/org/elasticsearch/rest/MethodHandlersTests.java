@@ -8,7 +8,7 @@
 
 package org.elasticsearch.rest;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;

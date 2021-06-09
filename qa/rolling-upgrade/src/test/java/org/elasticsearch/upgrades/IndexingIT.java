@@ -12,7 +12,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -39,7 +39,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class IndexingIT extends AbstractRollingTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/72012")
     public void testIndexing() throws IOException {
         switch (CLUSTER_TYPE) {
         case OLD:

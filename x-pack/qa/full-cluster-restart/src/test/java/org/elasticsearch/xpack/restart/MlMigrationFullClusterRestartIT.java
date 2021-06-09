@@ -11,7 +11,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -60,7 +60,9 @@ public class MlMigrationFullClusterRestartIT extends AbstractFullClusterRestartT
         List<String> templatesToWaitFor = (isRunningAgainstOldCluster() && getOldClusterVersion().before(Version.V_7_12_0))
             ? XPackRestTestConstants.ML_POST_V660_TEMPLATES
             : XPackRestTestConstants.ML_POST_V7120_TEMPLATES;
-        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor);
+        boolean clusterUnderstandsComposableTemplates =
+            isRunningAgainstOldCluster() == false || getOldClusterVersion().onOrAfter(Version.V_7_8_0);
+        XPackRestTestHelper.waitForTemplates(client(), templatesToWaitFor, clusterUnderstandsComposableTemplates);
     }
 
     private void createTestIndex() throws IOException {

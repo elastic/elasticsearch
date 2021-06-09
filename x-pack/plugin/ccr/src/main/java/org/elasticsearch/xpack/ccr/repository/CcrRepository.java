@@ -39,11 +39,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -253,7 +253,12 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 // Both the Snapshot name and UUID are set to _latest_
                 SnapshotId snapshotId = new SnapshotId(LATEST, LATEST);
                 copiedSnapshotIds.put(indexName, snapshotId);
-                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(SnapshotState.SUCCESS, Version.CURRENT));
+                final long nowMillis = threadPool.absoluteTimeInMillis();
+                snapshotsDetails.put(indexName, new RepositoryData.SnapshotDetails(
+                        SnapshotState.SUCCESS,
+                        Version.CURRENT,
+                        nowMillis,
+                        nowMillis));
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }

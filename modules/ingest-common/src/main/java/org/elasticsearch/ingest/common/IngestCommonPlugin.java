@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.ingest.DropProcessor;

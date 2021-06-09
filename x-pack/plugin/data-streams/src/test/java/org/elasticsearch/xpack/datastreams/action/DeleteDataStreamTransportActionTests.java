@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
@@ -119,7 +119,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
             false,
             partial,
             SnapshotsInProgress.State.SUCCESS,
-            Collections.emptyList(),
+            Collections.emptyMap(),
             List.of(dataStreamName),
             Collections.emptyList(),
             0,

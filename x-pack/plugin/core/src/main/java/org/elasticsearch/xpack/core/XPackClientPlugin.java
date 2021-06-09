@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -200,6 +200,7 @@ import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsage;
 import org.elasticsearch.xpack.core.sql.SqlFeatureSetUsage;
 import org.elasticsearch.xpack.core.ssl.action.GetCertificateInfoAction;
+import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.transform.TransformFeatureSetUsage;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -413,7 +414,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             GetAsyncSearchAction.INSTANCE,
             DeleteAsyncResultAction.INSTANCE,
             // Text Structure
-            FindStructureAction.INSTANCE
+            FindStructureAction.INSTANCE,
+            // Terms enum API
+            TermsEnumAction.INSTANCE
         ));
 
         // rollupV2

@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -23,7 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.reindex.ReindexPlugin;
@@ -162,8 +163,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                 auditor,
                 JOB_ID,
                 renormalizer,
-                new JobResultsPersister(originSettingClient, resultsPersisterService,
-                    new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class))),
+                new JobResultsPersister(originSettingClient, resultsPersisterService),
                 new AnnotationPersister(resultsPersisterService),
                 process,
                 new ModelSizeStats.Builder(JOB_ID).build(),
@@ -180,7 +180,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // A a result they must create the index as part of the test setup. Do not
         // copy this setup to tests that run jobs in the way they are run in production.
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
-        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(), future);
+        createStateIndexAndAliasIfNecessary(client(), ClusterState.EMPTY_STATE, TestIndexNameExpressionResolver.newInstance(),
+            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT, future);
         future.get();
     }
 

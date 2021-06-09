@@ -13,7 +13,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -452,15 +452,9 @@ public class PointInTimeIT extends ESIntegTestCase {
     }
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(
-            indices,
-            OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS,
-            keepAlive,
-            null,
-            null
-        );
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(OpenPointInTimeAction.INSTANCE, request).actionGet();
-        return response.getSearchContextId();
+        return response.getPointInTimeId();
     }
 
     private void closePointInTime(String readerId) {

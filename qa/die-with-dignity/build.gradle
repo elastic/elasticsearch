@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 
 esplugin {
   description 'Die with dignity plugin'
@@ -29,3 +29,8 @@ tasks.named("test").configure {
   enabled = false
 }
 
+tasks.named('splitPackagesAudit').configure {
+  // these should be moved to an actual package, not the root package
+  ignoreClasses 'org.elasticsearch.DieWithDignityPlugin',
+    'org.elasticsearch.RestDieWithDignityAction'
+}

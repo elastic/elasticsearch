@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -177,6 +177,7 @@ public class FileTokensToolTests extends CommandTestCase {
         final UserException e = expectThrows(UserException.class, () -> execute(args));
         assertServiceTokenNotExists("elastic/fleet-server/" + tokenName);
         assertThat(e.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e.getMessage(), containsString("invalid service token name [" + tokenName + "]"));
     }
 
     public void testCreateTokenWithInvalidServiceAccount() throws Exception {
@@ -213,6 +214,7 @@ public class FileTokensToolTests extends CommandTestCase {
             new String[] { "delete", pathHomeParameter, "elastic/fleet-server", tokenName2 };
         final UserException e2 = expectThrows(UserException.class, () -> execute(args));
         assertThat(e2.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e2.getMessage(), containsString("invalid service token name [" + tokenName2 + "]"));
 
         // Non-exist token
         final Path serviceTokensFile = confDir.resolve("service_tokens");

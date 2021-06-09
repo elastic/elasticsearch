@@ -9,7 +9,7 @@
 package org.elasticsearch.common.blobstore.url;
 
 import org.apache.http.ConnectionClosedException;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -18,7 +18,7 @@ import org.elasticsearch.common.blobstore.url.http.URLHttpClientSettings;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.hamcrest.Matcher;
 import org.junit.AfterClass;
@@ -90,7 +90,7 @@ public class URLBlobContainerRetriesTests extends AbstractBlobContainerRetriesTe
             final URLHttpClientSettings httpClientSettings = URLHttpClientSettings.fromSettings(settings);
             URLBlobStore urlBlobStore =
                 new URLBlobStore(settings, new URL(getEndpointForServer()), factory.create(httpClientSettings), httpClientSettings);
-            return urlBlobStore.blobContainer(new BlobPath());
+            return urlBlobStore.blobContainer(BlobPath.EMPTY);
         } catch (MalformedURLException e) {
             throw new RuntimeException("Unable to create URLBlobStore", e);
         }

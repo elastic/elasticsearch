@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -39,7 +39,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -130,11 +130,11 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         ClusterService cs = getInstanceFromNode(ClusterService.class);
         final Index index = cs.state().metadata().index("test").getIndex();
-        Path[] shardPaths = env.availableShardPaths(new ShardId(index, 0));
-        logger.info("--> paths: [{}]", (Object)shardPaths);
+        Path shardPath = env.availableShardPath(new ShardId(index, 0));
+        logger.info("--> path: [{}]", shardPath);
         // Should not be able to acquire the lock because it's already open
         try {
-            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPaths);
+            NodeEnvironment.acquireFSLockForPaths(IndexSettingsModule.newIndexSettings("test", Settings.EMPTY), shardPath);
             fail("should not have been able to acquire the lock");
         } catch (LockObtainFailedException e) {
             assertTrue("msg: " + e.getMessage(), e.getMessage().contains("unable to acquire write.lock"));

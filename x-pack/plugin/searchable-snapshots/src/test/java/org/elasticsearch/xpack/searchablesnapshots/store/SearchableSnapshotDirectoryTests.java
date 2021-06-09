@@ -43,17 +43,17 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.fs.FsBlobStore;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
@@ -584,7 +584,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         Settings.builder()
                             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toAbsolutePath())
                             .put(Environment.PATH_REPO_SETTING.getKey(), repositoryPath.toAbsolutePath())
-                            .putList(Environment.PATH_DATA_SETTING.getKey(), tmpPaths())
+                            .put(Environment.PATH_DATA_SETTING.getKey(), createTempDir().toAbsolutePath())
                             .build(),
                         null
                     ),
@@ -629,7 +629,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 final BlobContainer blobContainer = repository.shardContainer(indexId, shardId.id());
                 final BlobStoreIndexShardSnapshot snapshot = repository.loadShardSnapshot(blobContainer, snapshotId);
 
-                final Path shardDir = randomShardPath(shardId);
+                final Path shardDir = shardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
                 final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 final CacheService cacheService = defaultCacheService();
@@ -729,7 +729,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("_snapshot", 0L, randomFiles, 0L, 0L, 0, 0L);
             final BlobContainer blobContainer = new FsBlobContainer(
                 new FsBlobStore(randomIntBetween(1, 8) * 1024, shardSnapshotDir, true),
-                BlobPath.cleanPath(),
+                BlobPath.EMPTY,
                 shardSnapshotDir
             );
 
@@ -737,7 +737,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexId indexId = new IndexId("_id", "_uuid");
             final ShardId shardId = new ShardId(new Index("_name", "_id"), 0);
 
-            final Path shardDir = randomShardPath(shardId);
+            final Path shardDir = shardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
             final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             final FrozenCacheService frozenCacheService = defaultFrozenCacheService();

@@ -4,7 +4,7 @@ include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
 // end::cloud[]
 
 // tag::self-managed[]
-**Install and run {es} using Docker**
+**Install and run {es}**
 
 ifeval::["{release-state}"=="unreleased"]
 NOTE: No Docker image is currently available for {es} {version}.
@@ -25,7 +25,7 @@ docker run --name es01-test --net elastic -p 9200:9200 -p 9300:9300 -e "discover
 ----
 endif::[]
 
-**Install and run {kib} using Docker**
+**Install and run {kib}**
 
 To analyze, visualize, and manage {es} data using an intuitive UI, install
 {kib}.

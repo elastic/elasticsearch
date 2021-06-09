@@ -21,8 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -49,6 +50,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -92,7 +94,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params,
+                                                                  Collection<DiscoveryNode> candidateNodes,
+                                                                  ClusterState clusterState) {
         if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
             return new PersistentTasksCustomMetadata.Assignment(null,
                 "Transform task will not be assigned as a feature reset is in progress.");
@@ -109,7 +113,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
-            clusterState,
+            clusterState, candidateNodes,
             node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
         );
 
@@ -277,12 +281,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         // <3> Validate the transform, assigning it to the indexer, and get the field mappings
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
-            if (config.isValid()) {
+            ValidationException validationException = config.validate(null);
+            if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
                 SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
                         getFieldMappingsListener);
             } else {
-                markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
+                auditor.error(transformId, validationException.getMessage());
+                markAsFailed(
+                    buildTask,
+                    TransformMessages.getMessage(
+                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId, validationException.getMessage()
+                    )
+                );
             }
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);

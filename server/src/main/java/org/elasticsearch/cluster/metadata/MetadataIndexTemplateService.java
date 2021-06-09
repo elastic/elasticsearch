@@ -23,7 +23,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -35,7 +35,7 @@ import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -1233,8 +1233,7 @@ public class MetadataIndexTemplateService {
                     }
 
                     if (template.getDataStreamTemplate() != null) {
-                        String tsFieldName = template.getDataStreamTemplate().getTimestampField();
-                        validateTimestampFieldMapping(tsFieldName, mapperService);
+                        validateTimestampFieldMapping(mapperService.mappingLookup());
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("invalid composite mappings for [" + templateName + "]", e);

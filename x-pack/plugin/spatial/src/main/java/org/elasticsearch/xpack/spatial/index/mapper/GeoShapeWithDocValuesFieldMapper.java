@@ -15,10 +15,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -44,6 +45,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -133,11 +136,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     }
 
-    public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
+    public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType<Geometry> implements GeoShapeQueryable {
 
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, false, hasDocValues, false, parser, orientation, meta);
+            super(name, indexed, false, hasDocValues, parser, orientation, meta);
         }
 
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
@@ -168,6 +171,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             return query;
         }
+
+        @Override
+        protected Function<Geometry, Object> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format);
+        }
     }
 
     @SuppressWarnings("deprecation")
@@ -176,6 +184,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(parserContext.getSettings());
         boolean coerceByDefault = COERCE_SETTING.get(parserContext.getSettings());
         if (LegacyGeoShapeFieldMapper.containsDeprecatedParameter(node.keySet())) {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
+                Set<String> deprecatedParams = LegacyGeoShapeFieldMapper.getDeprecatedParameters(node.keySet());
+                throw new IllegalArgumentException("using deprecated parameters " + Arrays.toString(deprecatedParams.toArray())
+                    + " in mapper [" + name + "] of type [geo_shape] is no longer allowed");
+            }
             builder = new LegacyGeoShapeFieldMapper.Builder(
                 name,
                 parserContext.indexVersionCreated(),
@@ -210,6 +223,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         if (geometry == null) {
             return;
         }
+        geometry = indexer.prepareForIndexing(geometry);
         List<IndexableField> fields = indexer.indexShape(geometry);
         if (fieldType().isSearchable()) {
             context.doc().addAll(fields);
@@ -223,7 +237,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
             docValuesField.add(fields, geometry);
         } else if (fieldType().isSearchable()) {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

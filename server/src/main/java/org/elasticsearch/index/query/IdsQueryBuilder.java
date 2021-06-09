@@ -10,7 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -129,7 +129,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
         SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
-        if (context != null && context.getFieldType(IdFieldMapper.NAME) == null) {
+        if (context != null && context.hasMappings() == false) {
             // no mappings yet
             return new MatchNoneQueryBuilder();
         }

@@ -59,7 +59,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public static final int DEFAULT_PRE_FILTER_SHARD_SIZE = 128;
     public static final int DEFAULT_BATCHED_REDUCE_SIZE = 512;
-    public static final long[] EMPTY_LONG_ARRAY =  new long[0];
 
     private static final long DEFAULT_ABSOLUTE_START_MILLIS = -1;
 
@@ -100,7 +99,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
-    private long[] waitForCheckpoints = EMPTY_LONG_ARRAY;
+    private Map<String, long[]> waitForCheckpoints = Collections.emptyMap();
 
     public SearchRequest() {
         this((Version) null);
@@ -236,7 +235,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // TODO: Change after backport
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            waitForCheckpoints = in.readLongArray();
+            waitForCheckpoints = in.readMap(StreamInput::readString, StreamInput::readLongArray);
         }
     }
 
@@ -273,7 +272,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         }
         // TODO: Change after backport
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeLongArray(waitForCheckpoints);
+            out.writeMap(waitForCheckpoints, StreamOutput::writeString, StreamOutput::writeLongArray);
         }
     }
 
@@ -615,11 +614,11 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
     }
 
-    public long[] getWaitForCheckpoints() {
+    public Map<String, long[]> getWaitForCheckpoints() {
         return waitForCheckpoints;
     }
 
-    public void setWaitForCheckpoints(long[] afterCheckpointsRefreshed) {
+    public void setWaitForCheckpoints(Map<String, long[]> afterCheckpointsRefreshed) {
         this.waitForCheckpoints = afterCheckpointsRefreshed;
     }
 

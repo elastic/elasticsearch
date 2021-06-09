@@ -14,6 +14,11 @@ setup:
             number_of_shards: "1"
 
   - do:
+      indices.put_alias:
+        index: test-after-refresh
+        name: test-alias
+
+  - do:
       index:
         index: test-timeout
         body: { }
@@ -35,13 +40,23 @@ setup:
 "Execute successful after refresh search":
   - do:
       fleet.search:
-        index: "test-after-refresh"
+        index: "test-alias"
         allow_partial_search_results: false
         wait_for_checkpoints: [1]
         body: { query: { match_all: {} } }
 
   - match: { _shards.successful: 1 }
   - match: { hits.total.value: 2 }
+
+---
+"Cannot use alias":
+  - do:
+      catch: bad_request
+      fleet.search:
+        index: "test-after-refresh"
+        allow_partial_search_results: false
+        wait_for_checkpoints: [1]
+        body: { query: { match_all: {} } }
 
 ---
 "After refresh timeout":

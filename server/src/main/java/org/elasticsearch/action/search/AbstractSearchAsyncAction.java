@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
  */
 abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements SearchPhaseContext {
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
+    private static final long[] EMPTY_LONG_ARRAY = new long[0];
     private final Logger logger;
     private final SearchTransportService searchTransportService;
     private final Executor executor;
@@ -724,12 +725,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
+        final Map<String, long[]> indexToWaitForCheckpoints = request.getWaitForCheckpoints();
+        long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardIt.shardId().getIndex().getName(), EMPTY_LONG_ARRAY);
+
         long waitForCheckpoint;
-        if (request.getWaitForCheckpoints().length == 0) {
+        if (waitForCheckpoints.length == 0) {
             waitForCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
         } else {
-            assert request.getWaitForCheckpoints().length > shardIndex;
-            waitForCheckpoint = request.getWaitForCheckpoints()[shardIndex];
+            assert waitForCheckpoints.length > shardIndex;
+            waitForCheckpoint = waitForCheckpoints[shardIndex];
         }
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
             getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),

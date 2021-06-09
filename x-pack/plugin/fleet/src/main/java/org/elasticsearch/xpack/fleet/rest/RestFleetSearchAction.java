@@ -19,6 +19,8 @@ import org.elasticsearch.rest.action.RestStatusToXContentListener;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.function.IntConsumer;
@@ -57,8 +59,13 @@ public class RestFleetSearchAction extends BaseRestHandler {
         for (int i = 0; i < stringWaitForCheckpoints.length; ++i) {
             waitForCheckpoints[i] = Long.parseLong(stringWaitForCheckpoints[i]);
         }
-
-        searchRequest.setWaitForCheckpoints(waitForCheckpoints);
+        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
+        if (indices.length > 1) {
+            throw new IllegalArgumentException(
+                "Fleet search API only supports searching a single index. Found: [" + Arrays.toString(indices) + "]."
+            );
+        }
+        searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

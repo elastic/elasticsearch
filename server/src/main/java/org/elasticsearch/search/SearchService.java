@@ -115,6 +115,7 @@ import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -132,6 +133,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueHours;
@@ -427,11 +429,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() {
                 if (request.waitForCheckpoint() > SequenceNumbers.NO_OPS_PERFORMED) {
                     final AtomicBoolean isDone = new AtomicBoolean(false);
+                    final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
                     final ActionListener<Void> readyListener = new ActionListener<>() {
 
                         @Override
                         public void onResponse(Void unused) {
                             if (isDone.compareAndSet(false, true)) {
+                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
+                                if (localTimeoutTask != null) {
+                                    localTimeoutTask.cancel();
+                                }
                                 runAsync(executor, executable, listener);
                             }
                         }
@@ -439,6 +446,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         @Override
                         public void onFailure(Exception e) {
                             if (isDone.compareAndSet(false, true)) {
+                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
+                                if (localTimeoutTask != null && e instanceof ElasticsearchTimeoutException == false) {
+                                    localTimeoutTask.cancel();
+                                }
                                 listener.onFailure(e);
                             }
                         }
@@ -452,13 +463,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
                     }
                     if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
-                        threadPool.schedule(() ->
+                        Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() ->
                             readyListener.onFailure(
                                 new ElasticsearchTimeoutException(
                                     "Wait for seq_no [{}] refreshed timed out [{}]",
                                     request.waitForCheckpoint(),
                                     timeout)
                             ), timeout, Names.SAME);
+                        timeoutTask.set(scheduled);
                     }
                 } else {
                     ActionRunnable.supply(listener, executable).run();

@@ -639,6 +639,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
         failIfOverShardCountLimit(clusterService, shardIterators.size());
 
+        if (searchRequest.getWaitForCheckpoints().isEmpty() == false) {
+            validateWaitForCheckpoint(searchRequest, shardIterators);
+        }
+
         Map<String, Float> concreteIndexBoosts = resolveIndexBoosts(searchRequest, clusterState);
 
         // optimize search type for cases where there is only one shard group to search on
@@ -810,6 +814,19 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     throw new IllegalStateException("Unknown search type: [" + searchRequest.searchType() + "]");
             }
             return searchAsyncAction;
+        }
+    }
+
+    private static void validateWaitForCheckpoint(SearchRequest searchRequest, GroupShardsIterator<SearchShardIterator> shardIterators) {
+        HashSet<String> searchedIndices = new HashSet<>();
+        for (SearchShardIterator shardIterator : shardIterators) {
+            searchedIndices.add(shardIterator.shardId().getIndexName());
+        }
+        for (String waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().keySet()) {
+            if (searchedIndices.contains(waitForCheckpointIndex) == false) {
+                throw new IllegalArgumentException("Index configured with wait_for_checkpoint must be a concrete index resolved in " +
+                    "this search. Index [" + waitForCheckpointIndex + "] is not a concrete index resolved in this search.");
+            }
         }
     }
 

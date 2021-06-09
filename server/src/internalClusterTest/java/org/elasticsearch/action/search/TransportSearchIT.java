@@ -254,6 +254,19 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testWaitForRefreshConcreteIndexValidation() throws Exception {
+        assertAcked(prepareCreate("test1"));
+        client().admin().indices().prepareAliases().addAlias("test1", "testAlias").get();
+
+        // no exception
+        client().prepareSearch("testAlias").get();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> client().prepareSearch("testAlias").setWaitForCheckpoints(Collections.singletonMap("testAlias", new long[0])).get());
+        assertThat(e.getMessage(), containsString("Index configured with wait_for_checkpoint must be a concrete index resolved in this " +
+            "search. Index [testAlias] is not a concrete index resolved in this search."));
+    }
+
     public void testShardCountLimit() throws Exception {
         try {
             final int numPrimaries1 = randomIntBetween(2, 10);

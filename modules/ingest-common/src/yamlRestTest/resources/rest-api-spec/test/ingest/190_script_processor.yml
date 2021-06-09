@@ -203,28 +203,6 @@ teardown:
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }
 
-             sourceIpAddrString,
-             destIpAddrString,
-             ianaNumber,
-             transport,
-             sourcePort,
-             destinationPort,
-             icmpType,
-             icmpCode,
-             seed
-
-             source.put("ip", "128.232.110.120");
-             source.put("port", 34855);
-             event.put("source", source);
-             var destination = new HashMap<String, Object>();
-             destination.put("ip", "66.35.250.204");
-             destination.put("port", 80);
-             event.put("destination", destination);
-             var network = new HashMap<String, Object>();
-             network.put("transport", "TCP");
-             event.put("network", network);
-
-
 ---
 "Test invoke community_id processor":
   - do:

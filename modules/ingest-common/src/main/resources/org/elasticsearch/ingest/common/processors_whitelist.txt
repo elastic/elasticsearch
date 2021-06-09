@@ -15,4 +15,6 @@ class org.elasticsearch.ingest.common.Processors {
   Object json(Object)
   void json(Map, String)
   String urlDecode(String)
+  String communityId(String, String, Object, Object, Object, Object, Object, Object, int)
+  String communityId(String, String, Object, Object, Object, Object, Object, Object)
 }

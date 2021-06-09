@@ -33,6 +33,19 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
     public static final String TYPE = "community_id";
 
+    private static final MessageDigest MESSAGE_DIGEST;
+
+    static {
+        MessageDigest temp;
+        try {
+            temp = MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException e) {
+            // do not fail class initialization
+            temp = null;
+        }
+        MESSAGE_DIGEST = temp;
+    }
+
     private final String sourceIpField;
     private final String sourcePortField;
     private final String destinationIpField;
@@ -127,7 +140,7 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Flow flow = buildFlow(ingestDocument);
+        Flow flow = buildFlow(new IngestDocumentFlowValueSupplier(ingestDocument));
         if (flow == null) {
             if (ignoreMissing) {
                 return ingestDocument;
@@ -142,13 +155,92 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private Flow buildFlow(IngestDocument d) {
-        String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
+    public static String apply(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode,
+        int seed) {
+
+        Flow flow = buildFlow(new FlowValueSupplier(){
+
+            @Override
+            public String getSourceIpAddrString() {
+                return sourceIpAddrString;
+            }
+
+            @Override
+            public String getDestIpAddrString() {
+                return destIpAddrString;
+            }
+
+            @Override
+            public Object getIanaNumber() {
+                return ianaNumber;
+            }
+
+            @Override
+            public Object getTransport() {
+                return transport;
+            }
+
+            @Override
+            public Object getSourcePort() {
+                return sourcePort;
+            }
+
+            @Override
+            public Object getDestinationPort() {
+                return destinationPort;
+            }
+
+            @Override
+            public Object getIcmpType() {
+                return icmpType;
+            }
+
+            @Override
+            public Object getIcmpCode() {
+                return icmpCode;
+            }
+        });
+
+        if (flow == null) {
+            throw new IllegalArgumentException("unable to construct flow from document");
+        } else if (MESSAGE_DIGEST != null) {
+            byte[] seedBytes = toUint16(seed);
+            synchronized (MESSAGE_DIGEST) {
+                MESSAGE_DIGEST.reset();
+                return flow.toCommunityId(MESSAGE_DIGEST, seedBytes);
+            }
+        } else {
+            throw new IllegalStateException("unable to obtain SHA-1 hasher");
+        }
+    }
+
+    public static String apply(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode) {
+        return apply(sourceIpAddrString, destIpAddrString, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode, 0);
+    }
+
+    private static Flow buildFlow(FlowValueSupplier s) {
+        String sourceIpAddrString = s.getSourceIpAddrString();
         if (sourceIpAddrString == null) {
             return null;
         }
 
-        String destIpAddrString = d.getFieldValue(destinationIpField, String.class, ignoreMissing);
+        String destIpAddrString = s.getDestIpAddrString();
         if (destIpAddrString == null) {
             return null;
         }
@@ -157,9 +249,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         flow.source = InetAddresses.forString(sourceIpAddrString);
         flow.destination = InetAddresses.forString(destIpAddrString);
 
-        Object protocol = d.getFieldValue(ianaNumberField, Object.class, true);
+        Object protocol = s.getIanaNumber();
         if (protocol == null) {
-            protocol = d.getFieldValue(transportField, Object.class, ignoreMissing);
+            protocol = s.getTransport();
             if (protocol == null) {
                 return null;
             }
@@ -170,13 +262,13 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             case Tcp:
             case Udp:
             case Sctp:
-                Object sourcePortValue = d.getFieldValue(sourcePortField, Object.class, ignoreMissing);
+                Object sourcePortValue = s.getSourcePort();
                 flow.sourcePort = parseIntFromObjectOrString(sourcePortValue, "source port");
                 if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
                     throw new IllegalArgumentException("invalid source port [" + sourcePortValue + "]");
                 }
 
-                Object destinationPortValue = d.getFieldValue(destinationPortField, Object.class, ignoreMissing);
+                Object destinationPortValue = s.getDestinationPort();
                 flow.destinationPort = parseIntFromObjectOrString(destinationPortValue, "destination port");
                 if (flow.destinationPort < 1 || flow.destinationPort > 65535) {
                     throw new IllegalArgumentException("invalid destination port [" + destinationPortValue + "]");
@@ -185,8 +277,8 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             case Icmp:
             case IcmpIpV6:
                 // tolerate missing or invalid ICMP types and codes
-                flow.icmpType = parseIntFromObjectOrString(d.getFieldValue(icmpTypeField, Object.class, true), "icmp type");
-                flow.icmpCode = parseIntFromObjectOrString(d.getFieldValue(icmpCodeField, Object.class, true), "icmp code");
+                flow.icmpType = parseIntFromObjectOrString(s.getIcmpType(), "icmp type");
+                flow.icmpCode = parseIntFromObjectOrString(s.getIcmpCode(), "icmp code");
                 break;
         }
 
@@ -561,6 +653,66 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
         public static Integer codeEquivalent(int icmpType, boolean isIpV6) {
             return isIpV6 ? ICMP_V6_CODE_EQUIVALENTS.get(icmpType) : ICMP_V4_CODE_EQUIVALENTS.get(icmpType);
+        }
+    }
+
+    interface FlowValueSupplier {
+        String getSourceIpAddrString();
+        String getDestIpAddrString();
+        Object getIanaNumber();
+        Object getTransport();
+        Object getSourcePort();
+        Object getDestinationPort();
+        Object getIcmpType();
+        Object getIcmpCode();
+    }
+
+    private class IngestDocumentFlowValueSupplier implements FlowValueSupplier {
+
+        private final IngestDocument document;
+
+        IngestDocumentFlowValueSupplier(IngestDocument document) {
+            this.document = document;
+        }
+
+        @Override
+        public String getSourceIpAddrString() {
+            return document.getFieldValue(sourceIpField, String.class, ignoreMissing);
+        }
+
+        @Override
+        public String getDestIpAddrString() {
+            return document.getFieldValue(destinationIpField, String.class, ignoreMissing);
+        }
+
+        @Override
+        public Object getIanaNumber() {
+            return document.getFieldValue(ianaNumberField, Object.class, true);
+        }
+
+        @Override
+        public Object getTransport() {
+            return document.getFieldValue(transportField, Object.class, ignoreMissing);
+        }
+
+        @Override
+        public Object getSourcePort() {
+            return document.getFieldValue(sourcePortField, Object.class, ignoreMissing);
+        }
+
+        @Override
+        public Object getDestinationPort() {
+            return document.getFieldValue(destinationPortField, Object.class, ignoreMissing);
+        }
+
+        @Override
+        public Object getIcmpType() {
+            return document.getFieldValue(icmpTypeField, Object.class, true);
+        }
+
+        @Override
+        public Object getIcmpCode() {
+            return document.getFieldValue(icmpCodeField, Object.class, true);
         }
     }
 }

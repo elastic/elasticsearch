@@ -10,8 +10,8 @@ package org.elasticsearch.common.util;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ListenableActionFuture;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;

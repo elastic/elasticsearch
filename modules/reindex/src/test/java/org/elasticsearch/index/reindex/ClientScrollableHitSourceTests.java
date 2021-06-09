@@ -23,7 +23,7 @@ import org.elasticsearch.client.ParentTaskAssigningClient;
 import org.elasticsearch.client.support.AbstractClient;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -46,7 +46,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ClientScrollableHitSourceTests extends ESTestCase {

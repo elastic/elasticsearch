@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.security;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;

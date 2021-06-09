@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.util.concurrent.RefCounted;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.StoreFileMetadata;
 

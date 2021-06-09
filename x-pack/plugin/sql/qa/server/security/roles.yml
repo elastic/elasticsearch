@@ -111,3 +111,7 @@ user2:
         - write
         - create_index
         - indices:admin/refresh
+
+manage_user:
+  cluster:
+    - manage

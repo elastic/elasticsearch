@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.CancellableTask;
@@ -39,10 +38,13 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
     public static class Request extends AcknowledgedRequest<Request> {
 
-        private static final ParseField FORCE = new ParseField("force");
-
         private String jobId;
-        private boolean force;
+
+        /**
+         * Internal parameter that allows resetting an open job
+         * when a job is reallocated to a new node.
+         */
+        private boolean skipJobStateValidation;
 
         /**
          * Should this task store its result?
@@ -56,22 +58,22 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             jobId = in.readString();
-            force = in.readBoolean();
+            skipJobStateValidation = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(jobId);
-            out.writeBoolean(force);
+            out.writeBoolean(skipJobStateValidation);
         }
 
-        public void setForce(boolean force) {
-            this.force = force;
+        public void setSkipJobStateValidation(boolean skipJobStateValidation) {
+            this.skipJobStateValidation = skipJobStateValidation;
         }
 
-        public boolean isForce() {
-            return force;
+        public boolean isSkipJobStateValidation() {
+            return skipJobStateValidation;
         }
 
         /**
@@ -102,7 +104,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, force);
+            return Objects.hash(jobId, skipJobStateValidation);
         }
 
         @Override
@@ -110,7 +112,7 @@ public class ResetJobAction extends ActionType<AcknowledgedResponse> {
             if (this == o) return true;
             if (o == null || o.getClass() != getClass()) return false;
             Request that = (Request) o;
-            return Objects.equals(jobId, that.jobId) && force == that.force;
+            return Objects.equals(jobId, that.jobId) && skipJobStateValidation == that.skipJobStateValidation;
         }
     }
 }

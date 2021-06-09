@@ -86,7 +86,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                 Job job = jobBuilder.build();
                 PersistentTasksCustomMetadata tasks = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                 JobState jobState = MlTasks.getJobState(job.getId(), tasks);
-                if (request.isForce() == false && jobState != JobState.CLOSED) {
+                if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
                     return;
                 }
@@ -174,7 +174,7 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
         // if the job has been opened.
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
         JobState jobState = MlTasks.getJobState(jobId, tasks);
-        if (request.isForce() == false && jobState != JobState.CLOSED) {
+        if (request.isSkipJobStateValidation() == false && jobState != JobState.CLOSED) {
             jobConfigProvider.updateJobBlockReason(jobId, null, ActionListener.wrap(
                 clearResetResponse -> listener.onFailure(ExceptionsHelper.conflictStatusException(
                     Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET))),

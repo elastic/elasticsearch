@@ -106,7 +106,7 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
                             ));
                             return;
                         }
-                        if (job.getBlockReason() != null && job.getBlockReason() != BlockReason.REVERT) {
+                        if (job.getBlockReason() != null) {
                             listener.onFailure(ExceptionsHelper.conflictStatusException(
                                 "cannot revert job [{}] to snapshot [{}] while it is blocked with [{}]",
                                 jobId, request.getSnapshotId(), job.getBlockReason())

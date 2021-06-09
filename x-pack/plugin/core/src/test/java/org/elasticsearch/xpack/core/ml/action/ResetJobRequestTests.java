@@ -16,7 +16,7 @@ public class ResetJobRequestTests extends AbstractWireSerializingTestCase<ResetJ
     protected ResetJobAction.Request createTestInstance() {
         ResetJobAction.Request request = new ResetJobAction.Request(randomAlphaOfLength(10));
         request.setShouldStoreResult(randomBoolean());
-        request.setForce(randomBoolean());
+        request.setSkipJobStateValidation(randomBoolean());
         return request;
     }
 

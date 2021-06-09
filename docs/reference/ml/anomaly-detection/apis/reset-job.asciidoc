@@ -18,7 +18,9 @@ Resets an existing {anomaly-job}.
 
 * Requires the `manage_ml` cluster privilege. This privilege is included in the 
 `machine_learning_admin` built-in role.
-* Before you can reset a job, you must close it. See <<ml-close-job>>.
+* Before you can reset a job, you must close it. You can set `force` to `true`
+when closing the job in order to skip waiting for the job to finalize as it
+is about to be reset. See <<ml-close-job>>.
 
 [[ml-reset-job-desc]]
 == {api-description-title}

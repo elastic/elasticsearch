@@ -26,11 +26,6 @@
       ]
     },
     "params":{
-      "force":{
-        "type":"boolean",
-        "description":"True if the job should be forcefully reset",
-        "default":false
-      },
       "wait_for_completion":{
         "type":"boolean",
         "description":"Should this request wait until the operation has completed before returning",

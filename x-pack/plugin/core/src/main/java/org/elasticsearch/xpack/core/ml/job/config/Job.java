@@ -887,7 +887,13 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setDeleting(boolean deleting) {
             this.deleting = deleting;
-            this.blockReason = BlockReason.DELETE;
+            if (deleting) {
+                this.blockReason = BlockReason.DELETE;
+            } else {
+                if (blockReason == BlockReason.DELETE) {
+                    blockReason = null;
+                }
+            }
             return this;
         }
 
@@ -899,6 +905,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private Builder setBlockReason(String blockReason) {
             if (blockReason == null) {
                 this.blockReason = null;
+                this.deleting = false;
                 return this;
             } else {
                 return setBlockReason(BlockReason.fromString(blockReason));
@@ -907,9 +914,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setBlockReason(BlockReason blockReason) {
             this.blockReason = blockReason;
-            if (this.blockReason == BlockReason.DELETE) {
-                this.deleting = true;
-            }
+            this.deleting = (this.blockReason == BlockReason.DELETE);
             return this;
         }
 

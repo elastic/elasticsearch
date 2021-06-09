@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
@@ -606,6 +607,27 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 .setBlockReason(BlockReason.DELETE)
                 .build();
             assertThat(job.isDeleting(), is(true));
+        }
+    }
+
+    public void testParseJobWithDeletingButWithoutBlockReason() throws IOException {
+        String jobWithDeleting = "{\n" +
+            "    \"job_id\": \"deleting_job\",\n" +
+            "    \"create_time\": 1234567890000,\n" +
+            "    \"analysis_config\": {\n" +
+            "        \"bucket_span\": \"1h\",\n" +
+            "        \"detectors\": [{\"function\": \"count\"}]\n" +
+            "    },\n" +
+            "    \"data_description\": {\n" +
+            "        \"time_field\": \"time\"\n" +
+            "    },\n" +
+            "    \"deleting\": true\n" +
+            "}";
+
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(
+                NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, jobWithDeleting)) {
+            Job job = doParseInstance(parser);
+            assertThat(job.getBlockReason(), equalTo(BlockReason.DELETE));
         }
     }
 

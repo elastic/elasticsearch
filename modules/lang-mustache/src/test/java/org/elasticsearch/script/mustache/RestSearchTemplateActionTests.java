@@ -8,7 +8,7 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.test.rest.FakeRestRequest;

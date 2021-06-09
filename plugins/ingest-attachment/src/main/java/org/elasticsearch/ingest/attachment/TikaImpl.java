@@ -19,8 +19,8 @@ import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.bootstrap.FilePermissionUtils;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.JavaVersion;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

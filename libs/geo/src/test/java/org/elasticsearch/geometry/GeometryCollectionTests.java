@@ -16,8 +16,10 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 
 public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollection<Geometry>> {
     @Override
@@ -54,5 +56,15 @@ public class GeometryCollectionTests extends BaseGeometryTestCase<GeometryCollec
         assertEquals("found Z value [30.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
 
         StandardValidator.instance(true).validate(new GeometryCollection<Geometry>(Collections.singletonList(new Point(20, 10, 30))));
+    }
+
+    public void testImmutable() {
+        List<Geometry> geometries = new ArrayList<>();
+        geometries.add(new Point(20, 10));
+        GeometryCollection<Geometry> gc = new GeometryCollection<>(geometries);
+        assertEquals(1, gc.size());
+        geometries.add(new Point(10, 20));
+        // modifying the original list should not modify the geometry collection
+        assertEquals(1, gc.size());
     }
 }

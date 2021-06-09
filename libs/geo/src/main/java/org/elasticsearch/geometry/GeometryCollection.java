@@ -38,7 +38,7 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
                 throw new IllegalArgumentException("all elements of the collection should have the same number of dimension");
             }
         }
-        this.shapes = shapes;
+        this.shapes = List.copyOf(shapes);
     }
 
     @Override

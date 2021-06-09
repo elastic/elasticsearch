@@ -8,7 +8,7 @@
 package fixture.url;
 
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;

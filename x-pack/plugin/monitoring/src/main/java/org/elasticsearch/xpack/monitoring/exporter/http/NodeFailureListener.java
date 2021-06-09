@@ -13,7 +13,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.Node;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.sniff.Sniffer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * {@code NodeFailureListener} logs warnings for any node failure, but it can also notify a {@link Sniffer} and/or {@link HttpResource}

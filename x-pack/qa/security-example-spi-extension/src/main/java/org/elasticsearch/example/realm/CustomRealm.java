@@ -7,7 +7,7 @@
 package org.elasticsearch.example.realm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

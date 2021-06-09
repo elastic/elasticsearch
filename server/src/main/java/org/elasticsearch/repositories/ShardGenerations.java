@@ -8,7 +8,7 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 
 import java.util.Arrays;

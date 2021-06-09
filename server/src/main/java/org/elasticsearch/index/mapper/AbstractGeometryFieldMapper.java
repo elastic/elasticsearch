@@ -78,7 +78,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         /**
-         * Gets the formatter. If the method return null, then the format is unsupported and an error is thrown.
+         * Gets the formatter by name.
          */
         protected abstract Function<T, Object> getFormatter(String format);
 

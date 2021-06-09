@@ -224,7 +224,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
         private GeoPointFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
                                   Parser<GeoPoint> parser, FieldValues<GeoPoint> scriptValues, Map<String, String> meta) {
-            super(name, indexed, stored, hasDocValues, true, parser, meta);
+            super(name, indexed, stored, hasDocValues, parser, meta);
             this.scriptValues = scriptValues;
         }
 

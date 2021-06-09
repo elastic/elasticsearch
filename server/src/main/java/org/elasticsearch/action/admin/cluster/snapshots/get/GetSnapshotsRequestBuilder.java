@@ -10,8 +10,8 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 /**

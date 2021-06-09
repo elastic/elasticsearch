@@ -19,7 +19,7 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.Collections;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -101,7 +101,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
 
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
-            indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
+            indexService.createResponse(executionId.getDocId(), Collections.emptyMap(), initialResponse, createFuture);
             assertThat(createFuture.actionGet().getResult(), equalTo(DocWriteResponse.Result.CREATED));
 
             if (randomBoolean()) {
@@ -116,7 +116,7 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                     testMessage = randomAlphaOfLength(10);
                     TestAsyncResponse updateResponse = new TestAsyncResponse(testMessage, randomLong());
                     PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
-                    indexService.updateResponse(executionId.getDocId(), Map.of(), updateResponse, updateFuture);
+                    indexService.updateResponse(executionId.getDocId(), Collections.emptyMap(), updateResponse, updateFuture);
                     updateFuture.actionGet();
                 } else {
                     expirationTime = randomLong();

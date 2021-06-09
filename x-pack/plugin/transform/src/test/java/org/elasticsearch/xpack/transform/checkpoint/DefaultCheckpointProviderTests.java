@@ -17,6 +17,9 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -28,6 +31,7 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import org.elasticsearch.xpack.transform.notifications.MockTransformAuditor;
@@ -36,6 +40,9 @@ import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigMa
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.concurrent.CountDownLatch;
@@ -46,19 +53,24 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doReturn;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class DefaultCheckpointProviderTests extends ESTestCase {
 
-    private Client client;
+    private static Logger checkpointProviderLogger = LogManager.getLogger(DefaultCheckpointProvider.class);
 
-    private MockTransformAuditor transformAuditor;
+    private Clock clock;
+    private Client client;
     private IndexBasedTransformConfigManager transformConfigManager;
-    private Logger checkpointProviderlogger = LogManager.getLogger(DefaultCheckpointProvider.class);
+    private MockTransformAuditor transformAuditor;
 
     @Before
     public void setUpMocks() {
+        clock = Clock.fixed(Instant.now(), ZoneId.systemDefault());
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         client = mock(Client.class);
@@ -70,19 +82,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     public void testReportSourceIndexChangesRunsEmpty() throws Exception {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
-
-        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
-            client,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "warn when source is empty",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.WARN,
                 "[" + transformId + "] Source did not resolve to any open indexes"
             ),
@@ -98,7 +103,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertExpectation(
             new MockLogAppender.UnseenEventExpectation(
                 "do not warn if empty again",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.WARN,
                 "Source did not resolve to any concrete indexes"
             ),
@@ -115,19 +120,12 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     public void testReportSourceIndexChangesAddDelete() throws Exception {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
-
-        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
-            client,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "info about adds/removal",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.DEBUG,
                 "[" + transformId + "] Source index resolve found changes, removedIndexes: [index], new indexes: [other_index]"
             ),
@@ -143,7 +141,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "info about adds/removal",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.DEBUG,
                 "[" + transformId + "] Source index resolve found changes, removedIndexes: [index], new indexes: []"
             ),
@@ -158,7 +156,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "info about adds/removal",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.DEBUG,
                 "[" + transformId + "] Source index resolve found changes, removedIndexes: [], new indexes: [other_index]"
             ),
@@ -175,14 +173,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     public void testReportSourceIndexChangesAddDeleteMany() throws Exception {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
-
-        DefaultCheckpointProvider provider = new DefaultCheckpointProvider(
-            client,
-            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            transformConfigManager,
-            transformAuditor,
-            transformConfig
-        );
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         HashSet<String> oldSet = new HashSet<>();
         for (int i = 0; i < 100; ++i) {
@@ -196,7 +187,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         assertExpectation(
             new MockLogAppender.SeenEventExpectation(
                 "info about adds/removal",
-                checkpointProviderlogger.getName(),
+                checkpointProviderLogger.getName(),
                 Level.DEBUG,
                 "[" + transformId + "] Source index resolve found more than 10 changes, [50] removed indexes, [50] new indexes"
             ),
@@ -259,24 +250,52 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         latch.await(10, TimeUnit.SECONDS);
     }
 
+    public void testSourceHasChanged() throws InterruptedException {
+        String transformId = getTestName();
+        TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
+        DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
+
+        SetOnce<Boolean> hasChangedHolder = new SetOnce<>();
+        SetOnce<Exception> exceptionHolder = new SetOnce<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        provider.sourceHasChanged(
+            TransformCheckpoint.EMPTY,
+            new LatchedActionListener<>(ActionListener.wrap(hasChangedHolder::set, exceptionHolder::set), latch)
+        );
+        assertThat(latch.await(100, TimeUnit.MILLISECONDS), is(true));
+        assertThat(hasChangedHolder.get(), is(equalTo(false)));
+        assertThat(exceptionHolder.get(), is(nullValue()));
+    }
+
+    private DefaultCheckpointProvider newCheckpointProvider(TransformConfig transformConfig) {
+        return new DefaultCheckpointProvider(
+            clock,
+            client,
+            new RemoteClusterResolver(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
+            transformConfigManager,
+            transformAuditor,
+            transformConfig
+        );
+    }
+
     private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock)
         throws IllegalAccessException {
         MockLogAppender mockLogAppender = new MockLogAppender();
         mockLogAppender.start();
 
-        Loggers.setLevel(checkpointProviderlogger, Level.DEBUG);
+        Loggers.setLevel(checkpointProviderLogger, Level.DEBUG);
         mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
         try {
-            Loggers.addAppender(checkpointProviderlogger, mockLogAppender);
+            Loggers.addAppender(checkpointProviderLogger, mockLogAppender);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(checkpointProviderlogger, mockLogAppender);
+            Loggers.removeAppender(checkpointProviderLogger, mockLogAppender);
             mockLogAppender.stop();
         }
     }

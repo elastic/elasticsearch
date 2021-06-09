@@ -30,10 +30,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.Index;
@@ -48,12 +46,10 @@ import org.junit.Before;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_INCOMING_RECOVERIES_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -77,11 +73,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
     @Before
     private void setup() {
-        canAllocate.set((r,n,a) -> { throw new UnsupportedOperationException("canAllocate not initiated in this test"); });
-        canRemain.set((r,n,a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
+        canAllocate.set((r, n, a) -> { throw new UnsupportedOperationException("canAllocate not initiated in this test"); });
+        canRemain.set((r, n, a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
 
         clusterInfoService = EmptyClusterInfoService.INSTANCE;
-        allocationDeciders = new AllocationDeciders(List.of(new AllocationDecider() {
+        allocationDeciders = new AllocationDeciders(List.of(new NodeShutdownAllocationDecider(), new AllocationDecider() {
             @Override
             public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
                 return canAllocate.get().test(shardRouting, node, allocation);
@@ -110,8 +106,9 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                 return Decision.NO;
             }
         }));
-        snapshotsInfoService =
-            () -> new SnapshotShardSizeInfo(new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build());
+        snapshotsInfoService = () -> new SnapshotShardSizeInfo(
+            new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
+        );
         allocationService = new AllocationService(
             allocationDeciders,
             new BalancedShardsAllocator(Settings.EMPTY),
@@ -125,7 +122,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
      */
     public void testEmptyCluster() {
         RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-        ClusterState state = createTestClusterState(routingTable, Collections.emptyList());
+        ClusterState state = createTestClusterState(routingTable, Collections.emptyList(), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -141,11 +138,40 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     }
 
     /**
+     * Restart-type shutdowns don't migrate shards, so we should always report the migration status as complete
+     */
+    public void testRestartAlwaysComplete() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.RESTART);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.RESTART,
+            allocationDeciders,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService
+        );
+
+        assertShardMigration(status, SingleNodeShutdownMetadata.Status.COMPLETE, 0, nullValue());
+    }
+
+    /**
      * Only slightly more complex than the previous case, tests that things are correctly reported as COMPLETE if there are no shards left
      * on the node.
      */
     public void testComplete() {
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1,20));
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
@@ -155,7 +181,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd));
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -174,7 +200,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
      * Ensures that we properly detect "in progress" migrations while there are shards relocating off the node that's shutting down.
      */
     public void testInProgressWithRelocatingShards() {
-        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1,20));
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
         IndexMetadata imd = generateIndexMetadata(index, 3, 0);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
@@ -192,7 +218,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd));
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -229,7 +255,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             .build();
 
         // This canAllocate decider simulates the ThrottlingAllocationDecider if LIVE_NODE has a maximum incoming recoveries of 1
-        canAllocate.set((r,n,a) -> {
+        canAllocate.set((r, n, a) -> {
             if (n.nodeId().equals(LIVE_NODE_ID)) {
                 return Decision.THROTTLE;
             } else if (n.nodeId().equals(SHUTTING_DOWN_NODE_ID)) {
@@ -239,11 +265,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             }
         });
         // And the remain decider simulates NodeShutdownAllocationDecider
-        canRemain.set((r,n,a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd));
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -258,11 +284,53 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertShardMigration(status, SingleNodeShutdownMetadata.Status.IN_PROGRESS, 1, nullValue());
     }
 
+    /**
+     * Ensure we can detect stalled migrations, defined as the inability to move remaining shards off a shutting-down node due to allocation
+     * deciders.
+     */
+    public void testStalled() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .build();
+
+        // Force a decision of NO for all moves and new allocations, simulating a decider that's stuck
+        canAllocate.set((r, n, a) -> Decision.NO);
+        // And the remain decider simulates NodeShutdownAllocationDecider
+        canRemain.set((r, n, a) -> n.nodeId().equals(SHUTTING_DOWN_NODE_ID) ? Decision.NO : Decision.YES);
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            allocationDeciders,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.STALLED,
+            1,
+            allOf(containsString(index.getName()), containsString("[2] [primary]"))
+        );
+    }
+
     private IndexMetadata generateIndexMetadata(Index index, int numberOfShards, int numberOfReplicas) {
         return IndexMetadata.builder(index.getName())
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
-                .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            )
             .numberOfShards(numberOfShards)
             .numberOfReplicas(numberOfReplicas)
             .build();
@@ -279,11 +347,13 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         assertThat(status.getReason(), reasonMatcher);
     }
 
-    private ClusterState createTestClusterState(RoutingTable indexRoutingTable, List<IndexMetadata> indices) {
+    private ClusterState createTestClusterState(
+        RoutingTable indexRoutingTable,
+        List<IndexMetadata> indices,
+        SingleNodeShutdownMetadata.Type shutdownType
+    ) {
         ImmutableOpenMap.Builder<String, IndexMetadata> indicesTable = ImmutableOpenMap.<String, IndexMetadata>builder();
-        indices.forEach(imd -> {
-            indicesTable.fPut(imd.getIndex().getName(), imd);
-        });
+        indices.forEach(imd -> { indicesTable.fPut(imd.getIndex().getName(), imd); });
 
         return ClusterState.builder(ClusterState.EMPTY_STATE)
             .metadata(
@@ -295,7 +365,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                             Collections.singletonMap(
                                 SHUTTING_DOWN_NODE_ID,
                                 SingleNodeShutdownMetadata.builder()
-                                    .setType(SingleNodeShutdownMetadata.Type.REMOVE)
+                                    .setType(shutdownType)
                                     .setStartedAtMillis(randomNonNegativeLong())
                                     .setReason(this.getTestName())
                                     .setNodeId(SHUTTING_DOWN_NODE_ID)
@@ -325,7 +395,10 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                     )
                     .add(
                         DiscoveryNode.createLocal(
-                            Settings.builder().put(Settings.builder().build()).put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID).build(),
+                            Settings.builder()
+                                .put(Settings.builder().build())
+                                .put(Node.NODE_NAME_SETTING.getKey(), OTHER_LIVE_NODE_ID)
+                                .build(),
                             new TransportAddress(TransportAddress.META_ADDRESS, 9202),
                             OTHER_LIVE_NODE_ID
                         )
@@ -336,7 +409,8 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
     }
 
     private static class TestSnapshotInfoService implements SnapshotsInfoService {
-        @Override public SnapshotShardSizeInfo snapshotShardSizes() {
+        @Override
+        public SnapshotShardSizeInfo snapshotShardSizes() {
             return new SnapshotShardSizeInfo(new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build());
         }
     }

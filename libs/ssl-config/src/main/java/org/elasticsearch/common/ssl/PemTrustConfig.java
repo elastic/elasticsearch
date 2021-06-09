@@ -103,6 +103,8 @@ public final class PemTrustConfig implements SslTrustConfig {
             throw SslFileUtil.ioException(CA_FILE_TYPE, paths, e);
         } catch (GeneralSecurityException e) {
             throw SslFileUtil.securityException(CA_FILE_TYPE, paths, e);
+        } catch (SslConfigException e) {
+            throw SslFileUtil.configException(CA_FILE_TYPE, paths, e);
         }
     }
 

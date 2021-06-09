@@ -114,4 +114,13 @@ final class SslFileUtil {
         }
         return new SslConfigException(message, cause);
     }
+
+    public static SslConfigException configException(String fileType, List<Path> paths, SslConfigException cause) {
+        String message = "cannot load " + fileType;
+        if (paths.isEmpty() == false) {
+            message += " from [" + pathsToString(paths) + "]";
+        }
+        message += " - " + cause.getMessage();
+        return new SslConfigException(message, cause);
+    }
 }

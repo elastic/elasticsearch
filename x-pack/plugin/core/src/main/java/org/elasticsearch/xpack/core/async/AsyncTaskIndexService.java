@@ -195,6 +195,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
+            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
             final IndexRequest indexRequest = new IndexRequest(index)
                 .create(true)
@@ -221,6 +223,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .field(RESPONSE_HEADERS_FIELD, responseHeaders)
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
+            // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
             final UpdateRequest request = new UpdateRequest()
                 .index(index)

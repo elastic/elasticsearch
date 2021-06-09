@@ -60,7 +60,7 @@ public class BucketScriptPipelineAggregator extends PipelineAggregator {
                 String varName = entry.getKey();
                 String bucketsPath = entry.getValue();
                 Double value = resolveBucketValue(originalAgg, bucket, bucketsPath, gapPolicy);
-                if (GapPolicy.SKIP == gapPolicy && (value == null || Double.isNaN(value))) {
+                if (gapPolicy.isSkippable && (value == null || Double.isNaN(value))) {
                     skipBucket = true;
                     break;
                 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;

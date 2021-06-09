@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.persistent;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 

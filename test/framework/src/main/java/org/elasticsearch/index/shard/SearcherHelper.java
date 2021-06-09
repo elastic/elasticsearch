@@ -9,7 +9,7 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.engine.Engine;
 
 import java.io.IOException;

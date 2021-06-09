@@ -12,16 +12,27 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 
-public class TestRuntimeField extends MappedFieldType implements RuntimeField {
-
+public final class TestRuntimeField implements RuntimeField {
+    private final String name;
     private final String type;
+    private final Collection<MappedFieldType> subfields;
 
     public TestRuntimeField(String name, String type) {
-        super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        this(name, type, Collections.singleton(new TestRuntimeFieldType(name, type)));
+    }
+
+    public TestRuntimeField(String name, String type, Collection<MappedFieldType> subfields) {
+        this.name = name;
         this.type = type;
+        this.subfields = subfields;
+    }
+
+    @Override
+    public String name() {
+        return name;
     }
 
     @Override
@@ -30,22 +41,36 @@ public class TestRuntimeField extends MappedFieldType implements RuntimeField {
     }
 
     @Override
-    public MappedFieldType asMappedFieldType() {
-        return this;
+    public Collection<MappedFieldType> asMappedFieldTypes() {
+        return subfields;
     }
 
     @Override
-    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-        throw new UnsupportedOperationException();
+    public void doXContentBody(XContentBuilder builder, Params params) {
+
     }
 
-    @Override
-    public Query termQuery(Object value, SearchExecutionContext context) {
-        return null;
-    }
+    public static class TestRuntimeFieldType extends MappedFieldType {
+        private final String type;
 
-    @Override
-    public void doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        public TestRuntimeFieldType(String name, String type) {
+            super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            this.type = type;
+        }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public String typeName() {
+            return type;
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            return null;
+        }
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.NodeShutdownAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocationDecider;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,7 +65,8 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             new FilterAllocationDecider(clusterState.getMetadata().settings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             new DataTierAllocationDecider(),
-            new NodeVersionAllocationDecider()
+            new NodeVersionAllocationDecider(),
+            new NodeShutdownAllocationDecider()
         ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState, null,

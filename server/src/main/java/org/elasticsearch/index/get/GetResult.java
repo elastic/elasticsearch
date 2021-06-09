@@ -10,7 +10,7 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -18,6 +18,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.rest.action.document.RestMultiGetAction;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -40,6 +42,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_T
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class GetResult implements Writeable, Iterable<DocumentField>, ToXContentObject {
+    private static final DeprecationLogger deprecationLogger =  DeprecationLogger.getLogger(GetResult.class);
 
     public static final String _INDEX = "_index";
     public static final String _ID = "_id";
@@ -323,6 +326,8 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
             } else if (token.isValue()) {
                 if (_INDEX.equals(currentFieldName)) {
                     index = parser.text();
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 && MapperService.TYPE_FIELD_NAME.equals(currentFieldName)) {
+                    deprecationLogger.compatibleApiWarning("mget_with_types", RestMultiGetAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (_ID.equals(currentFieldName)) {
                     id = parser.text();
                 }  else if (_VERSION.equals(currentFieldName)) {

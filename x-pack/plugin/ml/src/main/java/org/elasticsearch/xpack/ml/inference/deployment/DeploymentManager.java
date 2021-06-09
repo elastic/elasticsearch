@@ -19,7 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.ml.inference.deployment.PyTorchResult;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentState;
 import org.elasticsearch.xpack.core.ml.inference.deployment.TrainedModelDeploymentTaskState;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
@@ -163,6 +162,11 @@ public class DeploymentManager {
                       String input, TimeValue timeout,
                       ActionListener<InferenceResults> listener) {
         ProcessContext processContext = processContextByAllocation.get(task.getAllocationId());
+
+        if (processContext == null) {
+            listener.onFailure(new IllegalStateException("[" + task.getModelId() + "] process context missing"));
+            return;
+        }
 
         final String requestId = String.valueOf(requestIdCounter.getAndIncrement());
 

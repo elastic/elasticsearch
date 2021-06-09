@@ -17,8 +17,8 @@ import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;

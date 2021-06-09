@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.core.ml.action;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
 import org.elasticsearch.action.support.tasks.BaseTasksResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -130,7 +130,9 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
             results.toXContent(builder, params);
+            builder.endObject();
             return builder;
         }
 

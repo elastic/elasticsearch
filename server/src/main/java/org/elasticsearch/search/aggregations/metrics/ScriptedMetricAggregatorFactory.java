@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.Aggregator;

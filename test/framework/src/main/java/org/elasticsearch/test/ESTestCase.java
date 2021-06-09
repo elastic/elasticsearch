@@ -37,17 +37,17 @@ import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.RestApiVersion;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -864,6 +864,13 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
+     */
+    public long randomMillisUpToYear9999() {
+        return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
+    }
+
+    /**
      * generate a random TimeZone from the ones available in java.util
      */
     public static TimeZone randomTimeZone() {
@@ -1148,6 +1155,10 @@ public abstract class ESTestCase extends LuceneTestCase {
     public String compatibleMediaType(XContentType type, RestApiVersion version) {
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version.major)));
+    }
+
+    public XContentType randomVendorType() {
+        return randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
     }
 
     public static class GeohashGenerator extends CodepointSetGenerator {

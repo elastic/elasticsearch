@@ -38,6 +38,21 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     private Set<ShardId> shardIds;
     private String nodeId;
 
+    public NodeTermsEnumRequest(final String nodeId,
+                                final Set<ShardId> shardIds,
+                                TermsEnumRequest request,
+                                long taskStartTimeMillis) {
+        this.field = request.field();
+        this.string = request.string();
+        this.searchAfter = request.searchAfter();
+        this.caseInsensitive = request.caseInsensitive();
+        this.size = request.size();
+        this.timeout = request.timeout().getMillis();
+        this.taskStartedTimeMillis = taskStartTimeMillis;
+        this.indexFilter = request.indexFilter();
+        this.nodeId = nodeId;
+        this.shardIds = shardIds;
+    }
 
     public NodeTermsEnumRequest(StreamInput in) throws IOException {
         super(in);
@@ -57,20 +72,26 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
         }
     }
 
-    public NodeTermsEnumRequest(final String nodeId,
-                                final Set<ShardId> shardIds,
-                                TermsEnumRequest request,
-                                long taskStartTimeMillis) {
-        this.field = request.field();
-        this.string = request.string();
-        this.searchAfter = request.searchAfter();
-        this.caseInsensitive = request.caseInsensitive();
-        this.size = request.size();
-        this.timeout = request.timeout().getMillis();
-        this.taskStartedTimeMillis = taskStartTimeMillis;
-        this.indexFilter = request.indexFilter();
-        this.nodeId = nodeId;
-        this.shardIds = shardIds;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(field);
+        out.writeOptionalString(string);
+        out.writeOptionalString(searchAfter);
+        out.writeBoolean(caseInsensitive);
+        out.writeVInt(size);
+        // Adjust the amount of permitted time the shard has remaining to gather terms.
+        long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
+        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
+        // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
+        out.writeVLong(remainingTimeForShardToUse);
+        out.writeVLong(taskStartedTimeMillis);
+        out.writeOptionalNamedWriteable(indexFilter);
+        out.writeString(nodeId);
+        out.writeVInt(shardIds.size());
+        for (ShardId shardId : shardIds) {
+            shardId.writeTo(out);
+        }
     }
 
     public String field() {
@@ -123,28 +144,6 @@ public class NodeTermsEnumRequest extends TransportRequest implements IndicesReq
     }
     public String nodeId() {
         return nodeId;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(field);
-        out.writeOptionalString(string);
-        out.writeOptionalString(searchAfter);
-        out.writeBoolean(caseInsensitive);
-        out.writeVInt(size);
-        // Adjust the amount of permitted time the shard has remaining to gather terms.
-        long timeSpentSoFarInCoordinatingNode = System.currentTimeMillis() - taskStartedTimeMillis;
-        long remainingTimeForShardToUse =  (timeout - timeSpentSoFarInCoordinatingNode);
-        // TODO - if already timed out can we shortcut the trip somehow? Throw exception if remaining time < 0?
-        out.writeVLong(remainingTimeForShardToUse);
-        out.writeVLong(taskStartedTimeMillis);
-        out.writeOptionalNamedWriteable(indexFilter);
-        out.writeString(nodeId);
-        out.writeVInt(shardIds.size());
-        for (ShardId shardId : shardIds) {
-            shardId.writeTo(out);
-        }
     }
 
     public QueryBuilder indexFilter() {

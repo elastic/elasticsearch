@@ -41,16 +41,6 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         this(Strings.EMPTY_ARRAY);
     }
 
-    public TermsEnumRequest(StreamInput in) throws IOException {
-        super(in);
-        field = in.readString();
-        string = in.readString();
-        searchAfter = in.readOptionalString();
-        caseInsensitive = in.readBoolean();
-        size = in.readVInt();
-        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-    }
-
     /**
      * Constructs a new term enum request against the provided indices. No indices provided means it will
      * run against all indices.
@@ -72,6 +62,27 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         indicesOptions(clone.indicesOptions());
         timeout(clone.timeout());
         setParentTask(clone.getParentTask());
+    }
+
+    public TermsEnumRequest(StreamInput in) throws IOException {
+        super(in);
+        field = in.readString();
+        string = in.readOptionalString();
+        searchAfter = in.readOptionalString();
+        caseInsensitive = in.readBoolean();
+        size = in.readVInt();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(field);
+        out.writeOptionalString(string);
+        out.writeOptionalString(searchAfter);
+        out.writeBoolean(caseInsensitive);
+        out.writeVInt(size);
+        out.writeOptionalNamedWriteable(indexFilter);
     }
 
     @Override
@@ -178,17 +189,6 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
 
     public QueryBuilder indexFilter() {
         return indexFilter;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(field);
-        out.writeOptionalString(string);
-        out.writeOptionalString(searchAfter);
-        out.writeBoolean(caseInsensitive);
-        out.writeVInt(size);
-        out.writeOptionalNamedWriteable(indexFilter);
     }
 
     @Override

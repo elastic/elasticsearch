@@ -28,65 +28,10 @@ testClusters.all {
 
 tasks.named("test").configure { enabled = false }
 tasks.named("jarHell").configure { enabled = false }
-def willNotFixTests = {
-  return ['cat.aliases/10_basic/Alias against closed index',
-          'cat.aliases/10_basic/Alias name',
-          'cat.aliases/10_basic/Alias sorting',
-          'cat.aliases/10_basic/Column headers',
-          'cat.aliases/10_basic/Complex alias',
-          'cat.aliases/10_basic/Empty cluster',
-          'cat.aliases/10_basic/Multiple alias names',
-          'cat.aliases/10_basic/Select columns',
-          'cat.aliases/10_basic/Simple alias',
-          'cat.aliases/40_hidden/Test cat aliases output with a hidden index with a hidden alias',
-          'cat.aliases/40_hidden/Test cat aliases output with a hidden index with a visible alias',
-          'cat.aliases/40_hidden/Test cat aliases output with a visible index with a hidden alias',
-          'cat.allocation/10_basic/All Nodes',
-          'cat.allocation/10_basic/Bytes',
-          'cat.allocation/10_basic/Column headers',
-          'cat.allocation/10_basic/Empty cluster',
-          'cat.allocation/10_basic/Node ID',
-          'cat.allocation/10_basic/One index',
-          'cat.allocation/10_basic/Select columns',
-          'cat.count/10_basic/Test cat count output',
-          'cat.fielddata/10_basic/Test cat fielddata output',
-          'cat.health/10_basic/Empty cluster',
-          'cat.health/10_basic/With ts parameter',
-          'cat.indices/10_basic/Test cat indices output',
-          'cat.indices/10_basic/Test cat indices output (no indices)',
-          'cat.indices/10_basic/Test cat indices output for closed index',
-          'cat.indices/10_basic/Test cat indices sort',
-          'cat.indices/10_basic/Test cat indices using health status',
-          'cat.indices/10_basic/Test cat indices using wildcards',
-          'cat.indices/20_hidden/Test cat indices output for dot-hidden index and dot-prefixed pattern',
-          'cat.indices/20_hidden/Test cat indices output for hidden index',
-          'cat.indices/20_hidden/Test cat indices output with a hidden index with a hidden alias',
-          'cat.indices/20_hidden/Test cat indices output with a hidden index with a visible alias',
-          'cat.indices/20_hidden/Test cat indices output with a hidden index, dot-hidden alias and dot pattern',
-          'cat.nodeattrs/10_basic/Test cat nodes attrs output',
-          'cat.nodes/10_basic/Additional disk information',
-          'cat.nodes/10_basic/Test cat nodes output',
-          'cat.nodes/10_basic/Test cat nodes output with full_id set',
-          'cat.recovery/10_basic/Test cat recovery output',
-          'cat.recovery/10_basic/Test cat recovery output for closed index',
-          'cat.repositories/10_basic/Test cat repositories output',
-          'cat.repositories/10_basic/Test cat repositories sort',
-          'cat.segments/10_basic/Test cat segments output',
-          'cat.segments/10_basic/Test cat segments using wildcards',
-          'cat.shards/10_basic/Help',
-          'cat.shards/10_basic/Test cat shards output',
-          'cat.shards/10_basic/Test cat shards sort',
-          'cat.shards/10_basic/Test cat shards using wildcards',
-          'cat.snapshots/10_basic/Help',
-          'cat.snapshots/10_basic/Test cat snapshots output',
-          'cat.tasks/10_basic/Test cat tasks output',
-          'cat.tasks/10_basic/Test cat tasks output with X-Opaque-Id',
-          'cat.templates/10_basic/Column headers',
-          'cat.templates/10_basic/Filtered templates',
-          'cat.templates/10_basic/Mixture of legacy and composable templates',
-          'cat.templates/10_basic/Normal templates',
-          'cat.templates/10_basic/Select columns',
-          'cat.thread_pool/10_basic/Test cat thread_pool output',
+def v7compatiblityNotSupportedTests = {
+  return [
+          // Cat API are meant to be consumed by humans, so will not be supported by Compatible REST API
+          'cat.*',
           // type information about the type is removed and not passed down. The logic to check for this is also removed.
           'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
           // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
@@ -212,7 +157,7 @@ tasks.named("yamlRestCompatTest").configure {
     'snapshot.get/10_basic/Get snapshot info with metadata',
     'snapshot.get/10_basic/Get snapshot info with index details',
     'suggest/20_completion/Suggestions with source should work'
-   ] + willNotFixTests())
+   ] + v7compatiblityNotSupportedTests())
     .join(',')
 }
 

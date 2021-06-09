@@ -19,6 +19,8 @@ stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
 `database_file` processor option is used to specify the filename of the custom
 database to use for the processor.
 
+For Elastic Cloud deployments, the custom database files must be uploaded using custom bundle. https://www.elastic.co/guide/en/cloud/current/ec-custom-bundles.html
+
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
 

@@ -40,7 +40,7 @@ setup:
 "Execute successful after refresh search":
   - do:
       fleet.search:
-        index: "test-alias"
+        index: "test-after-refresh"
         allow_partial_search_results: false
         wait_for_checkpoints: [1]
         body: { query: { match_all: {} } }
@@ -53,7 +53,7 @@ setup:
   - do:
       catch: bad_request
       fleet.search:
-        index: "test-after-refresh"
+        index: "test-alias"
         allow_partial_search_results: false
         wait_for_checkpoints: [1]
         body: { query: { match_all: {} } }

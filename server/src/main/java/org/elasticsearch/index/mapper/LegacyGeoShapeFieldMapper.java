@@ -312,7 +312,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             Consumer<Exception> onMalformed
         ) throws IOException {
             try {
-                consumer.accept(ShapeParser.parse(parser));
+                if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                        parse(parser, consumer, onMalformed);
+                    }
+                } else {
+                    consumer.accept(ShapeParser.parse(parser));
+                }
             } catch (ElasticsearchParseException e) {
                 onMalformed.accept(e);
             }
@@ -338,7 +344,7 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
 
         private GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                   LegacyGeoShapeParser parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new LegacyGeoShapeQueryProcessor(this);
         }
 

@@ -26,3 +26,15 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
 
+tasks.named('splitPackagesAudit').configure {
+    // o.e.i.analysis is owned by server, these should be moved to a kuromoji package
+  ignoreClasses 'org.elasticsearch.index.analysis.JapaneseStopTokenFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiAnalyzerProvider',
+    'org.elasticsearch.index.analysis.KuromojiBaseFormFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiIterationMarkCharFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiKatakanaStemmerFactory',
+    'org.elasticsearch.index.analysis.KuromojiNumberFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiPartOfSpeechFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiReadingFormFilterFactory',
+    'org.elasticsearch.index.analysis.KuromojiTokenizerFactory'
+}

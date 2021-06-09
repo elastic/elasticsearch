@@ -30,6 +30,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
             new AutoFollowPattern(
                 "test_alias1",
                 Collections.singletonList("index-*"),
+                Collections.emptyList(),
                 null,
                 Settings.EMPTY,
                 true,
@@ -50,6 +51,7 @@ public class TransportGetAutoFollowPatternActionTests extends ESTestCase {
             new AutoFollowPattern(
                 "test_alias1",
                 Collections.singletonList("index-*"),
+                Collections.emptyList(),
                 null,
                 Settings.EMPTY,
                 true,

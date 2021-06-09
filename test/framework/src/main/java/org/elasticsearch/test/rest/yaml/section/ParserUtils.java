@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;

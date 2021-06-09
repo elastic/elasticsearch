@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.SecureString;

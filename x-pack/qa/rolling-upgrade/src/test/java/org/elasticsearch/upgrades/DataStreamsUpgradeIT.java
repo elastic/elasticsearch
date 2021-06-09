@@ -12,7 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;

@@ -99,6 +99,27 @@ teardown:
     - match: { hits.hits.1._source.join_field.parent: "1" }
 
 ---
+"Test field retrieval":
+  - skip:
+      version: " - 7.13.1"
+      reason: bugfix was introduced in 7.13.2
+  - do:
+      search:
+        body:
+          sort: [ "id" ]
+          fields: ["*"]
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.hits.0._index: "test" }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.join_field.0.name: "parent" }
+  - match: { hits.hits.5._index: "test" }
+  - match: { hits.hits.5._id: "6" }
+  - match: { hits.hits.5.fields.join_field.0.name: "grand_child" }
+  - match: { hits.hits.5.fields.join_field.0.parent: "5" }
+
+
+---
 "HasChild disallow expensive queries":
   - skip:
       version: " - 7.6.99"

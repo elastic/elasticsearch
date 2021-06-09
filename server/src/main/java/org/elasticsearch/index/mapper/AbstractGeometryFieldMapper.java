@@ -11,7 +11,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -53,17 +53,9 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
             CheckedConsumer<T, IOException> consumer,
             Consumer<Exception> onMalformed) throws IOException;
 
-        /**
-         * Given a parsed value and a format string, formats the value into a plain Java object.
-         *
-         * Supported formats include 'geojson' and 'wkt'. The different formats are defined
-         * as subclasses of {@link org.elasticsearch.common.geo.GeometryFormat}.
-         */
-        public abstract Object format(T value, String format);
-
-        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, String format) {
+        private void fetchFromSource(Object sourceMap, Consumer<Object> consumer, Function<T, Object> formatter) {
             try (XContentParser parser = MapXContentParser.wrapObject(sourceMap)) {
-                parse(parser, v -> consumer.accept(format(v, format)), e -> {}); /* ignore malformed */
+                parse(parser, v -> consumer.accept(formatter.apply(v)), e -> {}); /* ignore malformed */
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -88,16 +80,20 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     + name() + "]");
         }
 
+        /**
+         * Gets the formatter. If the method return null, then the format is unsupported and an error is thrown.
+         */
+        protected abstract Function<T, Object> getFormatter(String format);
+
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            String geoFormat = format != null ? format : GeoJsonGeometryFormat.NAME;
-
+            Function<T, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
             if (parsesArrayValue) {
                 return new ArraySourceValueFetcher(name(), context) {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         List<Object> values = new ArrayList<>();
-                        geometryParser.fetchFromSource(value, values::add, geoFormat);
+                        geometryParser.fetchFromSource(value, values::add, formatter);
                         return values;
                     }
                 };
@@ -106,7 +102,7 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
                     @Override
                     protected Object parseSourceValue(Object value) {
                         SetOnce<Object> holder = new SetOnce<>();
-                        geometryParser.fetchFromSource(value, holder::set, geoFormat);
+                        geometryParser.fetchFromSource(value, holder::set, formatter);
                         return holder.get();
                     }
                 };

@@ -23,10 +23,36 @@ public class GetSnapshotsAction extends ActionType<GetSnapshotsResponse> {
     }
 
     public enum SortBy {
-        START_TIME,
-        NAME,
-        DURATION,
-        INDICES
+        START_TIME("start_time"),
+        NAME("name"),
+        DURATION("duration"),
+        INDICES("indices");
+
+        private final String param;
+
+        SortBy(String param) {
+            this.param = param;
+        }
+
+        @Override
+        public String toString() {
+            return param;
+        }
+
+        public static SortBy of(String value) {
+            switch (value) {
+                case "start_time":
+                    return START_TIME;
+                case "name":
+                    return NAME;
+                case "duration":
+                    return DURATION;
+                case "indices":
+                    return INDICES;
+                default:
+                    throw new IllegalArgumentException("unknown sort order [" + value + "]");
+            }
+        }
     }
 }
 

@@ -215,10 +215,7 @@ teardown:
               {
                 "script" : {
                   "lang": "painless",
-                  "source" : """
-                     ctx.target_field1 = Processors.communityId(ctx.source_field);
-                     ctx.target_field2 = Processors.communityId(ctx.source_field);
-                  """
+                  "source" : "ctx.target_field1 = Processors.communityId(ctx.source_field); ctx.target_field2 = Processors.communityId(ctx.source_field);"
                 }
               }
             ]

@@ -15,10 +15,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -45,6 +46,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -168,6 +170,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 query =  new IndexOrDocValuesQuery(query, queryDocValues);
             }
             return query;
+        }
+
+        @Override
+        protected Function<Geometry, Object> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format);
         }
     }
 

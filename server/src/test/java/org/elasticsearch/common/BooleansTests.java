@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Locale;

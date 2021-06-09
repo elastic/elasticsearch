@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.transport.netty4;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelHandler;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;

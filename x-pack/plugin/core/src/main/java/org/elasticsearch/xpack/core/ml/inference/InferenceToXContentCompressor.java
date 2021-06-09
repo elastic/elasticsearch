@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;

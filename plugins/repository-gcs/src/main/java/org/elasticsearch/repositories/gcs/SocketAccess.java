@@ -9,7 +9,7 @@
 package org.elasticsearch.repositories.gcs;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.io.IOException;
 import java.net.SocketPermission;

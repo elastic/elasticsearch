@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;
@@ -37,10 +37,4 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
             onMalformed.accept(e);
         }
     }
-
-    @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
-    }
-
 }

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 

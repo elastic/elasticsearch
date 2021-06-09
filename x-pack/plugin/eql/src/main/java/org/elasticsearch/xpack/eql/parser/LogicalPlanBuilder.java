@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.eql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.BooleanExpressionContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.EventFilterContext;

@@ -783,43 +783,6 @@ public class SearchDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    public void testSearchAfterWithPointInTime() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-        int numDocs = between(50, 100);
-        BulkRequest request = new BulkRequest();
-        for (int i = 0; i < numDocs; i++) {
-            request.add(new IndexRequest("posts").id(Integer.toString(i)).source(XContentType.JSON, "field", i));
-        }
-        request.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-        BulkResponse bulkResponse = client.bulk(request, RequestOptions.DEFAULT);
-        assertSame(RestStatus.OK, bulkResponse.status());
-        assertFalse(bulkResponse.hasFailures());
-
-        OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest("posts");
-        openRequest.keepAlive(TimeValue.timeValueMinutes(20));
-        String pitId = client.openPointInTime(openRequest, RequestOptions.DEFAULT).getPointInTimeId();
-        assertNotNull(pitId);
-
-        SearchResponse searchResponse = null;
-        int totalHits = 0;
-        do {
-            SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort("field").size(5));
-            if (searchResponse != null) {
-                final SearchHit[] lastHits = searchResponse.getHits().getHits();
-                searchRequest.source().searchAfter(lastHits[lastHits.length - 1].getSortValues());
-            }
-            searchRequest.source().pointInTimeBuilder(new PointInTimeBuilder(pitId));
-            searchResponse = client.search(searchRequest, RequestOptions.DEFAULT);
-            assertThat(searchResponse.pointInTimeId(), equalTo(pitId));
-            totalHits += searchResponse.getHits().getHits().length;
-        } while (searchResponse.getHits().getHits().length > 0);
-
-        assertThat(totalHits, equalTo(numDocs));
-
-        ClearScrollResponse closeResponse = client.closePointInTime(new ClosePointInTimeRequest(pitId), RequestOptions.DEFAULT); // <5>
-        assertTrue(closeResponse.isSucceeded());
-    }
-
     public void testSearchTemplateWithInlineScript() throws Exception {
         indexSearchTestData();
         RestHighLevelClient client = highLevelClient();

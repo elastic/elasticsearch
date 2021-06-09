@@ -10,7 +10,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.TaskId;
 
 /**

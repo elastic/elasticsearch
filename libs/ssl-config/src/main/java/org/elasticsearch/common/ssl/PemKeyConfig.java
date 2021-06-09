@@ -8,10 +8,8 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.security.AccessControlException;
@@ -26,6 +24,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+
 
 /**
  * A {@link SslKeyConfig} that reads from PEM formatted paths.

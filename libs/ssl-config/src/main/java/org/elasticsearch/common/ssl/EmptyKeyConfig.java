@@ -8,14 +8,15 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
-import javax.net.ssl.X509ExtendedKeyManager;
 import java.nio.file.Path;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.List;
+
+import javax.net.ssl.X509ExtendedKeyManager;
 
 /**
  * A {@link SslKeyConfig} that does nothing (provides a null key manager)

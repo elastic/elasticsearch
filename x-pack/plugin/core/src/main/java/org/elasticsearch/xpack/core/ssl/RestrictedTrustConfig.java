@@ -12,12 +12,13 @@ import org.elasticsearch.common.ssl.SslTrustConfig;
 import org.elasticsearch.common.ssl.StoredCertificate;
 import org.elasticsearch.common.util.CollectionUtils;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /**
  * An implementation of {@link SslTrustConfig} that constructs a {@link RestrictedTrustManager}.

@@ -13,9 +13,6 @@ import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.env.Environment;
 
-import javax.net.ssl.KeyManagerFactory;
-import javax.net.ssl.X509ExtendedKeyManager;
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Path;
@@ -37,6 +34,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
+
+import javax.net.ssl.KeyManagerFactory;
+import javax.net.ssl.X509ExtendedKeyManager;
+import javax.net.ssl.X509ExtendedTrustManager;
 
 /** Miscellaneous utulity methods for reading certificates and keystores.
  * @see KeyStoreUtil

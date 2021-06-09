@@ -72,10 +72,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
     }
 
     public static class FakeSystemIndex extends Plugin implements SystemIndexPlugin {
+        public static final String SYSTEM_INDEX_NAME = ".fake-system-index";
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(".fake-system-index", "test index"));
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "test index"));
         }
 
         @Override
@@ -125,18 +126,11 @@ public class AutoFollowIT extends CcrIntegTestCase {
     public void testAutoFollowDoNotFollowSystemIndices() throws Exception {
         putAutoFollowPatterns("my-pattern", new String[] {".*", "logs-*"});
 
-        assertLongBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
-        });
-
         // Trigger system index creation
-        leaderClient().prepareIndex(".fake-system-index").setSource(Map.of("a", "b")).execute().actionGet();
-
-        assertLongBusy(() -> {
-            AutoFollowStats autoFollowStats = getAutoFollowStats();
-            assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(0L));
-        });
+        leaderClient().prepareIndex(FakeSystemIndex.SYSTEM_INDEX_NAME)
+            .setSource(Map.of("a", "b"))
+            .execute()
+            .actionGet();
 
         Settings leaderIndexSettings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)

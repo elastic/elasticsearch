@@ -288,7 +288,7 @@ public class DocValueFormatTests extends ESTestCase {
             ZoneOffset.UTC,
             Resolution.MILLISECONDS
         );
-        long millis = 1622567918000l;
+        long millis = 1622567918000L;
         assertEquals("2021-06-01T17:18:38", utc.format(millis));
         assertEquals("2021-06-02T02:18:38", tokyo.format(millis));
         assertEquals(
@@ -315,7 +315,7 @@ public class DocValueFormatTests extends ESTestCase {
             ZoneOffset.UTC,
             Resolution.MILLISECONDS
         );
-        long millis = 1622567918000l;
+        long millis = 1622567918000L;
         assertEquals("20210601T171838Z", utc.format(millis));
         assertEquals("20210602T021838+09:00", tokyo.format(millis));
         assertEquals(

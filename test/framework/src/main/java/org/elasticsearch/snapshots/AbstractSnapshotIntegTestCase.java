@@ -93,7 +93,9 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
+    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
+
+    public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
@@ -488,15 +490,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
+        awaitClusterState(
+                logger,
+                viaNode,
+                state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty()
+                    && state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                        .hasDeletionsInProgress() == false
+        );
     }
 
     protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
 
-    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
+    }
+
+    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
@@ -535,6 +546,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
+        return startFullSnapshot(logger, repoName, snapshotName, partial);
+    }
+
+    public static ActionFuture<CreateSnapshotResponse> startFullSnapshot(Logger logger,
+                                                                            String repoName,
+                                                                            String snapshotName,
+                                                                            boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
                 .setPartial(partial).execute();
@@ -546,7 +564,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
     }
 
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
+        awaitClusterState(logger, state ->
+                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+    }
+
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        return assertSuccessful(logger, future);
+    }
+
+    public static SnapshotInfo assertSuccessful(Logger logger, ActionFuture<CreateSnapshotResponse> future) throws Exception {
         logger.info("--> wait for snapshot to finish");
         final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
@@ -621,7 +649,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
@@ -645,7 +673,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    public static void assertSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsAction.SortBy sort) {
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsAction.SortBy sort) {
         final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));

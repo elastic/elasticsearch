@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
+package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.core.Tuple;

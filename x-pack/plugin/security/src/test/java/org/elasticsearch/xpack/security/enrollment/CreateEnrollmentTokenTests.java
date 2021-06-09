@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
-import org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -66,6 +66,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             .put("xpack.http.ssl.truststore.path", "httpCa.p12")
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+            .put("xpack.security.enrollment.enabled", "true")
             .setSecureSettings(secureSettings)
             .put("path.home", tempDir)
             .build();
@@ -115,12 +116,10 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
 
-            final String response = createEnrollmentToken.create(terminal, "elastic", new SecureString("elastic"));
+            final String token = createEnrollmentToken.create(terminal, "elastic", new SecureString("elastic"));
 
-            final String version = response.substring(0, response.lastIndexOf("."));
-            final String token = response.substring(response.lastIndexOf(".") + 1);
-            assertEquals(version, "8.0.0");
             Map<String, String> info = getDecoded(token);
+            assertEquals("8.0.0", info.get("version"));
             assertEquals("[127.0.0.1:9200]", info.get("adr"));
             assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", info.get("fgr"));
             assertEquals("x3YqU_rqQwm-ESrkExcnOg", info.get("key"));
@@ -204,18 +203,51 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 .put( "xpack.security.authc.api_key.enabled", true)
                 .put("xpack.http.ssl.truststore.path", "httpCa.p12")
                 .put("xpack.security.http.ssl.enabled", true)
+                .put("xpack.security.enrollment.enabled", "true")
                 .setSecureSettings(secureSettings)
                 .put("path.home", tempDir)
                 .build();
-            final Environment environment = new Environment(settings, tempDir);
+            final Environment environment_no_ssl = new Environment(settings, tempDir);
             final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
 
             ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class,
-                () -> new CreateEnrollmentToken(environment, client));
+                () -> new CreateEnrollmentToken(environment_no_ssl, client));
             assertThat(ex.getMessage(), Matchers.containsString("invalid SSL configuration"));
         } catch (Exception e) {
             logger.info("testSSLNotConfigured failed", e);
             fail("testSSLNotConfigured failed");
+        }
+    }
+
+    public void testEnrollmentNotEnabled() {
+        try {
+            final Path tempDir = createTempDir();
+            final Path httpCaPath = tempDir.resolve("httpCa.p12");
+            Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
+
+            final MockSecureSettings secureSettings = new MockSecureSettings();
+            secureSettings.setString("xpack.http.ssl.truststore.secure_password", "password");
+            secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "password");
+            final Settings settings = Settings.builder()
+                .put("xpack.security.enabled", true)
+                .put("xpack.http.ssl.enabled", true)
+                .put( "xpack.security.authc.api_key.enabled", true)
+                .put("xpack.http.ssl.truststore.path", "httpCa.p12")
+                .put("xpack.security.http.ssl.enabled", true)
+                .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
+                .setSecureSettings(secureSettings)
+                .put("path.home", tempDir)
+                .build();
+            final Environment environment_not_enabled = new Environment(settings, tempDir);
+            final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+
+            CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment_not_enabled, client);
+            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+                new SecureString("elastic")));
+            assertThat(ex.getMessage(), Matchers.equalTo("'xpack.security.enrollment' must be enabled to create an enrollment token"));
+        } catch (Exception e) {
+            logger.info("testEnrollmentNotEnabled failed", e);
+            fail("testEnrollmentNotEnabled failed");
         }
     }
 

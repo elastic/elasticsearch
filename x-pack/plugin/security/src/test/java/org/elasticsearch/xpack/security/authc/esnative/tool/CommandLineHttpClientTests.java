@@ -16,7 +16,9 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettingsTests;
 import org.elasticsearch.xpack.core.ssl.TestsSSLService;
 import org.elasticsearch.xpack.core.ssl.VerificationMode;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.HttpResponse.HttpResponseBuilder;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.junit.After;
 import org.junit.Before;
 

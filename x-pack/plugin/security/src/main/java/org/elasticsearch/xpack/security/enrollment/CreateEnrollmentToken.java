@@ -21,12 +21,13 @@ import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
-import org.elasticsearch.xpack.security.authc.esnative.tool.CommandLineHttpClient;
-import org.elasticsearch.xpack.security.authc.esnative.tool.HttpResponse;
+import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
+import org.elasticsearch.xpack.security.tool.HttpResponse;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
@@ -45,7 +47,7 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class CreateEnrollmentToken {
-    protected static final String ENROLL_API_KEY_EXPIRATION_SEC = "30m";
+    protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
     private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
     private final Environment environment;
@@ -65,6 +67,11 @@ public class CreateEnrollmentToken {
     }
 
     public String create(Terminal terminal, String user, SecureString password) throws Exception {
+        if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
+            throw new UserException(ExitCodes.CONFIG,
+                "'xpack.security.enrollment' must be enabled to create an enrollment token");
+        }
+
         final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             throw new UserException(ExitCodes.CONFIG,
@@ -86,7 +93,7 @@ public class CreateEnrollmentToken {
                 XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
                 xContentBuilder.startObject()
                     .field("name", "enrollment_token_API_key_" + UUIDs.base64UUID())
-                    .field("expiration", ENROLL_API_KEY_EXPIRATION_SEC)
+                    .field("expiration", ENROLL_API_KEY_EXPIRATION)
                     .startObject("role_descriptors")
                     .startObject("create_enrollment_token")
                     .field("cluster", "[" + ClusterPrivilegeResolver.ENROLL_NODE.name() + "]")
@@ -145,6 +152,7 @@ public class CreateEnrollmentToken {
 
                 final XContentBuilder builder = JsonXContent.contentBuilder();
                 builder.startObject();
+                builder.field("version", stackVersion);
                 builder.startArray("adr");
                 builder.value(address);
                 builder.endArray();
@@ -152,8 +160,7 @@ public class CreateEnrollmentToken {
                 builder.field("key", apiKey);//  CreateApiKeyResponse.getKey().toString());
                 builder.endObject();
                 final String jsonString = Strings.toString(builder);
-                final String token = Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
-                return stackVersion + "." + token;
+                return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
             } catch (Exception e) {
                 logger.error(("Error generating enrollment token"), e);
                 throw new UserException(ExitCodes.CANT_CREATE, "Error generating enrollment token: " + e.getMessage());

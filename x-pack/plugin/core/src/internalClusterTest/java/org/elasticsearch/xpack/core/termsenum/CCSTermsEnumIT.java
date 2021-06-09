@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.core.termsenum.action.TermsEnumRequest;
 import org.elasticsearch.xpack.core.termsenum.action.TermsEnumResponse;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
@@ -26,7 +27,7 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
 
     @Override
     protected Collection<String> remoteClusterAlias() {
-        return List.of("remote_cluster");
+        return Arrays.asList("remote_cluster");
     }
 
     @Override
@@ -42,15 +43,15 @@ public class CCSTermsEnumIT extends AbstractMultiClustersTestCase {
         final Client remoteClient = client("remote_cluster");
         String localIndex = "local_test";
         assertAcked(localClient.admin().indices().prepareCreate(localIndex).setSettings(indexSettings));
-        localClient.prepareIndex(localIndex).setSource("foo", "foo").get();
-        localClient.prepareIndex(localIndex).setSource("foo", "foobar").get();
+        localClient.prepareIndex(localIndex, "_doc").setSource("foo", "foo").get();
+        localClient.prepareIndex(localIndex, "_doc").setSource("foo", "foobar").get();
         localClient.admin().indices().prepareRefresh(localIndex).get();
 
         String remoteIndex = "remote_test";
         assertAcked(remoteClient.admin().indices().prepareCreate(remoteIndex).setSettings(indexSettings));
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "bar").get();
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "foobar").get();
-        remoteClient.prepareIndex(remoteIndex).setSource("foo", "zar").get();
+        remoteClient.prepareIndex(remoteIndex, "_doc").setSource("foo", "bar").get();
+        remoteClient.prepareIndex(remoteIndex, "_doc").setSource("foo", "foobar").get();
+        remoteClient.prepareIndex(remoteIndex, "_doc").setSource("foo", "zar").get();
         remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
 
         // _terms_enum on a remote cluster

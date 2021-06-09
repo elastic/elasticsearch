@@ -270,7 +270,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
     }
 
     private List<String> mergeResponses(List<List<TermCount>> termsList, int size) {
-        final PriorityQueue<TermCountIterator> pq = new PriorityQueue<>(termsList.size()) {
+        final PriorityQueue<TermCountIterator> pq = new PriorityQueue<TermCountIterator>(termsList.size()) {
             @Override
             protected boolean lessThan(TermCountIterator a, TermCountIterator b) {
                 return a.compareTo(b) < 0;
@@ -487,7 +487,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                 throw blockException;
             }
 
-            this.remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices());
+            this.remoteClusterIndices = remoteClusterService.groupIndices(request.indicesOptions(), request.indices(),
+                idx -> indexNameExpressionResolver.hasIndexAbstraction(idx, clusterState));
             OriginalIndices localIndices = remoteClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
 
             // update to concrete indices
@@ -598,7 +599,7 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     .indices(remoteIndices.indices());
 
                 Client remoteClient = remoteClusterService.getRemoteClusterClient(transportService.getThreadPool(), clusterAlias);
-                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<>() {
+                remoteClient.execute(TermsEnumAction.INSTANCE, req, new ActionListener<TermsEnumResponse>() {
                     @Override
                     public void onResponse(TermsEnumResponse termsEnumResponse) {
                         onRemoteClusterResponse(clusterAlias, opsIndex,

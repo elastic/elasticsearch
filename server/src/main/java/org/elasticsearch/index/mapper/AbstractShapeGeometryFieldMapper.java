@@ -8,8 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.Collections;
@@ -29,17 +28,17 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
     public static Parameter<Explicit<Orientation>> orientationParam(Function<FieldMapper, Explicit<Orientation>> initializer) {
         return new Parameter<>("orientation", true,
             () -> new Explicit<>(Orientation.RIGHT, false),
-            (n, c, o) -> new Explicit<>(ShapeBuilder.Orientation.fromString(o.toString()), true),
+            (n, c, o) -> new Explicit<>(Orientation.fromString(o.toString()), true),
             initializer)
             .setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());
     }
 
-    public abstract static class AbstractShapeGeometryFieldType extends AbstractGeometryFieldType {
+    public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {
 
         private final Orientation orientation;
 
         protected AbstractShapeGeometryFieldType(String name, boolean isSearchable, boolean isStored, boolean hasDocValues,
-                                                 boolean parsesArrayValue, Parser<?> parser,
+                                                 boolean parsesArrayValue, Parser<T> parser,
                                                  Orientation orientation, Map<String, String> meta) {
             super(name, isSearchable, isStored, hasDocValues, parsesArrayValue, parser, meta);
             this.orientation = orientation;

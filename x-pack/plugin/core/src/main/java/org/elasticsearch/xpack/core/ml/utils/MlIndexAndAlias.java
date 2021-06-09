@@ -9,7 +9,9 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -19,20 +21,26 @@ import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Optional;
@@ -303,25 +311,40 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
+        Version versionComposableTemplateExpected,
+        IndexTemplateConfig legacyTemplateConfig,
         IndexTemplateConfig templateConfig,
+        TimeValue masterTimeout,
         ActionListener<Boolean> listener
     ) {
+        String legacyTemplateName = legacyTemplateConfig.getTemplateName();
         String templateName = templateConfig.getTemplateName();
 
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateName)) {
+        if (hasIndexTemplate(clusterState, legacyTemplateName, templateName, versionComposableTemplateExpected)) {
             listener.onResponse(true);
             return;
         }
 
-        PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName)
-            .source(templateConfig.loadBytes(), XContentType.JSON);
+        PutIndexTemplateRequest legacyRequest = new PutIndexTemplateRequest(legacyTemplateName)
+            .source(legacyTemplateConfig.loadBytes(), XContentType.JSON).masterNodeTimeout(masterTimeout);
 
-        installIndexTemplateIfRequired(clusterState, client, request, listener);
+        PutComposableIndexTemplateAction.Request request;
+        try {
+            request = new PutComposableIndexTemplateAction.Request(templateConfig.getTemplateName())
+                .indexTemplate(ComposableIndexTemplate.parse(JsonXContent.jsonXContent.createParser(NamedXContentRegistry.EMPTY,
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION, templateConfig.loadBytes())))
+                .masterNodeTimeout(masterTimeout);
+        } catch (IOException e) {
+            throw new ElasticsearchParseException("unable to parse composable template " + templateConfig.getTemplateName(), e);
+        }
+
+        installIndexTemplateIfRequired(clusterState, client, versionComposableTemplateExpected, legacyRequest, request, listener);
     }
 
     /**
-     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, IndexTemplateConfig, ActionListener)}.
+     * See {@link #installIndexTemplateIfRequired(ClusterState, Client, Version, IndexTemplateConfig, IndexTemplateConfig, TimeValue,
+     * ActionListener)}.
      *
      * Overload takes a {@code PutIndexTemplateRequest} instead of {@code IndexTemplateConfig}
      *
@@ -333,34 +356,51 @@ public final class MlIndexAndAlias {
     public static void installIndexTemplateIfRequired(
         ClusterState clusterState,
         Client client,
-        PutIndexTemplateRequest templateRequest,
+        Version versionComposableTemplateExpected,
+        PutIndexTemplateRequest legacyTemplateRequest,
+        PutComposableIndexTemplateAction.Request templateRequest,
         ActionListener<Boolean> listener
     ) {
-        String templateName = templateRequest.name();
-
         // The check for existence of the template is against the cluster state, so very cheap
-        if (hasIndexTemplate(clusterState, templateRequest.name())) {
+        if (hasIndexTemplate(clusterState, legacyTemplateRequest.name(), templateRequest.name(), versionComposableTemplateExpected)) {
             listener.onResponse(true);
             return;
         }
 
-        templateRequest.masterNodeTimeout(TimeValue.timeValueMinutes(1));
+        if (versionComposableTemplateExpected != null &&
+            clusterState.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
+            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
+                response -> {
+                    if (response.isAcknowledged() == false) {
+                        logger.warn("error adding template [{}], request was not acknowledged", templateRequest.name());
+                    }
+                    listener.onResponse(response.isAcknowledged());
+                },
+                listener::onFailure);
 
-        ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
-            response ->  {
-                if (response.isAcknowledged() == false) {
-                    logger.warn("error adding legacy template [{}], request was not acknowledged", templateName);
-                }
-                listener.onResponse(response.isAcknowledged());
-            },
-            listener::onFailure);
+            executeAsyncWithOrigin(client, ML_ORIGIN, PutComposableIndexTemplateAction.INSTANCE, templateRequest, innerListener);
+        } else {
+            ActionListener<AcknowledgedResponse> innerListener = ActionListener.wrap(
+                response -> {
+                    if (response.isAcknowledged() == false) {
+                        logger.warn("error adding legacy template [{}], request was not acknowledged", legacyTemplateRequest.name());
+                    }
+                    listener.onResponse(response.isAcknowledged());
+                },
+                listener::onFailure);
 
-        executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, templateRequest, innerListener,
-            client.admin().indices()::putTemplate);
+            executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, legacyTemplateRequest, innerListener,
+                client.admin().indices()::putTemplate);
+        }
     }
 
-    public static boolean hasIndexTemplate(ClusterState state, String templateName) {
-        return state.getMetadata().getTemplates().containsKey(templateName);
+    public static boolean hasIndexTemplate(ClusterState state, String legacyTemplateName,
+                                           String templateName, Version versionComposableTemplateExpected) {
+        if (versionComposableTemplateExpected != null && state.nodes().getMinNodeVersion().onOrAfter(versionComposableTemplateExpected)) {
+            return state.getMetadata().templatesV2().containsKey(templateName);
+        } else {
+            return state.getMetadata().getTemplates().containsKey(legacyTemplateName);
+        }
     }
 
     public static boolean hasIndex(ClusterState state, String index) {

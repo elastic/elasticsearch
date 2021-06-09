@@ -29,7 +29,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -90,7 +91,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     @Override
-    void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         final GetRequest getRequest = client
             .prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
@@ -100,11 +101,17 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 if (response.isExists()) {
                     final String tokenHash = (String) response.getSource().get("password");
                     assert tokenHash != null : "service account token hash cannot be null";
-                    listener.onResponse(Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()));
+                    listener.onResponse(new StoreAuthenticationResult(
+                        Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()), getTokenSource()));
                 } else {
                     logger.trace("service account token [{}] not found in index", token.getQualifiedName());
-                    listener.onResponse(false);
+                    listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
                 }}, listener::onFailure)));
+    }
+
+    @Override
+    public TokenSource getTokenSource() {
+        return TokenSource.INDEX;
     }
 
     public void createToken(Authentication authentication, CreateServiceAccountTokenRequest request,

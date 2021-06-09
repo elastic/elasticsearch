@@ -27,7 +27,7 @@ import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -507,11 +507,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
         // Assert that we only ever got one token/refresh_token pair
-        assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+        synchronized (tokens) {
+            assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+        }
         // Assert that all requests from all threads could authenticate at the time they received the access token
         // see: https://github.com/elastic/elasticsearch/issues/54289
-        assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
-        assertThat(authStatuses, hasItem(RestStatus.OK));
+        synchronized (authStatuses) {
+            assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
+            assertThat(authStatuses, hasItem(RestStatus.OK));
+        }
     }
 
     public void testRefreshAsDifferentUser() throws IOException {

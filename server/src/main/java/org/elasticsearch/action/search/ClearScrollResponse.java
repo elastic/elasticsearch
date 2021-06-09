@@ -9,7 +9,7 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -30,8 +30,8 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     private static final ParseField SUCCEEDED = new ParseField("succeeded");
     private static final ParseField NUMFREED = new ParseField("num_freed");
 
-    private static final ConstructingObjectParser<ClearScrollResponse, Void> PARSER = new ConstructingObjectParser<>("clear_scroll",
-            true, a -> new ClearScrollResponse((boolean)a[0], (int)a[1]));
+    private static final ConstructingObjectParser<ClosePointInTimeResponse, Void> PARSER = new ConstructingObjectParser<>("clear_scroll",
+        true, a -> new ClosePointInTimeResponse((boolean) a[0], (int) a[1]));
     static {
         PARSER.declareField(constructorArg(), (parser, context) -> parser.booleanValue(), SUCCEEDED, ObjectParser.ValueType.BOOLEAN);
         PARSER.declareField(constructorArg(), (parser, context) -> parser.intValue(), NUMFREED, ObjectParser.ValueType.INT);
@@ -83,7 +83,7 @@ public class ClearScrollResponse extends ActionResponse implements StatusToXCont
     /**
      * Parse the clear scroll response body into a new {@link ClearScrollResponse} object
      */
-    public static ClearScrollResponse fromXContent(XContentParser parser) throws IOException {
+    public static ClosePointInTimeResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.apply(parser, null);
     }
 

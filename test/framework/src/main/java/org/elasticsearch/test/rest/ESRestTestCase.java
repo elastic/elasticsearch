@@ -33,15 +33,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -540,6 +540,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve searchable snapshots indices. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
@@ -558,6 +567,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveSLMPoliciesUponCompletion() == false) {
             // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
             deleteAllSLMPolicies();
+        }
+
+        // Clean up searchable snapshots indices before deleting snapshots and repositories
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+            wipeSearchableSnapshotsIndices();
         }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
@@ -715,21 +729,21 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @SuppressWarnings("unchecked")
     private static void deleteAllNodeShutdownMetadata() throws IOException {
-        final boolean NODE_SHUTDOWN_ENABLED = "true".equals(System.getProperty("es.shutdown_feature_flag_enabled"));
-        if (NODE_SHUTDOWN_ENABLED == false) {
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
+            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
+            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
+            // runner's JVM.
             return;
         }
-        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
-        if (statusResponse.get("nodes") instanceof List) { // for some reason `nodes` is parsed as a Map<> if it's empty
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
             List<String> nodeIds = nodesArray.stream()
                 .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
                 .collect(Collectors.toUnmodifiableList());
             for (String nodeId : nodeIds) {
                 Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
-                assertOK(client().performRequest(deleteRequest));
-            }
+                assertOK(adminClient().performRequest(deleteRequest));
         }
     }
 
@@ -782,6 +796,28 @@ public abstract class ESRestTestCase extends ESTestCase {
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
                 if (statusCode < 404 || statusCode > 405) {
                     throw ee;
+                }
+            }
+        }
+    }
+
+    protected void wipeSearchableSnapshotsIndices() throws IOException {
+        // retrieves all indices with a type of store equals to "snapshot"
+        final Request request = new Request("GET", "_cluster/state/metadata");
+        request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
+
+        final Response response = adminClient().performRequest(request);
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
+        if (indices != null) {
+            for (String index : indices.keySet()) {
+                try {
+                    assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                        adminClient().performRequest(new Request("DELETE", index)));
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
                 }
             }
         }
@@ -1507,6 +1543,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
+            case "data-streams-mappings":
                 return true;
             default:
                 return false;
@@ -1733,5 +1770,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         });
         request.setOptions(options);
+    }
+
+    protected static boolean isNotFoundResponseException(IOException ioe) {
+        if (ioe instanceof ResponseException) {
+            Response response = ((ResponseException) ioe).getResponse();
+            return response.getStatusLine().getStatusCode() == 404;
+        }
+        return false;
     }
 }

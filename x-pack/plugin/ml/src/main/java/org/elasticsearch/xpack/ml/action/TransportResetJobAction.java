@@ -36,6 +36,7 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.BlockReason;
@@ -79,6 +80,11 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
     @Override
     protected void masterOperation(Task task, ResetJobAction.Request request, ClusterState state,
                                    ActionListener<AcknowledgedResponse> listener) throws Exception {
+        if (MlMetadata.getMlMetadata(state).isUpgradeMode()) {
+            listener.onFailure(ExceptionsHelper.conflictStatusException("cannot reset job while indices are being upgraded"));
+            return;
+        }
+
         final TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
 
         ActionListener<Job.Builder> jobListener = ActionListener.wrap(

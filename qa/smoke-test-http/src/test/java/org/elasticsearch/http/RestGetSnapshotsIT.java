@@ -11,7 +11,6 @@ package org.elasticsearch.http;
 import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.Request;
@@ -74,14 +73,14 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(repoName);
         assertSnapshotListSorted(defaultSorting, null);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.NAME), GetSnapshotsAction.SortBy.NAME);
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME), GetSnapshotsRequest.SortBy.NAME);
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.DURATION), GetSnapshotsAction.SortBy.DURATION
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION), GetSnapshotsRequest.SortBy.DURATION
         );
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.INDICES), GetSnapshotsAction.SortBy.INDICES);
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES), GetSnapshotsRequest.SortBy.INDICES);
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.START_TIME), GetSnapshotsAction.SortBy.START_TIME
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME), GetSnapshotsRequest.SortBy.START_TIME
         );
     }
 
@@ -89,7 +88,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         final String repoName = "test-repo";
         AbstractSnapshotIntegTestCase.createRepository(logger, repoName, "fs");
         final List<String> names = AbstractSnapshotIntegTestCase.createNSnapshots(logger, repoName, randomIntBetween(6, 20));
-        for (GetSnapshotsAction.SortBy sort : GetSnapshotsAction.SortBy.values()) {
+        for (GetSnapshotsRequest.SortBy sort : GetSnapshotsRequest.SortBy.values()) {
             logger.info("--> testing pagination for [{}]", sort);
             final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort);
             final List<SnapshotInfo> batch1 = sortedWithLimit(repoName, sort, null, 2);
@@ -126,18 +125,18 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
 
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
 
         AbstractSnapshotIntegTestCase.unblockAllDataNodes(repoName);
         for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
             AbstractSnapshotIntegTestCase.assertSuccessful(logger, inProgressSnapshot);
         }
 
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
     }
 
     private void createIndexWithContent(String indexName) {
@@ -149,7 +148,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
 
     private static void assertStablePagination(String repoName,
                                                Collection<String> allSnapshotNames,
-                                               GetSnapshotsAction.SortBy sort) throws IOException {
+                                               GetSnapshotsRequest.SortBy sort) throws IOException {
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
@@ -168,7 +167,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
 
     private static List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames,
                                                   String repoName,
-                                                  GetSnapshotsAction.SortBy sortBy) throws IOException {
+                                                  GetSnapshotsRequest.SortBy sortBy) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         final Response response = getRestClient().performRequest(request);
@@ -184,7 +183,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
         return new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
     }
 
-    private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsAction.SortBy sortBy, int size) throws IOException {
+    private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsRequest.SortBy sortBy, int size) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         request.addParameter("size", String.valueOf(size));
@@ -205,7 +204,7 @@ public class RestGetSnapshotsIT extends HttpSmokeTestCase {
     }
 
     private static List<SnapshotInfo> sortedWithLimit(String repoName,
-                                                      GetSnapshotsAction.SortBy sortBy,
+                                                      GetSnapshotsRequest.SortBy sortBy,
                                                       SnapshotInfo after,
                                                       int size) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);

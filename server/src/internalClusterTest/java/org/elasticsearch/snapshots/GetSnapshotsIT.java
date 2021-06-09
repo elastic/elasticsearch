@@ -10,7 +10,7 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -50,14 +50,14 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<SnapshotInfo> defaultSorting = baseGetSnapshotsRequest(repoName).get().getSnapshots(repoName);
         assertSnapshotListSorted(defaultSorting, null);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.NAME), GetSnapshotsAction.SortBy.NAME);
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME), GetSnapshotsRequest.SortBy.NAME);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.DURATION), GetSnapshotsAction.SortBy.DURATION
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION), GetSnapshotsRequest.SortBy.DURATION
         );
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.INDICES), GetSnapshotsAction.SortBy.INDICES);
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES), GetSnapshotsRequest.SortBy.INDICES);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsAction.SortBy.START_TIME), GetSnapshotsAction.SortBy.START_TIME
+                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME), GetSnapshotsRequest.SortBy.START_TIME
         );
     }
 
@@ -67,7 +67,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "fs", repoPath);
         maybeInitWithOldSnapshotVersion(repoName, repoPath);
         final List<String> names = createNSnapshots(repoName, randomIntBetween(6, 20));
-        for (GetSnapshotsAction.SortBy sort : GetSnapshotsAction.SortBy.values()) {
+        for (GetSnapshotsRequest.SortBy sort : GetSnapshotsRequest.SortBy.values()) {
             logger.info("--> testing pagination for [{}]", sort);
             final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort);
             final List<SnapshotInfo> batch1 = sortedWithLimit(repoName, sort, null, 2);
@@ -105,21 +105,21 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
         awaitNumberOfSnapshotsInProgress(inProgressCount);
 
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
 
         unblockAllDataNodes(repoName);
         for (ActionFuture<CreateSnapshotResponse> inProgressSnapshot : inProgressSnapshots) {
             assertSuccessful(inProgressSnapshot);
         }
 
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.START_TIME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.NAME);
-        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsAction.SortBy.INDICES);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
+        assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
     }
 
-    private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsAction.SortBy sort) {
+    private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
@@ -138,7 +138,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     private static List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames,
                                                          String repoName,
-                                                         GetSnapshotsAction.SortBy sortBy) {
+                                                         GetSnapshotsRequest.SortBy sortBy) {
         final List<SnapshotInfo> snapshotInfos = sortedWithLimit(repoName, sortBy, null, 0);
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
@@ -147,7 +147,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         return snapshotInfos;
     }
 
-    private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsAction.SortBy sortBy, SnapshotInfo after, int size) {
+    private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsRequest.SortBy sortBy, SnapshotInfo after, int size) {
         return baseGetSnapshotsRequest(repoName)
                 .pagination(after, sortBy, size)
                 .get()

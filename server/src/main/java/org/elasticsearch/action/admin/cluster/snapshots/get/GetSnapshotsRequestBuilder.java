@@ -95,7 +95,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder pagination(@Nullable SnapshotInfo snapshotInfo, GetSnapshotsAction.SortBy sortBy, int size) {
+    public GetSnapshotsRequestBuilder pagination(@Nullable SnapshotInfo snapshotInfo, GetSnapshotsRequest.SortBy sortBy, int size) {
         request.pagination(GetSnapshotsRequest.After.from(snapshotInfo, sortBy), sortBy, size);
         return this;
     }

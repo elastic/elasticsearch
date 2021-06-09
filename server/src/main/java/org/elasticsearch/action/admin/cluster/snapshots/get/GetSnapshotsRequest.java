@@ -23,6 +23,7 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -44,7 +45,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     @Nullable
     private After after;
 
-    private GetSnapshotsAction.SortBy sort = GetSnapshotsAction.SortBy.START_TIME;
+    private SortBy sort = SortBy.START_TIME;
 
     private String[] repositories;
 
@@ -89,7 +90,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         verbose = in.readBoolean();
         if (in.getVersion().onOrAfter(PAGINATED_GET_SNAPSHOTS_VERSION)) {
             after = in.readOptionalWriteable(After::new);
-            sort = in.readEnum(GetSnapshotsAction.SortBy.class);
+            sort = in.readEnum(SortBy.class);
             size = in.readVInt();
         }
     }
@@ -195,7 +196,11 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
-    public GetSnapshotsRequest pagination(After after, GetSnapshotsAction.SortBy sort, int size) {
+    public GetSnapshotsRequest pagination(@Nullable After after, SortBy sort, int size) {
+        Objects.requireNonNull(sort);
+        if (size < 0) {
+            throw new IllegalArgumentException("pagination size must be >= 0 but was [" + size + "]");
+        }
         this.after = after;
         this.sort = sort;
         this.size = size;
@@ -206,7 +211,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return after;
     }
 
-    public GetSnapshotsAction.SortBy sort() {
+    public SortBy sort() {
         return sort;
     }
 
@@ -226,6 +231,39 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 
+    public enum SortBy {
+        START_TIME("start_time"),
+        NAME("name"),
+        DURATION("duration"),
+        INDICES("indices");
+
+        private final String param;
+
+        SortBy(String param) {
+            this.param = param;
+        }
+
+        @Override
+        public String toString() {
+            return param;
+        }
+
+        public static SortBy of(String value) {
+            switch (value) {
+                case "start_time":
+                    return START_TIME;
+                case "name":
+                    return NAME;
+                case "duration":
+                    return DURATION;
+                case "indices":
+                    return INDICES;
+                default:
+                    throw new IllegalArgumentException("unknown sort order [" + value + "]");
+            }
+        }
+    }
+
     public static final class After implements Writeable {
 
         private final String value;
@@ -237,7 +275,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         @Nullable
-        public static After from(@Nullable SnapshotInfo snapshotInfo, GetSnapshotsAction.SortBy sortBy) {
+        public static After from(@Nullable SnapshotInfo snapshotInfo, SortBy sortBy) {
             if (snapshotInfo == null) {
                 return null;
             }

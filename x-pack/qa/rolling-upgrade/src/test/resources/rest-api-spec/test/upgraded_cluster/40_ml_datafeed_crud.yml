@@ -5,9 +5,12 @@ setup:
         wait_for_nodes: 3
         # wait for long enough that we give delayed unassigned shards to stop being delayed
         timeout: 70s
- 
+
 ---
 "Test old and mixed cluster datafeeds without aggs":
+  - skip:
+      version: "all"
+      reason:  "backport: https://github.com/elastic/elasticsearch/pull/73926"
   - do:
       indices.create:
         index: airline-data
@@ -105,6 +108,9 @@ setup:
 
 ---
 "Test old and mixed cluster datafeeds with aggs":
+  - skip:
+      version: "all"
+      reason:  "backport: https://github.com/elastic/elasticsearch/pull/73926"
   - do:
       indices.create:
         index: airline-data

@@ -17,8 +17,8 @@ public class GoogleCloudStorageHttpFixture {
 
     private final HttpServer server;
 
-    private GoogleCloudStorageHttpFixture(final String address, final int port,
-                                          final String bucket, final String token) throws IOException {
+    private GoogleCloudStorageHttpFixture(final String address, final int port, final String bucket, final String token)
+        throws IOException {
         this.server = HttpServer.create(new InetSocketAddress(InetAddress.getByName(address), port), 0);
         server.createContext("/" + token, new FakeOAuth2HttpHandler());
         server.createContext("/computeMetadata/v1/project/project-id", new FakeProjectIdHttpHandler());

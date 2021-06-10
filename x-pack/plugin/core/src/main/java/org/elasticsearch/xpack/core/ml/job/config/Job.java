@@ -647,7 +647,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return compatibleTypes;
     }
 
-    public static class Builder implements Writeable, ToXContentObject {
+    public static class Builder implements Writeable {
 
         private String id;
         private String jobType = ANOMALY_DETECTOR_JOB_TYPE;
@@ -930,75 +930,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
             out.writeBoolean(allowLazyOpen);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            if (id != null) {
-                builder.field(ID.getPreferredName(), id);
-            }
-            builder.field(JOB_TYPE.getPreferredName(), jobType);
-            if (jobVersion != null) {
-                builder.field(JOB_VERSION.getPreferredName(), jobVersion);
-            }
-            if (description != null) {
-                builder.field(DESCRIPTION.getPreferredName(), description);
-            }
-            if (createTime != null) {
-                builder.field(CREATE_TIME.getPreferredName(), createTime.getTime());
-            }
-            if (finishedTime != null) {
-                builder.field(FINISHED_TIME.getPreferredName(), finishedTime.getTime());
-            }
-            if (analysisConfig != null) {
-                builder.field(ANALYSIS_CONFIG.getPreferredName(), analysisConfig, params);
-            }
-            if (analysisLimits != null) {
-                builder.field(ANALYSIS_LIMITS.getPreferredName(), analysisLimits, params);
-            }
-            if (dataDescription != null) {
-                builder.field(DATA_DESCRIPTION.getPreferredName(), dataDescription, params);
-            }
-            if (modelPlotConfig != null) {
-                builder.field(MODEL_PLOT_CONFIG.getPreferredName(), modelPlotConfig, params);
-            }
-            if (renormalizationWindowDays != null) {
-                builder.field(RENORMALIZATION_WINDOW_DAYS.getPreferredName(), renormalizationWindowDays);
-            }
-            if (backgroundPersistInterval != null) {
-                builder.field(BACKGROUND_PERSIST_INTERVAL.getPreferredName(), backgroundPersistInterval.getStringRep());
-            }
-            if (modelSnapshotRetentionDays != null) {
-                builder.field(MODEL_SNAPSHOT_RETENTION_DAYS.getPreferredName(), modelSnapshotRetentionDays);
-            }
-            if (dailyModelSnapshotRetentionAfterDays != null) {
-                builder.field(DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS.getPreferredName(), dailyModelSnapshotRetentionAfterDays);
-            }
-            if (resultsRetentionDays != null) {
-                builder.field(RESULTS_RETENTION_DAYS.getPreferredName(), resultsRetentionDays);
-            }
-            if (customSettings != null) {
-                builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
-            }
-            if (modelSnapshotId != null) {
-                builder.field(MODEL_SNAPSHOT_ID.getPreferredName(), modelSnapshotId);
-            }
-            if (modelSnapshotMinVersion != null) {
-                builder.field(MODEL_SNAPSHOT_MIN_VERSION.getPreferredName(), modelSnapshotMinVersion);
-            }
-            if (resultsIndexName != null) {
-                builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
-            }
-            if (deleting) {
-                builder.field(DELETING.getPreferredName(), deleting);
-            }
-            if (allowLazyOpen) {
-                builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
-            }
-
-            builder.endObject();
-            return builder;
         }
 
         @Override

@@ -29,7 +29,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that check by-timestamp order
             .build();
     }
@@ -51,14 +52,20 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         final List<SnapshotInfo> defaultSorting = baseGetSnapshotsRequest(repoName).get().getSnapshots(repoName);
         assertSnapshotListSorted(defaultSorting, null);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME), GetSnapshotsRequest.SortBy.NAME);
-        assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION), GetSnapshotsRequest.SortBy.DURATION
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME),
+            GetSnapshotsRequest.SortBy.NAME
         );
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES), GetSnapshotsRequest.SortBy.INDICES);
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION),
+            GetSnapshotsRequest.SortBy.DURATION
+        );
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME), GetSnapshotsRequest.SortBy.START_TIME
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES),
+            GetSnapshotsRequest.SortBy.INDICES
+        );
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME),
+            GetSnapshotsRequest.SortBy.START_TIME
         );
     }
 
@@ -80,8 +87,12 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), names.size()));
             final List<SnapshotInfo> batch3NoLimit = sortedWithLimit(repoName, sort, batch2.get(1), 0);
             assertEquals(batch3, batch3NoLimit);
-            final List<SnapshotInfo> batch3LargeLimit =
-                sortedWithLimit(repoName, sort, batch2.get(1), lastBatch + randomIntBetween(1, 100));
+            final List<SnapshotInfo> batch3LargeLimit = sortedWithLimit(
+                repoName,
+                sort,
+                batch2.get(1),
+                lastBatch + randomIntBetween(1, 100)
+            );
             assertEquals(batch3, batch3LargeLimit);
         }
     }
@@ -125,22 +136,20 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         createRepository(repoName, "fs");
         createNSnapshots(repoName, randomIntBetween(1, 5));
         expectThrows(
-                ActionRequestValidationException.class,
-                () -> clusterAdmin()
-                        .prepareGetSnapshots(repoName)
-                        .setVerbose(false)
-                        .pagination(null, GetSnapshotsRequest.SortBy.DURATION, 0)
-                        .execute()
-                        .actionGet()
+            ActionRequestValidationException.class,
+            () -> clusterAdmin().prepareGetSnapshots(repoName)
+                .setVerbose(false)
+                .pagination(null, GetSnapshotsRequest.SortBy.DURATION, 0)
+                .execute()
+                .actionGet()
         );
         expectThrows(
-                ActionRequestValidationException.class,
-                () -> clusterAdmin()
-                        .prepareGetSnapshots(repoName)
-                        .setVerbose(false)
-                        .pagination(null, GetSnapshotsRequest.SortBy.START_TIME, randomIntBetween(1, 100))
-                        .execute()
-                        .actionGet()
+            ActionRequestValidationException.class,
+            () -> clusterAdmin().prepareGetSnapshots(repoName)
+                .setVerbose(false)
+                .pagination(null, GetSnapshotsRequest.SortBy.START_TIME, randomIntBetween(1, 100))
+                .execute()
+                .actionGet()
         );
     }
 
@@ -161,9 +170,11 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    private static List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames,
-                                                         String repoName,
-                                                         GetSnapshotsRequest.SortBy sortBy) {
+    private static List<SnapshotInfo> allSnapshotsSorted(
+        Collection<String> allSnapshotNames,
+        String repoName,
+        GetSnapshotsRequest.SortBy sortBy
+    ) {
         final List<SnapshotInfo> snapshotInfos = sortedWithLimit(repoName, sortBy, null, 0);
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
@@ -173,23 +184,19 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsRequest.SortBy sortBy, SnapshotInfo after, int size) {
-        return baseGetSnapshotsRequest(repoName)
-                .pagination(after, sortBy, size)
-                .get()
-                .getSnapshots(repoName);
+        return baseGetSnapshotsRequest(repoName).pagination(after, sortBy, size).get().getSnapshots(repoName);
     }
 
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoName) {
         final GetSnapshotsRequestBuilder builder = clusterAdmin().prepareGetSnapshots(repoName);
         // exclude old version snapshot from test assertions every time and do a prefixed query in either case half the time
-        if (randomBoolean() ||
-                clusterAdmin().prepareGetSnapshots(repoName)
-                        .setSnapshots(AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*")
-                        .setIgnoreUnavailable(true)
-                        .get()
-                        .getSnapshots(repoName)
-                        .isEmpty() == false
-        ) {
+        if (randomBoolean()
+            || clusterAdmin().prepareGetSnapshots(repoName)
+                .setSnapshots(AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*")
+                .setIgnoreUnavailable(true)
+                .get()
+                .getSnapshots(repoName)
+                .isEmpty() == false) {
             builder.setSnapshots(RANDOM_SNAPSHOT_NAME_PREFIX + "*");
         }
         return builder;

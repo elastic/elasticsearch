@@ -77,10 +77,10 @@ public class S3RepositoryThirdPartyTests extends AbstractThirdPartyRepositoryTes
     }
 
     @Override
-    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
+    protected void assertConsistentRepository(BlobStoreRepository repo) throws Exception {
         // S3 is only eventually consistent for the list operations used by this assertions so we retry for 10 minutes assuming that
         // listing operations will become consistent within these 10 minutes.
-        assertBusy(() -> super.assertConsistentRepository(repo, executor), 10L, TimeUnit.MINUTES);
+        assertBusy(() -> super.assertConsistentRepository(repo), 10L, TimeUnit.MINUTES);
     }
 
     protected void assertBlobsByPrefix(BlobPath path, String prefix, Map<String, BlobMetadata> blobs) throws Exception {

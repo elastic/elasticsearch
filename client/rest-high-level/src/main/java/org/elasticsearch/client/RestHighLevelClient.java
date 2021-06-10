@@ -2018,10 +2018,8 @@ public class RestHighLevelClient implements Closeable {
 
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
-        // Create a future that tracks cancellation of this method's result so that we can register a listener that forwards cancellation
-        // to the actual LLRC request. This future is completed (with a null value) if the result is cancelled.
-        // Note that cancelling the result leads to completing this future and not cancelling it. This is because the future API allows
-        // listening to completion but not to cancellation.
+        // Create a future that tracks cancellation of this method's result and forwards cancellation to the actual LLRC request. This
+        // future is completed successfully if the result is cancelled.
         CompletableFuture<Void> cancelFlag = new CompletableFuture<Void>();
         Cancellable result = new Cancellable() {
             @Override

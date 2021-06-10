@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.smb;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugin.store.smb.SMBStorePlugin;
@@ -18,7 +18,7 @@ import java.util.Collection;
 
 import static org.hamcrest.Matchers.is;
 
-public abstract  class AbstractAzureFsTestCase extends ESIntegTestCase {
+public abstract class AbstractAzureFsTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Arrays.asList(SMBStorePlugin.class);

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.smb;
 
 import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.store.FilterDirectory;

@@ -29,7 +29,7 @@ particular {anomaly-job} during the check interval. When there is no anomaly
 found in the next interval, the `Recovered` action group is invoked and the 
 status of the alert changes to `OK`. For more details, refer to the 
 documentation of 
-{kibana-ref}/defining-alerts.html#defining-alerts-general-details[general rule details].
+{kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
   
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]

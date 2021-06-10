@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -74,7 +75,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
     @Inject
     public TransportSqlQueryAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                    ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                   SqlLicenseChecker sqlLicenseChecker) {
+                                   SqlLicenseChecker sqlLicenseChecker, BigArrays bigArrays) {
         super(SqlQueryAction.NAME, transportService, actionFilters, SqlQueryRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -86,7 +87,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
 
         asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, planExecutor.client(),
             ASYNC_SEARCH_ORIGIN, planExecutor.writeableRegistry(), taskManager, SqlQueryAction.INSTANCE.name(), this, SqlQueryTask.class,
-            clusterService, threadPool);
+            clusterService, threadPool, bigArrays);
     }
 
     @Override

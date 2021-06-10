@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -23,9 +24,9 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncStatusRequest;
-import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.core.async.StoredAsyncTask;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.util.Objects;
 
@@ -47,6 +48,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
                                                    NamedWriteableRegistry registry,
                                                    Client client,
                                                    ThreadPool threadPool,
+                                                   BigArrays bigArrays,
                                                    Class<? extends AsyncTask> asyncTaskClass) {
         super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new);
         this.actionName = actionName;
@@ -55,7 +57,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<Response extends A
         this.asyncTaskClass = asyncTaskClass;
         Writeable.Reader<StoredAsyncResponse<Response>> reader = in -> new StoredAsyncResponse<>(responseReader(), in);
         this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService,
-            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
+            threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry, bigArrays);
     }
 
     @Override

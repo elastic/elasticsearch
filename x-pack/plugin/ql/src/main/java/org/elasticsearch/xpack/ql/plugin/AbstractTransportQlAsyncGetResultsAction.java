@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -42,11 +43,13 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
                                                     NamedWriteableRegistry registry,
                                                     Client client,
                                                     ThreadPool threadPool,
+                                                    BigArrays bigArrays,
                                                     Class<? extends AsyncTask> asynkTaskClass) {
         super(actionName, transportService, actionFilters, GetAsyncResultRequest::new);
         this.actionName = actionName;
         this.transportService = transportService;
-        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, asynkTaskClass);
+        this.resultsService = createResultsService(transportService, clusterService, registry, client, threadPool, bigArrays,
+            asynkTaskClass);
     }
 
     AsyncResultsService<AsyncTask, StoredAsyncResponse<Response>> createResultsService(
@@ -55,10 +58,11 @@ public abstract class AbstractTransportQlAsyncGetResultsAction<Response extends 
         NamedWriteableRegistry registry,
         Client client,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         Class<? extends AsyncTask> asyncTaskClass) {
         Writeable.Reader<StoredAsyncResponse<Response>> reader = in -> new StoredAsyncResponse<>(responseReader(), in);
         AsyncTaskIndexService<StoredAsyncResponse<Response>> store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX,
-            clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry);
+            clusterService, threadPool.getThreadContext(), client, ASYNC_SEARCH_ORIGIN, reader, registry, bigArrays);
         return new AsyncResultsService<>(store, false, asyncTaskClass,
             (task, listener, timeout) -> AsyncTaskManagementService.addCompletionListener(threadPool, task, listener, timeout),
             transportService.getTaskManager(), clusterService);

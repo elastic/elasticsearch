@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetResultsAction;
@@ -26,8 +27,9 @@ public class TransportSqlAsyncGetResultsAction extends AbstractTransportQlAsyncG
                                              ClusterService clusterService,
                                              NamedWriteableRegistry registry,
                                              Client client,
-                                             ThreadPool threadPool) {
-        super(SqlAsyncGetResultsAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool,
+                                             ThreadPool threadPool,
+                                             BigArrays bigArrays) {
+        super(SqlAsyncGetResultsAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
               SqlQueryTask.class);
     }
 

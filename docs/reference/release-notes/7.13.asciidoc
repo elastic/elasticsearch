@@ -1,8 +1,6 @@
 [[release-notes-7.13.2]]
 == {es} version 7.13.2
 
-coming::[7.13.2]
-
 [[release-notes-7.13.1]]
 == {es} version 7.13.1
 

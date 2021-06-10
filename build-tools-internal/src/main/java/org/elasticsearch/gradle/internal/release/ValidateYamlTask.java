@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Performs additional checks on changelog files, beyond whether they confirm to the schema.
+ * Performs additional checks on changelog files, beyond whether they conform to the schema.
  */
 public class ValidateYamlTask extends DefaultTask {
     private final ConfigurableFileCollection changelogs;

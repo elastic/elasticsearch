@@ -10,7 +10,6 @@ package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

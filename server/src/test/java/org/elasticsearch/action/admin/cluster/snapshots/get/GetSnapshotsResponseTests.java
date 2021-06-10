@@ -52,11 +52,12 @@ public class GetSnapshotsResponseTests extends ESTestCase {
 
     private GetSnapshotsResponse copyInstance(GetSnapshotsResponse instance) throws IOException {
         return copyInstance(
-                instance,
-                new NamedWriteableRegistry(Collections.emptyList()),
-                (out, value) -> value.writeTo(out),
-                GetSnapshotsResponse::new,
-                Version.CURRENT);
+            instance,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            (out, value) -> value.writeTo(out),
+            GetSnapshotsResponse::new,
+            Version.CURRENT
+        );
 
     }
 
@@ -79,7 +80,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
             List<SnapshotFeatureInfo> featureInfos = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
-            snapshots.add(new SnapshotInfo(
+            snapshots.add(
+                new SnapshotInfo(
                     snapshotId,
                     Arrays.asList("index1", "index2"),
                     Collections.singletonList("ds"),
@@ -91,7 +93,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                     randomBoolean(),
                     SnapshotInfoTestUtils.randomUserMetadata(),
                     System.currentTimeMillis(),
-                    SnapshotInfoTestUtils.randomIndexSnapshotDetails()));
+                    SnapshotInfoTestUtils.randomIndexSnapshotDetails()
+                )
+            );
         }
         return snapshots;
     }
@@ -136,19 +140,18 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         //
         // The actual fields are nested in an array, so this regex matches fields with names of the form
         // `responses.0.snapshots.3.metadata`
-        final Predicate<String> predicate =
-                Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.metadata.*").asMatchPredicate()
-                .or(Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.index_details").asMatchPredicate());
-        xContentTester(this::createParser, this::createTestInstance, params, this::doParseInstance)
-                .numberOfTestRuns(1)
-                .supportsUnknownFields(true)
-                .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
-                .randomFieldsExcludeFilter(predicate)
-                .assertEqualsConsumer(this::assertEqualInstances)
-                // We set it to false, because GetSnapshotsResponse contains
-                // ElasticsearchException, whose xContent creation/parsing are not stable.
-                .assertToXContentEquivalence(false)
-                .test();
+        final Predicate<String> predicate = Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.metadata.*")
+            .asMatchPredicate()
+            .or(Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.index_details").asMatchPredicate());
+        xContentTester(this::createParser, this::createTestInstance, params, this::doParseInstance).numberOfTestRuns(1)
+            .supportsUnknownFields(true)
+            .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
+            .randomFieldsExcludeFilter(predicate)
+            .assertEqualsConsumer(this::assertEqualInstances)
+            // We set it to false, because GetSnapshotsResponse contains
+            // ElasticsearchException, whose xContent creation/parsing are not stable.
+            .assertToXContentEquivalence(false)
+            .test();
     }
 
 }

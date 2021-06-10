@@ -13,10 +13,11 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -28,6 +29,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * FieldMapper for indexing {@link LatLonShape}s.
@@ -116,7 +118,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
 
         public GeoShapeFieldType(String name, boolean indexed, Orientation orientation,
                                  Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
         }
 
         @Override
@@ -136,6 +138,11 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
                 return new MatchNoDocsQuery();
             }
             return LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+        }
+
+        @Override
+        protected Function<Geometry, Object> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format);
         }
     }
 
@@ -207,7 +214,7 @@ public class GeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geomet
         if (geometry == null) {
             return;
         }
-        context.doc().addAll(indexer.indexShape(geometry));
+        context.doc().addAll(indexer.indexShape(indexer.prepareForIndexing(geometry)));
         context.addToFieldNames(fieldType().name());
     }
 

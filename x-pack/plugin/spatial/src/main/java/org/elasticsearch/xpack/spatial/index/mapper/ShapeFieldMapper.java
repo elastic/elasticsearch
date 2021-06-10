@@ -11,7 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
@@ -23,12 +23,14 @@ import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xpack.spatial.common.CartesianFormatterFactory;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * FieldMapper for indexing cartesian {@link XYShape}s.
@@ -107,7 +109,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
         public ShapeFieldType(String name, boolean indexed, Orientation orientation,
                               Parser<Geometry> parser, Map<String, String> meta) {
-            super(name, indexed, false, false, false, parser, orientation, meta);
+            super(name, indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
 
@@ -119,6 +121,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        protected Function<Geometry, Object> getFormatter(String format) {
+            return CartesianFormatterFactory.getFormatter(format);
         }
     }
 

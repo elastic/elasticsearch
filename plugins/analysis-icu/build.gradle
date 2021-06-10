@@ -42,3 +42,17 @@ tasks.named("yamlRestCompatTest").configure {
     'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
   ].join(',')
 }
+
+tasks.named('splitPackagesAudit').configure {
+    // o.e.i.analysis is owned by server. Move these to an icu package
+  ignoreClasses 'org.elasticsearch.index.analysis.ICUCollationKeyFilter',
+    'org.elasticsearch.index.analysis.IcuAnalyzerProvider',
+    'org.elasticsearch.index.analysis.IcuCollationTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuFoldingTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuNormalizerCharFilterFactory',
+    'org.elasticsearch.index.analysis.IcuNormalizerTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IcuTokenizerFactory',
+    'org.elasticsearch.index.analysis.IcuTransformTokenFilterFactory',
+    'org.elasticsearch.index.analysis.IndexableBinaryStringTools',
+    'org.elasticsearch.index.mapper.ICUCollationKeywordFieldMapper'
+}

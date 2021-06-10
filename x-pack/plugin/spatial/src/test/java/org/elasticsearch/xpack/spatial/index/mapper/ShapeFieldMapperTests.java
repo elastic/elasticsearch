@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -16,6 +15,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.common.geo.Orientation;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -37,7 +37,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         checker.registerConflictCheck("index", b -> b.field("index", false));
         checker.registerUpdateCheck(b -> b.field("orientation", "right"), m -> {
             ShapeFieldMapper gsfm = (ShapeFieldMapper) m;
-            assertEquals(ShapeBuilder.Orientation.RIGHT, gsfm.orientation());
+            assertEquals(Orientation.RIGHT, gsfm.orientation());
         });
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", true), m -> {
             ShapeFieldMapper gpfm = (ShapeFieldMapper) m;
@@ -64,7 +64,7 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.RIGHT));
     }
 
 
@@ -80,10 +80,10 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         Mapper fieldMapper = defaultMapper.mappers().getMapper(FIELD_NAME);
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
-        ShapeBuilder.Orientation orientation = ((ShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+        Orientation orientation = ((ShapeFieldMapper)fieldMapper).fieldType().orientation();
+        assertThat(orientation, equalTo(Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.LEFT));
+        assertThat(orientation, equalTo(Orientation.CW));
 
         // explicit right orientation test
         defaultMapper = createDocumentMapper(fieldMapping(b -> {
@@ -94,9 +94,9 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         orientation = ((ShapeFieldMapper)fieldMapper).fieldType().orientation();
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
-        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+        assertThat(orientation, equalTo(Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(Orientation.RIGHT));
+        assertThat(orientation, equalTo(Orientation.CCW));
     }
 
     /**
@@ -195,14 +195,14 @@ public class ShapeFieldMapperTests extends CartesianFieldMapperTests {
         assertThat(fieldMapper, instanceOf(ShapeFieldMapper.class));
 
         ShapeFieldMapper shapeFieldMapper = (ShapeFieldMapper) fieldMapper;
-        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(ShapeBuilder.Orientation.CW));
+        assertThat(shapeFieldMapper.fieldType().orientation(), equalTo(Orientation.CW));
     }
 
     public void testSerializeDefaults() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         String serialized = toXContentString((ShapeFieldMapper) defaultMapper.mappers().getMapper(FIELD_NAME));
         assertTrue(serialized, serialized.contains("\"orientation\":\"" +
-            ShapeBuilder.Orientation.RIGHT + "\""));
+           Orientation.RIGHT + "\""));
     }
 
     public void testShapeArrayParsing() throws Exception {

@@ -11,7 +11,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -63,7 +63,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 numberOfParts = 1;
             } else {
                 long longNumberOfParts = 1L + (metadata.length() - 1L) / partBytes; // ceil(len/partBytes), but beware of long overflow
-                numberOfParts = (int)longNumberOfParts;
+                numberOfParts = (int) longNumberOfParts;
                 if (numberOfParts != longNumberOfParts) { // also beware of int overflow, although 2^32 parts is already ludicrous
                     throw new IllegalArgumentException("part size [" + partSize + "] too small for file [" + metadata + "]");
                 }
@@ -322,11 +322,17 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
         @Override
         public String toString() {
-            return "[name: " + name +
-                       ", numberOfParts: " + numberOfParts +
-                       ", partSize: " + partSize +
-                       ", partBytes: " + partBytes +
-                       ", metadata: " + metadata + "]";
+            return "[name: "
+                + name
+                + ", numberOfParts: "
+                + numberOfParts
+                + ", partSize: "
+                + partSize
+                + ", partBytes: "
+                + partBytes
+                + ", metadata: "
+                + metadata
+                + "]";
         }
     }
 
@@ -358,10 +364,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * @param incrementalFileCount  incremental of files that were snapshotted
      * @param incrementalSize       incremental size of snapshot
      */
-    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles,
-                                       long startTime, long time,
-                                       int incrementalFileCount,
-                                       long incrementalSize
+    public BlobStoreIndexShardSnapshot(
+        String snapshot,
+        long indexVersion,
+        List<FileInfo> indexFiles,
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        long incrementalSize
     ) {
         assert snapshot != null;
         assert indexVersion >= 0;
@@ -460,7 +470,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
     private static final String INCREMENTAL_SIZE = "total_size";
 
-
     private static final ParseField PARSE_NAME = new ParseField(NAME);
     private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
     private static final ParseField PARSE_START_TIME = new ParseField(START_TIME);
@@ -545,7 +554,14 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             }
         }
 
-        return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
-                                               startTime, time, incrementalFileCount, incrementalSize);
+        return new BlobStoreIndexShardSnapshot(
+            snapshot,
+            indexVersion,
+            Collections.unmodifiableList(indexFiles),
+            startTime,
+            time,
+            incrementalFileCount,
+            incrementalSize
+        );
     }
 }

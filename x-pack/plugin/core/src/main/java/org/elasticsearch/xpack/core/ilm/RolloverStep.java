@@ -97,7 +97,11 @@ public class RolloverStep extends AsyncActionStep {
         getClient().admin().indices().rolloverIndex(rolloverRequest,
             ActionListener.wrap(response -> {
                 assert response.isRolledOver() : "the only way this rollover call should fail is with an exception";
-                listener.onResponse(response.isRolledOver());
+                if (response.isRolledOver()) {
+                    listener.onResponse(true);
+                } else {
+                    listener.onFailure(new IllegalStateException("unexepected exception on unconditional rollover"));
+                }
             }, listener::onFailure));
     }
 

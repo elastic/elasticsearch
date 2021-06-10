@@ -26,10 +26,17 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class StandardValidator implements GeometryValidator {
 
+    private static final GeometryValidator TRUE = new StandardValidator(true);
+    private static final GeometryValidator FALSE = new StandardValidator(false);
+
     private final boolean ignoreZValue;
 
-    public StandardValidator(boolean ignoreZValue) {
+    private StandardValidator(boolean ignoreZValue) {
        this.ignoreZValue = ignoreZValue;
+    }
+
+    public static GeometryValidator instance(boolean ignoreZValue) {
+        return ignoreZValue ? TRUE : FALSE;
     }
 
     protected void checkZ(double zValue) {

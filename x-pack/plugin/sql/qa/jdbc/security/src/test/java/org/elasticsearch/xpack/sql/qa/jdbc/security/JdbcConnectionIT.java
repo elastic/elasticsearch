@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc.security;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

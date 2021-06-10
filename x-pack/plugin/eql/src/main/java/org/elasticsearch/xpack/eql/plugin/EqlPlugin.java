@@ -87,7 +87,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         return List.of(
             new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
             new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class),
+            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultsAction.class),
             new ActionHandler<>(EqlAsyncGetStatusAction.INSTANCE, TransportEqlAsyncGetStatusAction.class),
             new ActionHandler<>(XPackUsageFeatureAction.EQL, EqlUsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.EQL, EqlInfoTransportAction.class)

@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
+import org.apache.http.HttpStatus;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.RequestLine;
 import org.apache.http.StatusLine;
@@ -1054,6 +1055,70 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         // Version 8.x, product header
         doTestProductCompatibilityCheck(true, "8.0.0", true);
+    }
+
+    public void testProductCompatibilityRequestFailure() throws Exception {
+
+        RestClient restClient = mock(RestClient.class);
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        // Have the verification request fail
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                ((ResponseListener)i.getArguments()[1]).onFailure(new IOException("Something bad happened"));
+                return Cancellable.NO_OP;
+            });
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        expectThrows(ElasticsearchException.class, () -> {
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT);
+        });
+
+        // Now have the validation request succeed
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
+        mockGetRoot(restClient, build, true);
+
+        // API request should now succeed as validation has been retried
+        assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
+    }
+
+    public void testProductCompatibilityWithForbiddenInfoEndpoint() throws Exception {
+        RestClient restClient = mock(RestClient.class);
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        // Have the info endpoint used for verification return a 403 (forbidden)
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("GET", "/")), any()))
+            .thenAnswer(i -> {
+                StatusLine infoStatus = mock(StatusLine.class);
+                when(apiStatus.getStatusCode()).thenReturn(HttpStatus.SC_FORBIDDEN);
+                Response infoResponse = mock(Response.class);
+                when(apiResponse.getStatusLine()).thenReturn(infoStatus);
+                ((ResponseListener)i.getArguments()[1]).onSuccess(infoResponse);
+                return Cancellable.NO_OP;
+            });
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        // API request should succeed
+        Build build = new Build(Build.Flavor.DEFAULT, Build.Type.UNKNOWN, "hash", "date", false, "7.14.0");
+        mockGetRoot(restClient, build, true);
+
+        assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
     }
 
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {

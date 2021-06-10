@@ -2108,6 +2108,8 @@ public class RestHighLevelClient implements Closeable {
 
                 // Asynchronously call the info endpoint and complete the future with the version validation result.
                 Request req = new Request("GET", "/");
+                // These status codes are nominal in the context of product version verification
+                req.addParameter("ignore", "401,403");
                 client.performRequestAsync(req, new ResponseListener() {
                     @Override
                     public void onSuccess(Response response) {
@@ -2124,6 +2126,7 @@ public class RestHighLevelClient implements Closeable {
 
                     @Override
                     public void onFailure(Exception exception) {
+
                         // Fail the requests (this one and the ones waiting for it) and clear the future
                         // so that we retry the next time the client executes a request.
                         versionValidationFuture = null;
@@ -2142,6 +2145,7 @@ public class RestHighLevelClient implements Closeable {
      * @return an optional string. If empty, version is compatible. Otherwise, it's the message to return to the application.
      */
     private Optional<String> getVersionValidation(Response response) throws IOException {
+        // Let requests go through if the client doesn't have permissions for the info endpoint.
         int statusCode = response.getStatusLine().getStatusCode();
         if (statusCode == 401 || statusCode == 403) {
             return Optional.empty();

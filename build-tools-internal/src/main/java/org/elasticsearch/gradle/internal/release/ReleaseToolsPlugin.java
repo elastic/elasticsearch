@@ -13,6 +13,7 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.file.Directory;
 import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.provider.Provider;
@@ -27,6 +28,8 @@ import java.io.File;
  */
 public class ReleaseToolsPlugin implements Plugin<Project> {
 
+    private static final String RESOURCES = "build-tools-internal/src/main/resources/";
+
     private final ProjectLayout projectLayout;
 
     @Inject
@@ -36,10 +39,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-//        project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        // project.getPluginManager().apply(PrecommitTaskPlugin.class);
+        final Directory projectDirectory = projectLayout.getProjectDirectory();
 
-        final FileTree yamlFiles = projectLayout.getProjectDirectory()
-            .dir("docs/changelog")
+        final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
             .getAsFileTree()
             .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
@@ -48,17 +51,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setGroup("Documentation");
                 task.setDescription("Validates that all the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
-                task.setJsonSchema(new File(project.getRootDir(), "build-tools-internal/src/main/resources/changelog-schema.json"));
+                task.setJsonSchema(new File(project.getRootDir(), RESOURCES + "changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
         final TaskProvider<ValidateYamlTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateYamlTask.class, task -> {
-            task.setGroup("Documentation");
-            task.setDescription("Validates that all the changelog YAML files are well-formed");
-            task.setChangelogs(yamlFiles);
-            task.dependsOn(validateChangelogsAgainstYamlTask);
-        });
+                task.setGroup("Documentation");
+                task.setDescription("Validates that all the changelog YAML files are well-formed");
+                task.setChangelogs(yamlFiles);
+                task.dependsOn(validateChangelogsAgainstYamlTask);
+            });
 
         project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(task -> {
             final Version version = VersionProperties.getElasticsearchVersion();
@@ -66,23 +69,29 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.setGroup("Documentation");
             task.setDescription("Generates release notes from changelog files held in this checkout");
             task.setChangelogs(yamlFiles);
-            task.setReleaseNotesIndexFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes.asciidoc"));
 
+            task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
+            task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
+
+            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
             task.setReleaseNotesFile(
-                projectLayout.getProjectDirectory()
-                    .file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
             );
 
-            task.setReleaseHighlightsFile(projectLayout.getProjectDirectory().file("docs/reference/release-notes/highlights.asciidoc"));
+            task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
+            task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
+            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
             task.setBreakingChangesFile(
-                projectLayout.getProjectDirectory()
-                    .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
+                projectDirectory.file(
+                    String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
+                )
             );
 
             task.dependsOn(validateChangelogsTask);
         });
 
-//        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+        // FIXME
+        // project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
     }
 }

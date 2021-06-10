@@ -8,14 +8,17 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import groovy.text.SimpleTemplateEngine;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.nio.file.Files;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -25,7 +28,7 @@ import java.util.stream.Collectors;
  */
 public class ReleaseNotesIndexUpdater {
 
-    public static void update(File indexFile) throws IOException {
+    public static void update(File indexTemplate, File indexFile) throws IOException {
         final Version version = VersionProperties.getElasticsearchVersion();
         final List<String> indexLines = Files.readAllLines(indexFile.toPath());
 
@@ -59,21 +62,16 @@ public class ReleaseNotesIndexUpdater {
             existingIncludes.add(insertionIndex, includeString);
         }
 
-        final PrintStream out = new PrintStream(indexFile);
+        final Map<String, Object> bindings = new HashMap<>();
+        bindings.put("existingVersions", existingVersions);
+        bindings.put("existingIncludes", existingIncludes);
 
-        out.println("[[es-release-notes]]");
-        out.println("= Release notes");
-        out.println();
-        out.println("[partintro]");
-        out.println("--");
-        out.println();
-        out.println("This section summarizes the changes in each release.");
-        out.println();
-        existingVersions.forEach(v -> out.println("* <<release-notes-" + v + ">>"));
-        out.println();
-        out.println("--");
-        out.println();
-        existingIncludes.forEach(majorMinor -> out.println("include::release-notes/" + majorMinor + ".asciidoc[]"));
+        try {
+            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
+            engine.createTemplate(indexTemplate).make(bindings).writeTo(new FileWriter(indexFile));
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static String ensurePatchVersion(String version) {

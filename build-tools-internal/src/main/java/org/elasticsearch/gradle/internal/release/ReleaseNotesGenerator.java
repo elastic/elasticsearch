@@ -8,16 +8,17 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import groovy.text.SimpleTemplateEngine;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.jetbrains.annotations.NotNull;
 
-import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,7 +30,7 @@ import java.util.stream.Collectors;
  * Generates the release notes i.e. list of changes that have gone into this release. They are grouped by the
  * type of change, then by team area.
  */
-public class ReleaseNotesGenerator implements Closeable {
+public class ReleaseNotesGenerator {
     /**
      * These mappings translate change types into the headings as they should appears in the release notes.
      */
@@ -46,26 +47,33 @@ public class ReleaseNotesGenerator implements Closeable {
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
-    private final PrintStream out;
+    public static void update(File templateFile, File outputFile, List<ChangelogEntry> changelogs) throws IOException {
+        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(changelogs);
 
-    public ReleaseNotesGenerator(File outputFile) throws FileNotFoundException {
-        this.out = new PrintStream(outputFile);
+        final FileWriter fileWriter = new FileWriter(outputFile);
+        final SimpleTemplateEngine engine = new SimpleTemplateEngine();
+
+        final Map<String, Object> bindings = new HashMap<>();
+        bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
+        bindings.put("TYPE_LABELS", TYPE_LABELS);
+
+        try {
+            engine.createTemplate(templateFile).make(bindings).writeTo(fileWriter);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    @Override
-    public void close() throws IOException {
-        this.out.close();
-    }
-
-    public void generate(List<ChangelogEntry> changelogs) {
+    private static Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(List<ChangelogEntry> changelogs) {
         final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
 
         final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
             && v.getMinor() == elasticsearchVersion.getMinor();
 
-        final Map<Version, List<ChangelogEntry>> changelogsByVersion = changelogs.stream()
+        final Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> changelogsByVersionByTypeByArea = changelogs.stream()
             .collect(
                 Collectors.groupingBy(
+                    // Key changelog entries by the earlier version in which they were released
                     entry -> entry.getVersions()
                         .stream()
                         .map(v -> Version.fromString(v.replaceFirst("^v", "")))
@@ -73,82 +81,31 @@ public class ReleaseNotesGenerator implements Closeable {
                         .sorted()
                         .findFirst()
                         .get(),
-                    Collectors.toList()
+
+                    // Generate a reverse-ordered map
+                    () -> new TreeMap<Version, Map<String, Map<String, List<ChangelogEntry>>>>(Comparator.reverseOrder()),
+
+                    // Group changelogs entries by their change type
+                    Collectors.groupingBy(
+                        // Breaking changes come first in the output
+                        entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
+                        TreeMap::new,
+
+                        // Group changelogs for each type by their team area
+                        Collectors.groupingBy(ChangelogEntry::getArea, TreeMap::new, Collectors.toList())
+                    )
                 )
             );
 
-        final List<Version> changelogVersions = new ArrayList<>(changelogsByVersion.keySet());
-        changelogVersions.sort(Version::compareTo);
-        Collections.reverse(changelogVersions);
-
-        for (Version version : changelogVersions) {
-            generateForVersion(version, changelogsByVersion.get(version));
-        }
-    }
-
-    private void generateForVersion(Version version, List<ChangelogEntry> changelogs) {
-        Map<String, List<ChangelogEntry>> groupedChangelogs = changelogs.stream()
-            .collect(
-                Collectors.groupingBy(
-                    // Breaking changes come first in the output
-                    entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
-                    TreeMap::new,
-                    Collectors.toList()
+        // Sort per-area changelogs by their summary text. Assumes that the underlying list is sortable
+        changelogsByVersionByTypeByArea.forEach(
+            (_version, byVersion) -> byVersion.forEach(
+                (_type, byTeam) -> byTeam.forEach(
+                    (_team, changelogsForTeam) -> changelogsForTeam.sort(Comparator.comparing(ChangelogEntry::getSummary))
                 )
-            );
+            )
+        );
 
-        generateHeader(version);
-
-        groupedChangelogs.forEach((type, changelogsByType) -> {
-            generateGroupHeader(version, type);
-
-            final TreeMap<String, List<ChangelogEntry>> changelogsByArea = changelogsByType.stream()
-                .collect(Collectors.groupingBy(ChangelogEntry::getArea, TreeMap::new, Collectors.toList()));
-
-            changelogsByArea.forEach((area, perAreaChangelogs) -> {
-                out.println(area + "::");
-
-                // Generate the output lines first so that we can sort them
-                perAreaChangelogs.stream().map(log -> {
-                    final StringBuilder sb = new StringBuilder(
-                        "* " + log.getSummary() + " {es-pull}" + log.getPr() + "[#" + log.getPr() + "]"
-                    );
-                    final List<Integer> issues = log.getIssues();
-                    if (issues != null && issues.isEmpty() == false) {
-                        sb.append(issues.size() == 1 ? " (issue: " : " (issues: ");
-                        sb.append(issues.stream().map(i -> "{es-issue}" + i + "[#" + i + "]").collect(Collectors.joining(", ")));
-                        sb.append(")");
-                    }
-                    return sb.toString();
-                }).sorted().forEach(out::println);
-
-                out.println();
-            });
-
-            out.println();
-        });
-    }
-
-    private void generateHeader(Version version) {
-        String branch = version.getMajor() + "." + version.getMinor();
-
-        out.println("[[release-notes-" + version + "]]");
-        out.println("== {es} version " + version);
-
-        if (version.getQualifiers().contains("SNAPSHOT")) {
-            out.println();
-            out.println("coming[" + version + "]");
-        }
-
-        out.println();
-        out.println("Also see <<breaking-changes-" + branch + ",Breaking changes in " + branch + ">>.");
-        out.println();
-    }
-
-    private void generateGroupHeader(Version version, String type) {
-        out.println("[[" + type + "-" + version + "]]");
-        out.println("[discrete]");
-        out.println("=== " + TYPE_LABELS.get(type));
-        out.println();
+        return changelogsByVersionByTypeByArea;
     }
 }

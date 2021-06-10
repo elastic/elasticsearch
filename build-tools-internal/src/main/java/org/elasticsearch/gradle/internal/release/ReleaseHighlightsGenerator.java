@@ -8,15 +8,18 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import groovy.text.SimpleTemplateEngine;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.Closeable;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -25,43 +28,13 @@ import java.util.stream.Collectors;
 /**
  * Generates the release highlights notes, for changelog files that contain the <code>highlight</code> field.
  */
-public class ReleaseHighlightsGenerator implements Closeable {
+public class ReleaseHighlightsGenerator {
 
-    private final PrintStream out;
-
-    public ReleaseHighlightsGenerator(File outputFile) throws FileNotFoundException {
-        this.out = new PrintStream(outputFile);
-    }
-
-    @Override
-    public void close() throws IOException {
-        this.out.close();
-    }
-
-    public void generate(List<ChangelogEntry> entries) {
-        List.of(
-            "[[release-highlights]]",
-            "== What's new in {minor-version}",
-            "",
-            "coming[{minor-version}]",
-            "",
-            "Here are the highlights of what's new and improved in {es} {minor-version}!",
-            "ifeval::[\"{release-state}\"!=\"unreleased\"]",
-            "For detailed information about this release, see the",
-            "<<release-notes-{elasticsearch_version}, Release notes >> and",
-            "<<breaking-changes-{minor-version}, Breaking changes>>.",
-            "endif::[]",
-            ""
-        ).forEach(this.out::println);
-
-        Version version = VersionProperties.getElasticsearchVersion();
+    public static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+        final List<String> priorVersions = new ArrayList<>();
+        final Version version = VersionProperties.getElasticsearchVersion();
 
         if (version.getMinor() > 0) {
-            this.out.println("// Add previous release to the list");
-            this.out.println("Other versions:");
-
-            List<String> priorVersions = new ArrayList<>();
-
             final int major = version.getMajor();
             for (int minor = version.getMinor(); minor >= 0; minor--) {
                 String majorMinor = major + "." + minor;
@@ -71,9 +44,6 @@ public class ReleaseHighlightsGenerator implements Closeable {
                 }
                 priorVersions.add("{ref-bare}/" + majorMinor + "/release-highlights" + fileSuffix + ".html[" + majorMinor + "]");
             }
-
-            this.out.println(String.join("\n| ", priorVersions));
-            this.out.println();
         }
 
         final Map<Boolean, List<ChangelogEntry.Highlight>> groupedHighlights = entries.stream()
@@ -84,26 +54,16 @@ public class ReleaseHighlightsGenerator implements Closeable {
         final List<ChangelogEntry.Highlight> notableHighlights = groupedHighlights.getOrDefault(true, List.of());
         final List<ChangelogEntry.Highlight> nonNotableHighlights = groupedHighlights.getOrDefault(false, List.of());
 
-        if (notableHighlights.isEmpty() == false) {
-            this.out.println("// tag::notable-highlights[]");
+        final Map<String, Object> bindings = new HashMap<>();
+        bindings.put("priorVersions", priorVersions);
+        bindings.put("notableHighlights", notableHighlights);
+        bindings.put("nonNotableHighlights", nonNotableHighlights);
 
-            for (ChangelogEntry.Highlight highlight : notableHighlights) {
-                out.println("[discrete]");
-                out.println("=== " + highlight.getTitle());
-                out.println(highlight.getBody().trim());
-                out.println();
-            }
-
-            this.out.println("// end::notable-highlights[]");
-        }
-
-        this.out.println();
-
-        for (ChangelogEntry.Highlight highlight : nonNotableHighlights) {
-            out.println("[discrete]");
-            out.println("=== " + highlight.getTitle());
-            out.println(highlight.getBody());
-            out.println();
+        try {
+            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
+            engine.createTemplate(templateFile).make(bindings).writeTo(new FileWriter(outputFile));
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
         }
     }
 }

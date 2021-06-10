@@ -137,14 +137,14 @@
           "type": "string",
           "minLength": 1
         },
-        "summary": {
+        "body": {
           "type": "string",
           "minLength": 1
         }
       },
       "required": [
         "title",
-        "summary"
+        "body"
       ],
       "additionalProperties": false
     },

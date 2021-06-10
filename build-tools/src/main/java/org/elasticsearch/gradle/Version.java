@@ -22,7 +22,7 @@ public final class Version implements Comparable<Version> {
     private final int minor;
     private final int revision;
     private final int id;
-    private final List<String> qualifiers;
+    private final String qualifier;
 
     /**
      * Specifies how a version string should be parsed.
@@ -40,26 +40,23 @@ public final class Version implements Comparable<Version> {
         RELAXED
     }
 
-    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)((?:-alpha\\d+|-beta\\d+|-rc\\d+)?(?:-SNAPSHOT)?)?");
+    private static final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)(-alpha\\d+|-beta\\d+|-rc\\d+|-SNAPSHOT)?");
 
     private static final Pattern relaxedPattern = Pattern.compile("v?(\\d+)\\.(\\d+)\\.(\\d+)((?:-[a-zA-Z0-9_]+)*)?");
 
     public Version(int major, int minor, int revision) {
-        this(major, minor, revision, List.of());
+        this(major, minor, revision, null);
     }
 
-    public Version(int major, int minor, int revision, List<String> qualifiers) {
-        Objects.requireNonNull(major, "major version can't be null");
-        Objects.requireNonNull(minor, "minor version can't be null");
-        Objects.requireNonNull(revision, "revision version can't be null");
+    public Version(int major, int minor, int revision, String qualifier) {
         this.major = major;
         this.minor = minor;
         this.revision = revision;
 
-        // currently snapshot is not taken into account
+        // currently qualifier is not taken into account
         this.id = major * 10000000 + minor * 100000 + revision * 1000;
 
-        this.qualifiers = new ArrayList<>(qualifiers);
+        this.qualifier = qualifier;
     }
 
     public static Version fromString(final String s) {
@@ -71,24 +68,18 @@ public final class Version implements Comparable<Version> {
         Matcher matcher = mode == Mode.STRICT ? pattern.matcher(s) : relaxedPattern.matcher(s);
         if (matcher.matches() == false) {
             String expected = mode == Mode.STRICT
-                ? "major.minor.revision[-(alpha|beta|rc)Number][-SNAPSHOT]"
+                ? "major.minor.revision[-(alpha|beta|rc)Number|-SNAPSHOT]"
                 : "major.minor.revision[-extra]";
             throw new IllegalArgumentException("Invalid version format: '" + s + "'. Should be " + expected);
         }
 
-        String labelString = matcher.group(4);
-        List<String> labels;
-        if (labelString == null || labelString.isEmpty()) {
-            labels = List.of();
-        } else {
-            labels = Arrays.asList(labelString.substring(1).split("-"));
-        }
+        String qualifier = matcher.group(4);
 
         return new Version(
             Integer.parseInt(matcher.group(1)),
             Integer.parseInt(matcher.group(2)),
             Integer.parseInt(matcher.group(3)),
-            labels
+            qualifier
         );
     }
 
@@ -162,8 +153,8 @@ public final class Version implements Comparable<Version> {
         return id;
     }
 
-    public List<String> getQualifiers() {
-        return qualifiers;
+    public String getQualifier() {
+        return qualifier;
     }
 
     @Override

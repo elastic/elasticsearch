@@ -19,7 +19,9 @@ import java.util.Set;
 import static java.util.Arrays.asList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.nullValue;
 
 public class VersionTests extends GradleUnitTestCase {
 
@@ -31,16 +33,13 @@ public class VersionTests extends GradleUnitTestCase {
         assertVersionEquals("7.0.1-alpha2", 7, 0, 1);
         assertVersionEquals("5.1.2-rc3", 5, 1, 2);
         assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2);
-        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2);
         assertVersionEquals("17.03.11", 17, 3, 11);
     }
 
     public void testRelaxedVersionParsing() {
         assertVersionEquals("6.1.2", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("6.1.2-SNAPSHOT", 6, 1, 2, Version.Mode.RELAXED);
-        assertVersionEquals("6.1.2-beta1-SNAPSHOT", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("6.1.2-foo", 6, 1, 2, Version.Mode.RELAXED);
-        assertVersionEquals("6.1.2-foo-bar", 6, 1, 2, Version.Mode.RELAXED);
         assertVersionEquals("16.01.22", 16, 1, 22, Version.Mode.RELAXED);
     }
 
@@ -103,16 +102,13 @@ public class VersionTests extends GradleUnitTestCase {
 
     public void testLabels() {
         Version v = Version.fromString("1.2.3");
-        assertThat(v.getQualifiers(), empty());
+        assertThat(v.getQualifier(), nullValue());
 
         v = Version.fromString("1.2.3-rc1");
-        assertThat(v.getQualifiers(), contains("rc1"));
-
-        v = Version.fromString("1.2.3-rc1-SNAPSHOT");
-        assertThat(v.getQualifiers(), contains("rc1", "SNAPSHOT"));
+        assertThat(v.getQualifier(), equalTo("rc1"));
 
         v = Version.fromString("1.2.3-SNAPSHOT");
-        assertThat(v.getQualifiers(), contains("SNAPSHOT"));
+        assertThat(v.getQualifier(), equalTo("SNAPSHOT"));
     }
 
     private void assertOrder(Version smaller, Version bigger) {

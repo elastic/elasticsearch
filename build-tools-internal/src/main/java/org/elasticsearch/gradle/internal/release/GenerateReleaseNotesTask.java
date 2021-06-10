@@ -18,6 +18,7 @@ import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
@@ -35,6 +36,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
 
     private final ConfigurableFileCollection changelogs;
+
+    private final RegularFileProperty releaseNotesIndexTemplate;
+    private final RegularFileProperty releaseNotesTemplate;
+    private final RegularFileProperty releaseHighlightsTemplate;
+    private final RegularFileProperty breakingChangesTemplate;
+
     private final RegularFileProperty releaseNotesIndexFile;
     private final RegularFileProperty releaseNotesFile;
     private final RegularFileProperty releaseHighlightsFile;
@@ -43,6 +50,12 @@ public class GenerateReleaseNotesTask extends DefaultTask {
     @Inject
     public GenerateReleaseNotesTask(ObjectFactory objectFactory) {
         changelogs = objectFactory.fileCollection();
+
+        releaseNotesIndexTemplate = objectFactory.fileProperty();
+        releaseNotesTemplate = objectFactory.fileProperty();
+        releaseHighlightsTemplate = objectFactory.fileProperty();
+        breakingChangesTemplate = objectFactory.fileProperty();
+
         releaseNotesIndexFile = objectFactory.fileProperty();
         releaseNotesFile = objectFactory.fileProperty();
         releaseHighlightsFile = objectFactory.fileProperty();
@@ -87,22 +100,16 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             .collect(Collectors.toList());
 
         LOGGER.info("Updating release notes index...");
-        ReleaseNotesIndexUpdater.update(this.releaseNotesIndexFile.get().getAsFile());
+        ReleaseNotesIndexUpdater.update(this.releaseNotesIndexTemplate.get().getAsFile(), this.releaseNotesIndexFile.get().getAsFile());
 
         LOGGER.info("Generating release notes...");
-        try (ReleaseNotesGenerator generator = new ReleaseNotesGenerator(this.releaseNotesFile.get().getAsFile())) {
-            generator.generate(entries);
-        }
+        ReleaseNotesGenerator.update(this.releaseNotesTemplate.get().getAsFile(), this.releaseNotesFile.get().getAsFile(), entries);
 
         LOGGER.info("Generating release highlights...");
-        try (ReleaseHighlightsGenerator generator = new ReleaseHighlightsGenerator(this.releaseHighlightsFile.get().getAsFile())) {
-            generator.generate(entries);
-        }
+        ReleaseHighlightsGenerator.update(this.releaseHighlightsTemplate.get().getAsFile(), this.releaseHighlightsFile.get().getAsFile(), entries);
 
         LOGGER.info("Generating breaking changes / deprecations notes...");
-        try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
-            generator.generate(entries);
-        }
+        BreakingChangesGenerator.update(this.breakingChangesTemplate.get().getAsFile(), this.breakingChangesFile.get().getAsFile(), entries);
     }
 
     @InputFiles
@@ -112,6 +119,42 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
     public void setChangelogs(FileCollection files) {
         this.changelogs.setFrom(files);
+    }
+
+    @InputFile
+    public RegularFileProperty getReleaseNotesIndexTemplate() {
+        return releaseNotesIndexTemplate;
+    }
+
+    public void setReleaseNotesIndexTemplate(RegularFile file) {
+        this.releaseNotesIndexTemplate.set(file);
+    }
+
+    @InputFile
+    public RegularFileProperty getReleaseNotesTemplate() {
+        return releaseNotesTemplate;
+    }
+
+    public void setReleaseNotesTemplate(RegularFile file) {
+        this.releaseNotesTemplate.set(file);
+    }
+
+    @InputFile
+    public RegularFileProperty getReleaseHighlightsTemplate() {
+        return releaseHighlightsTemplate;
+    }
+
+    public void setReleaseHighlightsTemplate(RegularFile file) {
+        this.releaseHighlightsTemplate.set(file);
+    }
+
+    @InputFile
+    public RegularFileProperty getBreakingChangesTemplate() {
+        return breakingChangesTemplate;
+    }
+
+    public void setBreakingChangesTemplate(RegularFile file) {
+        this.breakingChangesTemplate.set(file);
     }
 
     @OutputFile

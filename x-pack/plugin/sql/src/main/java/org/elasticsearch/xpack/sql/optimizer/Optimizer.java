@@ -41,14 +41,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
-import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.ql.plan.logical.*;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -90,16 +83,8 @@ import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
@@ -1149,13 +1134,22 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             Holder<LocalRelation> optimizedPlan = new Holder<>();
-            plan.forEachDown(Project.class, p -> {
-                List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && (p.child() instanceof EsRelation) == false &&
-                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
+            var leafRelation = leafRelation(plan);
+
+            // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
+            var isNonSkippedLocalRelation = leafRelation instanceof LocalRelation &&
+                ((LocalRelation) leafRelation).executable() instanceof EmptyExecutable == false;
+
+            if(isNonSkippedLocalRelation) {
+                plan.forEachDown(Project.class, p -> {
+                    List<Object> values = extractConstants(p.projections());
+
+                    assert values.size() == p.projections().size();
+                    assert optimizedPlan.get() == null;
+
                     optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
-                }
-            });
+                });
+            }
 
             if (optimizedPlan.get() != null) {
                 return optimizedPlan.get();
@@ -1163,8 +1157,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             plan.forEachDown(Aggregate.class, a -> {
                 List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size() && a.groupings().isEmpty()
-                    && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
+
+                // aggregations on only constant values like "SELECT 'foo' FROM test GROUP BY 1"
+                // can also be executed locally
+                var onlyConstantAggregations = leafRelation instanceof EsRelation &&
+                    a.groupings().isEmpty() &&
+                    values.size() == a.aggregates().size();
+
+                if (isNonSkippedLocalRelation || onlyConstantAggregations) {
+                    assert values.size() == a.aggregates().size();
+                    assert optimizedPlan.get() == null;
+
                     optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
             });
@@ -1174,6 +1177,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             }
 
             return plan;
+        }
+
+        private LeafPlan leafRelation(LogicalPlan plan) {
+            var result = new Holder<LeafPlan>();
+            plan.forEachDown(LeafPlan.class, result::set);
+            return result.get();
         }
 
         private List<Object> extractConstants(List<? extends NamedExpression> named) {
@@ -1198,14 +1207,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return values;
         }
 
-        /**
-         * Check if the plan doesn't model a query with FROM clause on a table
-         * that its filter (WHERE clause) is folded to FALSE.
-         */
-        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
-                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
-        }
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

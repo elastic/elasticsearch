@@ -43,12 +43,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.plan.logical.*;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -117,6 +112,7 @@ import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.command.ShowTables;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
 import java.lang.reflect.Constructor;
 import java.util.Collections;
@@ -1135,4 +1131,51 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(1, p.aggregates().size());
         assertEquals(sumAlias, p.aggregates().get(0));
     }
+
+    //
+    // SkipQueryIfFoldingProjection
+    //
+
+    public void testSkipQueryOnLocalRelation() {
+        // SELECT TRUE as a
+        final var plan = new Project(EMPTY,
+            new LocalRelation(EMPTY, new SingletonExecutable(List.of())),
+            singletonList(new Alias(EMPTY, "a", TRUE)));
+
+        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+
+        assertEquals(LocalRelation.class, optimized.getClass());
+        assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
+    }
+
+    public void testSkipQueryOnEsAggregationWithOnlyConstants() {
+        final var plan = new Aggregate(EMPTY,
+        new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
+        List.of(),
+        List.of(new Alias(EMPTY, "a", TRUE))
+        );
+
+        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+
+        optimized.forEachDown(LeafPlan.class, l -> {
+            assertEquals(LocalRelation.class, l.getClass());
+            assertEquals(SingletonExecutable.class, ((LocalRelation) l).executable().getClass());
+        });
+    }
+
+    public void testDoNotSkipQueryOnEsRelationWithFilter() {
+        // SELECT TRUE as a FROM table WHERE col IS NULL
+        final var plan = new Project(EMPTY,
+            new Filter(EMPTY,
+                new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
+                new IsNull(EMPTY, getFieldAttribute("col"))),
+            singletonList(new Alias(EMPTY, "a", TRUE)));
+
+        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+
+        optimized.forEachDown(LeafPlan.class, l -> {
+            assertEquals(EsRelation.class, l.getClass());
+        });
+    }
+
 }

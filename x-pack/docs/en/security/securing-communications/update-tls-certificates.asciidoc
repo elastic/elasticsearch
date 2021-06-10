@@ -1,33 +1,28 @@
 [[update-node-certs]]
 == Updating node security certificates
-When updating your node security certificates, there are two main scenarios that
-you'll encounter:
+If your cluster certificates expired or you have a new Certificate Authority
+(CA), then you'll need to update the security certificates for both the
+transport and HTTP layers. When updating your node security certificates, there
+are two main scenarios that you'll encounter:
 
 * <<update-node-certs-same,Your certificate authority (CA) or key remains the same>>
 * <<update-node-certs-different,Your CA certificate or key changes>>
 
 Regardless of the scenario, {es} monitors the SSL resources for updates
 on a five-second interval. You can just copy the new certificate and key files
-(or keystore) into the appropriate location and your nodes will detect the
-changes. 
+(or keystore) into the {es} configuration directory and your nodes will detect
+the changes. 
 
 Because {es} doesn't reload the `elasticsearch.yml` configuration,
 you must use *the same file names* so that {es} refreshes the security
-certificates and keys. 
+certificates and keys. This method of updating certificates is preferred
+because it doesn't require a full cluster restart.
 
-[IMPORTANT]
-====
-The following changes require a cluster restart. We recommend
-<<use-rolling-restarts,rolling restarts>> when restarting your cluster.
-
-* If you updates your nodes with certificates using different file names than
-the ones specified in `elasticsearch.yml`, you must update that file with the
-location of the new certificates.
-* If you need to change a password for a key, keystore, or truststore
-that is stored in the <<secure-settings,secure settings>>, then you must restart
-the cluster. {es} will not reload changes for passwords stored in the secure
-settings.
-====
+If you need to update the `elasticsearch.yml` configuration or change
+certificate passwords that are stored in the
+<<secure-settings,secure settings>>, then you must complete a full cluster
+restart. {es} will not reload changes for passwords stored in the secure
+settings. We recommend <<use-rolling-restarts,rolling restarts>> when restarting your cluster.
 
 [[use-rolling-restarts]]
 .Rolling restarts are preferred
@@ -68,7 +63,7 @@ TIP: If your CA has changed, complete the steps in
 
 [[node-certs-same-transport]]
 ==== Generate a new certificate for the transport layer
-Create a new PKCS#12 file that contains the a certificate and key and replace
+Create a new PKCS#12 file that contains a certificate and key and replace
 the existing PKCS#12 file (such as `elastic-certificates.p12`) with the new
 certificate. 
 
@@ -104,7 +99,8 @@ in use.
 .Command parameters
 ====
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
-   default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
+   default file name from the `elasticsearch-certutil` tool is
+   `elastic-stack-ca.p12`.
 ====
 +
     a. Enter the password for your CA when prompted.

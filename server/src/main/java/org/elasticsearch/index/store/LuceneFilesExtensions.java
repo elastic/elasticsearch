@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.HashMap;

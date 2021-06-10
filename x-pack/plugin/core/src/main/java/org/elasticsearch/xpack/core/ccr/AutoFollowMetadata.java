@@ -11,13 +11,13 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -284,7 +284,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             } else {
                 this.active = true;
             }
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 this.leaderIndexExclusionPatterns = in.readStringList();
             } else {
                 this.leaderIndexExclusionPatterns = Collections.emptyList();
@@ -345,7 +345,7 @@ public class AutoFollowMetadata extends AbstractNamedDiffable<Metadata.Custom> i
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(active);
             }
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
                 out.writeStringCollection(leaderIndexExclusionPatterns);
             }
         }

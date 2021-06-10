@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
 import java.util.HashMap;
@@ -109,7 +109,7 @@ public class SnapshotFiles {
     private FileInfo findPhysicalIndexFile(String physicalName) {
         if (physicalFiles == null) {
             Map<String, FileInfo> files = new HashMap<>();
-            for(FileInfo fileInfo : indexFiles) {
+            for (FileInfo fileInfo : indexFiles) {
                 files.put(fileInfo.physicalName(), fileInfo);
             }
             this.physicalFiles = files;
@@ -123,7 +123,12 @@ public class SnapshotFiles {
 
     @Override
     public String toString() {
-        return "SnapshotFiles{snapshot=[" + snapshot + "], shardStateIdentifier=[" + shardStateIdentifier + "], indexFiles=" + indexFiles
-                + "}";
+        return "SnapshotFiles{snapshot=["
+            + snapshot
+            + "], shardStateIdentifier=["
+            + shardStateIdentifier
+            + "], indexFiles="
+            + indexFiles
+            + "}";
     }
 }

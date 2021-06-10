@@ -14,7 +14,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;

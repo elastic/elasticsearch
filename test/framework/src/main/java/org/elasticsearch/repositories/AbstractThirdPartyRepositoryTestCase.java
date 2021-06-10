@@ -206,7 +206,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
 
-        assertConsistentRepository(repo, genericExec);
+        assertConsistentRepository(repo);
 
         logger.info("--> Create dangling index");
         createDanglingIndex(repo, genericExec);
@@ -247,8 +247,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         return future.actionGet();
     }
 
-    protected void assertConsistentRepository(BlobStoreRepository repo, Executor executor) throws Exception {
-        BlobStoreTestUtil.assertConsistency(repo, executor);
+    protected void assertConsistentRepository(BlobStoreRepository repo) throws Exception {
+        BlobStoreTestUtil.assertConsistency(repo);
     }
 
     protected void assertDeleted(BlobPath path, String name) throws Exception {

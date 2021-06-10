@@ -58,16 +58,29 @@ public class CreateSnapshotResponseTests extends AbstractXContentTestCase<Create
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
 
         for (int count = successfulShards; count < totalShards; ++count) {
-            shardFailures.add(new SnapshotShardFailure(
-                "node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason"));
+            shardFailures.add(
+                new SnapshotShardFailure("node-id", new ShardId("index-" + count, UUID.randomUUID().toString(), randomInt()), "reason")
+            );
         }
 
         boolean globalState = randomBoolean();
 
         return new CreateSnapshotResponse(
-            new SnapshotInfo(snapshotId, indices, dataStreams, featureStates, reason, endTime, totalShards, shardFailures,
-                globalState, SnapshotInfoTestUtils.randomUserMetadata(), startTime, Collections.emptyMap()
-            ));
+            new SnapshotInfo(
+                snapshotId,
+                indices,
+                dataStreams,
+                featureStates,
+                reason,
+                endTime,
+                totalShards,
+                shardFailures,
+                globalState,
+                SnapshotInfoTestUtils.randomUserMetadata(),
+                startTime,
+                Collections.emptyMap()
+            )
+        );
     }
 
     @Override

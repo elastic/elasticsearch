@@ -112,8 +112,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
             deprecationIssue.getUrl());
         assertEquals(
-            "Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names") + " with reserved prefix [_]: [" + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()),
-                "; ") + "]. " + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+            "Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
+                + " with reserved prefix [_]: ["
+                + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ")
+                + "]. " + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
             deprecationIssue.getDetails());
     }
 

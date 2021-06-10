@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.condition;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 

@@ -124,3 +124,8 @@ testClusters.all {
   setting 'xpack.searchable.snapshot.shared_cache.size', '1mb'
   setting 'xpack.searchable.snapshot.shared_cache.region_size', '16kb'
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // the client package should be owned by the client, but server has some classes there too
+  ignoreClasses 'org.elasticsearch.client.*'
+}

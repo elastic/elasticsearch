@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.ml.utils;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.FileInputStream;

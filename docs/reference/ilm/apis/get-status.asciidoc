@@ -10,6 +10,9 @@
 
 Retrieves the current {ilm} ({ilm-init}) status.
 
+You can start or stop {ilm-init} with the <<ilm-start,start {ilm-init}>> and
+<<ilm-stop,stop {ilm-init}>> APIs.
+
 [[ilm-get-status-request]]
 ==== {api-request-title}
 
@@ -22,19 +25,32 @@ Retrieves the current {ilm} ({ilm-init}) status.
 `read_ilm` or both cluster privileges to use this API. For more information, see
 <<security-privileges>>.
 
-[[ilm-get-status-desc]]
-==== {api-description-title}
-
-[[ilm-operating-modes]]
-Returns the status of the {ilm-init} plugin. 
-The `operation_mode` in the response shows one of three states: `STARTED`, `STOPPING`, or `STOPPED`. 
-You can start or stop {ilm-init} with the
-<<ilm-start,start {ilm-init}>> and <<ilm-stop,stop {ilm-init}>> APIs.
-
 [[ilm-get-status-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[role="child_attributes"]
+[[ilm-get-status-response-body]]
+==== {api-response-body-title}
+
+[[ilm-operating-modes]]
+`operation_mode`::
+(string) Current operation mode for {ilm-init}.
++
+.Possible values for `operation_mode`
+[%collapsible%open]
+====
+`RUNNING`::
+{ilm-init} is running.
+
+`STOPPING`::
+{ilm-init} is finishing sensitive actions, such as <<ilm-shrink,shrink>>, that
+are in progress. When these actions finish, {ilm-init} will move to `STOPPED`.
+
+`STOPPED`::
+{ilm-init} is not running.
+====
 
 [[ilm-get-status-example]]
 ==== {api-examples-title}

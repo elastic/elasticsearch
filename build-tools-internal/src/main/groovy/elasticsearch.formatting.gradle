@@ -103,8 +103,6 @@ def projectPathsToExclude = [
   ':plugins:transport-nio',
   ':qa:die-with-dignity',
   ':rest-api-spec',
-  ':test:fixtures:azure-fixture',
-  ':test:fixtures:gcs-fixture',
   ':test:fixtures:geoip-fixture',
   ':test:fixtures:krb5kdc-fixture',
   ':test:fixtures:old-elasticsearch',

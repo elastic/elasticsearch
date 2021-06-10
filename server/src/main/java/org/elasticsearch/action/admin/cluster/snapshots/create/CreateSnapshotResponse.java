@@ -29,12 +29,18 @@ import java.util.Objects;
  */
 public class CreateSnapshotResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER =
-        new ObjectParser<>(CreateSnapshotResponse.class.getName(), true, CreateSnapshotResponse::new);
+    private static final ObjectParser<CreateSnapshotResponse, Void> PARSER = new ObjectParser<>(
+        CreateSnapshotResponse.class.getName(),
+        true,
+        CreateSnapshotResponse::new
+    );
 
     static {
-        PARSER.declareObject(CreateSnapshotResponse::setSnapshotInfoFromBuilder,
-            SnapshotInfo.SNAPSHOT_INFO_PARSER, new ParseField("snapshot"));
+        PARSER.declareObject(
+            CreateSnapshotResponse::setSnapshotInfoFromBuilder,
+            SnapshotInfo.SNAPSHOT_INFO_PARSER,
+            new ParseField("snapshot")
+        );
     }
 
     @Nullable
@@ -48,7 +54,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     public CreateSnapshotResponse(StreamInput in) throws IOException {
         super(in);
-        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);
+        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::readFrom);
     }
 
     private void setSnapshotInfoFromBuilder(SnapshotInfoBuilder snapshotInfoBuilder) {
@@ -103,9 +109,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     @Override
     public String toString() {
-        return "CreateSnapshotResponse{" +
-            "snapshotInfo=" + snapshotInfo +
-            '}';
+        return "CreateSnapshotResponse{" + "snapshotInfo=" + snapshotInfo + '}';
     }
 
     @Override

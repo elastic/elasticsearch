@@ -19,8 +19,8 @@ Resets an existing {anomaly-job}.
 * Requires the `manage_ml` cluster privilege. This privilege is included in the 
 `machine_learning_admin` built-in role.
 * Before you can reset a job, you must close it. You can set `force` to `true`
-when closing the job in order to skip waiting for the job to finalize as it
-is about to be reset. See <<ml-close-job>>.
+when closing the job to avoid waiting for the job to complete. See 
+<<ml-close-job>>.
 
 [[ml-reset-job-desc]]
 == {api-description-title}
@@ -81,3 +81,6 @@ of the job reset task:
 }
 ----
 // TESTRESPONSE[s/"task": "oTUltX4IQMOUUVeiohTt8A:39"/"task": $body.task/]
+
+If you want to check the status of the reset task, use the <<tasks>> by referencing 
+the task ID.

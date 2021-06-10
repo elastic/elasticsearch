@@ -112,11 +112,10 @@ public final class BlobStoreTestUtil {
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
                 assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
+                listener.onResponse(null);
             } catch (AssertionError e) {
                 listener.onResponse(e);
-                return;
             }
-            listener.onResponse(null);
         }));
         return future;
     }

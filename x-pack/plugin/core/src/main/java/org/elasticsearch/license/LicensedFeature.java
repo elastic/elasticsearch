@@ -90,7 +90,7 @@ public abstract class LicensedFeature {
      * without affecting feature tracking.
      */
     public final boolean checkWithoutTracking(XPackLicenseState state) {
-        return true;
+        return state.isAllowedByLicense(minimumOperationMode, needsActive);
     }
 
     @Override

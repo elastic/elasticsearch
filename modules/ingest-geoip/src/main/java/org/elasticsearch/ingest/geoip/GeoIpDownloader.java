@@ -30,13 +30,17 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.index.reindex.UpdateByQueryAction;
+import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -63,6 +67,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("ingest.geoip.downloader.endpoint",
         "https://geoip.elastic.co/v1/database", Property.NodeScope);
+    public static final Setting<TimeValue> DATABASE_VALIDITY = Setting.timeSetting("ingest.geoip.database.validity",
+        TimeValue.timeValueDays(3), Property.Dynamic, Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";
@@ -70,6 +76,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
 
     private final Client client;
     private final HttpClient httpClient;
+    private final ClusterService clusterService;
     private final ThreadPool threadPool;
     private final String endpoint;
 
@@ -84,6 +91,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         super(id, type, action, description, parentTask, headers);
         this.httpClient = httpClient;
         this.client = new OriginSettingClient(client, IngestService.INGEST_ORIGIN);
+        this.clusterService = clusterService;
         this.threadPool = threadPool;
         endpoint = ENDPOINT_SETTING.get(settings);
         pollInterval = POLL_INTERVAL_SETTING.get(settings);
@@ -166,7 +174,17 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        state = state.put(name, new Metadata(System.currentTimeMillis(), old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
+        long timestamp = System.currentTimeMillis();
+        UpdateByQueryRequest request = new UpdateByQueryRequest(DATABASES_INDEX).setRefresh(true);
+        request.setScript(new Script("ctx._source.timestamp=" + timestamp + "L"));
+        request.setQuery(new BoolQueryBuilder()
+            .filter(new TermQueryBuilder("name", name))
+            .filter(new TermQueryBuilder("timestamp", old.getLastUpdate()))
+            .filter(new RangeQueryBuilder("chunk")
+                .from(old.getFirstChunk(), true)
+                .to(old.getLastChunk(), true)));
+        client.execute(UpdateByQueryAction.INSTANCE, request).actionGet();
+        state = state.put(name, new Metadata(timestamp, old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
         stats = stats.skippedDownload();
         updateTaskState();
     }
@@ -183,9 +201,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         for (byte[] buf = getChunk(is); buf.length != 0; buf = getChunk(is)) {
             md.update(buf);
             IndexRequest indexRequest = new IndexRequest(DATABASES_INDEX)
-                .id(name + "_" + chunk + "_" + timestamp)
                 .create(true)
-                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf);
+                .source(XContentType.SMILE, "name", name, "chunk", chunk, "data", buf, "timestamp", timestamp);
             client.index(indexRequest).actionGet();
             chunk++;
         }
@@ -235,7 +252,25 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         } catch (Exception e) {
             logger.error("exception during geoip databases update", e);
         }
+        try {
+            cleanDatabases();
+        } catch (Exception e) {
+            logger.error("exception during geoip databases cleanup", e);
+        }
         scheduleNextRun(pollInterval);
+    }
+
+    private void cleanDatabases() {
+        long expiredDatabases = state.getDatabases().entrySet().stream()
+            .filter(e -> e.getValue().isValid(clusterService.state().metadata().settings()) == false)
+            .peek(e -> {
+                String name = e.getKey();
+                Metadata meta = e.getValue();
+                deleteOldChunks(name, meta.getLastChunk() + 1);
+                state = state.put(name, new Metadata(meta.getLastUpdate() - 1, meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5()));
+                updateTaskState();
+            }).count();
+        stats = stats.expiredDatabases((int) expiredDatabases);
     }
 
     @Override

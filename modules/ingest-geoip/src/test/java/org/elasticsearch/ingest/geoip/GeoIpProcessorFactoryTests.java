@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
@@ -71,7 +72,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildDefaults() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -87,7 +88,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testSetIgnoreMissing() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -104,7 +105,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testCountryBuildDefaults() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -122,7 +123,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testAsnBuildDefaults() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -140,7 +141,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildTargetField() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("target_field", "_field");
@@ -151,7 +152,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildDbFile() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
@@ -164,7 +165,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildWithCountryDbAndAsnFields() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
@@ -178,7 +179,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildWithAsnDbAndCityFields() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("database_file", "GeoLite2-ASN.mmdb");
@@ -192,7 +193,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildNonExistingDbFile() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
@@ -202,7 +203,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildFields() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Set<GeoIpProcessor.Property> properties = EnumSet.noneOf(GeoIpProcessor.Property.class);
         List<String> fieldNames = new ArrayList<>();
@@ -226,7 +227,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
 
         Map<String, Object> config1 = new HashMap<>();
         config1.put("field", "_field");
@@ -256,7 +257,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(1000);
         LocalDatabases localDatabases = new LocalDatabases(geoIpDir, geoIpConfigDir, cache);
         DatabaseRegistry databaseRegistry = new DatabaseRegistry(createTempDir(), client, cache, localDatabases, Runnable::run);
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
             assertNull(lazyLoader.databaseReader.get());
         }
@@ -319,7 +320,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpCache cache = new GeoIpCache(1000);
         DatabaseRegistry databaseRegistry = new DatabaseRegistry(createTempDir(), client, cache, localDatabases, Runnable::run);
         databaseRegistry.initialize("nodeId", resourceWatcherService, mock(IngestService.class));
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         for (DatabaseReaderLazyLoader lazyLoader : localDatabases.getAllDatabases()) {
             assertNull(lazyLoader.databaseReader.get());
         }
@@ -342,7 +343,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testFallbackUsingDefaultDatabases() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         {
             Map<String, Object> config = new HashMap<>();
             config.put("field", "source_field");
@@ -363,7 +364,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     public void testFallbackUsingDefaultDatabasesWhileIngesting() throws Exception {
         copyDatabaseFile(geoipTmpDir, "GeoLite2-City-Test.mmdb");
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         // fallback_to_default_databases=true, first use default city db then a custom city db:
         {
             Map<String, Object> config = new HashMap<>();

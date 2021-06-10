@@ -39,6 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -80,8 +81,6 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.Persist
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -128,7 +127,8 @@ public class DatabaseRegistryTests extends ESTestCase {
         String md5 = mockSearches("GeoIP2-City.mmdb", 5, 14);
         String taskId = GeoIpDownloader.GEOIP_DOWNLOADER;
         PersistentTask<?> task = new PersistentTask<>(taskId, GeoIpDownloader.GEOIP_DOWNLOADER, new GeoIpTaskParams(), 1, null);
-        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb", new GeoIpTaskState.Metadata(10L, 5, 14, md5))));
+        task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
+            new GeoIpTaskState.Metadata(10, 5, 14, md5))));
         PersistentTasksCustomMetadata tasksCustomMetadata = new PersistentTasksCustomMetadata(1L, Map.of(taskId, task));
 
         ClusterState state = ClusterState.builder(new ClusterName("name"))
@@ -142,13 +142,11 @@ public class DatabaseRegistryTests extends ESTestCase {
         assertThat(databaseRegistry.getDatabase("GeoIP2-City.mmdb", false), nullValue());
         databaseRegistry.checkDatabases(state);
         DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
-        assertThat(database, notNullValue());
+        assertThat(database, nullValue());
         verify(client, times(10)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
-            assertThat(files.collect(Collectors.toList()), hasSize(1));
+            assertEquals(0, files.count());
         }
-        IllegalStateException e = expectThrows(IllegalStateException.class, database::get);
-        assertEquals("database [GeoIP2-City.mmdb] was not updated for 30 days and is disabled", e.getMessage());
 
         task = new PersistentTask<>(task, new GeoIpTaskState(Map.of("GeoIP2-City.mmdb",
             new GeoIpTaskState.Metadata(System.currentTimeMillis(), 5, 14, md5))));
@@ -278,7 +276,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
-        Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
+        Map<Map<String, Object>, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
             SearchHit hit = new SearchHit(i);
@@ -297,13 +295,16 @@ public class DatabaseRegistryTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
-            requestMap.put(databaseName + "_" + i, actionFuture);
+            requestMap.put(Map.of("name", databaseName, "chunk", i), actionFuture);
         }
         when(client.search(any())).thenAnswer(invocationOnMock -> {
             SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
-            TermQueryBuilder term = (TermQueryBuilder) req.source().query();
-            String id = (String) term.value();
-            return requestMap.get(id.substring(0, id.lastIndexOf('_')));
+            BoolQueryBuilder query = (BoolQueryBuilder) req.source().query();
+            Map<String, Object> map = query.filter().stream()
+                .map(TermQueryBuilder.class::cast)
+                .collect(Collectors.toMap(TermQueryBuilder::fieldName, TermQueryBuilder::value));
+            map.remove("timestamp");
+            return requestMap.get(map);
         });
 
         MessageDigest md = MessageDigests.md5();

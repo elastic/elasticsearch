@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
@@ -47,6 +48,11 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     @Inject(optional = true)
     public void setTaskExecutor(GeoIpDownloaderTaskExecutor taskExecutor){
         geoIpDownloaderTaskExecutor = taskExecutor;
+    }
+
+    @Override
+    protected void newResponseAsync(Task task, Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures, ActionListener<Response> listener) {
+
     }
 
     @Override

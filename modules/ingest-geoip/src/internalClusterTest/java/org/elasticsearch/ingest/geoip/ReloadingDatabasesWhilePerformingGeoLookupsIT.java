@@ -10,6 +10,7 @@ package org.elasticsearch.ingest.geoip;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -57,7 +58,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         Path geoIpConfigDir = createTempDir();
         Path geoIpTmpDir = createTempDir();
         DatabaseRegistry databaseRegistry = createRegistry(geoIpModulesDir, geoIpConfigDir, geoIpTmpDir);
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseRegistry, mock(ClusterService.class));
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
             geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         Files.copy(LocalDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),

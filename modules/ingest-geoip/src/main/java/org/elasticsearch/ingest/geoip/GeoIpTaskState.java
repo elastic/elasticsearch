@@ -14,6 +14,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -21,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskState;
 
 import java.io.IOException;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -170,6 +174,11 @@ class GeoIpTaskState implements PersistentTaskState, VersionedNamedWriteable {
 
         public long getLastUpdate() {
             return lastUpdate;
+        }
+
+        public boolean isValid(Settings settings) {
+            TimeValue valid = settings.getAsTime("ingest.geoip.database_validity", TimeValue.timeValueDays(30));
+            return Instant.ofEpochMilli(lastUpdate).isAfter(Instant.now().minus(valid.getMillis(), ChronoUnit.MILLIS));
         }
 
         public int getFirstChunk() {

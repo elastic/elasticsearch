@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
@@ -53,10 +55,13 @@ import java.util.stream.StreamSupport;
 import java.util.zip.GZIPInputStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoIpDownloaderIT extends AbstractGeoIpIT {
@@ -65,7 +70,8 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
+        return Arrays.asList(PainlessPlugin.class, ReindexPlugin.class, IngestGeoIpPlugin.class,
+            GeoIpProcessorNonIngestNodeIT.IngestGeoIpSettingsPlugin.class);
     }
 
     @Override
@@ -78,12 +84,72 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     @After
-    public void disableDownloader() {
+    public void cleanUp() {
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null))
+            .setPersistentSettings(Settings.builder()
+                .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), (String) null)
+                .put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), (String) null)
+                .put("ingest.geoip.database_validity", (String) null))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
+    }
+
+    public void testInvalidTimestamp() throws Exception {
+        ClusterUpdateSettingsResponse settingsResponse =
+            client().admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder()
+                    .put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1))
+                    .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
+                .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        assertBusy(() -> {
+            GeoIpTaskState state = getGeoIpTaskState();
+            assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
+        }, 2, TimeUnit.MINUTES);
+        Thread.sleep(10);
+        settingsResponse = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        List<Path> geoIpTmpDirs = getGeoIpTmpDirs();
+        assertBusy(() -> {
+            for (Path geoIpTmpDir : geoIpTmpDirs) {
+                try (Stream<Path> files = Files.list(geoIpTmpDir)) {
+                    Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
+                    assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
+                    assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
+                    assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));
+                }
+            }
+        });
+        putPipeline();
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertTrue(result.getIngestDocument().hasField("tags"));
+            @SuppressWarnings("unchecked")
+            List<String> tags = result.getIngestDocument().getFieldValue("tags", List.class);
+            assertThat(tags, contains("_geoip_expired_database"));
+            assertFalse(result.getIngestDocument().hasField("ip-city"));
+            assertFalse(result.getIngestDocument().hasField("ip-asn"));
+            assertFalse(result.getIngestDocument().hasField("ip-country"));
+        });
+    }
+
+    public void testUpdatedTimestamp() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
+        testGeoIpDatabasesDownload();
+        long lastUpdate = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastUpdate();
+        ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
+            .get();
+        assertTrue(settingsResponse.isAcknowledged());
+        assertBusy(() -> assertNotEquals(lastUpdate, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastUpdate()));
+        testGeoIpDatabasesDownload();
     }
 
     public void testGeoIpDatabasesDownload() throws Exception {
@@ -93,10 +159,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             .get();
         assertTrue(settingsResponse.isAcknowledged());
         assertBusy(() -> {
-            PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
-            assertNotNull(task);
-            GeoIpTaskState state = (GeoIpTaskState) task.getState();
-            assertNotNull(state);
+            GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
 
@@ -108,6 +171,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     GeoIpTaskState.Metadata metadata = state.get(id);
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
                         .filter(new MatchQueryBuilder("name", id))
+                        .filter(new MatchQueryBuilder("timestamp", metadata.getLastUpdate()))
                         .filter(new RangeQueryBuilder("chunk")
                             .from(metadata.getFirstChunk())
                             .to(metadata.getLastChunk(), true));
@@ -150,6 +214,92 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         // setup:
+        putPipeline();
+
+        // verify before updating dbs
+        {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+        }
+
+        // Enable downloader:
+        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+
+        final List<Path> geoipTmpDirs = getGeoIpTmpDirs();
+        assertBusy(() -> {
+            for (Path geoipTmpDir : geoipTmpDirs) {
+                try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
+                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
+                        "GeoLite2-City.mmdb_COPYRIGHT.txt", "GeoLite2-Country.mmdb_COPYRIGHT.txt", "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
+                        "GeoLite2-City.mmdb_LICENSE.txt", "GeoLite2-Country.mmdb_LICENSE.txt", "GeoLite2-ASN.mmdb_LICENSE.txt",
+                        "GeoLite2-ASN.mmdb_README.txt"));
+                }
+            }
+        });
+
+        // Verify after updating dbs:
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
+        });
+
+        // Disable downloader:
+        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+
+        assertBusy(() -> {
+            for (Path geoipTmpDir : geoipTmpDirs) {
+                try (Stream<Path> list = Files.list(geoipTmpDir)) {
+                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
+                    assertThat(files, empty());
+                }
+            }
+        });
+    }
+
+    private GeoIpTaskState getGeoIpTaskState() {
+        PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> task = getTask();
+        assertNotNull(task);
+        GeoIpTaskState state = (GeoIpTaskState) task.getState();
+        assertNotNull(state);
+        return state;
+    }
+
+    private SimulateDocumentBaseResult simulatePipeline() throws IOException {
+        BytesReference bytes;
+        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+            builder.startObject();
+            builder.startArray("docs");
+            {
+                builder.startObject();
+                builder.field("_index", "my-index");
+                {
+                    builder.startObject("_source");
+                    builder.field("ip", "89.160.20.128");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endArray();
+            builder.endObject();
+            bytes = BytesReference.bytes(builder);
+        }
+        SimulatePipelineRequest simulateRequest = new SimulatePipelineRequest(bytes, XContentType.JSON);
+        simulateRequest.setId("_id");
+        SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
+        assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
+        assertThat(simulateResponse.getResults().size(), equalTo(1));
+        return (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
+    }
+
+    private void putPipeline() throws IOException {
         BytesReference bytes;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
@@ -196,41 +346,9 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             bytes = BytesReference.bytes(builder);
         }
         assertAcked(client().admin().cluster().preparePutPipeline("_id", bytes, XContentType.JSON).get());
+    }
 
-        // verify before updating dbs
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            builder.startObject();
-            builder.startArray("docs");
-            {
-                builder.startObject();
-                builder.field("_index", "my-index");
-                {
-                    builder.startObject("_source");
-                    builder.field("ip", "89.160.20.128");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-            builder.endArray();
-            builder.endObject();
-            bytes = BytesReference.bytes(builder);
-        }
-        SimulatePipelineRequest simulateRequest = new SimulatePipelineRequest(bytes, XContentType.JSON);
-        simulateRequest.setId("_id");
-        {
-            SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
-            assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
-            assertThat(simulateResponse.getResults().size(), equalTo(1));
-            SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Tumba"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
-        }
-
-        // Enable downloader:
-        Settings.Builder settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-
+    private List<Path> getGeoIpTmpDirs() throws IOException {
         final Set<String> ids = StreamSupport.stream(clusterService().state().nodes().getDataNodes().values().spliterator(), false)
             .map(c -> c.value.getId())
             .collect(Collectors.toSet());
@@ -242,42 +360,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             geoipTmpDirs = files.filter(path -> ids.contains(path.getFileName().toString())).collect(Collectors.toList());
         }
         assertThat(geoipTmpDirs.size(), equalTo(internalCluster().numDataNodes()));
-        assertBusy(() -> {
-            for (Path geoipTmpDir : geoipTmpDirs) {
-                try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::getFileName).map(Path::toString).collect(Collectors.toList());
-                    assertThat(files, containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb",
-                        "GeoLite2-City.mmdb_COPYRIGHT.txt", "GeoLite2-Country.mmdb_COPYRIGHT.txt", "GeoLite2-ASN.mmdb_COPYRIGHT.txt",
-                        "GeoLite2-City.mmdb_LICENSE.txt", "GeoLite2-Country.mmdb_LICENSE.txt", "GeoLite2-ASN.mmdb_LICENSE.txt",
-                        "GeoLite2-ASN.mmdb_README.txt"));
-                }
-            }
-        });
-
-        // Verify after updating dbs:
-        assertBusy(() -> {
-            SimulatePipelineResponse simulateResponse = client().admin().cluster().simulatePipeline(simulateRequest).actionGet();
-            assertThat(simulateResponse.getPipelineId(), equalTo("_id"));
-            assertThat(simulateResponse.getResults().size(), equalTo(1));
-            SimulateDocumentBaseResult result = (SimulateDocumentBaseResult) simulateResponse.getResults().get(0);
-            assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
-        });
-
-        // Disable downloader:
-        settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-
-        assertBusy(() -> {
-            for (Path geoipTmpDir : geoipTmpDirs) {
-                try (Stream<Path> list = Files.list(geoipTmpDir)) {
-                    List<String> files = list.map(Path::toString).filter(p -> p.endsWith(".mmdb")).collect(Collectors.toList());
-                    assertThat(files, empty());
-                }
-            }
-        });
+        return geoipTmpDirs;
     }
 
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")

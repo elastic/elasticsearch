@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -47,7 +48,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -199,28 +200,36 @@ public final class DatabaseRegistry implements Closeable {
 
         PersistentTasksCustomMetadata.PersistentTask<?> task =
             PersistentTasksCustomMetadata.getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
+        boolean isEnabled = GeoIpDownloaderTaskExecutor.ENABLED_SETTING.get(state.metadata().settings());
         // Empty state will purge stale entries in databases map.
-        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
+        GeoIpTaskState taskState = isEnabled == false || task == null || task.getState() == null ? GeoIpTaskState.EMPTY :
+            (GeoIpTaskState) task.getState();
 
-        taskState.getDatabases().forEach((name, metadata) -> {
-            DatabaseReaderLazyLoader reference = databases.get(name);
-            String remoteMd5 = metadata.getMd5();
-            String localMd5 = reference != null ? reference.getMd5() : null;
-            if (Objects.equals(localMd5, remoteMd5)) {
-                reference.setLastUpdate(metadata.getLastUpdate());
-                LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
-                return;
-            }
+        taskState.getDatabases().entrySet().stream()
+            .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+            .forEach(e -> {
+                String name = e.getKey();
+                GeoIpTaskState.Metadata metadata = e.getValue();
+                DatabaseReaderLazyLoader reference = databases.get(name);
+                String remoteMd5 = metadata.getMd5();
+                String localMd5 = reference != null ? reference.getMd5() : null;
+                if (Objects.equals(localMd5, remoteMd5)) {
+                    LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
+                    return;
+                }
 
-            try {
-                retrieveAndUpdateDatabase(name, metadata);
-            } catch (Exception e) {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), e);
-            }
-        });
+                try {
+                    retrieveAndUpdateDatabase(name, metadata);
+                } catch (Exception ex) {
+                    LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
+                }
+            });
 
         List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(taskState.getDatabases().keySet());
+        staleEntries.removeAll(taskState.getDatabases().entrySet().stream()
+            .filter(e->e.getValue().isValid(state.getMetadata().settings()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet()));
         removeStaleEntries(staleEntries);
     }
 
@@ -303,7 +312,6 @@ public final class DatabaseRegistry implements Closeable {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
-            loader.setLastUpdate(lastUpdate);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();
@@ -343,8 +351,10 @@ public final class DatabaseRegistry implements Closeable {
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
-                    searchRequest.source().query(new TermQueryBuilder("_id", id));
+                    searchRequest.source().query(new BoolQueryBuilder()
+                        .filter(new TermQueryBuilder("name", databaseName))
+                        .filter(new TermQueryBuilder("chunk", chunk))
+                        .filter(new TermQueryBuilder("timestamp", metadata.getLastUpdate())));
 
                     // At most once a day a few searches may be executed to fetch the new files,
                     // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
@@ -353,7 +363,7 @@ public final class DatabaseRegistry implements Closeable {
                     SearchHit[] hits = searchResponse.getHits().getHits();
 
                     if (searchResponse.getHits().getHits().length == 0) {
-                        failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
+                        failureHandler.accept(new ResourceNotFoundException("chunk document not found"));
                         return;
                     }
                     byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");

@@ -26,6 +26,7 @@ dependencies {
 
   testImplementation 'org.elasticsearch:geolite2-databases:20191119'
   internalClusterTestImplementation project(path: ":modules:reindex")
+  internalClusterTestImplementation project(path: ":modules:lang-painless")
 }
 
 restResources {
@@ -71,6 +72,9 @@ tasks.named("bundlePlugin").configure {
   }
 }
 
+tasks.named("processTestResources").configure {
+  ((Copy)it).duplicatesStrategy(DuplicatesStrategy.EXCLUDE)
+}
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // geoip WebServiceClient needs apache http client, but we're not using WebServiceClient:

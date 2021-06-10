@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -134,8 +133,4 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

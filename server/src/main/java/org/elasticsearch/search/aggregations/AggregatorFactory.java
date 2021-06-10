@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -79,7 +78,9 @@ public abstract class AggregatorFactory {
         return OTHER_SUBTYPE;
     }
 
+    /**
+     * Returns which fields that this aggregation will potentially access
+     */
     public abstract Set<String> fieldsUsed();
 
-    public abstract Set<Query> queriesUsed();
 }

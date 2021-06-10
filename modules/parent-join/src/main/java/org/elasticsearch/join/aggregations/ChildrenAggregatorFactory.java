@@ -85,9 +85,4 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        // TODO: childFilter / parentFilter?
-        return Set.of();
-    }
 }

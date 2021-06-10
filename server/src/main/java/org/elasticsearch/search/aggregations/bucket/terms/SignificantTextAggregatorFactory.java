@@ -14,7 +14,6 @@ import org.apache.lucene.analysis.miscellaneous.DeDuplicatingTokenFilter;
 import org.apache.lucene.analysis.miscellaneous.DuplicateByteSequenceSpotter;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.core.Releasables;
@@ -164,12 +163,6 @@ public class SignificantTextAggregatorFactory extends AggregatorFactory {
         if (fieldType != null) {
             return Set.of(fieldType.name());
         }
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
-        // TODO: backgroundFilter?
         return Set.of();
     }
 

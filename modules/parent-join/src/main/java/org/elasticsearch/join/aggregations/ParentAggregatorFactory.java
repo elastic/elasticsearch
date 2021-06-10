@@ -78,12 +78,6 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    public Set<Query> queriesUsed() {
-        // TODO: childFilter / parentFilter?
-        return Set.of();
-    }
-
-    @Override
     public Set<String> fieldsUsed() {
         if (config.fieldType() != null) {
             return Set.of(config.fieldType().name());

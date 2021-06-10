@@ -53,7 +53,6 @@ import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
  */
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
     protected final ResultStrategy<?, ?, ?> resultStrategy;
-
     protected final ValuesSource.Bytes.WithOrdinals valuesSource;
 
     private final LongPredicate acceptedGlobalOrdinals;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.DocValueFormat;
@@ -193,11 +192,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         if (config.fieldType() != null) {
             return Set.of(config.fieldType().name());
         }
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
         return Set.of();
     }
 

@@ -1117,10 +1117,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     return Set.of();
                 }
 
-                @Override
-                public Set<Query> queriesUsed() {
-                    return Set.of();
-                }
             };
         }
 

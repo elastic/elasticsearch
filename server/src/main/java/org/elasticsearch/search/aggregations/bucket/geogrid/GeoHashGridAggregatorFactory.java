@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -126,8 +125,4 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

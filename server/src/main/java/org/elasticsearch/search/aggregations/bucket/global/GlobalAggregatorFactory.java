@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.global;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -48,8 +47,4 @@ public class GlobalAggregatorFactory extends AggregatorFactory {
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

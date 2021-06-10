@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -79,8 +78,4 @@ public abstract class ArrayValuesSourceAggregatorFactory
             .filter(Objects::nonNull).map(MappedFieldType::name).collect(Collectors.toSet());
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

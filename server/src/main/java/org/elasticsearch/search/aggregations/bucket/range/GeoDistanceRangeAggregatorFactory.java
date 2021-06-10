@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -135,11 +134,6 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
         if (config.fieldType() != null) {
             return Set.of(config.fieldType().name());
         }
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
         return Set.of();
     }
 

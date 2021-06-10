@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptedMetricAggContexts;
@@ -90,11 +89,6 @@ class ScriptedMetricAggregatorFactory extends AggregatorFactory {
     @Override
     public Set<String> fieldsUsed() {
         // scripts might use some fields, but we don't know which
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
         return Set.of();
     }
 

@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -507,10 +506,6 @@ public class TransportSearchIT extends ESIntegTestCase {
                     return Set.of();
                 }
 
-                @Override
-                public Set<Query> queriesUsed() {
-                    return Set.of();
-                }
             };
         }
 

@@ -57,5 +57,4 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     public String getStatsSubtype() {
         return config.valueSourceType().typeName();
     }
-
 }

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
@@ -57,8 +56,4 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

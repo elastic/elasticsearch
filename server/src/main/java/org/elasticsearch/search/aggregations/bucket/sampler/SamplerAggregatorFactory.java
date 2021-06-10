@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -37,11 +36,6 @@ public class SamplerAggregatorFactory extends AggregatorFactory {
 
     @Override
     public Set<String> fieldsUsed() {
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
         return Set.of();
     }
 

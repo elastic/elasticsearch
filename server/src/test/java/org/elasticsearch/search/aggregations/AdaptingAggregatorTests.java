@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -86,10 +85,6 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
             return Set.of();
         }
 
-        @Override
-        public Set<Query> queriesUsed() {
-            return Set.of();
-        }
     }
 
     private static class DummyAdaptingAggregator extends AdaptingAggregator {

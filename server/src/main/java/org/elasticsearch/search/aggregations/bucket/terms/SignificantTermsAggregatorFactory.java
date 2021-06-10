@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -370,9 +369,4 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        // TODO: backgroundFilter?
-        return Set.of();
-    }
 }

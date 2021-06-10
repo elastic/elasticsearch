@@ -12,7 +12,6 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -309,11 +308,6 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         if (config.fieldType() != null) {
             return Set.of(config.fieldType().name());
         }
-        return Set.of();
-    }
-
-    @Override
-    public Set<Query> queriesUsed() {
         return Set.of();
     }
 

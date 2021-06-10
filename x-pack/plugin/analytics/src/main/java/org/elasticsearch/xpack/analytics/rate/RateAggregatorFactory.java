@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.analytics.rate;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -96,8 +95,4 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         return Set.of();
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        return Set.of();
-    }
 }

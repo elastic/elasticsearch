@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.analytics.topmetrics;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.Tuple;
@@ -95,9 +94,4 @@ public class TopMetricsAggregatorFactory extends AggregatorFactory {
             .collect(Collectors.toSet());
     }
 
-    @Override
-    public Set<Query> queriesUsed() {
-        //TODO: sortBuilders?
-        return Set.of();
-    }
 }

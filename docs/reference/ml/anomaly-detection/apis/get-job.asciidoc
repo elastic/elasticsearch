@@ -72,7 +72,7 @@ that blocks it from opening.
 Each value means the corresponding action is being executed.
 
 `task_id`:::
-(string) The task id of the blocking action. You can use the <<task>> API to
+(string) The task id of the blocking action. You can use the <<tasks>> API to
 monitor progress.
 ====
 //End blocked

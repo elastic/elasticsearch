@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.utils;
 
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;

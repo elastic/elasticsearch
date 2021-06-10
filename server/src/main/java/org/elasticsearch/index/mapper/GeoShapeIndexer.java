@@ -14,7 +14,6 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
-import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.geometry.Circle;
@@ -29,6 +28,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.ShapeType;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -58,7 +58,7 @@ public class GeoShapeIndexer {
         return geometry.visit(new GeometryVisitor<>() {
             @Override
             public Geometry visit(Circle circle) {
-                throw new UnsupportedOperationException(GeoShapeType.CIRCLE + " geometry is not supported");
+                throw new UnsupportedOperationException(ShapeType.CIRCLE + " geometry is not supported");
             }
 
             @Override
@@ -168,11 +168,10 @@ public class GeoShapeIndexer {
     }
 
     public List<IndexableField> indexShape(Geometry shape) {
-        LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
-        shape = prepareForIndexing(shape);
         if (shape == null) {
             return Collections.emptyList();
         }
+        LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         shape.visit(visitor);
         return visitor.fields();
     }

@@ -22,6 +22,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A {@link SliceQuery} that uses the numeric doc values of a field to do the slicing.
@@ -30,8 +31,16 @@ import java.io.IOException;
  * If updates are accepted on the field you must ensure that the same reader is used for all `slice` queries.
  */
 public final class DocValuesSliceQuery extends SliceQuery {
+    private final String field;
+
+    /**
+     * @param field The name of the field
+     * @param id    The id of the slice
+     * @param max   The maximum number of slices
+     */
     public DocValuesSliceQuery(String field, int id, int max) {
-        super(field, id, max);
+        super(id, max);
+        this.field = field;
     }
 
     @Override
@@ -40,7 +49,7 @@ public final class DocValuesSliceQuery extends SliceQuery {
 
             @Override
             public Scorer scorer(LeafReaderContext context) throws IOException {
-                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), getField());
+                final SortedNumericDocValues values = DocValues.getSortedNumeric(context.reader(), field);
                 final DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
                 final TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
 
@@ -69,9 +78,25 @@ public final class DocValuesSliceQuery extends SliceQuery {
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return DocValues.isCacheable(ctx, getField());
+                return DocValues.isCacheable(ctx, field);
             }
 
         };
+    }
+
+    @Override
+    protected boolean doEquals(SliceQuery o) {
+        DocValuesSliceQuery that = (DocValuesSliceQuery) o;
+        return Objects.equals(field, that.field);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(field);
+    }
+
+    @Override
+    public String toString(String f) {
+        return getClass().getSimpleName() + "[field=" + field + ", id=" + getId() + ", max=" + getMax() + "]";
     }
 }

@@ -8,24 +8,25 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.ConstantScoreScorer;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdSetBuilder;
 import org.apache.lucene.util.StringHelper;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A {@link SliceQuery} that uses the terms dictionary of a field to do the slicing.
@@ -40,8 +41,11 @@ public final class TermsSliceQuery extends SliceQuery {
     // Fixed seed for computing term hashCode
     public static final int SEED = 7919;
 
+    private final String field;
+
     public TermsSliceQuery(String field, int id, int max) {
-        super(field, id, max);
+        super(id, max);
+        this.field = field;
     }
 
     @Override
@@ -66,7 +70,7 @@ public final class TermsSliceQuery extends SliceQuery {
      */
     private DocIdSet build(LeafReader reader) throws IOException {
         final DocIdSetBuilder builder = new DocIdSetBuilder(reader.maxDoc());
-        final Terms terms = reader.terms(getField());
+        final Terms terms = reader.terms(field);
         if (terms == null) {
             return DocIdSet.EMPTY;
         }
@@ -82,5 +86,21 @@ public final class TermsSliceQuery extends SliceQuery {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    protected boolean doEquals(SliceQuery o) {
+        TermsSliceQuery that = (TermsSliceQuery) o;
+        return Objects.equals(field, that.field);
+    }
+
+    @Override
+    protected int doHashCode() {
+        return Objects.hash(field);
+    }
+
+    @Override
+    public String toString(String f) {
+        return getClass().getSimpleName() + "[field=" + field + ", id=" + getId() + ", max=" + getMax() + "]";
     }
 }

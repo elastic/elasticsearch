@@ -16,17 +16,14 @@ import java.util.Objects;
  * An abstract {@link Query} that defines an hash function to partition the documents in multiple slices.
  */
 public abstract class SliceQuery extends Query {
-    private final String field;
     private final int id;
     private final int max;
 
     /**
-     * @param field The name of the field
      * @param id    The id of the slice
      * @param max   The maximum number of slices
      */
-    public SliceQuery(String field, int id, int max) {
-        this.field = field;
+    public SliceQuery(int id, int max) {
         this.id = id;
         this.max = max;
     }
@@ -34,10 +31,6 @@ public abstract class SliceQuery extends Query {
     // Returns true if the value matches the predicate
     protected final boolean contains(long value) {
         return Math.floorMod(value, max) == id;
-    }
-
-    public String getField() {
-        return field;
     }
 
     public int getId() {
@@ -54,17 +47,15 @@ public abstract class SliceQuery extends Query {
             return false;
         }
         SliceQuery that = (SliceQuery) o;
-        return field.equals(that.field) && id == that.id && max == that.max;
+        return id == that.id && max == that.max && doEquals(that);
     }
+
+    protected abstract boolean doEquals(SliceQuery o);
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), field, id, max);
+        return Objects.hash(classHash(), id, max, doHashCode());
     }
 
-    @Override
-    public String toString(String f) {
-        return getClass().getSimpleName() + "[field=" + field + ", id=" + id + ", max=" + max + "]";
-    }
-
+    protected abstract int doHashCode();
 }

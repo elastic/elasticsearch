@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.eql.action;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
@@ -28,9 +28,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -108,20 +107,8 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader(Task.X_OPAQUE_ID, id));
         logger.trace("Preparing search");
 
-        CountDownLatch latch = new CountDownLatch(1);
-        AtomicReference<Exception> error = new AtomicReference<>();
-        Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                error.set(exception);
-                latch.countDown();
-            }
-        });
+        final PlainActionFuture<Response> future = PlainActionFuture.newFuture();
+        Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         logger.trace("Waiting for block to be established");
         awaitForBlockedFieldCaps(plugins);
@@ -157,8 +144,7 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
         assertThat(getNumberOfContexts(plugins), equalTo(0));
         disableSearchBlocks(plugins);
 
-        latch.await();
-        assertThat(error.get(), instanceOf(CancellationException.class));
+        expectThrows(CancellationException.class, future::actionGet);
     }
 
     @Override

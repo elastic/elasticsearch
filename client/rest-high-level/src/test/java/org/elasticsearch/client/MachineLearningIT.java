@@ -814,6 +814,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.datafeedStats(), hasSize(1));
         assertThat(response.datafeedStats().get(0).getDatafeedId(), equalTo(datafeedId1));
         assertThat(response.datafeedStats().get(0).getDatafeedState().toString(), equalTo(DatafeedState.STARTED.toString()));
+        assertThat(response.datafeedStats().get(0).getRunningState(), is(notNullValue()));
+        assertThat(response.datafeedStats().get(0).getRunningState().isRealTimeConfigured(), is(true));
 
         // Test getting all explicitly
         request = GetDatafeedStatsRequest.getAllDatafeedStatsRequest();

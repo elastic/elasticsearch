@@ -1,0 +1,13 @@
+# This file contains SHAs of changes that should be ignored when e.g.
+# running `git blame` on a file. Do not edit any of the existing commits.
+#
+# Use this file by running:
+#
+#     git blame --ignore-revs-file=.git-blame-ignore-rev <file>
+#
+# or by configuring `blame.ignoreRevsFile`. The latter ought to also work
+# with IDEs such as IntelliJ.
+
+
+# Format snapshot / restore directories in server
+c708a1e8c3d3d3d3fd660896a84a8229a8cbcb7e

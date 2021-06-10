@@ -5,10 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
+package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Map;
 

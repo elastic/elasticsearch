@@ -7,12 +7,12 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-test'
-apply from: "$rootDir/gradle/bwc-test.gradle"
+apply plugin: 'elasticsearch.bwc-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
@@ -35,12 +35,14 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 2
       versions = [bwcVersionStr, project.version]
       setting 'cluster.remote.node.attr', 'gateway'
+      setting 'xpack.security.enabled', 'false'
     }
     "${baseName}-remote" {
       numberOfNodes = 3
       versions = [bwcVersionStr, project.version]
       firstNode.setting 'node.attr.gateway', 'true'
       lastNode.setting 'node.attr.gateway', 'true'
+      setting 'xpack.security.enabled', 'false'
     }
   }
 

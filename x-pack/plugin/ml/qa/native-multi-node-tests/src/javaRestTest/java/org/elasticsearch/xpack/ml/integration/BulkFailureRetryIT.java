@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
@@ -104,10 +104,8 @@ public class BulkFailureRetryIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig.Builder datafeedConfigBuilder =
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
-        registerDatafeed(datafeedConfig);
         putDatafeed(datafeedConfig);
         long twoDaysAgo = now - 2 * DAY;
         startDatafeed(datafeedConfig.getId(), 0L, twoDaysAgo);

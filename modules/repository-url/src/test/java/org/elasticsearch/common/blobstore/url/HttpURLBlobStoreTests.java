@@ -10,7 +10,7 @@ package org.elasticsearch.common.blobstore.url;
 
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpServer;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.url.http.URLHttpClient;
@@ -115,7 +115,7 @@ public class HttpURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     BlobContainer getBlobContainer() {
-        return urlBlobStore.blobContainer(new BlobPath().add("indices"));
+        return urlBlobStore.blobContainer(BlobPath.EMPTY.add("indices"));
     }
 
     @Override

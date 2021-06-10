@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.snapshots;
 
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.AbortedSnapshotException;
 
 import java.util.Objects;
@@ -50,6 +51,7 @@ public class IndexShardSnapshotStatus {
 
     private final AtomicReference<Stage> stage;
     private final AtomicReference<String> generation;
+    private final AtomicReference<ShardSnapshotResult> shardSnapshotResult; // only set in stage DONE
     private long startTime;
     private long totalTime;
     private int incrementalFileCount;
@@ -76,6 +78,7 @@ public class IndexShardSnapshotStatus {
     ) {
         this.stage = new AtomicReference<>(Objects.requireNonNull(stage));
         this.generation = new AtomicReference<>(generation);
+        this.shardSnapshotResult = new AtomicReference<>();
         this.startTime = startTime;
         this.totalTime = totalTime;
         this.incrementalFileCount = incrementalFileCount;
@@ -125,11 +128,13 @@ public class IndexShardSnapshotStatus {
         return asCopy();
     }
 
-    public synchronized void moveToDone(final long endTime, final String newGeneration) {
-        assert newGeneration != null;
+    public synchronized void moveToDone(final long endTime, final ShardSnapshotResult shardSnapshotResult) {
+        assert shardSnapshotResult != null;
+        assert shardSnapshotResult.getGeneration() != null;
         if (stage.compareAndSet(Stage.FINALIZE, Stage.DONE)) {
             this.totalTime = Math.max(0L, endTime - startTime);
-            this.generation.set(newGeneration);
+            this.shardSnapshotResult.set(shardSnapshotResult);
+            this.generation.set(shardSnapshotResult.getGeneration());
         } else {
             assert false : "Should not try to move stage [" + stage.get() + "] to [DONE]";
             throw new IllegalStateException(
@@ -153,6 +158,11 @@ public class IndexShardSnapshotStatus {
 
     public String generation() {
         return generation.get();
+    }
+
+    public ShardSnapshotResult getShardSnapshotResult() {
+        assert stage.get() == Stage.DONE : stage.get();
+        return shardSnapshotResult.get();
     }
 
     public boolean isAborted() {

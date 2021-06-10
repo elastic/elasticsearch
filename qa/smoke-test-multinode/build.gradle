@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -21,6 +21,10 @@ File repo = file("$buildDir/testclusters/repo")
 testClusters.matching { it.name == "integTest" }.configureEach {
   numberOfNodes = 2
   setting 'path.repo', repo.absolutePath
+}
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
 }
 
 tasks.named("integTest").configure {

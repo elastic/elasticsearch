@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -126,8 +126,7 @@ final class DynamicFieldsBuilder {
     Mapper createDynamicObjectMapper(ParseContext context, String name) {
         //dynamic:runtime maps objects under properties, exactly like dynamic:true
         Mapper mapper = createObjectMapperFromTemplate(context, name);
-        return mapper != null ? mapper :
-            new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
+        return mapper != null ? mapper : new ObjectMapper.Builder(name).enabled(true).build(context.path());
     }
 
     /**
@@ -302,7 +301,7 @@ final class DynamicFieldsBuilder {
             Settings settings = context.indexSettings().getSettings();
             boolean ignoreMalformed = FieldMapper.IGNORE_MALFORMED_SETTING.get(settings);
             createDynamicField(new DateFieldMapper.Builder(name, DateFieldMapper.Resolution.MILLISECONDS,
-                dateTimeFormatter, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
+                dateTimeFormatter, ScriptCompiler.NONE, ignoreMalformed, context.indexSettings().getIndexVersionCreated()), context);
         }
 
         void newDynamicBinaryField(ParseContext context, String name) throws IOException {

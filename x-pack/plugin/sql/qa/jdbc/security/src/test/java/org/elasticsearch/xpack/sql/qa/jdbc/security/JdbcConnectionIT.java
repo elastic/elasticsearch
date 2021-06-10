@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc.security;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,8 +18,6 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 public class JdbcConnectionIT extends ConnectionTestCase {
 

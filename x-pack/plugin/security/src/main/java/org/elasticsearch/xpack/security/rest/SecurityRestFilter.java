@@ -11,8 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -88,6 +90,11 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
+            if (request.method() != Method.OPTIONS) {
+                HeaderWarning.addWarning("Elasticsearch built-in security features are not enabled. Without authentication, your cluster " +
+                    "could be accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major +
+                    "." + Version.CURRENT.minor + "/security-minimal-setup.html to enable security.");
+            }
             restHandler.handleRequest(request, channel, client);
         }
     }
@@ -104,7 +111,10 @@ public class SecurityRestFilter implements RestHandler {
                 @Override
                 public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
                     if (headers.containsKey("Warning")) {
-                        return Maps.copyMapWithRemovedEntry(headers, "Warning");
+                        headers = Maps.copyMapWithRemovedEntry(headers, "Warning");
+                    }
+                    if (headers.containsKey("X-elastic-product")) {
+                        headers = Maps.copyMapWithRemovedEntry(headers, "X-elastic-product");
                     }
                     return headers;
                 }

@@ -15,10 +15,10 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -82,9 +82,15 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         } else {
             currentShardGen = repositoryData.shardGenerations().getShardGen(indexId, shardId);
         }
+<<<<<<< HEAD
         final String newShardGeneration = PlainActionFuture.get(
             f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f)
         );
+=======
+        final ShardSnapshotResult shardSnapshotResult = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+                sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, currentShardGen, f));
+        final String newShardGeneration = shardSnapshotResult.getGeneration();
+>>>>>>> master
 
         if (useBwCFormat) {
             final long gen = Long.parseLong(newShardGeneration);
@@ -111,10 +117,18 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(snapshotFiles.get(0).isSame(snapshotFiles.get(1)));
 
         // verify that repeated cloning is idempotent
+<<<<<<< HEAD
         final String newShardGeneration2 = PlainActionFuture.get(
             f -> repository.cloneShardSnapshot(sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f)
         );
         assertEquals(newShardGeneration, newShardGeneration2);
+=======
+        final ShardSnapshotResult shardSnapshotResult2 = PlainActionFuture.get(f -> repository.cloneShardSnapshot(
+                sourceSnapshotInfo.snapshotId(), targetSnapshotId, repositoryShardId, newShardGeneration, f));
+        assertEquals(newShardGeneration, shardSnapshotResult2.getGeneration());
+        assertEquals(shardSnapshotResult.getSegmentCount(), shardSnapshotResult2.getSegmentCount());
+        assertEquals(shardSnapshotResult.getSize(), shardSnapshotResult2.getSize());
+>>>>>>> master
     }
 
     public void testCloneSnapshotIndex() throws Exception {
@@ -713,6 +727,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+<<<<<<< HEAD
     private static BlobStoreIndexShardSnapshots readShardGeneration(
         BlobStoreRepository repository,
         RepositoryShardId repositoryShardId,
@@ -733,6 +748,13 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                     )
                 )
         );
+=======
+    private static BlobStoreIndexShardSnapshots readShardGeneration(BlobStoreRepository repository, RepositoryShardId repositoryShardId,
+                                                                    String generation) {
+        return PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.supply(f,
+                () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(repository.shardContainer(repositoryShardId.index(),
+                        repositoryShardId.shardId()), generation, NamedXContentRegistry.EMPTY))));
+>>>>>>> master
     }
 
     private static BlobStoreIndexShardSnapshot readShardSnapshot(

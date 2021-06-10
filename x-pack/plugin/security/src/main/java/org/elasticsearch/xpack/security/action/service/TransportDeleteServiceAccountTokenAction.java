@@ -16,29 +16,29 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenAction;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenResponse;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 public class TransportDeleteServiceAccountTokenAction
     extends HandledTransportAction<DeleteServiceAccountTokenRequest, DeleteServiceAccountTokenResponse> {
 
-    private final IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
+    private final IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
     @Inject
     public TransportDeleteServiceAccountTokenAction(TransportService transportService, ActionFilters actionFilters,
-                                                    IndexServiceAccountsTokenStore indexServiceAccountsTokenStore,
+                                                    IndexServiceAccountTokenStore indexServiceAccountTokenStore,
                                                     HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
         super(DeleteServiceAccountTokenAction.NAME, transportService, actionFilters, DeleteServiceAccountTokenRequest::new);
-        this.indexServiceAccountsTokenStore = indexServiceAccountsTokenStore;
+        this.indexServiceAccountTokenStore = indexServiceAccountTokenStore;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
     }
 
     @Override
     protected void doExecute(Task task, DeleteServiceAccountTokenRequest request,
                              ActionListener<DeleteServiceAccountTokenResponse> listener) {
-        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "create service account token", () -> {
-            indexServiceAccountsTokenStore.deleteToken(request, ActionListener.wrap(found -> {
+        httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "delete service account token", () -> {
+            indexServiceAccountTokenStore.deleteToken(request, ActionListener.wrap(found -> {
                 listener.onResponse(new DeleteServiceAccountTokenResponse(found));
             }, listener::onFailure));
         });

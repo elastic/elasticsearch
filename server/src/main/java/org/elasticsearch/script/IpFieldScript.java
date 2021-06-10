@@ -19,8 +19,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.Map;
+import java.util.function.Consumer;
 
 /**
  * Script producing IP addresses. Unlike the other {@linkplain AbstractFieldScript}s
@@ -38,6 +38,20 @@ import java.util.Map;
  */
 public abstract class IpFieldScript extends AbstractFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("ip_field", Factory.class);
+
+    public static final IpFieldScript.Factory PARSE_FROM_SOURCE
+        = (field, params, lookup) -> (IpFieldScript.LeafFactory) ctx -> new IpFieldScript
+        (
+            field,
+            params,
+            lookup,
+            ctx
+        ) {
+        @Override
+        public void execute() {
+            emitFromSource();
+        }
+    };
 
     @SuppressWarnings("unused")
     public static final String[] PARAMETERS = {};
@@ -66,6 +80,13 @@ public abstract class IpFieldScript extends AbstractFieldScript {
         execute();
     }
 
+    public final void runForDoc(int docId, Consumer<InetAddress> consumer) {
+        runForDoc(docId);
+        for (int i = 0; i < count; i++) {
+            consumer.accept(InetAddressPoint.decode(values[i].bytes));
+        }
+    }
+
     /**
      * Values from the last time {@link #runForDoc(int)} was called. This array
      * is mutable and will change with the next call of {@link #runForDoc(int)}.
@@ -80,24 +101,24 @@ public abstract class IpFieldScript extends AbstractFieldScript {
     }
 
     /**
-     * Reorders the values from the last time {@link #values()} was called to
-     * how this would appear in doc-values order. Truncates garbage values
-     * based on {@link #count()}.
-     */
-    public final BytesRef[] asDocValues() {
-        BytesRef[] truncated = Arrays.copyOf(values, count());
-        Arrays.sort(truncated);
-        return truncated;
-    }
-
-    /**
      * The number of results produced the last time {@link #runForDoc(int)} was called.
      */
     public final int count() {
         return count;
     }
 
-    protected final void emit(String v) {
+    @Override
+    protected void emitFromObject(Object v) {
+        if (v instanceof String) {
+            try {
+                emit((String) v);
+            } catch (Exception e) {
+                // ignore parsing exceptions
+            }
+        }
+    }
+
+    public final void emit(String v) {
         checkMaxSize(count);
         if (values.length < count + 1) {
             values = ArrayUtil.grow(values, count + 1);

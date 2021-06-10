@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,7 +17,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -28,7 +27,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -131,6 +130,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+<<<<<<< HEAD
     public void snapshotShard(
         Store store,
         MapperService mapperService,
@@ -166,12 +166,25 @@ public class FilterRepository implements Repository {
         RecoveryState recoveryState,
         ActionListener<Void> listener
     ) {
+=======
+    public void snapshotShard(SnapshotShardContext context) {
+        in.snapshotShard(context);
+    }
+    @Override
+    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
+                             ActionListener<Void> listener) {
+>>>>>>> master
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
         return in.getShardSnapshotStatus(snapshotId, indexId, shardId);
+    }
+
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        return in.canUpdateInPlace(updatedSettings, ignoredSettings);
     }
 
     @Override
@@ -189,6 +202,7 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+<<<<<<< HEAD
     public void cloneShardSnapshot(
         SnapshotId source,
         SnapshotId target,
@@ -196,6 +210,10 @@ public class FilterRepository implements Repository {
         String shardGeneration,
         ActionListener<String> listener
     ) {
+=======
+    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
+                                   ActionListener<ShardSnapshotResult> listener) {
+>>>>>>> master
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
     }
 

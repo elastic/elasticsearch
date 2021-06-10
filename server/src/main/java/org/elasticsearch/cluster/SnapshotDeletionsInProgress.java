@@ -69,14 +69,6 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
-     * Returns a new instance of {@link SnapshotDeletionsInProgress} with the given
-     * {@link Entry} added.
-     */
-    public static SnapshotDeletionsInProgress newInstance(Entry entry) {
-        return new SnapshotDeletionsInProgress(Collections.singletonList(entry));
-    }
-
-    /**
      * Returns a new instance of {@link SnapshotDeletionsInProgress} which adds
      * the given {@link Entry} to the invoking instance.
      */
@@ -106,6 +98,20 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
      */
     public List<Entry> getEntries() {
         return entries;
+    }
+
+    /**
+     * Checks if there is an actively executing delete operation for the given repository
+     *
+     * @param repository repository name
+     */
+    public boolean hasExecutingDeletion(String repository) {
+        for (Entry entry : entries) {
+            if (entry.state() == State.STARTED && entry.repository().equals(repository)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

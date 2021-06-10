@@ -33,13 +33,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -67,6 +69,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -80,6 +83,7 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -300,6 +304,28 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Construct a Basic auth header
+     * @param username user name
+     * @param passwd user password
+     */
+    public static String basicAuthHeaderValue(String username, SecureString passwd) {
+        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
+        byte[] charBytes = null;
+        try {
+            chars.put(username).put(':').put(passwd.getChars());
+            charBytes = CharArrays.toUtf8Bytes(chars.array());
+
+            String basicToken = Base64.getEncoder().encodeToString(charBytes);
+            return "Basic " + basicToken;
+        } finally {
+            Arrays.fill(chars.array(), (char) 0);
+            if (charBytes != null) {
+                Arrays.fill(charBytes, (byte) 0);
+            }
+        }
+    }
+
+    /**
      * Construct an HttpHost from the given host and port
      */
     protected HttpHost buildHttpHost(String host, int port) {
@@ -514,6 +540,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Returns whether to preserve searchable snapshots indices. Defaults to not
+     * preserving them. Only runs at all if xpack is installed on the cluster
+     * being tested.
+     */
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return false;
+    }
+
+    /**
      * Returns whether to wait to make absolutely certain that all snapshots
      * have been deleted.
      */
@@ -532,6 +567,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (preserveSLMPoliciesUponCompletion() == false) {
             // Clean up SLM policies before trying to wipe snapshots so that no new ones get started by SLM after wiping
             deleteAllSLMPolicies();
+        }
+
+        // Clean up searchable snapshots indices before deleting snapshots and repositories
+        if (hasXPack() && nodeVersions.first().onOrAfter(Version.V_7_8_0) && preserveSearchableSnapshotsIndicesUponCompletion() == false) {
+            wipeSearchableSnapshotsIndices();
         }
 
         SetOnce<Map<String, List<Map<?,?>>>> inProgressSnapshots = new SetOnce<>();
@@ -679,7 +719,32 @@ public abstract class ESRestTestCase extends ESTestCase {
             deleteAllAutoFollowPatterns();
         }
 
+        deleteAllNodeShutdownMetadata();
+
         assertThat("Found in progress snapshots [" + inProgressSnapshots.get() + "].", inProgressSnapshots.get(), anEmptyMap());
+    }
+
+    /**
+     * If any nodes are registered for shutdown, removes their metadata.
+     */
+    @SuppressWarnings("unchecked")
+    private static void deleteAllNodeShutdownMetadata() throws IOException {
+        Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
+        if (statusResponse.containsKey("_nodes") && statusResponse.containsKey("cluster_name")) {
+            // If the response contains these two keys, the feature flag isn't enabled on this cluster, so skip out now.
+            // We can't check the system property directly because it only gets set for the cluster under test's JVM, not for the test
+            // runner's JVM.
+            return;
+        }
+            List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
+            List<String> nodeIds = nodesArray.stream()
+                .map(nodeShutdownMetadata -> (String) nodeShutdownMetadata.get("node_id"))
+                .collect(Collectors.toUnmodifiableList());
+            for (String nodeId : nodeIds) {
+                Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
+                assertOK(adminClient().performRequest(deleteRequest));
+        }
     }
 
     protected static void wipeAllIndices() throws IOException {
@@ -731,6 +796,28 @@ public abstract class ESRestTestCase extends ESTestCase {
                 int statusCode = ee.getResponse().getStatusLine().getStatusCode();
                 if (statusCode < 404 || statusCode > 405) {
                     throw ee;
+                }
+            }
+        }
+    }
+
+    protected void wipeSearchableSnapshotsIndices() throws IOException {
+        // retrieves all indices with a type of store equals to "snapshot"
+        final Request request = new Request("GET", "_cluster/state/metadata");
+        request.addParameter("filter_path", "metadata.indices.*.settings.index.store.snapshot");
+
+        final Response response = adminClient().performRequest(request);
+        @SuppressWarnings("unchecked")
+        Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
+        if (indices != null) {
+            for (String index : indices.keySet()) {
+                try {
+                    assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                        adminClient().performRequest(new Request("DELETE", index)));
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
                 }
             }
         }
@@ -1456,6 +1543,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "ilm-history":
             case "logstash-index-template":
             case "security-index-template":
+            case "data-streams-mappings":
                 return true;
             default:
                 return false;
@@ -1682,5 +1770,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         });
         request.setOptions(options);
+    }
+
+    protected static boolean isNotFoundResponseException(IOException ioe) {
+        if (ioe instanceof ResponseException) {
+            Response response = ((ResponseException) ioe).getResponse();
+            return response.getStatusLine().getStatusCode() == 404;
+        }
+        return false;
     }
 }

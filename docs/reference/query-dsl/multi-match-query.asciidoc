@@ -192,7 +192,10 @@ This query is executed as:
 In other words, *all terms* must be present *in a single field* for a document
 to match.
 
-See <<type-cross-fields>> for a better solution.
+The <<query-dsl-combined-fields-query, `combined_fields`>> query offers a
+term-centric approach that handles `operator` and `minimum_should_match` on a
+per-term basis. The other multi-match mode <<type-cross-fields>> also
+addresses this issue.
 
 ===================================================
 
@@ -384,6 +387,12 @@ explanation:
 
 Also, accepts `analyzer`, `boost`, `operator`, `minimum_should_match`,
 `lenient` and `zero_terms_query`.
+
+WARNING: The `cross_fields` type blends field statistics in a way that does
+not always produce well-formed scores (for example scores can become
+negative). As an alternative, you can consider the
+<<query-dsl-combined-fields-query,`combined_fields`>> query, which is also
+term-centric but combines field statistics in a more robust way.
 
 [[cross-field-analysis]]
 ===== `cross_field` and analysis

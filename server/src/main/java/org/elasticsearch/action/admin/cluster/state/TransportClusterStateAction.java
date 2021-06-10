@@ -27,7 +27,7 @@ import org.elasticsearch.cluster.metadata.Metadata.Custom;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -73,10 +73,9 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState ->
-                cancellableTask.isCancelled() || clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
-        if (acceptableClusterStatePredicate.test(state)) {
+        if (acceptableClusterStatePredicate.test(state) && cancellableTask.isCancelled() == false) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
             assert acceptableClusterStateOrFailedPredicate.test(state) == false;
@@ -112,7 +111,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         listener.onFailure(e);
                     }
                 }
-            }, acceptableClusterStateOrFailedPredicate);
+            }, clusterState -> cancellableTask.isCancelled() || acceptableClusterStateOrFailedPredicate.test(clusterState));
         }
     }
 

@@ -9,7 +9,8 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,7 +33,7 @@ import java.io.UncheckedIOException;
  * to force their buffering in serialized format by calling
  * {@link #asSerialized(Reader, NamedWriteableRegistry)}.
  */
-public abstract class DelayableWriteable<T extends Writeable> implements Writeable {
+public abstract class DelayableWriteable<T extends Writeable> implements Writeable, Releasable {
     /**
      * Build a {@linkplain DelayableWriteable} that wraps an existing object
      * but is serialized so that deserializing it can be delayed.
@@ -46,7 +47,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      * when {@link #expand()} is called.
      */
     public static <T extends Writeable> DelayableWriteable<T> delayed(Writeable.Reader<T> reader, StreamInput in) throws IOException {
-        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readBytesReference());
+        return new Serialized<>(reader, in.getVersion(), in.namedWriteableRegistry(), in.readReleasableBytesReference());
     }
 
     private DelayableWriteable() {}
@@ -98,7 +99,8 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             } catch (IOException e) {
                 throw new RuntimeException("unexpected error writing writeable to buffer", e);
             }
-            return new Serialized<>(reader, Version.CURRENT, registry, buffer.bytes());
+            // TODO: this path is currently not used in production code, if it ever is this should start using pooled buffers
+            return new Serialized<>(reader, Version.CURRENT, registry, ReleasableBytesReference.wrap(buffer.bytes()));
         }
 
         @Override
@@ -118,19 +120,25 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
                 return buffer;
             }
         }
+
+        @Override
+        public void close() {
+            //noop
+        }
     }
 
     /**
-     * A {@link Writeable} stored in serialized form.
+     * A {@link Writeable} stored in serialized form backed by a {@link ReleasableBytesReference}. Once an instance is no longer used its
+     * backing memory must be manually released by invoking {@link #close()} on it.
      */
     public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
         private final Version serializedAtVersion;
         private final NamedWriteableRegistry registry;
-        private final BytesReference serialized;
+        private final ReleasableBytesReference serialized;
 
-        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion,
-                NamedWriteableRegistry registry, BytesReference serialized) {
+        private Serialized(Writeable.Reader<T> reader, Version serializedAtVersion, NamedWriteableRegistry registry,
+                           ReleasableBytesReference serialized) {
             this.reader = reader;
             this.serializedAtVersion = serializedAtVersion;
             this.registry = registry;
@@ -185,6 +193,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         public long getSerializedSize() {
             // We're already serialized
             return serialized.length();
+        }
+
+        @Override
+        public void close() {
+            serialized.close();
         }
     }
 

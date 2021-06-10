@@ -10,7 +10,8 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLease;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -18,7 +19,6 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.translog.Translog;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -77,12 +77,7 @@ final class SoftDeletesPolicy {
     synchronized Releasable acquireRetentionLock() {
         assert retentionLockCount >= 0 : "Invalid number of retention locks [" + retentionLockCount + "]";
         retentionLockCount++;
-        final AtomicBoolean released = new AtomicBoolean();
-        return () -> {
-            if (released.compareAndSet(false, true)) {
-                releaseRetentionLock();
-            }
-        };
+        return Releasables.releaseOnce(this::releaseRetentionLock);
     }
 
     private synchronized void releaseRetentionLock() {

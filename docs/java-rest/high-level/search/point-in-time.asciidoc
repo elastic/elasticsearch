@@ -1,0 +1,67 @@
+[[java-rest-high-point-in-time]]
+
+=== Open a point in time
+
+A point in time must be opened before being used in search requests.
+An OpenPointInTimeRequest requires an `index` and `keepAlive` arguments:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time]
+--------------------------------------------------
+<1> Create an `OpenPointInTimeRequest` with the target indices
+<2> Set the `keep_alive` - a required parameter, which tells
+Elasticsearch how long it should keep a point in time around.
+<3> Read the returned point in time id, which points to the search context that's
+being kept alive and will be used in the search requests.
+
+==== Optional arguments
+The following arguments can optionally be provided:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-indices-option]
+--------------------------------------------------
+<1> Setting `IndicesOptions` controls how unavailable indices are resolved and
+how wildcard expressions are expanded
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-routing]
+--------------------------------------------------
+<1> Set a routing parameter
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[open-point-in-time-preference]
+--------------------------------------------------
+<1> Use the preference parameter e.g. to execute the search to prefer local
+shards. The default is to randomize across shards.
+
+=== Search with point in time
+A point in time can be passed to a search request via a PointInTimeBuilder,
+which requires a point in time ID returned from the open API.
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[search-point-in-time]
+--------------------------------------------------
+<1> Create a PointInTimeBuilder with a PIT id
+<2> (Optional) Set the keep alive of a point in time
+<3> Pass a point in time to a search request
+
+A search request with a point in time does not accept these parameters:
+`indices`, `indicesOptions` `routing`, `preference`, and `ccsMinimizeRoundtrips`.
+
+A point in time can be used in search after requests to paginate search results.
+
+=== Close point in time
+
+Point in time should be closed as soon as they are no longer used in search requests.
+A ClosePointInTime request requires a point in time id argument:
+
+["source","java",subs="attributes,callouts,macros"]
+--------------------------------------------------
+include-tagged::{doc-tests}/SearchDocumentationIT.java[close-point-in-time]
+--------------------------------------------------
+<1> Create a close point in time request with a PIT id

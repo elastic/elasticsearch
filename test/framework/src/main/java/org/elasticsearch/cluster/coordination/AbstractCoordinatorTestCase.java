@@ -31,20 +31,20 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -996,7 +996,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
-                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.BUILT_IN_ROLES
+                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
                     .stream()
                     .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
                     .collect(Collectors.toUnmodifiableSet());
@@ -1397,7 +1397,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return new DiscoveryNode("", "node" + nodeIndex,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+            masterEligible ? DiscoveryNodeRole.roles() : emptySet(), Version.CURRENT);
     }
 
     /**

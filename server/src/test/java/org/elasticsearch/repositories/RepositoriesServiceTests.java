@@ -8,7 +8,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -277,6 +275,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
+<<<<<<< HEAD
         public void snapshotShard(
             Store store,
             MapperService mapperService,
@@ -289,6 +288,9 @@ public class RepositoriesServiceTests extends ESTestCase {
             Map<String, Object> userMetadata,
             ActionListener<String> listener
         ) {
+=======
+        public void snapshotShard(SnapshotShardContext context) {
+>>>>>>> master
 
         }
 
@@ -320,6 +322,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         ) {}
 
         @Override
+<<<<<<< HEAD
         public void cloneShardSnapshot(
             SnapshotId source,
             SnapshotId target,
@@ -327,6 +330,10 @@ public class RepositoriesServiceTests extends ESTestCase {
             String shardGeneration,
             ActionListener<String> listener
         ) {
+=======
+        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
+                                       ActionListener<ShardSnapshotResult> listener) {
+>>>>>>> master
 
         }
 
@@ -372,9 +379,14 @@ public class RepositoriesServiceTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
+<<<<<<< HEAD
                 BlobPath.cleanPath(),
                 Map.of("bucket", "bucket-a")
             );
+=======
+                BlobPath.EMPTY,
+                Map.of("bucket", "bucket-a"));
+>>>>>>> master
         }
 
         @Override
@@ -399,9 +411,14 @@ public class RepositoriesServiceTests extends ESTestCase {
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
+<<<<<<< HEAD
                 BlobPath.cleanPath(),
                 Map.of("bucket", "bucket-b")
             );
+=======
+                BlobPath.EMPTY,
+                Map.of("bucket", "bucket-b"));
+>>>>>>> master
         }
 
         @Override

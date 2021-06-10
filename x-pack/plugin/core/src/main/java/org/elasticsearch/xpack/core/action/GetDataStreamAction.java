@@ -15,8 +15,8 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -119,6 +119,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             public static final ParseField INDEX_TEMPLATE_FIELD = new ParseField("template");
             public static final ParseField ILM_POLICY_FIELD = new ParseField("ilm_policy");
             public static final ParseField HIDDEN_FIELD = new ParseField("hidden");
+            public static final ParseField SYSTEM_FIELD = new ParseField("system");
 
             DataStream dataStream;
             ClusterHealthStatus dataStreamStatus;
@@ -181,6 +182,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
                 }
                 builder.field(HIDDEN_FIELD.getPreferredName(), dataStream.isHidden());
+                builder.field(SYSTEM_FIELD.getPreferredName(), dataStream.isSystem());
                 builder.endObject();
                 return builder;
             }

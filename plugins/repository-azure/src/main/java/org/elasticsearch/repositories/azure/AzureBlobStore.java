@@ -33,8 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -43,7 +42,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -51,6 +50,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
+import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -63,14 +63,17 @@ import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
-import java.util.function.Function;
+import java.util.stream.StreamSupport;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -262,8 +265,8 @@ public class AzureBlobStore implements BlobStore {
         throw exception;
     }
 
-    void deleteBlobList(List<String> blobs) throws IOException {
-        if (blobs.isEmpty()) {
+    void deleteBlobs(Iterator<String> blobs) throws IOException {
+        if (blobs.hasNext() == false) {
             return;
         }
 
@@ -271,12 +274,11 @@ public class AzureBlobStore implements BlobStore {
         SocketAccess.doPrivilegedVoidException(() -> {
             final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
             try {
-                Flux.fromIterable(blobs).flatMap(blob ->
-                        getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES).then().block();
+                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobs, Spliterator.ORDERED), false))
+                        .flatMap(blob -> getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES)
+                        .then().block();
             } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e,
-                        new IOException("Unable to delete blobs "
-                                + AllocationService.firstListElementsToCommaDelimitedString(blobs, Function.identity(), false)));
+                filterDeleteExceptionsAndRethrow(e, new IOException("Unable to delete blobs"));
             }
         });
     }
@@ -364,7 +366,7 @@ public class AzureBlobStore implements BlobStore {
                         // Remove trailing slash
                         directoryName = directoryName.substring(0, directoryName.length() - 1);
                         childrenBuilder.put(directoryName,
-                            new AzureBlobContainer(BlobPath.cleanPath().add(blobItem.getName()), this));
+                            new AzureBlobContainer(BlobPath.EMPTY.add(blobItem.getName()), this));
                     }
                 }
             });
@@ -455,13 +457,26 @@ public class AzureBlobStore implements BlobStore {
     /**
      * Converts the provided input stream into a Flux of ByteBuffer. To avoid having large amounts of outstanding
      * memory this Flux reads the InputStream into ByteBuffers of {@code chunkSize} size.
-     * @param inputStream the InputStream to convert
+     * @param delegate the InputStream to convert
      * @param length the InputStream length
      * @param chunkSize the chunk size in bytes
      * @return a Flux of ByteBuffers
      */
-    private Flux<ByteBuffer> convertStreamToByteBuffer(InputStream inputStream, long length, int chunkSize) {
-        assert inputStream.markSupported() : "An InputStream with mark support was expected";
+    private Flux<ByteBuffer> convertStreamToByteBuffer(InputStream delegate, long length, int chunkSize) {
+        assert delegate.markSupported() : "An InputStream with mark support was expected";
+        // We need to introduce a read barrier in order to provide visibility for the underlying
+        // input stream state as the input stream can be read from different threads.
+        final InputStream inputStream = new FilterInputStream(delegate) {
+            @Override
+            public synchronized int read(byte[] b, int off, int len) throws IOException {
+                return super.read(b, off, len);
+            }
+
+            @Override
+            public synchronized int read() throws IOException {
+                return super.read();
+            }
+        };
         // We need to mark the InputStream as it's possible that we need to retry for the same chunk
         inputStream.mark(Integer.MAX_VALUE);
         return Flux.defer(() -> {

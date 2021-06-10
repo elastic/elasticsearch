@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.OS
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -8,9 +6,13 @@ import org.elasticsearch.gradle.OS
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
+
+testClusters.all {
+  setting 'xpack.security.enabled', 'false'
+}
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   nameCustomization = { null }

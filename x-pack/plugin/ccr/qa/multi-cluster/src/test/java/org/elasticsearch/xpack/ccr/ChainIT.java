@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 
 public class ChainIT extends ESCCRRestTestCase {
 
@@ -65,6 +67,14 @@ public class ChainIT extends ESCCRRestTestCase {
         } else {
             fail("unexpected target cluster [" + targetCluster + "]");
         }
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 
 }

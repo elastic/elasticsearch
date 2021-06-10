@@ -1,7 +1,7 @@
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {
@@ -15,13 +15,18 @@ testClusters {
   "leader-cluster" {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'trial'
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
   }
 
   "follow-cluster" {
     testDistribution = 'DEFAULT'
     setting 'xpack.monitoring.collection.enabled', 'true'
     setting 'xpack.license.self_generated.type', 'trial'
-    setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
+    setting 'xpack.security.enabled', 'true'
+    user username: 'admin', password: 'admin-password', role: 'superuser'
+    setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\""
+    }
   }
 }
 

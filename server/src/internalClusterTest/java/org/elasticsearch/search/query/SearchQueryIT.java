@@ -20,10 +20,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.document.DocumentField;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -43,8 +43,8 @@ import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
-import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -669,18 +669,18 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         BoolQueryBuilder boolQuery = boolQuery()
-                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NONE))
-                .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NONE));
+                .must(matchQuery("field1", "a").zeroTermsQuery(ZeroTermsQueryOption.NONE))
+                .must(matchQuery("field1", "value1").zeroTermsQuery(ZeroTermsQueryOption.NONE));
         SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
 
         boolQuery = boolQuery()
-                .must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL))
-                .must(matchQuery("field1", "value1").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL));
+                .must(matchQuery("field1", "a").zeroTermsQuery(ZeroTermsQueryOption.ALL))
+                .must(matchQuery("field1", "value1").zeroTermsQuery(ZeroTermsQueryOption.ALL));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
 
-        boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL));
+        boolQuery = boolQuery().must(matchQuery("field1", "a").zeroTermsQuery(ZeroTermsQueryOption.ALL));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 2L);
     }
@@ -694,19 +694,19 @@ public class SearchQueryIT extends ESIntegTestCase {
 
 
         BoolQueryBuilder boolQuery = boolQuery()
-                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NONE))
+                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(ZeroTermsQueryOption.NONE))
                 // Fields are ORed together
-                .must(multiMatchQuery("value1", "field1", "field2").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NONE));
+                .must(multiMatchQuery("value1", "field1", "field2").zeroTermsQuery(ZeroTermsQueryOption.NONE));
         SearchResponse searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 0L);
 
         boolQuery = boolQuery()
-                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL))
-                .must(multiMatchQuery("value4", "field1", "field2").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL));
+                .must(multiMatchQuery("a", "field1", "field2").zeroTermsQuery(ZeroTermsQueryOption.ALL))
+                .must(multiMatchQuery("value4", "field1", "field2").zeroTermsQuery(ZeroTermsQueryOption.ALL));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 1L);
 
-        boolQuery = boolQuery().must(multiMatchQuery("a", "field1").zeroTermsQuery(MatchQueryParser.ZeroTermsQuery.ALL));
+        boolQuery = boolQuery().must(multiMatchQuery("a", "field1").zeroTermsQuery(ZeroTermsQueryOption.ALL));
         searchResponse = client().prepareSearch().setQuery(boolQuery).get();
         assertHitCount(searchResponse, 2L);
     }
@@ -1790,7 +1790,7 @@ public class SearchQueryIT extends ESIntegTestCase {
    }
 
     /**
-     * Test that wildcard queries on text fields get normalized
+     * Test that wildcard queries on text fields don't get normalized
      */
      public void testWildcardQueryNormalizationOnTextField() {
         assertAcked(prepareCreate("test")
@@ -1806,6 +1806,11 @@ public class SearchQueryIT extends ESIntegTestCase {
          {
              WildcardQueryBuilder wildCardQuery = wildcardQuery("field1", "Bb*");
              SearchResponse searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
+             assertHitCount(searchResponse, 0L);
+
+             // the following works not because of normalization but because of the `case_insensitive` parameter
+             wildCardQuery = wildcardQuery("field1", "Bb*").caseInsensitive(true);
+             searchResponse = client().prepareSearch().setQuery(wildCardQuery).get();
              assertHitCount(searchResponse, 1L);
 
              wildCardQuery = wildcardQuery("field1", "bb*");

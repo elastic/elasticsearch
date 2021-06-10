@@ -18,7 +18,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.matchesRegex;
 
 public class CatIndicesWithSecurityIT extends ESRestTestCase {

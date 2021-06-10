@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
@@ -45,6 +47,14 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
     public void testMountPartialCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
         assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
+
+        if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
+            assertBusy(() -> {
+                Map<String, Object> settings = getIndexSettingsAsMap("mounted_index_shared_cache");
+                assertThat(settings,
+                    hasEntry(ShardLimitValidator.INDEX_SETTING_SHARD_LIMIT_GROUP.getKey(), ShardLimitValidator.FROZEN_GROUP));
+            });
+        }
 
         executeMountAndRecoversCorrectlyTestCase(storage, 5678L);
     }
@@ -215,6 +225,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             ensureGreen(index);
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
+
+            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_13_0)) {
+                final Request request = new Request("GET",
+                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+                request.setOptions(expectWarnings("this request accesses system indices: [.snapshot-blob-cache], but in a future major " +
+                    "version, direct access to system indices will be prevented by default"));
+                request.addParameter("flat_settings", "true");
+
+                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+                assertThat(snapshotBlobCacheSettings, notNullValue());
+                final String tierPreference = (String) extractValue(
+                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                    snapshotBlobCacheSettings
+                );
+                assertThat(tierPreference, equalTo("data_content,data_hot"));
+            }
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {

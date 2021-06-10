@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -48,7 +48,7 @@ public final class SSLConfiguration {
      *
      * @param settings the SSL specific settings; only the settings under a *.ssl. prefix
      */
-    SSLConfiguration(Settings settings) {
+    public SSLConfiguration(Settings settings) {
         this.keyConfig = createKeyConfig(settings);
         this.trustConfig = createTrustConfig(settings, keyConfig);
         this.ciphers = getListOrDefault(SETTINGS_PARSER.ciphers, settings, XPackSettings.DEFAULT_CIPHERS);
@@ -61,7 +61,7 @@ public final class SSLConfiguration {
     /**
      * The configuration for the key, if any, that will be used as part of this ssl configuration
      */
-    KeyConfig keyConfig() {
+    public KeyConfig keyConfig() {
         return keyConfig;
     }
 

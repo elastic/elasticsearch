@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 
 /**
  * Integration test for the rest sql action. The one that speaks json directly to a

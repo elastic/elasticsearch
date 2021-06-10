@@ -26,6 +26,7 @@ import org.apache.http.client.methods.HttpRequestWrapper;
 import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.client.utils.URIUtils;
+import org.apache.http.config.SocketConfig;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -46,11 +47,11 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.internal.io.Streams;
@@ -74,6 +75,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class HttpClient implements Closeable {
@@ -90,6 +92,8 @@ public class HttpClient implements Closeable {
     private final HttpProxy settingsProxy;
     private final TimeValue defaultConnectionTimeout;
     private final TimeValue defaultReadTimeout;
+    private final boolean tcpKeepaliveEnabled;
+    private final TimeValue connectionPoolTtl;
     private final ByteSizeValue maxResponseSize;
     private final CryptoService cryptoService;
     private final SSLService sslService;
@@ -97,6 +101,8 @@ public class HttpClient implements Closeable {
     public HttpClient(Settings settings, SSLService sslService, CryptoService cryptoService, ClusterService clusterService) {
         this.defaultConnectionTimeout = HttpSettings.CONNECTION_TIMEOUT.get(settings);
         this.defaultReadTimeout = HttpSettings.READ_TIMEOUT.get(settings);
+        this.tcpKeepaliveEnabled = HttpSettings.TCP_KEEPALIVE.get(settings);
+        this.connectionPoolTtl = HttpSettings.CONNECTION_POOL_TTL.get(settings);
         this.maxResponseSize = HttpSettings.MAX_HTTP_RESPONSE_SIZE.get(settings);
         this.settingsProxy = getProxyFromSettings(settings);
         this.cryptoService = cryptoService;
@@ -115,6 +121,16 @@ public class HttpClient implements Closeable {
         HostnameVerifier verifier = SSLService.getHostnameVerifier(sslConfiguration);
         SSLConnectionSocketFactory factory = new SSLConnectionSocketFactory(sslService.sslSocketFactory(sslConfiguration), verifier);
         clientBuilder.setSSLSocketFactory(factory);
+
+        final SocketConfig.Builder socketConfigBuilder = SocketConfig.custom();
+        if (tcpKeepaliveEnabled) {
+            socketConfigBuilder.setSoKeepAlive(true);
+        }
+        clientBuilder.setDefaultSocketConfig(socketConfigBuilder.build());
+
+        if (connectionPoolTtl.millis() > 0) {
+            clientBuilder.setConnectionTimeToLive(connectionPoolTtl.millis(), TimeUnit.MILLISECONDS);
+        }
 
         clientBuilder.evictExpiredConnections();
         clientBuilder.setMaxConnPerRoute(MAX_CONNECTIONS);

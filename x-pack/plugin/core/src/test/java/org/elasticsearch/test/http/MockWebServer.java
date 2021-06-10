@@ -16,9 +16,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.mocksocket.MockHttpServer;
 
@@ -193,7 +193,11 @@ public class MockWebServer implements Closeable {
      * Creates a MockRequest from an incoming HTTP request, that can later be checked in your test assertions
      */
     private MockRequest createRequest(HttpExchange exchange) throws IOException {
-        MockRequest request = new MockRequest(exchange.getRequestMethod(), exchange.getRequestURI(), exchange.getRequestHeaders());
+        MockRequest request = new MockRequest(
+                exchange.getRequestMethod(),
+                exchange.getRequestURI(),
+                exchange.getRequestHeaders(),
+                exchange.getRemoteAddress());
         if (exchange.getRequestBody() != null) {
             String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
             if (Strings.isEmpty(body) == false) {

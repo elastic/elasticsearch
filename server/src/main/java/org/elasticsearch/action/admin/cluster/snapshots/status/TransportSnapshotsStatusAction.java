@@ -43,7 +43,9 @@ import org.elasticsearch.snapshots.SnapshotShardFailure;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -100,12 +102,21 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
     }
 
     @Override
+<<<<<<< HEAD
     protected void masterOperation(
         Task task,
         final SnapshotsStatusRequest request,
         final ClusterState state,
         final ActionListener<SnapshotsStatusResponse> listener
     ) throws Exception {
+=======
+    protected void masterOperation(Task task, final SnapshotsStatusRequest request,
+                                   final ClusterState state,
+                                   final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
+        assert task instanceof CancellableTask : task + " not cancellable";
+        final CancellableTask cancellableTask = (CancellableTask) task;
+
+>>>>>>> master
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         List<SnapshotsInProgress.Entry> currentSnapshots = SnapshotsService.currentSnapshots(
             snapshotsInProgress,
@@ -113,7 +124,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             Arrays.asList(request.snapshots())
         );
         if (currentSnapshots.isEmpty()) {
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, cancellableTask, listener);
             return;
         }
 
@@ -132,6 +143,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
+<<<<<<< HEAD
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
                 new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
@@ -147,13 +159,23 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     listener::onFailure
                 )
             );
+=======
+            client.executeLocally(TransportNodesSnapshotsStatus.TYPE,
+                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY))
+                    .snapshots(snapshots).timeout(request.masterNodeTimeout()),
+                ActionListener.wrap(nodeSnapshotStatuses -> threadPool.generic().execute(
+                    ActionRunnable.wrap(listener,
+                        l -> buildResponse(snapshotsInProgress, request, currentSnapshots, nodeSnapshotStatuses, cancellableTask, l))
+                ), listener::onFailure));
+>>>>>>> master
         } else {
             // We don't have any in-progress shards, just return current stats
-            buildResponse(snapshotsInProgress, request, currentSnapshots, null, listener);
+            buildResponse(snapshotsInProgress, request, currentSnapshots, null, cancellableTask, listener);
         }
 
     }
 
+<<<<<<< HEAD
     private void buildResponse(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotsStatusRequest request,
@@ -161,6 +183,14 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
         ActionListener<SnapshotsStatusResponse> listener
     ) {
+=======
+    private void buildResponse(SnapshotsInProgress snapshotsInProgress,
+                               SnapshotsStatusRequest request,
+                               List<SnapshotsInProgress.Entry> currentSnapshotEntries,
+                               TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses,
+                               CancellableTask task,
+                               ActionListener<SnapshotsStatusResponse> listener) {
+>>>>>>> master
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
         Set<String> currentSnapshotNames = new HashSet<>();
@@ -175,7 +205,6 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (SnapshotsInProgress.Entry entry : currentSnapshotEntries) {
                 currentSnapshotNames.add(entry.snapshot().getSnapshotId().getName());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                Map<String, IndexId> indexIdLookup = null;
                 for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards()) {
                     SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.value;
                     if (status.nodeId() != null) {
@@ -234,10 +263,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     if (stage == SnapshotIndexShardStage.DONE) {
                         // Shard snapshot completed successfully so we should be able to load the exact statistics for this
                         // shard from the repository already.
-                        if (indexIdLookup == null) {
-                            indexIdLookup = entry.indices().stream().collect(Collectors.toMap(IndexId::getName, Function.identity()));
-                        }
                         final ShardId shardId = shardEntry.key;
+<<<<<<< HEAD
                         shardStatus = new SnapshotIndexShardStatus(
                             shardId,
                             repositoriesService.repository(entry.repository())
@@ -248,6 +275,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                 )
                                 .asCopy()
                         );
+=======
+                        shardStatus = new SnapshotIndexShardStatus(shardId, repositoriesService.repository(entry.repository())
+                            .getShardSnapshotStatus(entry.snapshot().getSnapshotId(), entry.indices().get(shardId.getIndexName()),
+                                shardId).asCopy());
+>>>>>>> master
                     } else {
                         shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     }
@@ -268,12 +300,13 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         // Now add snapshots on disk that are not currently running
         final String repositoryName = request.repository();
         if (Strings.hasText(repositoryName) && CollectionUtils.isEmpty(request.snapshots()) == false) {
-            loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, listener);
+            loadRepositoryData(snapshotsInProgress, request, builder, currentSnapshotNames, repositoryName, task, listener);
         } else {
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
         }
     }
 
+<<<<<<< HEAD
     private void loadRepositoryData(
         SnapshotsInProgress snapshotsInProgress,
         SnapshotsStatusRequest request,
@@ -282,12 +315,26 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
         String repositoryName,
         ActionListener<SnapshotsStatusResponse> listener
     ) {
+=======
+    private void loadRepositoryData(SnapshotsInProgress snapshotsInProgress,
+                                    SnapshotsStatusRequest request,
+                                    List<SnapshotStatus> builder,
+                                    Set<String> currentSnapshotNames,
+                                    String repositoryName,
+                                    CancellableTask task,
+                                    ActionListener<SnapshotsStatusResponse> listener) {
+>>>>>>> master
         final Set<String> requestedSnapshotNames = Sets.newHashSet(request.snapshots());
         final ListenableFuture<RepositoryData> repositoryDataListener = new ListenableFuture<>();
         repositoriesService.getRepositoryData(repositoryName, repositoryDataListener);
         repositoryDataListener.addListener(ActionListener.wrap(repositoryData -> {
+<<<<<<< HEAD
             final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds()
                 .stream()
+=======
+            ensureNotCancelled(task);
+            final Map<String, SnapshotId> matchedSnapshotIds = repositoryData.getSnapshotIds().stream()
+>>>>>>> master
                 .filter(s -> requestedSnapshotNames.contains(s.getName()))
                 .collect(Collectors.toMap(SnapshotId::getName, Function.identity()));
             for (final String snapshotName : request.snapshots()) {
@@ -313,7 +360,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 SnapshotInfo snapshotInfo = snapshot(snapshotsInProgress, repositoryName, snapshotId);
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                 if (snapshotInfo.state().completed()) {
-                    Map<ShardId, IndexShardSnapshotStatus> shardStatuses = snapshotShards(repositoryName, repositoryData, snapshotInfo);
+                    Map<ShardId, IndexShardSnapshotStatus> shardStatuses =
+                        snapshotShards(repositoryName, repositoryData, task, snapshotInfo);
                     for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatuses.entrySet()) {
                         IndexShardSnapshotStatus.Copy lastSnapshotStatus = shardStatus.getValue().asCopy();
                         shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), lastSnapshotStatus));
@@ -350,7 +398,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                 }
             }
             listener.onResponse(new SnapshotsStatusResponse(Collections.unmodifiableList(builder)));
-        }, listener::onFailure), threadPool.generic());
+        }, listener::onFailure), threadPool.generic(), null);
     }
 
     /**
@@ -386,15 +434,23 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
      * @param snapshotInfo    snapshot info
      * @return map of shard id to snapshot status
      */
+<<<<<<< HEAD
     private Map<ShardId, IndexShardSnapshotStatus> snapshotShards(
         final String repositoryName,
         final RepositoryData repositoryData,
         final SnapshotInfo snapshotInfo
     ) throws IOException {
+=======
+    private Map<ShardId, IndexShardSnapshotStatus> snapshotShards(final String repositoryName,
+                                                                  final RepositoryData repositoryData,
+                                                                  final CancellableTask task,
+                                                                  final SnapshotInfo snapshotInfo) throws IOException {
+>>>>>>> master
         final Repository repository = repositoriesService.repository(repositoryName);
         final Map<ShardId, IndexShardSnapshotStatus> shardStatus = new HashMap<>();
         for (String index : snapshotInfo.indices()) {
             IndexId indexId = repositoryData.resolveIndexId(index);
+            ensureNotCancelled(task);
             IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repositoryData, snapshotInfo.snapshotId(), indexId);
             if (indexMetadata != null) {
                 int numberOfShards = indexMetadata.getNumberOfShards();
@@ -415,7 +471,15 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             // could not be taken due to partial being set to false.
                             shardSnapshotStatus = IndexShardSnapshotStatus.newFailed("skipped");
                         } else {
+<<<<<<< HEAD
                             shardSnapshotStatus = repository.getShardSnapshotStatus(snapshotInfo.snapshotId(), indexId, shardId);
+=======
+                            ensureNotCancelled(task);
+                            shardSnapshotStatus = repository.getShardSnapshotStatus(
+                                snapshotInfo.snapshotId(),
+                                indexId,
+                                shardId);
+>>>>>>> master
                         }
                         shardStatus.put(shardId, shardSnapshotStatus);
                     }
@@ -423,6 +487,12 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             }
         }
         return unmodifiableMap(shardStatus);
+    }
+
+    private static void ensureNotCancelled(CancellableTask task) {
+        if (task.isCancelled()) {
+            throw new TaskCancelledException("task cancelled");
+        }
     }
 
     private static SnapshotShardFailure findShardFailure(List<SnapshotShardFailure> shardFailures, ShardId shardId) {

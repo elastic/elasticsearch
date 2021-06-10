@@ -27,6 +27,7 @@ else
   export JAVA12_HOME="${HOME}"/.java/openjdk12
   export JAVA13_HOME="${HOME}"/.java/openjdk13
   export JAVA14_HOME="${HOME}"/.java/openjdk14
+  export JAVA15_HOME="${HOME}"/.java/openjdk15
 
   ## 6.8 branch is not referenced from any bwc project in master so we need to
   ## resolve its dependencies explicitly
@@ -40,4 +41,4 @@ fi
 ## Gradle is able to resolve dependencies resolved with earlier gradle versions
 ## therefore we run master _AFTER_ we run 6.8 which uses an earlier gradle version
 export JAVA_HOME="${HOME}"/.java/${ES_BUILD_JAVA}
-./gradlew --parallel clean -s resolveAllDependencies
+./gradlew --parallel clean -s resolveAllDependencies -Dorg.gradle.warning.mode=none

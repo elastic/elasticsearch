@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.spatial.common;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -105,8 +105,7 @@ public class CartesianPoint implements ToXContentFragment {
     private CartesianPoint resetFromWKT(String value, boolean ignoreZValue) {
         Geometry geometry;
         try {
-            geometry = new WellKnownText(false, new StandardValidator(ignoreZValue))
-                .fromWKT(value);
+            geometry = WellKnownText.fromWKT(StandardValidator.instance(ignoreZValue), false, value);
         } catch (Exception e) {
             throw new ElasticsearchParseException("Invalid WKT format", e);
         }

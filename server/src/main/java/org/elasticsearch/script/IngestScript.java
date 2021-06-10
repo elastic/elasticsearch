@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Map;
 
@@ -22,7 +22,7 @@ public abstract class IngestScript {
 
     /** The context used to compile {@link IngestScript} factories. */
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("ingest", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
 
     /** The generic runtime parameters for the script. */
     private final Map<String, Object> params;

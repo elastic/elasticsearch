@@ -73,6 +73,7 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
+<<<<<<< HEAD
     public FsRepository(
         RepositoryMetadata metadata,
         Environment environment,
@@ -82,6 +83,11 @@ public class FsRepository extends BlobStoreRepository {
         RecoverySettings recoverySettings
     ) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.cleanPath());
+=======
+    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
+                        ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+        super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
+>>>>>>> master
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -90,8 +90,8 @@ public class GeoIpDownloaderStats implements Task.Status {
     }
 
     public GeoIpDownloaderStats successfulDownload(long downloadTime) {
-        return new GeoIpDownloaderStats(successfulDownloads + 1, failedDownloads, totalDownloadTime + downloadTime, databasesCount,
-            skippedDownloads);
+        return new GeoIpDownloaderStats(successfulDownloads + 1, failedDownloads, totalDownloadTime + Math.max(downloadTime, 0),
+            databasesCount, skippedDownloads);
     }
 
     public GeoIpDownloaderStats failedDownload() {

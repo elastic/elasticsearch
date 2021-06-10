@@ -14,14 +14,16 @@ import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.SingleGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.TermsGroupSource;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,6 +34,17 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TestFeatureResetIT extends TransformIntegTestCase {
+
+    @Before
+    public void setLogging() throws IOException {
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity(
+            "{\"transient\": {"
+                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"trace\"}}"
+        );
+        client().performRequest(settingsRequest);
+    }
 
     @After
     public void cleanup() throws Exception {
@@ -77,10 +90,9 @@ public class TestFeatureResetIT extends TransformIntegTestCase {
         Map<String, Object> metadata = (Map<String, Object>)ESRestTestCase.entityAsMap(response).get("metadata");
         assertThat(metadata, is(not(nullValue())));
 
+        // after a successful reset we completely remove the transform metadata
         Map<String, Object> transformMetadata = (Map<String, Object>)metadata.get("transform");
-        assertThat(transformMetadata, is(not(nullValue())));
-        assertThat(transformMetadata.get("reset_mode"), is(false));
-
+        assertThat(transformMetadata, is(nullValue()));
 
         // assert transforms are gone
         assertThat(getTransform("_all").getCount(), equalTo(0L));

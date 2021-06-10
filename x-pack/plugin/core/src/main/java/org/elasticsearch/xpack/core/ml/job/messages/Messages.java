@@ -61,12 +61,12 @@ public final class Messages {
     public static final String DATAFEED_ID_ALREADY_TAKEN = "A datafeed with id [{0}] already exists";
     public static final String DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH = "Datafeed [{0}] is configured with a remote index pattern(s) {1}" +
         " but the current node [{2}] is not allowed to connect to remote clusters." +
-        " Please enable node.remote_cluster_client for all machine learning nodes.";
+        " Please enable node.remote_cluster_client for all machine learning nodes and master-eligible nodes.";
 
     public static final String DATA_FRAME_ANALYTICS_BAD_QUERY_FORMAT = "Data Frame Analytics config query is not parsable";
     public static final String DATA_FRAME_ANALYTICS_BAD_FIELD_FILTER = "No field [{0}] could be detected";
 
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATED = "Created analytics with analysis type [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_CREATED = "Created analytics with type [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED = "Updated analytics settings: {0}";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STARTED = "Started analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_STOPPED = "Stopped analytics";
@@ -74,7 +74,7 @@ public final class Messages {
     public static final String DATA_FRAME_ANALYTICS_AUDIT_DELETED = "Deleted analytics";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_UPDATED_STATE_WITH_REASON =
             "Updated analytics task state to [{0}] with reason [{1}]";
-    public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage for this analytics to be [{0}]";
+    public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE = "Estimated memory usage [{0}]";
     public static final String DATA_FRAME_ANALYTICS_AUDIT_ESTIMATED_MEMORY_USAGE_HIGHER_THAN_CONFIGURED =
         "Configured model memory limit [{0}] is lower than the expected memory usage [{1}]. " +
             "The analytics job may fail due to configured memory constraints.";
@@ -115,6 +115,7 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
+    public static final String TASK_CONFIG_NOT_FOUND = "Could not find task config for model [{0}]";
     public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =

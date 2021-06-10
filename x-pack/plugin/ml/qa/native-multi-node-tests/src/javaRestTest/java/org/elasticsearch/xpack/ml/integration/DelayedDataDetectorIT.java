@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -71,11 +71,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
             createDatafeedBuilder(job.getId() + "-datafeed", job.getId(), Collections.singletonList(index));
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
-        registerDatafeed(datafeedConfig);
+
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, now);
         waitUntilJobIsClosed(jobId);
@@ -109,11 +108,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
-        registerDatafeed(datafeedConfig);
+
         putDatafeed(datafeedConfig);
 
         startDatafeed(datafeedConfig.getId(), 0L, now);
@@ -165,11 +163,10 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
         datafeedConfigBuilder.setDelayedDataCheckConfig(DelayedDataCheckConfig.enabledDelayedDataCheckConfig(TimeValue.timeValueHours(12)));
 
         DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
-        registerDatafeed(datafeedConfig);
+
         putDatafeed(datafeedConfig);
         startDatafeed(datafeedConfig.getId(), 0L, now);
         waitUntilJobIsClosed(jobId);

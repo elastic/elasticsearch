@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.snapshots;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
@@ -17,16 +16,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -114,6 +110,7 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                     }
 
                     @Override
+<<<<<<< HEAD
                     public void snapshotShard(
                         Store store,
                         MapperService mapperService,
@@ -139,6 +136,11 @@ public class RepositoryFilterUserMetadataIT extends ESIntegTestCase {
                             userMetadata,
                             listener
                         );
+=======
+                    public void snapshotShard(SnapshotShardContext context) {
+                        assertThat(context.userMetadata(), is(Collections.singletonMap(MOCK_FILTERED_META, initialMetaValue)));
+                        super.snapshotShard(context);
+>>>>>>> master
                     }
 
                     @Override

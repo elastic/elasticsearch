@@ -390,7 +390,7 @@ public class ClusterStateCreationUtils {
 
     private static DiscoveryNode newNode(int nodeId) {
         return new DiscoveryNode("node_" + nodeId, ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-                new HashSet<>(DiscoveryNodeRole.BUILT_IN_ROLES), Version.CURRENT);
+                new HashSet<>(DiscoveryNodeRole.roles()), Version.CURRENT);
     }
 
     private static String selectAndRemove(Set<String> strings) {

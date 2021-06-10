@@ -10,14 +10,13 @@ package org.elasticsearch.snapshots.mockstore;
 
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.Maps;
@@ -34,6 +33,7 @@ import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -66,6 +66,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
         final Context context,
+<<<<<<< HEAD
         final Random random
     ) {
         super(
@@ -76,6 +77,10 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             recoverySettings,
             BlobPath.cleanPath()
         );
+=======
+        final Random random) {
+        super(metadata, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings, BlobPath.EMPTY);
+>>>>>>> master
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
         this.random = random;
@@ -240,12 +245,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void deleteBlobsIgnoringIfNotExists(List<String> blobNames) {
+            public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    for (String blobName : blobNames) {
-                        context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName));
-                    }
+                    blobNames.forEachRemaining(blobName ->
+                            context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName)));
                 }
             }
 
@@ -347,6 +351,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                         // metadata.
                     } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
                         if (hasConsistentContent) {
+<<<<<<< HEAD
                             if (basePath().buildAsString().equals(path().buildAsString())) {
                                 try {
                                     final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
@@ -375,6 +380,36 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                                     // Since we are not doing any actual IO we don't expect this to throw ever and an exception would
                                     // signal broken SnapshotInfo bytes or unexpected behavior of SnapshotInfo otherwise.
                                     throw new AssertionError("Failed to deserialize SnapshotInfo", e);
+=======
+                                if (basePath().buildAsString().equals(path().buildAsString())) {
+                                    try {
+                                        final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                                                namedXContentRegistry, new ByteArrayInputStream(data));
+                                        // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
+                                        // a problem and could be the result of a correctly handled master failover.
+                                        final SnapshotInfo existingInfo =
+                                            SNAPSHOT_FORMAT.deserialize(namedXContentRegistry, readBlob(blobName));
+                                        assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
+                                        assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
+                                        assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
+                                        assertThat(existingInfo.totalShards(), equalTo(updatedInfo.totalShards()));
+                                        assertThat(existingInfo.successfulShards(), equalTo(updatedInfo.successfulShards()));
+                                        assertThat(
+                                            existingInfo.shardFailures(), containsInAnyOrder(updatedInfo.shardFailures().toArray()));
+                                        assertThat(existingInfo.indices(), equalTo(updatedInfo.indices()));
+                                        return; // No need to add a write for this since we didn't change content
+                                    } catch (Exception e) {
+                                        // Rethrow as AssertionError here since kind exception might otherwise be swallowed and logged by
+                                        // the blob store repository.
+                                        // Since we are not doing any actual IO we don't expect this to throw ever and an exception would
+                                        // signal broken SnapshotInfo bytes or unexpected behavior of SnapshotInfo otherwise.
+                                        throw new AssertionError("Failed to deserialize SnapshotInfo", e);
+                                    }
+                                } else {
+                                    // Primaries never retry so any shard level snap- blob retry/overwrite even with the same content is
+                                    // not expected.
+                                    throw new AssertionError("Shard level snap-{uuid} blobs should never be overwritten");
+>>>>>>> master
                                 }
                             } else {
                                 // Primaries never retry so any shard level snap- blob retry/overwrite even with the same content is

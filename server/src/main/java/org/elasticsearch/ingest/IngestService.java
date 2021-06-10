@@ -33,10 +33,10 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
@@ -652,6 +652,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setIfPrimaryTerm(((Number) metadataMap.get(IngestDocument.Metadata.IF_PRIMARY_TERM)).longValue());
                 }
                 indexRequest.source(ingestDocument.getSourceAndMetadata(), indexRequest.getContentType());
+                if (metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES) != null) {
+                    Map<String, String> mergedDynamicTemplates = new HashMap<>(indexRequest.getDynamicTemplates());
+                    mergedDynamicTemplates.putAll((Map<String, String>) metadataMap.get(IngestDocument.Metadata.DYNAMIC_TEMPLATES));
+                    indexRequest.setDynamicTemplates(mergedDynamicTemplates);
+                }
                 handler.accept(null);
             }
         });

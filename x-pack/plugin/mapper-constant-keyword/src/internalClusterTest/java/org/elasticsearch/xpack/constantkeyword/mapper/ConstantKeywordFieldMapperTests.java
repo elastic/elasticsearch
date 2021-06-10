@@ -11,6 +11,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -28,6 +29,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ConstantKeywordFieldMapperTests extends MapperTestCase {
@@ -58,6 +60,11 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
         return List.of(new ConstantKeywordMapperPlugin());
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo"));
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -82,6 +89,25 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
 
     public void testDynamicValue() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "constant_keyword")));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNull(doc.rootDoc().getField("field"));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        CompressedXContent mappingUpdate = new CompressedXContent(Strings.toString(doc.dynamicMappingsUpdate()));
+        DocumentMapper updatedMapper = mapperService.merge("_doc", mappingUpdate, MergeReason.MAPPING_UPDATE);
+        String expectedMapping = Strings.toString(fieldMapping(b -> b.field("type", "constant_keyword").field("value", "foo")));
+        assertEquals(expectedMapping, updatedMapper.mappingSource().toString());
+
+        doc = updatedMapper.parse(source(b -> b.field("field", "foo")));
+        assertNull(doc.rootDoc().getField("field"));
+        assertNull(doc.dynamicMappingsUpdate());
+    }
+
+    public void testDynamicValueFieldLimit() throws Exception {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 1).build(),
+            fieldMapping(b -> b.field("type", "constant_keyword")));
 
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
         assertNull(doc.rootDoc().getField("field"));
@@ -171,5 +197,10 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         b.field("type", "constant_keyword").field("value", randomAlphaOfLengthBetween(1, 10));
+    }
+
+    @Override
+    protected boolean allowsNullValues() {
+        return false;   // null is an error for constant keyword
     }
 }

@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.startsWith;
 public class DiscoveryNodeTests extends ESTestCase {
 
     public void testRolesAreSorted() {
-        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.BUILT_IN_ROLES));
+        final Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         final DiscoveryNode node = new DiscoveryNode(
             "name",
             "id",
@@ -156,7 +156,7 @@ public class DiscoveryNodeTests extends ESTestCase {
 
     public void testDiscoveryNodeDescriptionWithoutAttributes() {
         final DiscoveryNode node = new DiscoveryNode("test-id", buildNewFakeTransportAddress(),
-                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.BUILT_IN_ROLES, Version.CURRENT);
+                Collections.singletonMap("test-attr", "val"), DiscoveryNodeRole.roles(), Version.CURRENT);
         final StringBuilder stringBuilder = new StringBuilder();
         node.appendDescriptionWithoutAttributes(stringBuilder);
         final String descriptionWithoutAttributes = stringBuilder.toString();
@@ -174,7 +174,7 @@ public class DiscoveryNodeTests extends ESTestCase {
                 "test-hostaddr",
                 transportAddress,
                 Collections.singletonMap("test-attr", "val"),
-                DiscoveryNodeRole.BUILT_IN_ROLES,
+            DiscoveryNodeRole.roles(),
                 Version.CURRENT);
 
         final String jsonString = Strings.toString(node, randomBoolean(), randomBoolean());

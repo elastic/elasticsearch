@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.snapshots.restore;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.snapshots.SnapshotsService.FEATURE_STATES_VERSION;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
@@ -78,9 +77,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         repository = in.readString();
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            featureStates = in.readStringArray();
-        }
+        featureStates = in.readStringArray();
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
         waitForCompletion = in.readBoolean();
@@ -99,9 +96,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeString(repository);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            out.writeStringArray(featureStates);
-        }
+        out.writeStringArray(featureStates);
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
         out.writeBoolean(waitForCompletion);

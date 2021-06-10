@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -88,11 +88,9 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
             .put("path.home", createTempDir())
             .build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        for (Path path : environment.dataFiles()) {
-            Files.createDirectories(path);
-        }
+        Files.createDirectories(environment.dataFile());
         SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
-        final Path shardDir = randomShardPath(SHARD_ID);
+        final Path shardDir = shardPath(SHARD_ID);
         final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, SHARD_ID);
         final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
         try (

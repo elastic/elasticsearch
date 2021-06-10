@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
@@ -159,7 +159,7 @@ public class AutodetectControlMsgWriterTests extends ESTestCase {
         inOrder.verify(lengthEncodedWriter).writeNumFields(4);
         inOrder.verify(lengthEncodedWriter, times(3)).writeField("");
         StringBuilder spaces = new StringBuilder();
-        IntStream.rangeClosed(1, 8192).forEach(i -> spaces.append(' '));
+        IntStream.rangeClosed(1, 2048).forEach(i -> spaces.append(' '));
         inOrder.verify(lengthEncodedWriter).writeField(spaces.toString());
 
         inOrder.verify(lengthEncodedWriter).flush();

@@ -11,7 +11,7 @@ package org.elasticsearch.monitor.jvm;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
@@ -180,11 +180,20 @@ public class HotThreads {
         // skip that for now
         final ToLongFunction<MyThreadInfo> getter;
         if ("cpu".equals(type)) {
-            getter = o -> o.cpuTime;
+            getter = o -> {
+                assert o.cpuTime >= -1 : "cpu time should not be negative, but was " + o.cpuTime + ", thread info: " + o.info;
+                return o.cpuTime;
+            };
         } else if ("wait".equals(type)) {
-            getter = o -> o.waitedTime;
+            getter = o -> {
+                assert o.waitedTime >= -1 : "waited time should not be negative, but was " + o.waitedTime + ", thread info: " + o.info;
+                return o.waitedTime;
+            };
         } else if ("block".equals(type)) {
-            getter = o -> o.blockedTime;
+            getter = o -> {
+                assert o.blockedTime >= -1 : "blocked time should not be negative, but was " + o.blockedTime + ", thread info: " + o.info;
+                return o.blockedTime;
+            };
         } else {
             throw new IllegalArgumentException("expected thread type to be either 'cpu', 'wait', or 'block', but was " + type);
         }

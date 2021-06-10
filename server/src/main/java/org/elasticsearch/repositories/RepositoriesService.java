@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -37,9 +38,10 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -51,11 +53,13 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -76,6 +80,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         0,
         Setting.Property.NodeScope
     );
+
+    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY = "index.store.snapshot.repository_name";
+    public static final String SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY = "index.store.snapshot.repository_uuid";
 
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
@@ -160,21 +167,35 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
             // When verification has completed, get the repository data for the first time
             final StepListener<RepositoryData> getRepositoryDataStep = new StepListener<>();
+<<<<<<< HEAD
             verifyStep.whenComplete(
                 ignored -> threadPool.generic()
                     .execute(ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))),
                 listener::onFailure
             );
+=======
+            verifyStep.whenComplete(ignored -> threadPool.generic().execute(
+                ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
+>>>>>>> master
 
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
             final StepListener<Void> updateRepoUuidStep = new StepListener<>();
             getRepositoryDataStep.whenComplete(
                 repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
+<<<<<<< HEAD
                 listener::onFailure
             );
 
             // Finally respond to the outer listener with the response from the original cluster state update
             updateRepoUuidStep.whenComplete(ignored -> acknowledgementStep.addListener(listener), listener::onFailure);
+=======
+                listener::onFailure);
+
+            // Finally respond to the outer listener with the response from the original cluster state update
+            updateRepoUuidStep.whenComplete(
+                ignored -> acknowledgementStep.addListener(listener),
+                listener::onFailure);
+>>>>>>> master
 
         } else {
             acknowledgementStep.addListener(listener);
@@ -189,7 +210,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
-                    ensureRepositoryNotInUse(currentState, request.name());
                     Metadata metadata = currentState.metadata();
                     Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
                     RepositoriesMetadata repositories = metadata.custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
@@ -200,8 +220,22 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 // Previous version is the same as this one no update is needed.
                                 return currentState;
                             }
+                            Repository existing = RepositoriesService.this.repositories.get(request.name());
+                            if (existing == null) {
+                                existing = RepositoriesService.this.internalRepositories.get(request.name());
+                            }
+                            assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
+                            assert existing.getMetadata() == repositoryMetadata;
+                            final RepositoryMetadata updatedMetadata;
+                            if (canUpdateInPlace(newRepositoryMetadata, existing)) {
+                                // we're updating in place so the updated metadata must point at the same uuid and generations
+                                updatedMetadata = repositoryMetadata.withSettings(newRepositoryMetadata.settings());
+                            } else {
+                                ensureRepositoryNotInUse(currentState, request.name());
+                                updatedMetadata = newRepositoryMetadata;
+                            }
                             found = true;
-                            repositoriesMetadata.add(newRepositoryMetadata);
+                            repositoriesMetadata.add(updatedMetadata);
                         } else {
                             repositoriesMetadata.add(repositoryMetadata);
                         }
@@ -254,8 +288,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         ClusterService clusterService,
         final String repositoryName,
         RepositoryData repositoryData,
+<<<<<<< HEAD
         ActionListener<Void> listener
     ) {
+=======
+        ActionListener<Void> listener) {
+>>>>>>> master
 
         final String repositoryUuid = repositoryData.getUuid();
         if (repositoryUuid.equals(RepositoryData.MISSING_UUID)) {
@@ -263,15 +301,21 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+<<<<<<< HEAD
         final RepositoriesMetadata currentReposMetadata = clusterService.state()
             .metadata()
             .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+=======
+        final RepositoriesMetadata currentReposMetadata
+            = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+>>>>>>> master
         final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
         if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
             listener.onResponse(null);
             return;
         }
 
+<<<<<<< HEAD
         clusterService.submitStateUpdateTask(
             "update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
             new ClusterStateUpdateTask() {
@@ -302,6 +346,36 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             }
         );
+=======
+        clusterService.submitStateUpdateTask("update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
+            new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final RepositoriesMetadata currentReposMetadata
+                        = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+
+                    final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
+                    if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
+                        return currentState;
+                    } else {
+                        final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
+                        final Metadata.Builder metadata
+                            = Metadata.builder(currentState.metadata()).putCustom(RepositoriesMetadata.TYPE, newReposMetadata);
+                        return ClusterState.builder(currentState).metadata(metadata).build();
+                    }
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    listener.onFailure(e);
+                }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(null);
+                }
+            });
+>>>>>>> master
     }
 
     /**
@@ -330,6 +404,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                             if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                                 ensureRepositoryNotInUse(currentState, repositoryMetadata.name());
+                                ensureNoSearchableSnapshotsIndicesInUse(currentState, repositoryMetadata);
                                 deletedRepositories.add(repositoryMetadata.name());
                                 changed = true;
                             } else {
@@ -428,9 +503,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     public void applyClusterState(ClusterChangedEvent event) {
         try {
             final ClusterState state = event.state();
+<<<<<<< HEAD
             final RepositoriesMetadata oldMetadata = event.previousState()
                 .getMetadata()
                 .custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+=======
+            final RepositoriesMetadata oldMetadata =
+                event.previousState().getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+>>>>>>> master
             final RepositoriesMetadata newMetadata = state.getMetadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
             // Check if repositories got changed
@@ -463,9 +543,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 Repository repository = survivors.get(repositoryMetadata.name());
                 if (repository != null) {
                     // Found previous version of this repository
+<<<<<<< HEAD
                     RepositoryMetadata previousMetadata = repository.getMetadata();
                     if (previousMetadata.type().equals(repositoryMetadata.type()) == false
                         || previousMetadata.settings().equals(repositoryMetadata.settings()) == false) {
+=======
+                    if (canUpdateInPlace(repositoryMetadata, repository) == false) {
+>>>>>>> master
                         // Previous version is different from the version in settings
                         logger.debug("updating repository [{}]", repositoryMetadata.name());
                         closeRepository(repository);
@@ -476,7 +560,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
+<<<<<<< HEAD
                             logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetadata.name()), ex);
+=======
+                            logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]",
+                                repositoryMetadata.name()), ex);
+>>>>>>> master
                         }
                     }
                 } else {
@@ -499,6 +588,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
         }
+    }
+
+    private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
+        assert updatedMetadata.name().equals(repository.getMetadata().name());
+        return repository.getMetadata().type().equals(updatedMetadata.type())
+            && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
     }
 
     /**
@@ -603,7 +698,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    /** Closes the given repository. */
+    /**
+     * Closes the given repository.
+     */
     private void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
@@ -655,23 +752,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static void ensureRepositoryNotInUse(ClusterState clusterState, String repository) {
-        if (isRepositoryInUse(clusterState, repository)) {
-            throw new IllegalStateException("trying to modify or unregister repository that is currently used");
-        }
-    }
-
-    /**
-     * Checks if a repository is currently in use by one of the snapshots
-     *
-     * @param clusterState cluster state
-     * @param repository   repository id
-     * @return true if repository is currently in use by one of the running snapshots
-     */
-    private static boolean isRepositoryInUse(ClusterState clusterState, String repository) {
         final SnapshotsInProgress snapshots = clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
         for (SnapshotsInProgress.Entry snapshot : snapshots.entries()) {
             if (repository.equals(snapshot.snapshot().getRepository())) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot is in progress");
             }
         }
         for (SnapshotDeletionsInProgress.Entry entry : clusterState.custom(
@@ -679,7 +763,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             SnapshotDeletionsInProgress.EMPTY
         ).getEntries()) {
             if (entry.repository().equals(repository)) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot deletion is in progress");
             }
         }
         for (RepositoryCleanupInProgress.Entry entry : clusterState.custom(
@@ -687,17 +771,63 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             RepositoryCleanupInProgress.EMPTY
         ).entries()) {
             if (entry.repository().equals(repository)) {
-                return true;
+                throw newRepositoryInUseException(repository, "repository clean up is in progress");
             }
         }
         for (RestoreInProgress.Entry entry : clusterState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)) {
             if (repository.equals(entry.snapshot().getRepository())) {
-                return true;
+                throw newRepositoryInUseException(repository, "snapshot restore is in progress");
+            }
+        }
+    }
+
+    private static void ensureNoSearchableSnapshotsIndicesInUse(ClusterState clusterState, RepositoryMetadata repositoryMetadata) {
+        long count = 0L;
+        List<Index> indices = null;
+        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+            if (indexSettingsMatchRepositoryMetadata(indexMetadata.getSettings(), repositoryMetadata)) {
+                if (indices == null) {
+                    indices = new ArrayList<>();
+                }
+                if (indices.size() < 5) {
+                    indices.add(indexMetadata.getIndex());
+                }
+                count += 1L;
+            }
+        }
+        if (indices != null && indices.isEmpty() == false) {
+            throw newRepositoryInUseException(repositoryMetadata.name(), "found " + count
+                + " searchable snapshots indices that use the repository: "
+                + Strings.collectionToCommaDelimitedString(indices)
+                + (count > indices.size() ? ",..." : "")
+            );
+        }
+    }
+
+    private static boolean indexSettingsMatchRepositoryMetadata(Settings indexSettings, RepositoryMetadata repositoryMetadata) {
+        if ("snapshot".equals(INDEX_STORE_TYPE_SETTING.get(indexSettings))) {
+            final String indexRepositoryUuid = indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_UUID_SETTING_KEY);
+            if (Strings.hasLength(indexRepositoryUuid)) {
+                return Objects.equals(repositoryMetadata.uuid(), indexRepositoryUuid);
+            } else {
+                return Objects.equals(repositoryMetadata.name(), indexSettings.get(SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY));
             }
         }
         return false;
     }
 
+<<<<<<< HEAD
+=======
+    private static IllegalStateException newRepositoryInUseException(String repository, String reason) {
+        return new IllegalStateException("trying to modify or unregister repository ["
+            + repository
+            + "] that is currently used ("
+            + reason
+            + ')'
+        );
+    }
+
+>>>>>>> master
     @Override
     protected void doStart() {
 

@@ -17,8 +17,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -89,14 +89,7 @@ public class BooleanFieldMapper extends FieldMapper {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
-            this.script.setValidator(s -> {
-                if (s != null && indexed.get() == false && docValues.get() == false) {
-                    throw new MapperParsingException("Cannot define script on field with index:false and doc_values:false");
-                }
-                if (s != null && multiFieldsBuilder.hasMultiFields()) {
-                    throw new MapperParsingException("Cannot define multifields on a field with a script");
-                }
-            });
+            addScriptValidation(script, indexed, docValues);
         }
 
         @Override
@@ -273,16 +266,14 @@ public class BooleanFieldMapper extends FieldMapper {
             return;
         }
 
-        Boolean value = context.parseExternalValue(Boolean.class);
-        if (value == null) {
-            XContentParser.Token token = context.parser().currentToken();
-            if (token == XContentParser.Token.VALUE_NULL) {
-                if (nullValue != null) {
-                    value = nullValue;
-                }
-            } else {
-                value = context.parser().booleanValue();
+        Boolean value = null;
+        XContentParser.Token token = context.parser().currentToken();
+        if (token == XContentParser.Token.VALUE_NULL) {
+            if (nullValue != null) {
+                value = nullValue;
             }
+        } else {
+            value = context.parser().booleanValue();
         }
         indexValue(context, value);
     }
@@ -300,7 +291,7 @@ public class BooleanFieldMapper extends FieldMapper {
         if (hasDocValues) {
             context.doc().add(new SortedNumericDocValuesField(fieldType().name(), value ? 1 : 0));
         } else {
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

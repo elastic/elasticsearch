@@ -10,7 +10,8 @@ package org.elasticsearch.action.admin.indices.mapping.get;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.rest.BaseRestHandler;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -30,6 +32,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -84,14 +87,24 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+
         builder.startObject();
         for (Map.Entry<String, Map<String, FieldMappingMetadata>> indexEntry : mappings.entrySet()) {
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
-
             if (indexEntry.getValue() != null) {
-                addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
+                if (builder.getRestApiVersion() == RestApiVersion.V_7 &&
+                    params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
+                    if (indexEntry.getValue().size() > 0) {
+                        builder.startObject(MapperService.SINGLE_MAPPING_NAME);
+                        addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
+                        builder.endObject();
+                    }
+                } else {
+                    addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
+                }
             }
+
 
             builder.endObject();
             builder.endObject();

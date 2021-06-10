@@ -11,7 +11,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountsTokenStore;
+import org.elasticsearch.xpack.security.authc.service.IndexServiceAccountTokenStore;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 
 public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
 
-    private IndexServiceAccountsTokenStore indexServiceAccountsTokenStore;
+    private IndexServiceAccountTokenStore indexServiceAccountTokenStore;
     private SecurityContext securityContext;
     private TransportCreateServiceAccountTokenAction transportCreateServiceAccountTokenAction;
     private Transport transport;
@@ -47,7 +47,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
     @Before
     @SuppressForbidden(reason = "Allow accessing localhost")
     public void init() throws IOException {
-        indexServiceAccountsTokenStore = mock(IndexServiceAccountsTokenStore.class);
+        indexServiceAccountTokenStore = mock(IndexServiceAccountTokenStore.class);
         securityContext = mock(SecurityContext.class);
         final Settings.Builder builder = Settings.builder()
             .put("xpack.security.enabled", true);
@@ -67,7 +67,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
             new BoundTransportAddress(new TransportAddress[] { transportAddress }, transportAddress));
         transportCreateServiceAccountTokenAction = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
+            indexServiceAccountTokenStore, securityContext, new HttpTlsRuntimeCheck(builder.build(), new SetOnce<>(transport)));
     }
 
     public void testAuthenticationIsRequired() {
@@ -84,7 +84,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
         final CreateServiceAccountTokenRequest request = mock(CreateServiceAccountTokenRequest.class);
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         transportCreateServiceAccountTokenAction.doExecute(mock(Task.class), request, future);
-        verify(indexServiceAccountsTokenStore).createToken(authentication, request, future);
+        verify(indexServiceAccountTokenStore).createToken(authentication, request, future);
     }
 
     public void testTlsRequired() {
@@ -98,7 +98,7 @@ public class TransportCreateServiceAccountTokenActionTests extends ESTestCase {
 
         TransportCreateServiceAccountTokenAction action = new TransportCreateServiceAccountTokenAction(
             mock(TransportService.class), new ActionFilters(Collections.emptySet()),
-            indexServiceAccountsTokenStore, securityContext, new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
+            indexServiceAccountTokenStore, securityContext, new HttpTlsRuntimeCheck(settings, new SetOnce<>(transport)));
 
         final PlainActionFuture<CreateServiceAccountTokenResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), mock(CreateServiceAccountTokenRequest.class), future);

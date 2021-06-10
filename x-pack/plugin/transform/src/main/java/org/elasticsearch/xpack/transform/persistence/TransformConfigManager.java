@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.persistence;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -123,13 +123,13 @@ public interface TransformConfigManager {
      *
      * @param transformIdsExpression The id expression. Can be _all, *, or comma delimited list of simple regex strings
      * @param pageParams             The paging params
-     * @param foundIdsListener       The listener on signal on success or failure
+     * @param foundConfigsListener   The listener on signal on success or failure
      */
     void expandTransformIds(
         String transformIdsExpression,
         PageParams pageParams,
         boolean allowNoMatch,
-        ActionListener<Tuple<Long, List<String>>> foundIdsListener
+        ActionListener<Tuple<Long, Tuple<List<String>, List<TransformConfig>>>> foundConfigsListener
     );
 
     /**

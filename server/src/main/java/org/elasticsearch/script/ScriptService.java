@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -408,6 +408,9 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
                 ScriptContext<?> context = contexts.get(request.context());
                 if (context == null) {
                     throw new IllegalArgumentException("Unknown context [" + request.context() + "]");
+                }
+                if (context.allowStoredScript == false) {
+                    throw new IllegalArgumentException("cannot store a script for context [" + request.context() + "]");
                 }
                 scriptEngine.compile(request.id(), source.getSource(), context, Collections.emptyMap());
             }

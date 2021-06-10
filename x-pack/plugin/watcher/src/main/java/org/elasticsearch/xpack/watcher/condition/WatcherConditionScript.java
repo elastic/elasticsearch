@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.watcher.condition;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -45,5 +45,5 @@ public abstract class WatcherConditionScript {
     }
 
     public static ScriptContext<Factory> CONTEXT = new ScriptContext<>("watcher_condition", Factory.class,
-        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple(), true);
 }

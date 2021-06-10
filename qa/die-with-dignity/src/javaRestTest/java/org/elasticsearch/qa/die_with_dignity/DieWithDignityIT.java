@@ -9,8 +9,10 @@
 package org.elasticsearch.qa.die_with_dignity;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.BufferedReader;
@@ -99,13 +101,14 @@ public class DieWithDignityIT extends ESRestTestCase {
 
     @Override
     protected final Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
         return Settings.builder()
             .put(super.restClientSettings())
+            .put(ThreadContext.PREFIX + ".Authorization", token)
             // increase the timeout here to 90 seconds to handle long waits for a green
             // cluster health. the waits for green need to be longer than a minute to
             // account for delayed shards
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "1s")
             .build();
     }
-
 }

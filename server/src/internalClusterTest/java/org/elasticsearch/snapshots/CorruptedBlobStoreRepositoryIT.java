@@ -253,6 +253,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> strip version information from index-N blob");
         final RepositoryData withoutVersions = new RepositoryData(
+<<<<<<< HEAD
             RepositoryData.MISSING_UUID, // old-format repository data has no UUID
             repositoryData.getGenId(),
             repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
@@ -271,6 +272,26 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
+=======
+                RepositoryData.MISSING_UUID, // old-format repository data has no UUID
+                repositoryData.getGenId(),
+                repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID, Function.identity())),
+                repositoryData.getSnapshotIds().stream().collect(Collectors.toMap(SnapshotId::getUUID,
+                        s -> new RepositoryData.SnapshotDetails(
+                                repositoryData.getSnapshotState(s),
+                                null,
+                                -1,
+                                -1))),
+                Collections.emptyMap(),
+                ShardGenerations.EMPTY,
+                IndexMetaDataGenerations.EMPTY,
+                RepositoryData.MISSING_UUID); // old-format repository has no cluster UUID
+
+        Files.write(repo.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + withoutVersions.getGenId()),
+            BytesReference.toBytes(BytesReference.bytes(
+                withoutVersions.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT, true))),
+            StandardOpenOption.TRUNCATE_EXISTING);
+>>>>>>> master
 
         logger.info("--> verify that repo is assumed in old metadata format");
         final SnapshotsService snapshotsService = internalCluster().getCurrentMasterNodeInstance(SnapshotsService.class);
@@ -419,6 +440,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             .stream()
             .collect(Collectors.toMap(SnapshotId::getUUID, Function.identity()));
         final RepositoryData brokenRepoData = new RepositoryData(
+<<<<<<< HEAD
             repositoryData.getUuid(),
             repositoryData.getGenId(),
             snapshotIds,
@@ -436,6 +458,19 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
             ),
             StandardOpenOption.TRUNCATE_EXISTING
         );
+=======
+                repositoryData.getUuid(),
+                repositoryData.getGenId(),
+                snapshotIds,
+                snapshotIds.values().stream().collect(Collectors.toMap(SnapshotId::getUUID, repositoryData::getSnapshotDetails)),
+                repositoryData.getIndices().values().stream().collect(Collectors.toMap(Function.identity(), repositoryData::getSnapshots)),
+                ShardGenerations.builder().putAll(repositoryData.shardGenerations()).put(indexId, 0, "0").build(),
+                repositoryData.indexMetaDataGenerations(), repositoryData.getClusterUUID());
+        Files.write(repoPath.resolve(BlobStoreRepository.INDEX_FILE_PREFIX + repositoryData.getGenId()),
+                BytesReference.toBytes(BytesReference.bytes(
+                        brokenRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))),
+                StandardOpenOption.TRUNCATE_EXISTING);
+>>>>>>> master
 
         logger.info("--> recreating repository to clear caches");
         client().admin().cluster().prepareDeleteRepository(repoName).get();

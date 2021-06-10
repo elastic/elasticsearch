@@ -8,15 +8,15 @@
 package org.elasticsearch.test.junit.listeners;
 
 import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
@@ -29,8 +29,6 @@ import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTCLASS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase.REST_TESTS_SUITE;
 
 /**
  * A {@link RunListener} that emits a command you can use to re-run a failing test with the failing random seed to
@@ -94,11 +92,6 @@ public class ReproduceInfoPrinter extends RunListener {
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
-        // Client yaml suite tests are a special case as they allow for additional parameters
-        if (ESClientYamlSuiteTestCase.class.isAssignableFrom(failure.getDescription().getTestClass())) {
-            gradleMessageBuilder.appendClientYamlSuiteProperties();
-        }
-
         printToErr(b.toString());
     }
 
@@ -160,7 +153,7 @@ public class ReproduceInfoPrinter extends RunListener {
                 // these properties only make sense for integration tests
                 appendProperties(ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
             }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
+            appendProperties("tests.assertion.disabled", "tests.nightly", "tests.jvms",
                              "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version", "build.snapshot");
             if (System.getProperty("tests.jvm.argline") != null && System.getProperty("tests.jvm.argline").isEmpty() == false) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
@@ -172,10 +165,6 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
-        }
-
-        public ReproduceErrorMessageBuilder appendClientYamlSuiteProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

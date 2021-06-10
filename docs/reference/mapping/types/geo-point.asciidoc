@@ -123,20 +123,43 @@ The following parameters are accepted by `geo_point` fields:
 
     If `true`, malformed geo-points are ignored. If `false` (default),
     malformed geo-points throw an exception and reject the whole document.
-    A geo-point is considered malformed if its latitude is outside the range 
+    A geo-point is considered malformed if its latitude is outside the range
     -90 <= latitude <= 90, or if its longitude is outside the range -180 <= longitude <= 180.
+    Note that this cannot be set if the `script` parameter is used.
 
 `ignore_z_value`::
 
     If `true` (default) three dimension points will be accepted (stored in source)
     but only latitude and longitude values will be indexed; the third dimension is
     ignored. If `false`, geo-points containing any more than latitude and longitude
-    (two dimensions) values throw an exception and reject the whole document.
+    (two dimensions) values throw an exception and reject the whole document. Note
+    that this cannot be set if the `script` parameter is used.
 
 <<null-value,`null_value`>>::
 
     Accepts an geopoint value which is substituted for any explicit `null` values.
-    Defaults to `null`, which means the field is treated as missing.
+    Defaults to `null`, which means the field is treated as missing. Note that this
+    cannot be set if the `script` parameter is used.
+
+`on_script_error`::
+
+    Defines what to do if the script defined by the `script` parameter
+    throws an error at indexing time. Accepts `fail` (default), which
+    will cause the entire document to be rejected, and `continue`, which
+    will register the field in the document's
+    <<mapping-ignored-field,`_ignored`>> metadata field and continue
+    indexing. This parameter can only be set if the `script` field is
+    also set.
+
+`script`::
+
+    If this parameter is set, then the field will index values generated
+    by this script, rather than reading the values directly from the
+    source. If a value is set for this field on the input document, then
+    the document will be rejected with an error.
+    Scripts are in the same format as their
+    <<runtime-mapping-fields,runtime equivalent>>, and should emit points
+    as a pair of (lat, lon) double values.
 
 ==== Using geo-points in scripts
 

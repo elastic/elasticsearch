@@ -34,7 +34,7 @@ import java.util.List;
 /**
  * Constructs an IntervalsSource based on analyzed text
  */
-public class IntervalBuilder {
+public abstract class IntervalBuilder {
 
     private final String field;
     private final Analyzer analyzer;
@@ -43,6 +43,9 @@ public class IntervalBuilder {
         this.field = field;
         this.analyzer = analyzer;
     }
+
+    /** Create term intervals for the provided term. */
+    protected abstract IntervalsSource termIntervals(BytesRef term);
 
     public IntervalsSource analyzeText(String query, int maxGaps, boolean ordered) throws IOException {
         try (TokenStream ts = analyzer.tokenStream(field, query);
@@ -109,7 +112,7 @@ public class IntervalBuilder {
         TermToBytesRefAttribute bytesAtt = ts.addAttribute(TermToBytesRefAttribute.class);
         ts.reset();
         ts.incrementToken();
-        return Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
+        return termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef()));
     }
 
     protected static IntervalsSource combineSources(List<IntervalsSource> sources, int maxGaps, boolean ordered) {
@@ -138,7 +141,7 @@ public class IntervalBuilder {
         while (ts.incrementToken()) {
             BytesRef term = bytesAtt.getBytesRef();
             int precedingSpaces = posAtt.getPositionIncrement() - 1;
-            terms.add(extend(Intervals.term(BytesRef.deepCopyOf(term)), precedingSpaces));
+            terms.add(extend(termIntervals(BytesRef.deepCopyOf(term)), precedingSpaces));
         }
         ts.end();
         return terms;
@@ -170,7 +173,7 @@ public class IntervalBuilder {
                 synonyms.clear();
                 spaces = posInc - 1;
             }
-            synonyms.add(Intervals.term(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
+            synonyms.add(termIntervals(BytesRef.deepCopyOf(bytesAtt.getBytesRef())));
         }
         if (synonyms.size() == 1) {
             terms.add(extend(synonyms.get(0), spaces));

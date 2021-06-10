@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
@@ -105,6 +106,7 @@ public class MetadataIndexAliasesService {
             Metadata.Builder metadata = Metadata.builder(currentState.metadata());
             // Run the remaining alias actions
             final Set<String> maybeModifiedIndices = new HashSet<>();
+            final Set<String> maybeModifiedDataStreamAliases = new HashSet<>();
             for (AliasAction action : actions) {
                 if (action.removeIndex()) {
                     // Handled above
@@ -133,6 +135,7 @@ public class MetadataIndexAliasesService {
                     };
                     if (action.apply(newAliasValidator, metadata, null)) {
                         changed = true;
+                        maybeModifiedDataStreamAliases.add(action.getAlias());
                     }
                     continue;
                 }
@@ -169,6 +172,26 @@ public class MetadataIndexAliasesService {
                 if (action.apply(newAliasValidator, metadata, index)) {
                     changed = true;
                     maybeModifiedIndices.add(index.getIndex().getName());
+                }
+            }
+
+            for (var maybeModifiedDataStreamAlias : maybeModifiedDataStreamAliases) {
+                var currentDataStreamAlias = currentState.metadata().dataStreamAliases().get(maybeModifiedDataStreamAlias);
+                var newDataStreamAlias = metadata.dataStreamAlias(maybeModifiedDataStreamAlias);
+
+                if (Objects.equals(currentDataStreamAlias, newDataStreamAlias) == false) {
+                    Set<String> allDataStreams = new HashSet<>();
+                    if (newDataStreamAlias != null) {
+                        allDataStreams.addAll(newDataStreamAlias.getDataStreams());
+                    }
+                    if (currentDataStreamAlias != null) {
+                        allDataStreams.addAll(currentDataStreamAlias.getDataStreams());
+                    }
+                    for (var dataStreamName : allDataStreams) {
+                        var dataStream = metadata.dataStream(dataStreamName);
+                        IndexMetadata writeIndex = metadata.get(dataStream.getWriteIndex().getName());
+                        metadata.put(new IndexMetadata.Builder(writeIndex).aliasesVersion(1 + writeIndex.getAliasesVersion()));
+                    }
                 }
             }
 

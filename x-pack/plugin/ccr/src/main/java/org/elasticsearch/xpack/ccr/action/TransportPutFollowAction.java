@@ -203,6 +203,13 @@ public final class TransportPutFollowAction
 
                         DataStream updatedDataStream = updateLocalDataStream(followerIndex, localDataStream, remoteDataStream);
                         mdBuilder.put(updatedDataStream);
+
+                        // TODO: initial copy of all aliases that refer to remoteDataStream? Shard follow task also replicates data stream
+                        //  aliases, but if copy data stream aliases here then data stream aliases are immediately resolvable.
+                        // (only include data streams that exist in local cluster)
+                        // (merge with existing aliases in local cluster)
+                        // (always omit write data stream)
+
                     };
                     restoreService.restoreSnapshot(restoreRequest, delegatelistener, updater);
                 }

@@ -18,12 +18,14 @@ import org.elasticsearch.common.Strings;
  */
 public abstract class AliasAction {
     private final String index;
+    private final String alias;
 
-    private AliasAction(String index) {
+    private AliasAction(String index, String alias) {
         if (false == Strings.hasText(index)) {
             throw new IllegalArgumentException("[index] is required");
         }
         this.index = index;
+        this.alias = alias;
     }
 
     /**
@@ -31,6 +33,11 @@ public abstract class AliasAction {
      */
     public String getIndex() {
         return index;
+    }
+
+    @Nullable
+    public String getAlias() {
+        return alias;
     }
 
     /**
@@ -82,7 +89,7 @@ public abstract class AliasAction {
          */
         public Add(String index, String alias, @Nullable String filter, @Nullable String indexRouting, @Nullable String searchRouting,
                    @Nullable Boolean writeIndex, @Nullable Boolean isHidden) {
-            super(index);
+            super(index, alias);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
@@ -146,7 +153,7 @@ public abstract class AliasAction {
          * Build the operation.
          */
         public Remove(String index, String alias, @Nullable Boolean mustExist) {
-            super(index);
+            super(index, alias);
             if (false == Strings.hasText(alias)) {
                 throw new IllegalArgumentException("[alias] is required");
             }
@@ -185,7 +192,7 @@ public abstract class AliasAction {
      */
     public static class RemoveIndex extends AliasAction {
         public RemoveIndex(String index) {
-            super(index);
+            super(index, null);
         }
 
         @Override
@@ -201,19 +208,13 @@ public abstract class AliasAction {
 
     public static class AddDataStreamAlias extends AliasAction {
 
-        private final String aliasName;
         private final String dataStreamName;
         private final Boolean isWriteDataStream;
 
         public AddDataStreamAlias(String aliasName, String dataStreamName, Boolean isWriteDataStream) {
-            super(dataStreamName);
-            this.aliasName = aliasName;
+            super(dataStreamName, aliasName);
             this.dataStreamName = dataStreamName;
             this.isWriteDataStream = isWriteDataStream;
-        }
-
-        public String getAliasName() {
-            return aliasName;
         }
 
         public String getDataStreamName() {
@@ -231,20 +232,18 @@ public abstract class AliasAction {
 
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
-            aliasValidator.validate(aliasName, null, null, isWriteDataStream);
-            return metadata.put(aliasName, dataStreamName, isWriteDataStream);
+            aliasValidator.validate(getAlias(), null, null, isWriteDataStream);
+            return metadata.put(getAlias(), dataStreamName, isWriteDataStream);
         }
     }
 
     public static class RemoveDataStreamAlias extends AliasAction {
 
-        private final String aliasName;
         private final Boolean mustExist;
         private final String dataStreamName;
 
         public RemoveDataStreamAlias(String aliasName, String dataStreamName, Boolean mustExist) {
-            super(dataStreamName);
-            this.aliasName = aliasName;
+            super(dataStreamName, aliasName);
             this.mustExist = mustExist;
             this.dataStreamName = dataStreamName;
         }
@@ -257,7 +256,7 @@ public abstract class AliasAction {
         @Override
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             boolean mustExist = this.mustExist != null ? this.mustExist : false;
-            return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
+            return metadata.removeDataStreamAlias(getAlias(), dataStreamName, mustExist);
         }
     }
 }

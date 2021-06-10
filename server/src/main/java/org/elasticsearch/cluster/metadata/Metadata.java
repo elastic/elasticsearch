@@ -1273,6 +1273,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return true;
         }
 
+        public DataStreamAlias dataStreamAlias(String dataStreamAliasName) {
+            DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) customs.get(DataStreamMetadata.TYPE);
+            if (dataStreamMetadata != null) {
+                return dataStreamMetadata.getDataStreamAliases().get(dataStreamAliasName);
+            } else {
+                return null;
+            }
+        }
+
         public Custom getCustom(String type) {
             return customs.get(type);
         }

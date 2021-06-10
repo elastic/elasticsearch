@@ -162,6 +162,13 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         for (Index backingIndex : dataStream.getIndices()) {
                             mdBuilder.put(currentState.metadata().index(backingIndex), false);
                         }
+                        for (var dataStreamAlias : currentState.metadata().dataStreamAliases().values()) {
+                            if (dataStreamAlias.getDataStreams().contains(dataStream.getName())) {
+                                Boolean isWriteDataStream =
+                                    dataStreamAlias.getWriteDataStream().equals(dataStream.getName()) ? true : null;
+                                mdBuilder.put(dataStreamAlias.getName(), dataStream.getName(), isWriteDataStream);
+                            }
+                        }
                     } else {
                         IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                         if (indexMetadata != null) {

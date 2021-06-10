@@ -572,6 +572,25 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
+    private void verifyDataStreamAlias(RestClient client,
+                                       String aliasName,
+                                       boolean checkWriteDataStream,
+                                       String... otherDataSteams) throws IOException {
+        try {
+            var getAliasRequest = new Request("GET", "/_alias/" + aliasName);
+            var responseBody = toMap(client.performRequest(getAliasRequest));
+            logger.error("verifyAlias={}", responseBody);
+            if (checkWriteDataStream) {
+                assertThat(ObjectPath.eval(otherDataSteams[0] + ".aliases." + aliasName + ".is_write_data_stream", responseBody), is(true));
+            }
+            for (String otherDataStream : otherDataSteams) {
+                assertThat(ObjectPath.eval(otherDataStream + ".aliases." + aliasName, responseBody), notNullValue());
+            }
+        } catch (ResponseException e) {
+            throw new AssertionError("get alias call failed", e);
+        }
+    }
+
     public void testDataStreamsBiDirectionalReplication() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;
@@ -637,7 +656,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 assertOK(leaderClient.performRequest(createDataStreamRequest));
                 Request updateAliasesRequest = new Request("POST", "/_aliases");
                 updateAliasesRequest.setJsonEntity("{\"actions\":[" +
-                    "{\"add\":{\"index\":\"" + leaderDataStreamName + "\",\"alias\":\"logs-http\",\"is_write_index\":true}}" +
+                    "{\"add\":{\"index\":\"" + leaderDataStreamName + "\",\"alias\":\"" + aliasName + "\",\"is_write_index\":true}}" +
                     "]}"
                 );
                 assertOK(leaderClient.performRequest(updateAliasesRequest));
@@ -662,7 +681,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             assertOK(client().performRequest(createDataStreamRequest));
             Request updateAliasesRequest = new Request("POST", "/_aliases");
             updateAliasesRequest.setJsonEntity("{\"actions\":[" +
-                "{\"add\":{\"index\":\"" + followerDataStreamName + "\",\"alias\":\"logs-http\",\"is_write_index\":true}}" +
+                "{\"add\":{\"index\":\"" + followerDataStreamName + "\",\"alias\":\"" + aliasName + "\",\"is_write_index\":true}}" +
                 "]}"
             );
             assertOK(client().performRequest(updateAliasesRequest));
@@ -675,17 +694,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
             verifyDocuments(client(), followerDataStreamName, numDocs);
 
-            // TODO: Don't update logs-http alias in follower cluster when data streams are automatically replicated
-            //  from leader to follower cluster:
-            // (only set the write flag to logs-http-na)
-            // Create alias in follower cluster that point to leader and follower data streams:
-            updateAliasesRequest = new Request("POST", "/_aliases");
-            updateAliasesRequest.setJsonEntity("{\"actions\":[" +
-                "{\"add\":{\"index\":\"" + leaderDataStreamName + "\",\"alias\":\"logs-http\"}}" +
-                "]}"
-            );
-            assertOK(client().performRequest(updateAliasesRequest));
-
             try (var leaderClient = buildLeaderClient()) {
                 assertBusy(() -> {
                     assertThat(getNumberOfSuccessfulFollowedIndices(leaderClient),
@@ -694,14 +702,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     ensureYellow(followerDataStreamName);
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
-                updateAliasesRequest = new Request("POST", "/_aliases");
-                updateAliasesRequest.setJsonEntity("{\"actions\":[" +
-                    "{\"add\":{\"index\":\"" + followerDataStreamName + "\",\"alias\":\"logs-http\"}}" +
-                    "]}"
-                );
-                assertOK(leaderClient.performRequest(updateAliasesRequest));
+                assertBusy(() -> verifyDataStreamAlias(leaderClient, aliasName, true, leaderDataStreamName, followerDataStreamName));
             }
-
+            assertBusy(() -> verifyDataStreamAlias(client(), aliasName, true, followerDataStreamName, leaderDataStreamName));
             // See all eu and na logs in leader and follower cluster:
             verifyDocuments(client(), aliasName, numDocs * 2);
             try (var leaderClient = buildLeaderClient()) {

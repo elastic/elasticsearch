@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -264,8 +265,20 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                 final var clusterStateRequest = CcrRequests.metadataRequest(leaderIndex.getName());
 
                 final CheckedConsumer<ClusterStateResponse, Exception> onResponse = clusterStateResponse -> {
-                    final var leaderIndexMetadata = clusterStateResponse.getState().metadata().getIndexSafe(leaderIndex);
-                    final var followerIndexMetadata = clusterService.state().metadata().getIndexSafe(followerIndex);
+                    final var leaderMetadata = clusterStateResponse.getState().metadata();
+                    final var followerMetadata = clusterService.state().metadata();
+                    final var leaderIndexMetadata = leaderMetadata.getIndexSafe(leaderIndex);
+                    final var followerIndexMetadata = followerMetadata.getIndexSafe(followerIndex);
+
+                    final String parentDataStreamName;
+                    var ia = followerMetadata.getIndicesLookup().get(followerIndexMetadata.getIndex().getName());
+                    if (ia.getParentDataStream() != null) {
+                        parentDataStreamName = ia.getParentDataStream().getName();
+                    } else {
+                        parentDataStreamName = null;
+                    }
+                    logger.info("followerIndex={},parentDataStreamName={}",
+                        followerIndexMetadata.getIndex().getName(), parentDataStreamName);
 
                     // partition the aliases into the three sets
                     final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
@@ -288,44 +301,91 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                         }
                     }
 
+                    if (parentDataStreamName != null) {
+                        for (var alias : leaderMetadata.dataStreamAliases().values()) {
+                            if (alias.getDataStreams().contains(parentDataStreamName)) {
+                                if (followerMetadata.dataStreamAliases().containsKey(alias.getName())) {
+                                    aliasesInCommon.add(alias.getName());
+                                } else {
+                                    aliasesOnLeaderNotOnFollower.add(alias.getName());
+                                }
+                            }
+                        }
+                        for (var alias : followerMetadata.dataStreamAliases().values()) {
+                            if (alias.getDataStreams().contains(parentDataStreamName)) {
+                                if (leaderMetadata.dataStreamAliases().containsKey(alias.getName()) == false) {
+                                    aliasesOnFollowerNotOnLeader.add(alias.getName());
+                                }
+                            }
+                        }
+                    }
+
+                    logger.info("aliasesOnLeaderNotOnFollower={},aliasesInCommon={},aliasesOnFollowerNotOnLeader={}",
+                        aliasesOnLeaderNotOnFollower, aliasesInCommon, aliasesOnFollowerNotOnLeader);
+
                     final var aliasActions = new ArrayList<IndicesAliasesRequest.AliasActions>();
 
                     // add the aliases the follower does not have
                     for (final var aliasName : aliasesOnLeaderNotOnFollower) {
                         final var alias = leaderIndexMetadata.getAliases().get(aliasName);
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                        if (alias != null) {
+                            // we intentionally override that the alias is not a write alias as follower
+                            // indices do not receive direct writes
+                            aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
                                 .alias(alias.alias())
                                 .filter(alias.filter() == null ? null : alias.filter().toString())
                                 .indexRouting(alias.indexRouting())
                                 .searchRouting(alias.searchRouting())
                                 .writeIndex(false));
+                        } else {
+                            final var dataStreamAlias = leaderMetadata.dataStreamAliases().get(aliasName);
+                            aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                                .index(parentDataStreamName)
+                                .alias(dataStreamAlias.getName())
+                                .writeIndex(false));
+                        }
                     }
 
                     // update the aliases that are different (ignoring write aliases)
                     for (final var aliasName : aliasesInCommon) {
                         final var leaderAliasMetadata = leaderIndexMetadata.getAliases().get(aliasName);
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        final var leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName)
+                        if (leaderAliasMetadata != null) {
+                            // we intentionally override that the alias is not a write alias as follower
+                            // indices do not receive direct writes
+                            final var leaderAliasMetadataWithoutWriteIndex = new AliasMetadata.Builder(aliasName)
                                 .filter(leaderAliasMetadata.filter())
                                 .indexRouting(leaderAliasMetadata.indexRouting())
                                 .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false)
                                 .build();
-                        final var followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
-                        if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
-                            // skip this alias, the leader and follower have the same modulo the write index
-                            continue;
-                        }
-                        // we intentionally override that the alias is not a write alias as follower indices do not receive direct writes
-                        aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                            final var followerAliasMetadata = followerIndexMetadata.getAliases().get(aliasName);
+                            if (leaderAliasMetadataWithoutWriteIndex.equals(followerAliasMetadata)) {
+                                // skip this alias, the leader and follower have the same modulo the write index
+                                continue;
+                            }
+                            // we intentionally override that the alias is not a write alias as
+                            // follower indices do not receive direct writes
+                            aliasActions.add(IndicesAliasesRequest.AliasActions.add()
                                 .index(followerIndex.getName())
                                 .alias(leaderAliasMetadata.alias())
                                 .filter(leaderAliasMetadata.filter() == null ? null : leaderAliasMetadata.filter().toString())
                                 .indexRouting(leaderAliasMetadata.indexRouting())
                                 .searchRouting(leaderAliasMetadata.searchRouting())
                                 .writeIndex(false));
+                        } else {
+                            final var leaderDataStreamAlias = leaderMetadata.dataStreamAliases().get(aliasName);
+                            final var leaderDataStreamAliasWithoutWriteDataStream =
+                                new DataStreamAlias(leaderDataStreamAlias.getName(), leaderDataStreamAlias.getDataStreams(), null);
+                            final var followerDataStreamAlias = followerMetadata.dataStreamAliases().get(aliasName);
+                            if (leaderDataStreamAliasWithoutWriteDataStream.equals(followerDataStreamAlias)) {
+                                continue;
+                            }
+                            aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                                .index(parentDataStreamName)
+                                .alias(leaderDataStreamAlias.getName())
+                                .writeIndex(false));
+                        }
                     }
 
                     // remove aliases that the leader no longer has

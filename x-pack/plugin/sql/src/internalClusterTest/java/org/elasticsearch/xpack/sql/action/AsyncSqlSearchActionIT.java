@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.sql.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -14,14 +14,13 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
@@ -34,9 +33,8 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
-import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
-import org.hamcrest.BaseMatcher;
-import org.hamcrest.Description;
+import org.elasticsearch.xpack.sql.plugin.SqlAsyncGetResultsAction;
+import org.elasticsearch.xpack.sql.proto.Protocol;
 import org.junit.After;
 
 import java.nio.ByteBuffer;
@@ -47,7 +45,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
@@ -62,7 +59,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
+public class AsyncSqlSearchActionIT extends AbstractSqlBlockingIntegTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
@@ -104,14 +101,14 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
-            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
+            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
 
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        SqlQueryResponse response = client().execute(SqlQueryAction.INSTANCE, builder.request()).get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -125,7 +122,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
                 .setKeepAlive(TimeValue.timeValueMinutes(10))
                 .setWaitForCompletionTimeout(TimeValue.timeValueMillis(10));
-            EqlSearchResponse responseWithTimeout = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest).get();
+            SqlQueryResponse responseWithTimeout = client().execute(SqlAsyncGetResultsAction.INSTANCE, getResultsRequest).get();
             assertThat(responseWithTimeout.isRunning(), is(true));
             assertThat(responseWithTimeout.isPartial(), is(true));
             assertThat(responseWithTimeout.id(), equalTo(response.id()));
@@ -135,12 +132,12 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         GetAsyncResultRequest getResultsRequest = new GetAsyncResultRequest(response.id())
             .setKeepAlive(TimeValue.timeValueMinutes(10))
             .setWaitForCompletionTimeout(TimeValue.timeValueSeconds(10));
-        ActionFuture<EqlSearchResponse> future = client().execute(EqlAsyncGetResultAction.INSTANCE, getResultsRequest);
+        ActionFuture<SqlQueryResponse> future = client().execute(SqlAsyncGetResultsAction.INSTANCE, getResultsRequest);
         disableBlocks(plugins);
         if (success) {
             response = future.get();
             assertThat(response, notNullValue());
-            assertThat(response.hits().events().size(), equalTo(1));
+            assertThat(response.rows().size(), equalTo(1));
         } else {
             Exception ex = expectThrows(Exception.class, future::actionGet);
             assertThat(ex.getCause().getMessage(), containsString("by zero"));
@@ -154,25 +151,25 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
-            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
+            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
         TimeValue keepAliveValue;
         if (customKeepAlive) {
             keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
-            request.keepAlive(keepAliveValue);
+            builder.keepAlive(keepAliveValue);
         } else {
-            keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
+            keepAliveValue = Protocol.DEFAULT_KEEP_ALIVE;
         }
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(EqlSearchAction.INSTANCE, request).get();
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+            .execute(SqlQueryAction.INSTANCE, builder.request()).get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -182,20 +179,20 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         logger.trace("Block is established");
 
         String id = response.id();
-        TaskId taskId = findTaskWithXOpaqueId(opaqueId, EqlSearchAction.NAME + "[a]");
+        TaskId taskId = findTaskWithXOpaqueId(opaqueId, SqlQueryAction.NAME + "[a]");
         assertThat(taskId, notNullValue());
 
         disableBlocks(plugins);
 
-        assertBusy(() -> assertThat(findTaskWithXOpaqueId(opaqueId, EqlSearchAction.NAME + "[a]"), nullValue()));
-        StoredAsyncResponse<EqlSearchResponse> doc = getStoredRecord(id);
+        assertBusy(() -> assertThat(findTaskWithXOpaqueId(opaqueId, SqlQueryAction.NAME + "[a]"), nullValue()));
+        StoredAsyncResponse<SqlQueryResponse> doc = getStoredRecord(id);
         // Make sure that the expiration time is not more than 1 min different from the current time + keep alive
         assertThat(System.currentTimeMillis() + keepAliveValue.getMillis() - doc.getExpirationTime(),
             lessThan(doc.getExpirationTime() + TimeValue.timeValueMinutes(1).getMillis()));
         if (success) {
             assertThat(doc.getException(), nullValue());
             assertThat(doc.getResponse(), notNullValue());
-            assertThat(doc.getResponse().hits().events().size(), equalTo(1));
+            assertThat(doc.getResponse().rows().size(), equalTo(1));
         } else {
             assertThat(doc.getException(), notNullValue());
             assertThat(doc.getResponse(), nullValue());
@@ -207,23 +204,23 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         prepareIndex();
 
         boolean success = randomBoolean();
-        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
-            .waitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
+            .query(query).waitForCompletionTimeout(TimeValue.timeValueMillis(1));
 
         boolean customKeepAlive = randomBoolean();
         final TimeValue keepAliveValue;
         if (customKeepAlive) {
             keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
-            request.keepAlive(keepAliveValue);
+            builder.keepAlive(keepAliveValue);
         }
 
         List<SearchBlockPlugin> plugins = initBlockFactory(true, false);
 
         String opaqueId = randomAlphaOfLength(10);
         logger.trace("Starting async search");
-        EqlSearchResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
-            .execute(EqlSearchAction.INSTANCE, request).get();
+        SqlQueryResponse response = client().filterWithHeader(Collections.singletonMap(Task.X_OPAQUE_ID, opaqueId))
+            .execute(SqlQueryAction.INSTANCE, builder.request()).get();
         assertThat(response.isRunning(), is(true));
         assertThat(response.isPartial(), is(true));
         assertThat(response.id(), notNullValue());
@@ -246,26 +243,27 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
 
         boolean success = randomBoolean();
         boolean keepOnCompletion = randomBoolean();
-        String query = success ? "my_event where i==1" : "my_event where 10/i==1";
-        EqlSearchRequest request = new EqlSearchRequest().indices("test").query(query).eventCategoryField("event_type")
-            .waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
+        String query = "SELECT event_type FROM test WHERE " + (success ? "i=1" : "10/i=1");
+        SqlQueryRequestBuilder builder = new SqlQueryRequestBuilder(client(), SqlQueryAction.INSTANCE)
+            .query(query).waitForCompletionTimeout(TimeValue.timeValueSeconds(10));
         if (keepOnCompletion || randomBoolean()) {
-            request.keepOnCompletion(keepOnCompletion);
+            builder.keepOnCompletion(keepOnCompletion);
         }
+        SqlQueryRequest request = builder.request();
 
         if (success) {
-            EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+            SqlQueryResponse response = client().execute(SqlQueryAction.INSTANCE, request).get();
             assertThat(response.isRunning(), is(false));
             assertThat(response.isPartial(), is(false));
             assertThat(response.id(), notNullValue());
-            assertThat(response.hits().events().size(), equalTo(1));
+            assertThat(response.rows().size(), equalTo(1));
             if (keepOnCompletion) {
-                StoredAsyncResponse<EqlSearchResponse> doc = getStoredRecord(response.id());
+                StoredAsyncResponse<SqlQueryResponse> doc = getStoredRecord(response.id());
                 assertThat(doc, notNullValue());
                 assertThat(doc.getException(), nullValue());
                 assertThat(doc.getResponse(), notNullValue());
-                assertThat(doc.getResponse().hits().events().size(), equalTo(1));
-                EqlSearchResponse storedResponse = client().execute(EqlAsyncGetResultAction.INSTANCE,
+                assertThat(doc.getResponse().rows().size(), equalTo(1));
+                SqlQueryResponse storedResponse = client().execute(SqlAsyncGetResultsAction.INSTANCE,
                     new GetAsyncResultRequest(response.id())).actionGet();
                 assertThat(storedResponse, equalTo(response));
 
@@ -275,12 +273,13 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
             }
         } else {
             Exception ex = expectThrows(Exception.class,
-                () -> client().execute(EqlSearchAction.INSTANCE, request).get());
+                () -> client().execute(SqlQueryAction.INSTANCE, request).get());
             assertThat(ex.getMessage(), containsString("by zero"));
         }
     }
 
-    public StoredAsyncResponse<EqlSearchResponse> getStoredRecord(String id) throws Exception {
+
+    public StoredAsyncResponse<SqlQueryResponse> getStoredRecord(String id) throws Exception {
         try {
             GetResponse doc = client().prepareGet(XPackPlugin.ASYNC_RESULTS_INDEX, "_doc", AsyncExecutionId.decode(id).getDocId()).get();
             if (doc.isExists()) {
@@ -288,7 +287,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
                 try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
                     try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                         in.setVersion(Version.readVersion(in));
-                        return new StoredAsyncResponse<>(EqlSearchResponse::new, in);
+                        return new StoredAsyncResponse<>(SqlQueryResponse::new, in);
                     }
                 }
             }
@@ -298,36 +297,12 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         }
     }
 
-    public static org.hamcrest.Matcher<EqlSearchResponse> eqlSearchResponseMatcherEqualTo(EqlSearchResponse eqlSearchResponse) {
-        return new BaseMatcher<EqlSearchResponse>() {
-
-            @Override
-            public void describeTo(Description description) {
-                description.appendText(Strings.toString(eqlSearchResponse));
-            }
-
-            @Override
-            public boolean matches(Object o) {
-                if (eqlSearchResponse == o) {
-                    return true;
-                }
-                if (o == null || EqlSearchResponse.class != o.getClass()) {
-                    return false;
-                }
-                EqlSearchResponse that = (EqlSearchResponse) o;
-                // We don't compare took since it might deffer
-                return Objects.equals(eqlSearchResponse.hits(), that.hits())
-                    && Objects.equals(eqlSearchResponse.isTimeout(), that.isTimeout());
-            }
-        };
-    }
-
     public static class FakePainlessScriptPlugin extends MockScriptPlugin {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             Map<String, Function<Map<String, Object>, Object>> scripts = new HashMap<>();
-            scripts.put("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalQlScriptUtils.div(" +
+            scripts.put("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.div(" +
                 "params.v0,InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))", FakePainlessScriptPlugin::fail);
             return scripts;
         }

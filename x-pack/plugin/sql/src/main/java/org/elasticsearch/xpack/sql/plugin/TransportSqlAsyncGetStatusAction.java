@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.eql.plugin;
+package org.elasticsearch.xpack.sql.plugin;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.Client;
@@ -15,26 +15,26 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
-import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.ql.plugin.AbstractTransportQlAsyncGetStatusAction;
+import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
+import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 
 
-public class TransportEqlAsyncGetStatusAction extends AbstractTransportQlAsyncGetStatusAction<EqlSearchResponse, EqlSearchTask> {
+public class TransportSqlAsyncGetStatusAction extends AbstractTransportQlAsyncGetStatusAction<SqlQueryResponse, SqlQueryTask> {
     @Inject
-    public TransportEqlAsyncGetStatusAction(TransportService transportService,
+    public TransportSqlAsyncGetStatusAction(TransportService transportService,
                                             ActionFilters actionFilters,
                                             ClusterService clusterService,
                                             NamedWriteableRegistry registry,
                                             Client client,
                                             ThreadPool threadPool,
                                             BigArrays bigArrays) {
-        super(EqlAsyncGetStatusAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
-            EqlSearchTask.class);
+        super(SqlAsyncGetStatusAction.NAME, transportService, actionFilters, clusterService, registry, client, threadPool, bigArrays,
+            SqlQueryTask.class);
     }
 
     @Override
-    protected Writeable.Reader<EqlSearchResponse> responseReader() {
-        return EqlSearchResponse::new;
+    protected Writeable.Reader<SqlQueryResponse> responseReader() {
+        return SqlQueryResponse::new;
     }
 }

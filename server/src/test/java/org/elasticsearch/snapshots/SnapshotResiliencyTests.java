@@ -121,7 +121,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -171,7 +170,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
-import org.elasticsearch.snapshots.mockstore.MockEventuallyConsistentRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.disruption.DisruptableMockTransport;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,19 +226,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
     private Path tempDir;
 
-    /**
-     * Context shared by all the node's {@link Repository} instances if the eventually consistent blobstore is to be used.
-     * {@code null} if not using the eventually consistent blobstore.
-     */
-    @Nullable
-    private MockEventuallyConsistentRepository.Context blobStoreContext;
-
     @Before
     public void createServices() {
         tempDir = createTempDir();
-        if (randomBoolean()) {
-            blobStoreContext = new MockEventuallyConsistentRepository.Context();
-        }
         deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "shared").build(), random());
     }
 
@@ -272,9 +260,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
             runUntil(cleanedUp::get, TimeUnit.MINUTES.toMillis(1L));
 
-            if (blobStoreContext != null) {
-                blobStoreContext.forceConsistent();
-            }
             BlobStoreTestUtil.assertConsistency(
                 (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
                 Runnable::run
@@ -1698,11 +1683,27 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     emptySet()
                 );
                 final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
+                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 repositoriesService = new RepositoriesService(
                     settings,
                     clusterService,
                     transportService,
-                    Collections.singletonMap(FsRepository.TYPE, getRepoFactory(environment)),
+                    Collections.singletonMap(
+                        FsRepository.TYPE,
+                        metadata -> new FsRepository(
+                            metadata,
+                            environment,
+                            xContentRegistry(),
+                            clusterService,
+                            bigArrays,
+                            recoverySettings
+                        ) {
+                            @Override
+                            protected void assertSnapshotOrGenericThread() {
+                                // eliminate thread name check as we create repo in the test thread
+                            }
+                        }
+                    ),
                     emptyMap(),
                     threadPool
                 );
@@ -1734,7 +1735,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     settings,
                     IndexScopedSettings.BUILT_IN_INDEX_SETTINGS
                 );
-                bigArrays = new BigArrays(new PageCacheRecycler(settings), null, "test");
                 final MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
                 indicesService = new IndicesService(
                     settings,
@@ -2079,34 +2079,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     transportService.getRemoteClusterService(),
                     new NamedWriteableRegistry(Collections.emptyList())
                 );
-            }
-
-            private Repository.Factory getRepoFactory(Environment environment) {
-                // Run half the tests with the eventually consistent repository
-                if (blobStoreContext == null) {
-                    return metadata -> new FsRepository(
-                        metadata,
-                        environment,
-                        xContentRegistry(),
-                        clusterService,
-                        bigArrays,
-                        recoverySettings
-                    ) {
-                        @Override
-                        protected void assertSnapshotOrGenericThread() {
-                            // eliminate thread name check as we create repo in the test thread
-                        }
-                    };
-                } else {
-                    return metadata -> new MockEventuallyConsistentRepository(
-                        metadata,
-                        xContentRegistry(),
-                        clusterService,
-                        recoverySettings,
-                        blobStoreContext,
-                        random()
-                    );
-                }
             }
 
             public void restart() {

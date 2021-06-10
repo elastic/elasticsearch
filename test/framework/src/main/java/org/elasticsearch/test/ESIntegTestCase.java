@@ -1435,14 +1435,14 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Returns a random admin client. This client can either be a node or a transport client pointing to any of
      * the nodes in the cluster.
      */
-    protected AdminClient admin() {
+    protected static AdminClient admin() {
         return client().admin();
     }
 
     /**
      * Returns a random cluster admin client. This client can be pointing to any of the nodes in the cluster.
      */
-    protected ClusterAdminClient clusterAdmin() {
+    protected static ClusterAdminClient clusterAdmin() {
         return admin().cluster();
     }
 
@@ -2144,7 +2144,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Returns path to a random directory that can be used to create a temporary file system repo
      */
-    public Path randomRepoPath() {
+    public static Path randomRepoPath() {
         if (currentCluster instanceof InternalTestCluster) {
             return randomRepoPath(((InternalTestCluster) currentCluster).getDefaultSettings());
         }

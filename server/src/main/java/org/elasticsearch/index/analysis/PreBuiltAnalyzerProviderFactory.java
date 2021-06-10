@@ -37,7 +37,6 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         super(name, new PreBuiltAnalyzersDelegateCache(name, preBuiltAnalyzer));
         this.create = preBuiltAnalyzer::getAnalyzer;
         Analyzer analyzer = preBuiltAnalyzer.getAnalyzer(Version.CURRENT);
-        analyzer.setVersion(Version.CURRENT.luceneVersion);
         current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
     }
 
@@ -45,7 +44,6 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         super(name, cache);
         this.create = version -> create.get();
         Analyzer analyzer = create.get();
-        analyzer.setVersion(Version.CURRENT.luceneVersion);
         this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, analyzer);
     }
 
@@ -66,7 +64,6 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
     protected AnalyzerProvider<?> create(Version version) {
         assert Version.CURRENT.equals(version) == false;
         Analyzer analyzer = create.apply(version);
-        analyzer.setVersion(version.luceneVersion);
         return new PreBuiltAnalyzerProvider(getName(), AnalyzerScope.INDICES, analyzer);
     }
 

@@ -645,7 +645,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on exact value
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.bar"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         expected.put("bar", "baz");
@@ -656,7 +656,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on wildcard
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.*"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = Collections.singletonMap("bar", "baz");
 
@@ -696,7 +696,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on inner array
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo.baz"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         subArray = new ArrayList<>();
@@ -711,7 +711,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
         // exclude on inner array 2
         include = new CharacterRunAutomaton(Operations.minus(
                 Automata.makeAnyString(), Automatons.patterns("foo"),
-                Operations.DEFAULT_MAX_DETERMINIZED_STATES));
+                Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
         filtered = FieldSubsetReader.filter(map, include, 0);
         expected = new HashMap<>();
         subArray = new ArrayList<>();

@@ -411,7 +411,7 @@ public class HttpClient implements Closeable {
         }
 
         Automaton whiteListAutomaton = Regex.simpleMatchToAutomaton(whiteListedHosts.toArray(Strings.EMPTY_ARRAY));
-        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        whiteListAutomaton = MinimizationOperations.minimize(whiteListAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
         return new CharacterRunAutomaton(whiteListAutomaton);
     }
 }

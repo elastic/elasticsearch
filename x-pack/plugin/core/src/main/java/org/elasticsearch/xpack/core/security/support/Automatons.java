@@ -16,8 +16,8 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -29,7 +29,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
 
-import static org.apache.lucene.util.automaton.Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
 import static org.apache.lucene.util.automaton.Operations.intersection;
 import static org.apache.lucene.util.automaton.Operations.minus;
@@ -39,7 +39,7 @@ import static org.elasticsearch.common.Strings.collectionToDelimitedString;
 public final class Automatons {
 
     static final Setting<Integer> MAX_DETERMINIZED_STATES_SETTING =
-        Setting.intSetting("xpack.security.automata.max_determinized_states", 100000, DEFAULT_MAX_DETERMINIZED_STATES,
+        Setting.intSetting("xpack.security.automata.max_determinized_states", 100000, DEFAULT_DETERMINIZE_WORK_LIMIT,
             Setting.Property.NodeScope);
 
     static final Setting<Boolean> CACHE_ENABLED =

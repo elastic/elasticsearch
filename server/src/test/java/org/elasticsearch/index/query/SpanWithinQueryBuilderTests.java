@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.SpanWithinQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.test.AbstractQueryTestCase;
 

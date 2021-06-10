@@ -131,7 +131,7 @@ public class RegexOptions implements ToXContentFragment, Writeable {
      */
     public static class Builder {
         private int flagsValue = RegExp.ALL;
-        private int maxDeterminizedStates = Operations.DEFAULT_MAX_DETERMINIZED_STATES;
+        private int maxDeterminizedStates = Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 
         public Builder() {
         }

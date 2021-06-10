@@ -26,9 +26,7 @@ public enum PreBuiltAnalyzers {
     STANDARD(CachingStrategy.ELASTICSEARCH) {
         @Override
         protected Analyzer create(Version version) {
-            final Analyzer a = new StandardAnalyzer(CharArraySet.EMPTY_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
+            return new StandardAnalyzer(CharArraySet.EMPTY_SET);
         }
     },
 
@@ -51,36 +49,28 @@ public enum PreBuiltAnalyzers {
     STOP {
         @Override
         protected Analyzer create(Version version) {
-            Analyzer a = new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
-            a.setVersion(version.luceneVersion);
-            return a;
+            return new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET);
         }
     },
 
     WHITESPACE {
         @Override
         protected Analyzer create(Version version) {
-            Analyzer a = new WhitespaceAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+            return new WhitespaceAnalyzer();
         }
     },
 
     SIMPLE {
         @Override
         protected Analyzer create(Version version) {
-            Analyzer a = new SimpleAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+            return new SimpleAnalyzer();
         }
     },
 
     CLASSIC {
         @Override
         protected Analyzer create(Version version) {
-            Analyzer a = new ClassicAnalyzer();
-            a.setVersion(version.luceneVersion);
-            return a;
+            return new ClassicAnalyzer();
         }
     };
 

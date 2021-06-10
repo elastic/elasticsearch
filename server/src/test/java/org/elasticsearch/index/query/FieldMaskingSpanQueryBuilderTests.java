@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.queries.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;

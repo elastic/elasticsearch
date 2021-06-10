@@ -11,7 +11,7 @@ package org.elasticsearch.common.xcontent.yaml;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContent;
@@ -98,5 +98,14 @@ public class YamlXContent implements XContent {
                                                        RestApiVersion restApiVersion) throws IOException {
         return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(is), restApiVersion);
     }
+
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                                       DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
+                                                       RestApiVersion restApiVersion) throws IOException {
+        return new YamlXContentParser(xContentRegistry, deprecationHandler, yamlFactory.createParser(data, offset, length),
+            restApiVersion);
+    }
+
 
 }

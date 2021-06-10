@@ -19,7 +19,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.tasks.CancellableTask;
@@ -107,13 +108,14 @@ public class AsyncTaskManagementService<Request extends TaskAwareRequest, Respon
     public AsyncTaskManagementService(String index, Client client, String origin, NamedWriteableRegistry registry, TaskManager taskManager,
                                       String action, AsyncOperation<Request, Response, T> operation, Class<T> taskClass,
                                       ClusterService clusterService,
-                                      ThreadPool threadPool) {
+                                      ThreadPool threadPool,
+                                      BigArrays bigArrays) {
         this.taskManager = taskManager;
         this.action = action;
         this.operation = operation;
         this.taskClass = taskClass;
         this.asyncTaskIndexService = new AsyncTaskIndexService<>(index, clusterService, threadPool.getThreadContext(), client,
-            origin, i -> new StoredAsyncResponse<>(operation::readResponse, i), registry);
+            origin, i -> new StoredAsyncResponse<>(operation::readResponse, i), registry, bigArrays);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
     }

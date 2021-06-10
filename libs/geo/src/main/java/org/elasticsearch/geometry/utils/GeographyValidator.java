@@ -27,6 +27,9 @@ import org.elasticsearch.geometry.Rectangle;
  */
 public class GeographyValidator implements GeometryValidator {
 
+    private static final GeometryValidator TRUE = new GeographyValidator(true);
+    private static final GeometryValidator FALSE = new GeographyValidator(false);
+
     /**
      * Minimum longitude value.
      */
@@ -49,8 +52,12 @@ public class GeographyValidator implements GeometryValidator {
 
     private final boolean ignoreZValue;
 
-    public GeographyValidator(boolean ignoreZValue) {
+    protected GeographyValidator(boolean ignoreZValue) {
         this.ignoreZValue = ignoreZValue;
+    }
+
+    public static GeometryValidator instance(boolean ignoreZValue) {
+        return ignoreZValue ? TRUE : FALSE;
     }
 
     /**

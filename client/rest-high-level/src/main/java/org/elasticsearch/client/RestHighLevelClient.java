@@ -2018,10 +2018,15 @@ public class RestHighLevelClient implements Closeable {
 
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
+        // Create a future that tracks cancellation of this method's result so that we can register a listener that forwards cancellation
+        // to the actual LLRC request. This future is completed (with a null value) if the result is cancelled.
+        // Note that cancelling the result leads to completing this future and not cancelling it. This is because the future API allows
+        // listening to completion but not to cancellation.
         CompletableFuture<Void> cancelFlag = new CompletableFuture<Void>();
         Cancellable result = new Cancellable() {
             @Override
             public void cancel() {
+                // Raise the flag by completing the future
                 cancelFlag.complete(null);
             }
 
@@ -2034,20 +2039,25 @@ public class RestHighLevelClient implements Closeable {
             }
         };
 
+        // Send the request after we have done the version compatibility check. Note that if it has already happened, the listener will
+        // be called immediately on the same thread with no asynchronous scheduling overhead.
         versionCheck.addListener(new ActionListener<Optional<String>>() {
             @Override
             public void onResponse(Optional<String> validation) {
                 if (validation.isEmpty()) {
+                    // Send the request and propagate cancellation
                     Cancellable call = client.performRequestAsync(request, listener);
-                    // Propagate cancellation
                     cancelFlag.whenComplete((r, t) -> call.cancel());
                 } else {
+                    // Version validation wasn't successful, fail the request with the validation result.
                     listener.onFailure(new ElasticsearchException(validation.get()));
                 }
             }
 
             @Override
             public void onFailure(Exception e) {
+                // Propagate validation request failure. This will be transient since `getVersionValidationFuture` clears the validation
+                // future if the request fails, leading to retries at the next HLRC request (see comments below).
                 listener.onFailure(e);
             }
         });
@@ -2073,8 +2083,14 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Returns a future that asynchronously validates Elasticsearch product version. It's result if an optional string: if empty validation
-     * was successful, if present it contains the validation error.
+     * Returns a future that asynchronously validates the Elasticsearch product version. Its result is an optional string: if empty then
+     * validation was successful, if present it contains the validation error. API requests should be chained to this future and check
+     * the validation result before going further.
+     *
+     * This future is created lazily and kept in {@link #versionValidationFuture} so that further client requests can reuse its result.
+     * If the version check request fails (e.g. network error), {@link #versionValidationFuture} is cleared so that a new validation
+     * request is sent at the next HLRC request. This allows retries to happen while avoiding a busy retry loop (LLRC retries on the node
+     * pool still happen).
      */
     private ListenableFuture<Optional<String>> getVersionValidationFuture() {
         ListenableFuture<Optional<String>> currentFuture = this.versionValidationFuture;
@@ -2090,6 +2106,7 @@ public class RestHighLevelClient implements Closeable {
                 ListenableFuture<Optional<String>> future = new ListenableFuture<>();
                 this.versionValidationFuture = future;
 
+                // Asynchronously call the info endpoint and complete the future with the version validation result.
                 Request req = new Request("GET", "/");
                 client.performRequestAsync(req, new ResponseListener() {
                     @Override

@@ -12,14 +12,16 @@ The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Coun
 under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
 The `geoip` processor can run with other city, country and ASN GeoIP2 databases
-from Maxmind. The database files must be copied into the `ingest-geoip` config
-directory located at `$ES_CONFIG/ingest-geoip`. Custom database files must be
+from Maxmind. On {ess} deployments, custom database files must be uploaded using
+a {cloud}/ec-custom-bundles.html[custom bundle]. On self-managed deployments,
+custom database files must be copied into the `ingest-geoip` config
+directory located at `$ES_CONFIG/ingest-geoip`.
+
+Custom database files must be
 stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
 `-ASN.mmdb` to indicate the type of the database. The
 `database_file` processor option is used to specify the filename of the custom
 database to use for the processor.
-
-For Elastic Cloud deployments, the custom database files must be uploaded using custom bundle. https://www.elastic.co/guide/en/cloud/current/ec-custom-bundles.html
 
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
@@ -65,11 +67,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my-index-00001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my-index-00001/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -78,8 +80,7 @@ Which returns:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my-index-00001",
-  "_type": "_doc",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 55,
@@ -116,11 +117,11 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my-index-00001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "8.8.8.8"
 }
-GET my-index-00001/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 returns this:
@@ -129,8 +130,7 @@ returns this:
 --------------------------------------------------
 {
   "found": true,
-  "_index": "my-index-00001",
-  "_type": "_doc",
+  "_index": "my-index-000001",
   "_id": "my_id",
   "_version": 1,
   "_seq_no": 65,
@@ -168,12 +168,12 @@ PUT _ingest/pipeline/geoip
   ]
 }
 
-PUT my-index-00001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=geoip
 {
   "ip": "80.231.5.0"
 }
 
-GET my-index-00001/_doc/my_id
+GET my-index-000001/_doc/my_id
 --------------------------------------------------
 
 Which returns:
@@ -181,8 +181,7 @@ Which returns:
 [source,console-result]
 --------------------------------------------------
 {
-  "_index" : "my-index-00001",
-  "_type" : "_doc",
+  "_index" : "my-index-000001",
   "_id" : "my_id",
   "_version" : 1,
   "_seq_no" : 71,
@@ -282,7 +281,6 @@ GET /my_ip_locations/_search
     "hits" : [
       {
         "_index" : "my_ip_locations",
-        "_type" : "_doc",
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {

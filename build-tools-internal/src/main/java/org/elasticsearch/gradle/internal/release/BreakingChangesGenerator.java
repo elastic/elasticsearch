@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.release;
+package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;

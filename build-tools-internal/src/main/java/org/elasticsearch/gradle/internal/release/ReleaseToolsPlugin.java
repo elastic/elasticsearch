@@ -6,12 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.gradle.release;
+package org.elasticsearch.gradle.internal.release;
 
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
 import org.elasticsearch.gradle.internal.precommit.ValidateYamlAgainstSchemaTask;
-import org.elasticsearch.gradle.precommit.PrecommitTaskPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
@@ -37,7 +37,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(PrecommitTaskPlugin.class);
+//        project.getPluginManager().apply(PrecommitTaskPlugin.class);
 
         final FileTree yamlFiles = projectLayout.getProjectDirectory()
             .dir("docs/changelog")
@@ -49,7 +49,7 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setGroup("Documentation");
                 task.setDescription("Validates that all the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
-                task.setJsonSchema(new File(project.getRootDir(), "buildSrc/src/main/resources/changelog-schema.json"));
+                task.setJsonSchema(new File(project.getRootDir(), "build-tools-internal/src/main/resources/changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
@@ -84,6 +84,6 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             task.dependsOn(validateChangelogsTask);
         });
 
-        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+//        project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
     }
 }

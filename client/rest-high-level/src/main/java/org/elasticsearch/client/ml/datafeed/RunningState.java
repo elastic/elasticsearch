@@ -18,8 +18,8 @@ import java.util.Objects;
 
 public class RunningState implements ToXContentObject {
 
-    private final static ParseField REAL_TIME_CONFIGURED = new ParseField("real_time_configured");
-    private final static ParseField REAL_TIME_RUNNING = new ParseField("real_time_running");
+    private static final ParseField REAL_TIME_CONFIGURED = new ParseField("real_time_configured");
+    private static final ParseField REAL_TIME_RUNNING = new ParseField("real_time_running");
 
     public static final ConstructingObjectParser<RunningState, Void> PARSER = new ConstructingObjectParser<>(
         "datafeed_running_state",

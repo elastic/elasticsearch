@@ -15,11 +15,21 @@ Because {es} doesn't reload the `elasticsearch.yml` configuration,
 you must use *the same file names* so that {es} refreshes the security
 certificates and keys. 
 
-IMPORTANT: If you need to change a password for a key, keystore, or truststore
+[IMPORTANT]
+====
+The following changes require a cluster restart. We recommend
+<<use-rolling-restarts,rolling restarts>> when restarting your cluster.
+
+* If you updates your nodes with certificates using different file names than
+the ones specified in `elasticsearch.yml`, you must update that file with the
+location of the new certificates.
+* If you need to change a password for a key, keystore, or truststore
 that is stored in the <<secure-settings,secure settings>>, then you must restart
 the cluster. {es} will not reload changes for passwords stored in the secure
-settings. We recommend rolling restarts when restarting the cluster.
+settings.
+====
 
+[[use-rolling-restarts]]
 .Rolling restarts are preferred
 ****
 While it's possible to do an in-place update for security certificates, using
@@ -227,12 +237,14 @@ certificate to the incoming TLS connections.
 If your CA needs to change or has already changed, you'll need to generate a new
 CA certificate and key. You can then add this CA certificate to your existing CA
 truststore so that all nodes in your cluster so know and trust it. Then,
-generate new certificate/key pairs for each node that are signed by the new CA
-and instruct your nodes to use the new files. 
+generate a new certificate for each node that are signed by the new CA
+certificate and instruct your nodes to use the new files. 
 
 [[node-certs-different-transport]]
 ==== Generate a new certificate for the transport layer
-Create a new CA certificate and add it to your existing CA truststore. 
+Create a new CA certificate and add it to your existing CA truststore. After
+{es} reloads the file, you can remove the old CA certificate from your
+truststore.
 
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
@@ -256,7 +268,7 @@ xpack.security.transport.ssl.truststore.password: password
 ----
 
 . On *any* node in your cluster, generate a new CA certificate. You only need
-to complete this step once.
+to complete this step one time.
 +
 NOTE: If your organization has its own CA, then use that CA to generate a new
 CA certificate in PEM format.
@@ -269,8 +281,8 @@ CA certificate in PEM format.
 [%collapsible%open]
 .Command parameters
 ====
-   `--pem`:: Generates a directory containing a CA certificate and
-    key in PEM format instead of PKCS#12. 
+   `--pem`:: Generates a directory containing a CA certificate and key in PEM
+   format instead of PKCS#12. 
 ====
 
     a. Enter a name for the compressed output file that will contain your
@@ -409,6 +421,10 @@ in your cluster. Include the `instances.yml` file that you created previously.
    c. Decompress the `certificate-bundle.zip` file. The output contains a
    directory for each of your nodes with a `<node-name>.p12` file.
 
+   d. Rename the `<node-name>.p12` file to match the existing file name
+   specified by the `xpack.security.transport.ssl.keystore.path` variable in 
+   the `elasticsearch.yml` file.
+
 . On *every* node, copy the appropriate node certificate to the `ES_PATH_CONF`
 directory.
 +
@@ -416,17 +432,6 @@ NOTE: The `ES_PATH_CONF` variable is the path for the {es}
 configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
-
-. If the name of your new node certificate doesn't match the name of the
-existing certificate, modify the `elasticsearch.yml` file to update the
-`keystore.path` variable with the new name. For example, `node-1.p12`.
-+
-[source,yaml]
-----
-xpack.security.transport.ssl.keystore.path: config/node-1.p12
-xpack.security.transport.ssl.keystore.type: PKCS12
-xpack.security.transport.ssl.keystore.password: password
-----
 
 . Delete the old node certificate from each node. 
 

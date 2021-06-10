@@ -67,7 +67,8 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
         final ClusterService clusterService,
         final RecoverySettings recoverySettings,
         final Context context,
-        final Random random) {
+        final Random random
+    ) {
         super(metadata, false, namedXContentRegistry, clusterService, MockBigArrays.NON_RECYCLING_INSTANCE, recoverySettings);
         this.context = context;
         this.namedXContentRegistry = namedXContentRegistry;
@@ -127,7 +128,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
     }
 
     private enum Operation {
-        PUT, GET, DELETE
+        PUT,
+        GET,
+        DELETE
     }
 
     private static final class BlobStoreAction {
@@ -223,7 +226,8 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             private List<BlobStoreAction> relevantActions(String blobPath) {
                 assert Thread.holdsLock(context.actions);
                 final List<BlobStoreAction> relevantActions = new ArrayList<>(
-                    context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList()));
+                    context.actions.stream().filter(action -> blobPath.equals(action.path)).collect(Collectors.toList())
+                );
                 for (int i = relevantActions.size() - 1; i > 0; i--) {
                     if (relevantActions.get(i).operation == Operation.GET) {
                         relevantActions.remove(i);
@@ -238,8 +242,9 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             public void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) {
                 ensureNotClosed();
                 synchronized (context.actions) {
-                    blobNames.forEachRemaining(blobName ->
-                            context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName)));
+                    blobNames.forEachRemaining(
+                        blobName -> context.actions.add(new BlobStoreAction(Operation.DELETE, path.buildAsString() + blobName))
+                    );
                 }
             }
 
@@ -250,12 +255,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 synchronized (context.actions) {
-                    consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath))
-                        .forEach(a -> {
-                            context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
-                            bytesDeleted.addAndGet(a.data.length);
-                            blobsDeleted.incrementAndGet();
-                        });
+                    consistentView(context.actions).stream().filter(action -> action.path.startsWith(thisPath)).forEach(a -> {
+                        context.actions.add(new BlobStoreAction(Operation.DELETE, a.path));
+                        bytesDeleted.addAndGet(a.data.length);
+                        blobsDeleted.incrementAndGet();
+                    });
                 }
                 return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
             }
@@ -265,14 +269,20 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 ensureNotClosed();
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
-                    return maybeMissLatestIndexN(consistentView(context.actions).stream()
-                        .filter(
-                            action -> action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') == -1
-                                && action.operation == Operation.PUT)
-                        .collect(
-                            Collectors.toMap(
-                                action -> action.path.substring(thisPath.length()),
-                                action -> new PlainBlobMetadata(action.path.substring(thisPath.length()), action.data.length))));
+                    return maybeMissLatestIndexN(
+                        consistentView(context.actions).stream()
+                            .filter(
+                                action -> action.path.startsWith(thisPath)
+                                    && action.path.substring(thisPath.length()).indexOf('/') == -1
+                                    && action.operation == Operation.PUT
+                            )
+                            .collect(
+                                Collectors.toMap(
+                                    action -> action.path.substring(thisPath.length()),
+                                    action -> new PlainBlobMetadata(action.path.substring(thisPath.length()), action.data.length)
+                                )
+                            )
+                    );
                 }
             }
 
@@ -282,9 +292,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 final String thisPath = path.buildAsString();
                 synchronized (context.actions) {
                     return consistentView(context.actions).stream()
-                        .filter(action ->
-                            action.operation == Operation.PUT
-                                && action.path.startsWith(thisPath) && action.path.substring(thisPath.length()).indexOf('/') != -1)
+                        .filter(
+                            action -> action.operation == Operation.PUT
+                                && action.path.startsWith(thisPath)
+                                && action.path.substring(thisPath.length()).indexOf('/') != -1
+                        )
                         .map(action -> action.path.substring(thisPath.length()).split("/")[0])
                         .distinct()
                         .collect(Collectors.toMap(Function.identity(), name -> new MockBlobContainer(path.add(name))));
@@ -294,8 +306,11 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             @Override
             public Map<String, BlobMetadata> listBlobsByPrefix(String blobNamePrefix) {
                 return maybeMissLatestIndexN(
-                    listBlobs().entrySet().stream().filter(entry -> entry.getKey().startsWith(blobNamePrefix))
-                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)));
+                    listBlobs().entrySet()
+                        .stream()
+                        .filter(entry -> entry.getKey().startsWith(blobNamePrefix))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
+                );
             }
 
             // Randomly filter out the index-N blobs from a listing to test that tracking of it in latestKnownRepoGen and the cluster state
@@ -311,8 +326,7 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-                    throws IOException {
+            public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
                 ensureNotClosed();
                 assert blobSize < Integer.MAX_VALUE;
                 final byte[] data = new byte[(int) blobSize];
@@ -322,44 +336,48 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
                 synchronized (context.actions) {
                     final List<BlobStoreAction> relevantActions = relevantActions(blobPath);
                     // We do some checks in case there is a consistent state for a blob to prevent turning it inconsistent.
-                    final boolean hasConsistentContent =
-                        relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
+                    final boolean hasConsistentContent = relevantActions.size() == 1 && relevantActions.get(0).operation == Operation.PUT;
                     if (BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)
                         || blobName.startsWith(BlobStoreRepository.METADATA_PREFIX)) {
                         // TODO: Ensure that it is impossible to ever decrement the generation id stored in index.latest then assert that
-                        //       it never decrements here. Same goes for the metadata, ensure that we never overwrite newer with older
-                        //       metadata.
+                        // it never decrements here. Same goes for the metadata, ensure that we never overwrite newer with older
+                        // metadata.
                     } else if (blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)) {
                         if (hasConsistentContent) {
-                                if (basePath().buildAsString().equals(path().buildAsString())) {
-                                    try {
-                                        final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
-                                                blobName, namedXContentRegistry, new BytesArray(data));
-                                        // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
-                                        // a problem and could be the result of a correctly handled master failover.
-                                        final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
-                                                blobName, namedXContentRegistry, Streams.readFully(readBlob(blobName)));
-                                        assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
-                                        assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
-                                        assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
-                                        assertThat(existingInfo.totalShards(), equalTo(updatedInfo.totalShards()));
-                                        assertThat(existingInfo.successfulShards(), equalTo(updatedInfo.successfulShards()));
-                                        assertThat(
-                                            existingInfo.shardFailures(), containsInAnyOrder(updatedInfo.shardFailures().toArray()));
-                                        assertThat(existingInfo.indices(), equalTo(updatedInfo.indices()));
-                                        return; // No need to add a write for this since we didn't change content
-                                    } catch (Exception e) {
-                                        // Rethrow as AssertionError here since kind exception might otherwise be swallowed and logged by
-                                        // the blob store repository.
-                                        // Since we are not doing any actual IO we don't expect this to throw ever and an exception would
-                                        // signal broken SnapshotInfo bytes or unexpected behavior of SnapshotInfo otherwise.
-                                        throw new AssertionError("Failed to deserialize SnapshotInfo", e);
-                                    }
-                                } else {
-                                    // Primaries never retry so any shard level snap- blob retry/overwrite even with the same content is
-                                    // not expected.
-                                    throw new AssertionError("Shard level snap-{uuid} blobs should never be overwritten");
+                            if (basePath().buildAsString().equals(path().buildAsString())) {
+                                try {
+                                    final SnapshotInfo updatedInfo = BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                                        blobName,
+                                        namedXContentRegistry,
+                                        new BytesArray(data)
+                                    );
+                                    // If the existing snapshotInfo differs only in the timestamps it stores, then the overwrite is not
+                                    // a problem and could be the result of a correctly handled master failover.
+                                    final SnapshotInfo existingInfo = SNAPSHOT_FORMAT.deserialize(
+                                        blobName,
+                                        namedXContentRegistry,
+                                        Streams.readFully(readBlob(blobName))
+                                    );
+                                    assertThat(existingInfo.snapshotId(), equalTo(updatedInfo.snapshotId()));
+                                    assertThat(existingInfo.reason(), equalTo(updatedInfo.reason()));
+                                    assertThat(existingInfo.state(), equalTo(updatedInfo.state()));
+                                    assertThat(existingInfo.totalShards(), equalTo(updatedInfo.totalShards()));
+                                    assertThat(existingInfo.successfulShards(), equalTo(updatedInfo.successfulShards()));
+                                    assertThat(existingInfo.shardFailures(), containsInAnyOrder(updatedInfo.shardFailures().toArray()));
+                                    assertThat(existingInfo.indices(), equalTo(updatedInfo.indices()));
+                                    return; // No need to add a write for this since we didn't change content
+                                } catch (Exception e) {
+                                    // Rethrow as AssertionError here since kind exception might otherwise be swallowed and logged by
+                                    // the blob store repository.
+                                    // Since we are not doing any actual IO we don't expect this to throw ever and an exception would
+                                    // signal broken SnapshotInfo bytes or unexpected behavior of SnapshotInfo otherwise.
+                                    throw new AssertionError("Failed to deserialize SnapshotInfo", e);
                                 }
+                            } else {
+                                // Primaries never retry so any shard level snap- blob retry/overwrite even with the same content is
+                                // not expected.
+                                throw new AssertionError("Shard level snap-{uuid} blobs should never be overwritten");
+                            }
                         }
                     } else {
                         if (hasConsistentContent) {
@@ -372,8 +390,8 @@ public class MockEventuallyConsistentRepository extends BlobStoreRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
-                                        final boolean failIfAlreadyExists) throws IOException {
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes, final boolean failIfAlreadyExists)
+                throws IOException {
                 writeBlob(blobName, bytes, failIfAlreadyExists);
             }
         }

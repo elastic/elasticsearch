@@ -55,9 +55,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         }
     }
 
-    SnapshotStats(long startTime, long time,
-                  int incrementalFileCount, int totalFileCount, int processedFileCount,
-                  long incrementalSize, long totalSize, long processedSize) {
+    SnapshotStats(
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        int totalFileCount,
+        int processedFileCount,
+        long incrementalSize,
+        long totalSize,
+        long processedSize
+    ) {
         this.startTime = startTime;
         this.time = time;
         assert time >= 0 : "Tried to initialize snapshot stats with negative total time [" + time + "]";
@@ -282,8 +289,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                 }
             }
         }
-        return new SnapshotStats(startTime, time, incrementalFileCount, totalFileCount, processedFileCount, incrementalSize, totalSize,
-            processedSize);
+        return new SnapshotStats(
+            startTime,
+            time,
+            incrementalFileCount,
+            totalFileCount,
+            processedFileCount,
+            incrementalSize,
+            totalSize,
+            processedSize
+        );
     }
 
     /**

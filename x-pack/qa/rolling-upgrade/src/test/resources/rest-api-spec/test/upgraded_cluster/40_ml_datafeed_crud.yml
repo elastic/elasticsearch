@@ -9,7 +9,7 @@ setup:
 ---
 "Test old and mixed cluster datafeeds without aggs":
   - skip:
-      version: " - 7.99.99"
+      version: "all"
       reason:  "backport: https://github.com/elastic/elasticsearch/pull/73926"
   - do:
       indices.create:
@@ -109,7 +109,7 @@ setup:
 ---
 "Test old and mixed cluster datafeeds with aggs":
   - skip:
-      version: " - 7.99.99"
+      version: "all"
       reason:  "backport: https://github.com/elastic/elasticsearch/pull/73926"
   - do:
       indices.create:

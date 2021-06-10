@@ -5,12 +5,11 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.searchablesnapshots;
-
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.test.ESTestCase;
+package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.core.Map;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.is;
 

@@ -94,7 +94,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     protected volatile TransformConfig transformConfig;
     private volatile TransformProgress progress;
-    protected volatile boolean auditBulkFailures = true;
     // Indicates that the source has changed for the current run
     protected volatile boolean hasSourceChanged = true;
 
@@ -522,7 +521,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 auditor.info(getJobId(), "Finished indexing for transform checkpoint [" + checkpoint + "].");
             }
             logger.debug("[{}] finished indexing for transform checkpoint [{}].", getJobId(), checkpoint);
-            auditBulkFailures = true;
             if (context.shouldStopAtCheckpoint()) {
                 stop();
             }
@@ -1049,14 +1047,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         if (newPageSize < MINIMUM_PAGE_SIZE) {
             String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_LOW_PAGE_SIZE_FAILURE, pageSize);
             failIndexer(message);
-            return;
+        } else {
+            String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
+            auditor.info(getJobId(), message);
+            logger.info("[{}] {}", getJobId(), message);
+            pageSize = newPageSize;
         }
-
-        String message = TransformMessages.getMessage(TransformMessages.LOG_TRANSFORM_PIVOT_REDUCE_PAGE_SIZE, pageSize, newPageSize);
-        auditor.info(getJobId(), message);
-        logger.info("[{}] {}", getJobId(), message);
-        pageSize = newPageSize;
-        return;
     }
 
     /**

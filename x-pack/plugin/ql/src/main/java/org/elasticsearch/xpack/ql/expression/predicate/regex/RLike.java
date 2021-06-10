@@ -7,10 +7,11 @@
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
-public class RLike extends RegexMatch<RLikePattern> {
+public class RLike extends RegexMatch<RLikePattern> implements MultiValuedOperationCompatible {
 
     public RLike(Source source, Expression value, RLikePattern pattern) {
         super(source, value, pattern, false);

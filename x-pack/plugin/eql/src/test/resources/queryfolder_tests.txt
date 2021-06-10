@@ -332,9 +332,8 @@ process where stringContains(process_name, "foo")
 stringFunction
 process where string(pid) : "123"
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
-InternalEqlScriptUtils.string(InternalQlScriptUtils.docValue(doc,params.v0)),params.v1))",
-"params":{"v0":"pid","v1":"123"}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.string(X0),params.v1)))"
+"params":{"v0":"pid","v1":"123"}}
 ;
 
 indexOfFunction-caseSensitive
@@ -421,37 +420,40 @@ process where cidrMatch(source_address, "10.0.0.0/8", "192.168.0.0/16", "2001:db
 cidrMatchFunctionWrapped
 process where string(cidrMatch(source_address, "10.6.48.157/8")) : "true"
 ;
-{"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.string(
-InternalEqlScriptUtils.cidrMatch(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)),params.v2))"
-"params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(InternalEqlScriptUtils.string(InternalEqlScriptUtils.cidrMatch(X0,params.v1)),params.v2)))"
+"params":{"v0":"source_address","v1":["10.6.48.157/8"],"v2":"true"}}
 ;
 
 numberFunctionSingleArgument
-process where number(process_name) == 1;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
-"params":{"v0":"process_name","v1":null,"v2":1}
+process where number(process_name) == 1
+;
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalEqlScriptUtils.number(X0,params.v1),params.v2)))"
+"params":{"v0":"process_name","v1":null,"v2":1}}
 ;
 
-
 numberFunctionTwoFieldArguments
-process where number(process_name, pid) != null;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1))))",
-"params":{"v0":"process_name","v1":"pid"}
+process where number(process_name, pid) != null
+;
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalEqlScriptUtils.number(X0,X1)))))"
+"params":{"v0":"process_name","v1":"pid"}}
 ;
 
 numberFunctionTwoArguments
-process where number(process_name, 16) != null;
-InternalEqlScriptUtils.number(InternalQlScriptUtils.docValue(doc,params.v0),params.v1)
-"params":{"v0":"process_name","v1":16}
+process where number(process_name, 16) != null
+;
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.isNotNull(InternalEqlScriptUtils.number(X0,params.v1))))"
+"params":{"v0":"process_name","v1":16}}
 ;
 
 numberFunctionFoldedComparison
-process where serial_event_id == number("-32.5");
+process where serial_event_id == number("-32.5")
+;
 {"term":{"serial_event_id":{"value":-32.5,"boost":1.0}
 ;
 
 numberFunctionFoldedHexComparison
-process where serial_event_id == number("0x32", 16);
+process where serial_event_id == number("0x32", 16)
+;
 {"term":{"serial_event_id":{"value":50,"boost":1.0}
 ;
 
@@ -731,18 +733,18 @@ process where command_line like~ ("n?t.e?e", "net.*")
 likeMultiArgWithScript
 process where substring(command_line, 5) like ("net.e*", "net.e?e")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+{"bool":{"should":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$"}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$"}}
 ;
 
 likeMultiArgWithScriptInsensitive
 process where substring(command_line, 5) like~ ("net.e*", "net.e?e")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
+{"bool":{"should":[{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3,params.v4)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.*$","v4":true}}
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3,params.v4)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^net\\.e.e$","v4":true}}
 ;
 
@@ -797,16 +799,14 @@ process where command_line regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\
 regexMultiArgWithScript
 process where substring(command_line, 5) regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+"}}
 ;
 
 regexMultiArgWithScriptInsensitive
 process where substring(command_line, 5) regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
-"script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(
-InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3,params.v4))",
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.regex(InternalEqlScriptUtils.substring(X0,params.v1,params.v2),params.v3,params.v4)))"
 "params":{"v0":"command_line","v1":5,"v2":null,"v3":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","v4":true}}
 ;
 
@@ -844,5 +844,12 @@ process where concat(file_name, ".", process_name) == "foo" or add(pid, ppid) > 
 "params":{"v0":"file_name","v1":"process_name","v2":".","v3":"foo"}}
 {"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0->InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,X1->InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.add(X0,X1),params.v2))))"
 "params":{"v0":"pid","v1":"ppid","v2":100}}
+;
+
+conjunctionOfSameFieldSameFunction
+process where length(file_name) > 5 and length(file_name) < 10
+;
+{"script":{"script":{"source":"InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X0 -> InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.and(InternalQlScriptUtils.gt(InternalEqlScriptUtils.length(X0), params.v1), InternalQlScriptUtils.lt(InternalEqlScriptUtils.length(X0), params.v2))))"
+"params":{"v0":"file_name.keyword","v1":5,"v2":10}}
 ;
 

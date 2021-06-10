@@ -11,6 +11,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -32,7 +33,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 /**
  * EQL specific string function that wraps object.toString.
  */
-public class ToString extends ScalarFunction {
+public class ToString extends ScalarFunction implements MultiValuedOperationCompatible{
 
     private final Expression value;
 

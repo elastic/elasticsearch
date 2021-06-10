@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ql.expression.predicate.nulls;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -18,7 +19,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
-public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction> {
+public class IsNotNull extends UnaryScalarFunction implements Negatable<UnaryScalarFunction>, MultiValuedOperationCompatible {
 
     public IsNotNull(Source source, Expression field) {
         super(source, field);

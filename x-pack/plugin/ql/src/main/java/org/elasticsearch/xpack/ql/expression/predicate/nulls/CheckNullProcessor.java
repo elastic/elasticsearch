@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ql.expression.predicate.nulls;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 
 import java.io.IOException;

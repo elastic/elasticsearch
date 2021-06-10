@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.MultiValuedOperationCompatible;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -39,7 +40,7 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
  * Returns true if the source address matches any of the provided CIDR blocks.
  * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#cidrMatch
  */
-public class CIDRMatch extends ScalarFunction {
+public class CIDRMatch extends ScalarFunction implements MultiValuedOperationCompatible {
 
     private final Expression input;
     private final List<Expression> addresses;

@@ -81,7 +81,7 @@ the rollover criteria, it could be 20 minutes before the rollover is complete.
 === Phase actions
 
 {ilm-init} supports the following actions in each phase. {ilm-init} executes the
-actions in order listed.
+actions in the order listed.
 
 * Hot
   - <<ilm-set-priority,Set Priority>>

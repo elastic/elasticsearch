@@ -114,6 +114,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeOptionalWriteable(after);
             out.writeEnum(sort);
             out.writeVInt(size);
+        } else if (sort != SortBy.START_TIME || size != 0 || after != null) {
+            throw new IllegalStateException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
     }
 
@@ -122,6 +124,17 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         ActionRequestValidationException validationException = null;
         if (repositories == null || repositories.length == 0) {
             validationException = addValidationError("repositories are missing", validationException);
+        }
+        if (verbose == false) {
+            if (sort != SortBy.START_TIME) {
+                validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
+            }
+            if (size != 0) {
+                validationException = addValidationError("can't use size limit with verbose=false", validationException);
+            }
+            if (after != null) {
+                validationException = addValidationError("can't use after with verbose=false", validationException);
+            }
         }
         return validationException;
     }

@@ -128,6 +128,8 @@ Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorti
   `<sort_value>,<snapshot_name>`. Defaults to not set which means that listing will start from the first snapshot that matches the
   request.
 
+NOTE: The pagination parameters `size`, `after`, and `sort` are not supported when using `verbose=false`.
+
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]
 ==== {api-response-body-title}

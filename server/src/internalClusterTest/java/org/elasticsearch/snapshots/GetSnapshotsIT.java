@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
@@ -117,6 +118,30 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.START_TIME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.NAME);
         assertStablePagination(repoName, allSnapshotNames, GetSnapshotsRequest.SortBy.INDICES);
+    }
+
+    public void testPaginationRequiresVerboseListing() throws Exception {
+        final String repoName = "tst-repo";
+        createRepository(repoName, "fs");
+        createNSnapshots(repoName, randomIntBetween(1, 5));
+        expectThrows(
+                ActionRequestValidationException.class,
+                () -> clusterAdmin()
+                        .prepareGetSnapshots(repoName)
+                        .setVerbose(false)
+                        .pagination(null, GetSnapshotsRequest.SortBy.DURATION, 0)
+                        .execute()
+                        .actionGet()
+        );
+        expectThrows(
+                ActionRequestValidationException.class,
+                () -> clusterAdmin()
+                        .prepareGetSnapshots(repoName)
+                        .setVerbose(false)
+                        .pagination(null, GetSnapshotsRequest.SortBy.START_TIME, randomIntBetween(1, 100))
+                        .execute()
+                        .actionGet()
+        );
     }
 
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {

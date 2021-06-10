@@ -105,7 +105,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertEquals(1, deprecationIssues.size());
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
-        assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
+        assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
         assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
             "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
         assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")

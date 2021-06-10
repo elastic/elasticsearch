@@ -272,10 +272,11 @@ public class SnapshotResiliencyTests extends ESTestCase {
             if (blobStoreContext != null) {
                 blobStoreContext.forceConsistent();
             }
-            BlobStoreTestUtil.assertConsistency(
-                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo"),
-                Runnable::run
+            final PlainActionFuture<AssertionError> future = BlobStoreTestUtil.assertConsistencyAsync(
+                (BlobStoreRepository) testClusterNodes.randomMasterNodeSafe().repositoriesService.repository("repo")
             );
+            deterministicTaskQueue.runAllRunnableTasks();
+            assertNull(future.actionGet(0));
         } finally {
             testClusterNodes.nodes.values().forEach(TestClusterNodes.TestClusterNode::stop);
         }

@@ -534,13 +534,6 @@ public class SecurityTests extends ESTestCase {
         try {
             UsageService usageService = new UsageService();
             Security security = new Security(settings, null);
-
-            ActionModule actionModule = new ActionModule(settingsModule.getSettings(),
-                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-                settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, Arrays.asList(security), null, null, usageService, null);
-            actionModule.initRestHandlers(null);
-
             assertTrue(security.getRestHandlerWrapper(threadPool.getThreadContext()) != null);
 
         } finally {

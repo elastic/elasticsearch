@@ -238,7 +238,7 @@ public class ActionModuleTests extends ESTestCase {
     class SecPlugin implements ActionPlugin {
         @Override
         public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-            return handler -> new FakeHandler();
+            return UnaryOperator.identity();
         }
     };
 }

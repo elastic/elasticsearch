@@ -40,7 +40,7 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (Strings.isNullOrEmpty(queryString)) {
-            validationException = addValidationError("queryString is missing", validationException);
+            validationException = addValidationError("query_string is missing", validationException);
         }
         return validationException;
     }
@@ -53,7 +53,7 @@ public final class SamlInvalidateSessionRequest extends ActionRequest {
         if (this.queryString == null) {
             this.queryString = queryString;
         } else {
-            throw new IllegalArgumentException("Must use either [queryString] or [query_string], not both at the same time");
+            throw new IllegalArgumentException("Must use either [query_string] or [queryString], not both at the same time");
         }
     }
 

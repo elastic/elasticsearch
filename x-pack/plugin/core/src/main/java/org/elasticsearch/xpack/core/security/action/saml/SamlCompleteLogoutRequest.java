@@ -59,7 +59,7 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
         if (this.queryString == null) {
             this.queryString = queryString;
         } else {
-            throw new IllegalArgumentException("Must use either [queryString] or [query_string], not both at the same time");
+            throw new IllegalArgumentException("Must use either [query_string] or [queryString], not both at the same time");
         }
     }
 

@@ -39,8 +39,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
-    public GetSnapshotsRequest() {
-    }
+    public GetSnapshotsRequest() {}
 
     /**
      * Constructs a new get snapshots request with given repository name and list of snapshots

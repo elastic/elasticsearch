@@ -130,9 +130,15 @@ public interface Repository extends LifecycleComponent {
      *                              is used to remove any state tracked for the in-progress snapshot from the cluster state
      * @param listener              listener to be invoked with the new {@link RepositoryData} after completing the snapshot
      */
-    void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                          SnapshotInfo snapshotInfo, Version repositoryMetaVersion, Function<ClusterState, ClusterState> stateTransformer,
-                          ActionListener<RepositoryData> listener);
+    void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    );
 
     /**
      * Deletes snapshots
@@ -142,8 +148,13 @@ public interface Repository extends LifecycleComponent {
      * @param repositoryMetaVersion version of the updated repository metadata to write
      * @param listener              completion listener
      */
-    void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                         ActionListener<RepositoryData> listener);
+    void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        ActionListener<RepositoryData> listener
+    );
+
     /**
      * Returns snapshot throttle time in nanoseconds
      */
@@ -216,8 +227,15 @@ public interface Repository extends LifecycleComponent {
      * @param recoveryState   recovery state
      * @param listener        listener to invoke once done
      */
-    void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
-                      ActionListener<Void> listener);
+    void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    );
+
     /**
      * Retrieve shard snapshot status for the stored snapshot
      *
@@ -249,8 +267,11 @@ public interface Repository extends LifecycleComponent {
      * @param source           the source of the cluster state update task
      * @param onFailure        error handler invoked on failure to get a consistent view of the current {@link RepositoryData}
      */
-    void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                      Consumer<Exception> onFailure);
+    void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    );
 
     /**
      * Clones a shard snapshot.
@@ -262,11 +283,12 @@ public interface Repository extends LifecycleComponent {
      * @param listener        listener to complete with new shard generation once clone has completed
      */
     void cloneShardSnapshot(
-            SnapshotId source,
-            SnapshotId target,
-            RepositoryShardId shardId,
-            @Nullable String shardGeneration,
-            ActionListener<ShardSnapshotResult> listener);
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        @Nullable String shardGeneration,
+        ActionListener<ShardSnapshotResult> listener
+    );
 
     /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}

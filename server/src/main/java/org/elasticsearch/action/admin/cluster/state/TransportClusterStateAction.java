@@ -37,6 +37,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.function.Predicate;
 
 public class TransportClusterStateAction extends TransportMasterNodeReadAction<ClusterStateRequest, ClusterStateResponse> {
@@ -165,7 +166,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                         for (var dataStreamAlias : currentState.metadata().dataStreamAliases().values()) {
                             if (dataStreamAlias.getDataStreams().contains(dataStream.getName())) {
                                 Boolean isWriteDataStream =
-                                    dataStreamAlias.getWriteDataStream().equals(dataStream.getName()) ? true : null;
+                                    Objects.equals(dataStreamAlias.getWriteDataStream(), dataStream.getName()) ? true : null;
                                 mdBuilder.put(dataStreamAlias.getName(), dataStream.getName(), isWriteDataStream);
                             }
                         }

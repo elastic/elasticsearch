@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -51,6 +50,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
@@ -82,18 +82,8 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         final String actionName = XPackUsageAction.NAME;
 
         final Request request = new Request(HttpGet.METHOD_NAME, "/_xpack/usage");
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                future.onFailure(exception);
-            }
-        });
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
+        final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
         awaitTaskWithPrefix(actionName);

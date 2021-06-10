@@ -599,7 +599,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
-    protected void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
+    protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {

@@ -37,3 +37,9 @@ tasks.named("thirdPartyAudit").configure {
           'morfologik.stemming.polish.PolishStemmer'
   )
 }
+
+tasks.named('splitPackagesAudit').configure {
+    // Lucene packages should be owned by Lucene!
+  ignoreClasses 'org.elasticsearch.index.analysis.UkrainianAnalyzerProvider',
+    'org.apache.lucene.analysis.uk.XUkrainianMorfologikAnalyzer'
+}

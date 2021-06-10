@@ -25,14 +25,24 @@ public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
     public void testBlobStoreSizeIsLimited() throws Exception {
         final String repoName = "test-repo";
         final int maxSnapshots = randomIntBetween(1, 10);
-        createRepository(repoName, FsRepository.TYPE, Settings.builder()
-                .put(BlobStoreRepository.MAX_SNAPSHOTS_SETTING.getKey(), maxSnapshots).put("location", randomRepoPath()));
+        createRepository(
+            repoName,
+            FsRepository.TYPE,
+            Settings.builder().put(BlobStoreRepository.MAX_SNAPSHOTS_SETTING.getKey(), maxSnapshots).put("location", randomRepoPath())
+        );
         final List<String> snapshotNames = createNSnapshots(repoName, maxSnapshots);
         final ActionFuture<CreateSnapshotResponse> failingSnapshotFuture = startFullSnapshot(repoName, "failing-snapshot");
         final RepositoryException repositoryException = expectThrows(RepositoryException.class, failingSnapshotFuture::actionGet);
-        assertThat(repositoryException.getMessage(), Matchers.endsWith(
-                "Cannot add another snapshot to this repository as it already contains [" + maxSnapshots +
-                        "] snapshots and is configured to hold up to [" + maxSnapshots + "] snapshots only."));
+        assertThat(
+            repositoryException.getMessage(),
+            Matchers.endsWith(
+                "Cannot add another snapshot to this repository as it already contains ["
+                    + maxSnapshots
+                    + "] snapshots and is configured to hold up to ["
+                    + maxSnapshots
+                    + "] snapshots only."
+            )
+        );
         assertEquals(repositoryException.repository(), repoName);
         assertAcked(startDeleteSnapshot(repoName, randomFrom(snapshotNames)).get());
         createFullSnapshot(repoName, "last-snapshot");

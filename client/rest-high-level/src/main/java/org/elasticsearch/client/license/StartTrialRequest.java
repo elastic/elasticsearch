@@ -9,7 +9,7 @@
 package org.elasticsearch.client.license;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 public class StartTrialRequest implements Validatable {
 

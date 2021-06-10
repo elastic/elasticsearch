@@ -11,8 +11,8 @@ package org.elasticsearch.wildfly.transport;
 import org.apache.http.HttpHost;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 
 import javax.enterprise.inject.Produces;
 import java.nio.file.Path;

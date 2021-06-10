@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 import java.util.List;
@@ -66,6 +66,13 @@ public interface IndexAbstraction {
      * @return whether this index abstraction should be treated as a system index or not
      */
     boolean isSystem();
+
+    /**
+     * @return whether this index abstraction is related to data streams
+     */
+    default boolean isDataStreamRelated() {
+        return getType() == Type.DATA_STREAM || this instanceof DataStreamAlias;
+    }
 
     /**
      * An index abstraction type.
@@ -329,11 +336,14 @@ public interface IndexAbstraction {
 
         private final org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias;
         private final List<IndexMetadata> indicesOfAllDataStreams;
+        private final IndexMetadata writeIndexOfWriteDataStream;
 
         public DataStreamAlias(org.elasticsearch.cluster.metadata.DataStreamAlias dataStreamAlias,
-                               List<IndexMetadata> indicesOfAllDataStreams) {
+                               List<IndexMetadata> indicesOfAllDataStreams,
+                               IndexMetadata writeIndexOfWriteDataStream) {
             this.dataStreamAlias = dataStreamAlias;
             this.indicesOfAllDataStreams = indicesOfAllDataStreams;
+            this.writeIndexOfWriteDataStream = writeIndexOfWriteDataStream;
         }
 
         @Override
@@ -353,7 +363,7 @@ public interface IndexAbstraction {
 
         @Override
         public IndexMetadata getWriteIndex() {
-            return null;
+            return writeIndexOfWriteDataStream;
         }
 
         @Override

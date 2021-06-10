@@ -9,6 +9,7 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
@@ -33,14 +34,20 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     /**
-     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}
+     * Waits for the Machine Learning templates to be created by {@link org.elasticsearch.plugins.MetadataUpgrader}.
+     * Only do this on the old cluster.  Users won't necessarily wait for templates to be upgraded during rolling
+     * upgrades, so we cannot wait within the test framework, or we could miss production bugs.
      */
     @Before
     public void waitForTemplates() throws Exception {
-        try {
-            XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES);
-        } catch (AssertionError e) {
-            throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
+        if (AbstractUpgradeTestCase.CLUSTER_TYPE == AbstractUpgradeTestCase.ClusterType.OLD) {
+            try {
+                boolean clusterUnderstandsComposableTemplates = AbstractUpgradeTestCase.UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_8_0);
+                XPackRestTestHelper.waitForTemplates(client(), XPackRestTestConstants.ML_POST_V7120_TEMPLATES,
+                    clusterUnderstandsComposableTemplates);
+            } catch (AssertionError e) {
+                throw new AssertionError("Failure in test setup: Failed to initialize ML index templates", e);
+            }
         }
     }
 
@@ -96,6 +103,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
 
     @Override
     protected boolean preserveSnapshotsUponCompletion() {
+        return true;
+    }
+
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
         return true;
     }
 

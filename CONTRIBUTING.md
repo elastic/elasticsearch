@@ -178,7 +178,7 @@ it is removed due to a `./gradlew clean` or other action.
    2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
       to know where to find them. Under the "Third-Party Checks" section,
       click the "+" button.
-   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
+   3. Select `build-tools-internal/build/distributions/build-tools-internal-$VERSION.jar` where
       `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
       always exist if you imported the project into IntelliJ before
       configuring Checkstyle.
@@ -206,7 +206,7 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    2. Click "Use the Eclipse Code Formatter"
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
-   4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
@@ -246,7 +246,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **buildSrc/formatterConfig.xml**
+ - Import the file at **build-tools-internal/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -254,7 +254,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **buildSrc/elastic.importorder**
+ - Import the file at **build-tools-internal/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that

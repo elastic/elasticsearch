@@ -14,8 +14,8 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.geometry.Geometry;
@@ -105,7 +105,7 @@ public class GeoMatchProcessorTests extends ESTestCase {
             "shape",
             maxMatches,
             ShapeRelation.INTERSECTS,
-            ShapeBuilder.Orientation.CCW
+            Orientation.CCW
         );
         IngestDocument ingestDocument = new IngestDocument(
             "_index",

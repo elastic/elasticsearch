@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -384,19 +384,13 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
         return settings;
     }
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return Collections.singleton(new DataTierAllocationDecider(settings, clusterSettings));
+        return Collections.singleton(new DataTierAllocationDecider());
     }
 
     @Override

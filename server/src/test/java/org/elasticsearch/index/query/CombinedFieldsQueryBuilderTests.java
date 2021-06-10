@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.sandbox.search.CombinedFieldQuery;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;

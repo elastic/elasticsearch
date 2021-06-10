@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.classification.ClassificationStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStats;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStats;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
@@ -142,7 +143,7 @@ public class AnalyticsResultProcessor {
         }
         ModelSizeInfo modelSize = result.getModelSizeInfo();
         if (modelSize != null) {
-            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize);
+            latestModelId = chunkedTrainedModelPersister.createAndIndexInferenceModelConfig(modelSize, TrainedModelType.TREE_ENSEMBLE);
         }
         TrainedModelDefinitionChunk trainedModelDefinitionChunk = result.getTrainedModelDefinitionChunk();
         if (trainedModelDefinitionChunk != null && isCancelled == false) {

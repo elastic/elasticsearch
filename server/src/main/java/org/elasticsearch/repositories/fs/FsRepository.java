@@ -45,14 +45,27 @@ public class FsRepository extends BlobStoreRepository {
 
     public static final String TYPE = "fs";
 
-    public static final Setting<String> LOCATION_SETTING =
-        new Setting<>("location", "", Function.identity(), Property.NodeScope);
-    public static final Setting<String> REPOSITORIES_LOCATION_SETTING =
-        new Setting<>("repositories.fs.location", LOCATION_SETTING, Function.identity(), Property.NodeScope);
-    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size",
-            new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
-    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting("repositories.fs.chunk_size",
-        new ByteSizeValue(Long.MAX_VALUE), new ByteSizeValue(5), new ByteSizeValue(Long.MAX_VALUE), Property.NodeScope);
+    public static final Setting<String> LOCATION_SETTING = new Setting<>("location", "", Function.identity(), Property.NodeScope);
+    public static final Setting<String> REPOSITORIES_LOCATION_SETTING = new Setting<>(
+        "repositories.fs.location",
+        LOCATION_SETTING,
+        Function.identity(),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "chunk_size",
+        new ByteSizeValue(Long.MAX_VALUE),
+        new ByteSizeValue(5),
+        new ByteSizeValue(Long.MAX_VALUE),
+        Property.NodeScope
+    );
+    public static final Setting<ByteSizeValue> REPOSITORIES_CHUNK_SIZE_SETTING = Setting.byteSizeSetting(
+        "repositories.fs.chunk_size",
+        new ByteSizeValue(Long.MAX_VALUE),
+        new ByteSizeValue(5),
+        new ByteSizeValue(Long.MAX_VALUE),
+        Property.NodeScope
+    );
     private final Environment environment;
 
     private final ByteSizeValue chunkSize;
@@ -60,28 +73,46 @@ public class FsRepository extends BlobStoreRepository {
     /**
      * Constructs a shared file system repository.
      */
-    public FsRepository(RepositoryMetadata metadata, Environment environment, NamedXContentRegistry namedXContentRegistry,
-                        ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+    public FsRepository(
+        RepositoryMetadata metadata,
+        Environment environment,
+        NamedXContentRegistry namedXContentRegistry,
+        ClusterService clusterService,
+        BigArrays bigArrays,
+        RecoverySettings recoverySettings
+    ) {
         super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, BlobPath.EMPTY);
         this.environment = environment;
         String location = REPOSITORIES_LOCATION_SETTING.get(metadata.settings());
         if (location.isEmpty()) {
-            logger.warn("the repository location is missing, it should point to a shared file system location"
-                + " that is available on all master and data nodes");
+            logger.warn(
+                "the repository location is missing, it should point to a shared file system location"
+                    + " that is available on all master and data nodes"
+            );
             throw new RepositoryException(metadata.name(), "missing location");
         }
         Path locationFile = environment.resolveRepoFile(location);
         if (locationFile == null) {
             if (environment.repoFiles().length > 0) {
-                logger.warn("The specified location [{}] doesn't start with any "
-                    + "repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
-                throw new RepositoryException(metadata.name(), "location [" + location
-                    + "] doesn't match any of the locations specified by path.repo");
+                logger.warn(
+                    "The specified location [{}] doesn't start with any " + "repository paths specified by the path.repo setting: [{}] ",
+                    location,
+                    environment.repoFiles()
+                );
+                throw new RepositoryException(
+                    metadata.name(),
+                    "location [" + location + "] doesn't match any of the locations specified by path.repo"
+                );
             } else {
-                logger.warn("The specified location [{}] should start with a repository path specified by"
-                    + " the path.repo setting, but the path.repo setting was not set on this node", location);
-                throw new RepositoryException(metadata.name(), "location [" + location
-                    + "] doesn't match any of the locations specified by path.repo because this setting is empty");
+                logger.warn(
+                    "The specified location [{}] should start with a repository path specified by"
+                        + " the path.repo setting, but the path.repo setting was not set on this node",
+                    location
+                );
+                throw new RepositoryException(
+                    metadata.name(),
+                    "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty"
+                );
             }
         }
 

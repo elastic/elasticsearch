@@ -550,9 +550,9 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     public static ActionFuture<CreateSnapshotResponse> startFullSnapshot(Logger logger,
-                                                                            String repoName,
-                                                                            String snapshotName,
-                                                                            boolean partial) {
+                                                                         String repoName,
+                                                                         String snapshotName,
+                                                                         boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
                 .setPartial(partial).execute();

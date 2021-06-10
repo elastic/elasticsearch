@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Iterator;

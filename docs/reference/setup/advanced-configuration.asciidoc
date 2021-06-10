@@ -110,33 +110,14 @@ NOTE: When running in a container, such as <<docker,Docker>>, total memory is
 defined as the amount of memory visible to the container, not the total system
 memory on the host.
 
-* Set `Xms` and `Xmx` to no more than 32 GB, the approximate threshold for
-compressed ordinary object pointers (oops). To verify you are under the
-threshold, check `elasticsearch.logs` for an entry like this:
+* Set `Xms` and `Xmx` to no more than the threshold for compressed ordinary
+object pointers (oops). The exact threshold varies but 26GB is safe on most
+systems and can be as large as 30GB on some systems. To verify you are under the
+threshold, check the {es} log for an entry like this:
 +
 [source,txt]
 ----
 heap size [1.9gb], compressed ordinary object pointers [true]
-----
-
-* Set `Xms` and `Xmx` to no more than the threshold for zero-based
-compressed oops. The exact threshold varies but 26GB is safe on most
-systems and can be as large as 30GB on some systems. You can verify that
-you are under this threshold by starting {es} with the JVM options
-`-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and checking
-`elasticsearch.logs` for an entry like this:
-+
-[source,txt]
-----
-heap address: 0x000000011be00000, size: 27648 MB, zero based Compressed Oops
-----
-+
-This entry shows that zero-based compressed oops are enabled. If zero-based
-compressed oops are not enabled, the entry looks like this:
-+
-[source,txt]
-----
-heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x00000001183ff000
 ----
 
 The more heap available to {es}, the more memory it can use for its internal

@@ -50,7 +50,9 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  * </ul>
  */
 public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotRequest>
-        implements IndicesRequest.Replaceable, ToXContentObject {
+    implements
+        IndicesRequest.Replaceable,
+        ToXContentObject {
 
     public static final Version SETTINGS_IN_REQUEST_VERSION = Version.V_8_0_0;
 
@@ -74,8 +76,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {
-    }
+    public CreateSnapshotRequest() {}
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -148,8 +149,10 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         }
         final int metadataSize = metadataSize(userMetadata);
         if (metadataSize > MAXIMUM_METADATA_BYTES) {
-            validationException = addValidationError("metadata must be smaller than 1024 bytes, but was [" + metadataSize + "]",
-                validationException);
+            validationException = addValidationError(
+                "metadata must be smaller than 1024 bytes, but was [" + metadataSize + "]",
+                validationException
+            );
         }
         return validationException;
     }
@@ -442,22 +445,21 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         CreateSnapshotRequest that = (CreateSnapshotRequest) o;
-        return partial == that.partial &&
-            includeGlobalState == that.includeGlobalState &&
-            waitForCompletion == that.waitForCompletion &&
-            Objects.equals(snapshot, that.snapshot) &&
-            Objects.equals(repository, that.repository) &&
-            Arrays.equals(indices, that.indices) &&
-            Objects.equals(indicesOptions, that.indicesOptions) &&
-            Arrays.equals(featureStates, that.featureStates) &&
-            Objects.equals(masterNodeTimeout, that.masterNodeTimeout) &&
-            Objects.equals(userMetadata, that.userMetadata);
+        return partial == that.partial
+            && includeGlobalState == that.includeGlobalState
+            && waitForCompletion == that.waitForCompletion
+            && Objects.equals(snapshot, that.snapshot)
+            && Objects.equals(repository, that.repository)
+            && Arrays.equals(indices, that.indices)
+            && Objects.equals(indicesOptions, that.indicesOptions)
+            && Arrays.equals(featureStates, that.featureStates)
+            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout)
+            && Objects.equals(userMetadata, that.userMetadata);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState,
-            waitForCompletion, userMetadata);
+        int result = Objects.hash(snapshot, repository, indicesOptions, partial, includeGlobalState, waitForCompletion, userMetadata);
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(featureStates);
         return result;
@@ -465,17 +467,29 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     @Override
     public String toString() {
-        return "CreateSnapshotRequest{" +
-            "snapshot='" + snapshot + '\'' +
-            ", repository='" + repository + '\'' +
-            ", indices=" + (indices == null ? null : Arrays.asList(indices)) +
-            ", indicesOptions=" + indicesOptions +
-            ", featureStates=" + Arrays.asList(featureStates) +
-            ", partial=" + partial +
-            ", includeGlobalState=" + includeGlobalState +
-            ", waitForCompletion=" + waitForCompletion +
-            ", masterNodeTimeout=" + masterNodeTimeout +
-            ", metadata=" + userMetadata +
-            '}';
+        return "CreateSnapshotRequest{"
+            + "snapshot='"
+            + snapshot
+            + '\''
+            + ", repository='"
+            + repository
+            + '\''
+            + ", indices="
+            + (indices == null ? null : Arrays.asList(indices))
+            + ", indicesOptions="
+            + indicesOptions
+            + ", featureStates="
+            + Arrays.asList(featureStates)
+            + ", partial="
+            + partial
+            + ", includeGlobalState="
+            + includeGlobalState
+            + ", waitForCompletion="
+            + waitForCompletion
+            + ", masterNodeTimeout="
+            + masterNodeTimeout
+            + ", metadata="
+            + userMetadata
+            + '}';
     }
 }

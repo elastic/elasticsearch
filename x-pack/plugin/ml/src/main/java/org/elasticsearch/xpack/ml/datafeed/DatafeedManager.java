@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -163,6 +163,11 @@ public class DatafeedManager {
         }
     }
 
+    public boolean finishedLookBack(TransportStartDatafeedAction.DatafeedTask task) {
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
+        return holder != null && holder.isLookbackFinished();
+    }
+
     // Important: Holder must be created and assigned to DatafeedTask before setting state to started,
     // otherwise if a stop datafeed call is made immediately after the start datafeed call we could cancel
     // the DatafeedTask without stopping datafeed, which causes the datafeed to keep on running.
@@ -210,6 +215,7 @@ public class DatafeedManager {
                     holder.stop("general_lookback_failure", TimeValue.timeValueSeconds(20), e);
                     return;
                 }
+                holder.finishedLookback(true);
                 if (holder.isIsolated() == false) {
                     if (next != null) {
                         doDatafeedRealtime(next, holder.datafeedJob.getJobId(), holder);
@@ -327,6 +333,7 @@ public class DatafeedManager {
         private final Consumer<Exception> finishHandler;
         volatile Scheduler.Cancellable cancellable;
         private volatile boolean isNodeShuttingDown;
+        private volatile boolean lookbackFinished;
 
         Holder(TransportStartDatafeedAction.DatafeedTask task, String datafeedId, DatafeedJob datafeedJob,
                ProblemTracker problemTracker, Consumer<Exception> finishHandler) {
@@ -342,6 +349,10 @@ public class DatafeedManager {
         boolean shouldStopAfterEmptyData(int emptyDataCount) {
             Integer emptyDataCountToStopAt = datafeedJob.getMaxEmptySearches();
             return emptyDataCountToStopAt != null && emptyDataCount >= emptyDataCountToStopAt;
+        }
+
+        private void finishedLookback(boolean value) {
+            this.lookbackFinished = value;
         }
 
         String getJobId() {
@@ -414,8 +425,13 @@ public class DatafeedManager {
             isNodeShuttingDown = true;
         }
 
+        public boolean isLookbackFinished() {
+            return lookbackFinished;
+        }
+
         private Long executeLookBack(long startTime, Long endTime) throws Exception {
             datafeedJobLock.lock();
+            lookbackFinished = false;
             try {
                 if (isRunning() && isIsolated() == false) {
                     return datafeedJob.runLookBack(startTime, endTime);

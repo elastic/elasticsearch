@@ -36,7 +36,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -151,6 +150,9 @@ public final class ParentJoinFieldMapper extends FieldMapper {
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            if (format != null) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
+            }
             return SourceValueFetcher.identity(name(), context, format);
         }
 
@@ -291,31 +293,11 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected void doValidate(MappingLookup mappers) {
-        List<String> joinFields = getJoinFieldTypes(mappers.getAllFieldTypes()).stream()
-            .map(JoinFieldType::name)
-            .collect(Collectors.toList());
+    protected void doValidate(MappingLookup mappingLookup) {
+        List<String> joinFields = mappingLookup.getMatchingFieldNames("*").stream().map(mappingLookup::getFieldType)
+            .filter(ft -> ft instanceof JoinFieldType).map(MappedFieldType::name).collect(Collectors.toList());
         if (joinFields.size() > 1) {
             throw new IllegalArgumentException("Only one [parent-join] field can be defined per index, got " + joinFields);
         }
-    }
-
-    static JoinFieldType getJoinFieldType(Collection<MappedFieldType> fieldTypes) {
-        for (MappedFieldType ft : fieldTypes) {
-            if (ft instanceof JoinFieldType) {
-                return (JoinFieldType) ft;
-            }
-        }
-        return null;
-    }
-
-    private List<JoinFieldType> getJoinFieldTypes(Collection<MappedFieldType> fieldTypes) {
-        final List<JoinFieldType> joinFields = new ArrayList<>();
-        for (MappedFieldType ft : fieldTypes) {
-            if (ft instanceof JoinFieldType) {
-                joinFields.add((JoinFieldType) ft);
-            }
-        }
-        return joinFields;
     }
 }

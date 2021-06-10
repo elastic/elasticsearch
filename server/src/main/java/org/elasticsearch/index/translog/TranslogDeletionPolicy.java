@@ -10,7 +10,7 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.Assertions;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 
 import java.util.HashMap;

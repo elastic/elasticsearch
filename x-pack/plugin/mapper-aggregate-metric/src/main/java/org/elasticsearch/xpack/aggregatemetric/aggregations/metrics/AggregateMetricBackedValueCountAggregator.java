@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.aggregatemetric.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;

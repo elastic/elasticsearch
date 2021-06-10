@@ -12,7 +12,7 @@ dependencies {
 restResources {
   restApi {
     include '_common', 'bulk', 'field_caps', 'security', 'search', 'clear_scroll', 'scroll', 'async_search', 'cluster',
-      'indices', 'open_point_in_time', 'close_point_in_time'
+      'indices', 'open_point_in_time', 'close_point_in_time', 'terms_enum'
   }
 }
 

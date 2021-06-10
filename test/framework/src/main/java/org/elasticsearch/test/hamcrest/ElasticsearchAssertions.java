@@ -8,7 +8,6 @@
 package org.elasticsearch.test.hamcrest;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
@@ -34,9 +33,9 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -485,14 +484,6 @@ public class ElasticsearchAssertions {
         assertThat(q.clauses().size(), greaterThan(i));
         assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
         return subqueryType.cast(q.clauses().get(i).getQuery());
-    }
-
-    public static <T extends Query> T assertDisjunctionSubQuery(Query query, Class<T> subqueryType, int i) {
-        assertThat(query, instanceOf(DisjunctionMaxQuery.class));
-        DisjunctionMaxQuery q = (DisjunctionMaxQuery) query;
-        assertThat(q.getDisjuncts().size(), greaterThan(i));
-        assertThat(q.getDisjuncts().get(i), instanceOf(subqueryType));
-        return subqueryType.cast(q.getDisjuncts().get(i));
     }
 
     /**

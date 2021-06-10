@@ -60,6 +60,7 @@ The Java High Level REST Client supports the following Search APIs:
 * <<{upid}-rank-eval>>
 * <<{upid}-explain>>
 * <<{upid}-count>>
+* <<{upid}-point-in-time>>
 
 include::search/search.asciidoc[]
 include::search/scroll.asciidoc[]
@@ -70,6 +71,7 @@ include::search/field-caps.asciidoc[]
 include::search/rank-eval.asciidoc[]
 include::search/explain.asciidoc[]
 include::search/count.asciidoc[]
+include::search/point-in-time.asciidoc[]
 
 [role="xpack"]
 == Async Search APIs

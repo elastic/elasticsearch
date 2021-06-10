@@ -45,6 +45,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -1119,12 +1120,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-        if (enabled == false) {
-            return null;
+        final boolean extractClientCertificate;
+        if (enabled && HTTP_SSL_ENABLED.get(settings)) {
+            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
+            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        } else {
+            extractClientCertificate = false;
         }
-        final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-        final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-        boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }
@@ -1252,6 +1254,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
              .setVersionMetaKey("security-version")
              .setOrigin(SECURITY_ORIGIN)
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 
@@ -1266,6 +1269,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
              .setVersionMetaKey(SECURITY_VERSION_STRING)
              .setOrigin(SECURITY_ORIGIN)
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 

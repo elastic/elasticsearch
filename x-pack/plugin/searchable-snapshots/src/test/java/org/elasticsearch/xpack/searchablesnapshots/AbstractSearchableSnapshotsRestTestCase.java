@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -160,6 +161,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         assertThat("Wrong index count for index " + restoredIndexName, count.intValue(), equalTo(numDocs));
 
         testCaseBody.runTest(restoredIndexName, numDocs);
+
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
 
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);

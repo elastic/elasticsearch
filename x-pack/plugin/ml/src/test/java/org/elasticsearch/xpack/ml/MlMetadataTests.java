@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobTests;
 
@@ -42,7 +43,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
         for (int i = 0; i < numJobs; i++) {
             Job.Builder job = new Job.Builder(JobTests.createRandomizedJob());
             job.setDeleting(false);
-            job.setBlockReason(null);
+            job.setBlocked(Blocked.none());
             if (randomBoolean()) {
                 AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(job.getAnalysisConfig());
                 analysisConfig.setLatency(null);
@@ -183,7 +184,7 @@ public class MlMetadataTests extends AbstractSerializingTestCase<MlMetadata> {
             if (datafeedConfig.hasAggregations()) {
                 analysisConfig.setSummaryCountFieldName("doc_count");
             }
-            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).setDeleting(false).setBlockReason(null).build();
+            randomJob = new Job.Builder(randomJob).setAnalysisConfig(analysisConfig).setDeleting(false).setBlocked(Blocked.none()).build();
             metadataBuilder.putJob(randomJob, false);
             metadataBuilder.putDatafeed(datafeedConfig, Collections.emptyMap(), xContentRegistry());
             break;

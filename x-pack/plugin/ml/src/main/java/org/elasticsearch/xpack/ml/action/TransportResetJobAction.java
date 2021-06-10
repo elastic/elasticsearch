@@ -25,9 +25,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -39,7 +39,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
-import org.elasticsearch.xpack.core.ml.job.config.BlockReason;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -96,15 +96,15 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                     listener.onFailure(ExceptionsHelper.conflictStatusException(Messages.getMessage(Messages.REST_JOB_NOT_CLOSED_RESET)));
                     return;
                 }
-                if (job.getBlockReason() != null && job.getBlockReason() != BlockReason.RESET) {
+                if (job.getBlocked().getReason() != Blocked.Reason.NONE && job.getBlocked().getReason() != Blocked.Reason.RESET) {
                     listener.onFailure(ExceptionsHelper.conflictStatusException(
-                        "cannot reset job while it is blocked with [" + job.getBlockReason() + "]"));
+                        "cannot reset job while it is blocked with [" + job.getBlocked().getReason() + "]"));
                     return;
                 }
 
                 ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
-                jobConfigProvider.updateJobBlockReason(job.getId(), BlockReason.RESET, ActionListener.wrap(
-                    aBoolean -> resetJob(taskClient, (CancellableTask) task, request, listener),
+                jobConfigProvider.updateJobBlockReason(job.getId(), new Blocked(Blocked.Reason.RESET, taskId), ActionListener.wrap(
+                    r -> resetJob(taskClient, (CancellableTask) task, request, listener),
                     listener::onFailure
                 ));
             },

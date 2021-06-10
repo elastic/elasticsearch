@@ -26,10 +26,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -40,7 +40,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -151,7 +153,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
         );
 
-        ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
+        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(
                 response -> {
                     if (request.isForce()) {
                         forceDeleteJob(parentTaskClient, request, finalListener);
@@ -164,7 +166,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> {
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-                markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+                markJobAsDeletingIfNotUsed(request.getJobId(), taskId, markAsDeletingListener);
             },
             e -> {
                 if (request.isForce()
@@ -311,7 +313,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void markJobAsDeletingIfNotUsed(String jobId, ActionListener<Boolean> listener) {
+    private void markJobAsDeletingIfNotUsed(String jobId, TaskId taskId, ActionListener<PutJobAction.Response> listener) {
 
         datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
@@ -321,7 +323,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                         return;
                     }
                     cancelResetTaskIfExists(jobId, ActionListener.wrap(
-                        response -> jobConfigProvider.markJobAsDeleting(jobId, listener),
+                        response -> jobConfigProvider.updateJobBlockReason(jobId, new Blocked(Blocked.Reason.DELETE, taskId), listener),
                         listener::onFailure
                     ));
                 },

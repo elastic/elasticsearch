@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -59,8 +60,9 @@ public class ResetJobIT extends MlNativeAutodetectIntegTestCase {
         assertThat(dataCounts.getProcessedRecordCount(), equalTo(0L));
 
         Job jobAfterReset = getJob(job.getId()).get(0);
-        assertThat(jobAfterReset.getBlockReason(), is(nullValue()));
+        assertThat(jobAfterReset.getBlocked(), equalTo(Blocked.none()));
         assertThat(jobAfterReset.getModelSnapshotId(), is(nullValue()));
+        assertThat(jobAfterReset.getFinishedTime(), is(nullValue()));
 
         List<String> auditMessages = fetchAllAuditMessages(job.getId());
         assertThat(auditMessages.isEmpty(), is(false));

@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.ml.action.GetJobsAction;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -166,9 +167,9 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         if (job == null) {
             throw ExceptionsHelper.missingJobException(jobId);
         }
-        if (job.getBlockReason() != null) {
+        if (job.getBlocked().getReason() != Blocked.Reason.NONE) {
             throw ExceptionsHelper.conflictStatusException("Cannot open job [{}] because it is executing [{}]", jobId,
-                job.getBlockReason());
+                job.getBlocked().getReason());
         }
         if (job.getJobVersion() == null) {
             throw ExceptionsHelper.badRequestException(

@@ -42,7 +42,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
-import org.elasticsearch.xpack.core.ml.job.config.BlockReason;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
@@ -121,7 +121,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testValidate_blockedReset() {
         Job.Builder jobBuilder = buildJobBuilder("job_id");
-        jobBuilder.setBlockReason(BlockReason.RESET);
+        jobBuilder.setBlocked(new Blocked(Blocked.Reason.REVERT, null));
         Exception e = expectThrows(ElasticsearchStatusException.class,
             () -> validateJobAndId("job_id", jobBuilder.build()));
         assertEquals("Cannot open job [job_id] because it is executing [reset]", e.getMessage());

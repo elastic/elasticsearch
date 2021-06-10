@@ -600,11 +600,11 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             Job job = buildJobBuilder(randomValidJobId())
                 .setDeleting(true)
                 .build();
-            assertThat(job.getBlockReason(), equalTo(BlockReason.DELETE));
+            assertThat(job.getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
         }
         {
             Job job = buildJobBuilder(randomValidJobId())
-                .setBlockReason(BlockReason.DELETE)
+                .setBlocked(new Blocked(Blocked.Reason.DELETE, null))
                 .build();
             assertThat(job.isDeleting(), is(true));
         }
@@ -627,7 +627,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(
                 NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, jobWithDeleting)) {
             Job job = doParseInstance(parser);
-            assertThat(job.getBlockReason(), equalTo(BlockReason.DELETE));
+            assertThat(job.getBlocked().getReason(), equalTo(Blocked.Reason.DELETE));
         }
     }
 
@@ -724,7 +724,7 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
             builder.setAllowLazyOpen(randomBoolean());
         }
         if (randomBoolean()) {
-            builder.setBlockReason(randomFrom(BlockReason.values()));
+            builder.setBlocked(BlockedTests.createRandom());
         }
         return builder.build();
     }

@@ -83,7 +83,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField RESULTS_INDEX_NAME = new ParseField("results_index_name");
     public static final ParseField DELETING = new ParseField("deleting");
     public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
-    public static final ParseField BLOCK_REASON = new ParseField("block_reason");
+    public static final ParseField BLOCKED = new ParseField("blocked");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -137,7 +137,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         parser.declareString(Builder::setResultsIndexName, RESULTS_INDEX_NAME);
         parser.declareBoolean(Builder::setDeleting, DELETING);
         parser.declareBoolean(Builder::setAllowLazyOpen, ALLOW_LAZY_OPEN);
-        parser.declareStringOrNull(Builder::setBlockReason, BLOCK_REASON);
+        parser.declareObject(Builder::setBlocked, ignoreUnknownFields ? Blocked.LENIENT_PARSER : Blocked.STRICT_PARSER, BLOCKED);
 
         return parser;
     }
@@ -172,9 +172,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     private final String resultsIndexName;
     private final boolean deleting;
     private final boolean allowLazyOpen;
-
-    @Nullable
-    private final BlockReason blockReason;
+    private final Blocked blocked;
 
     private Job(String jobId, String jobType, Version jobVersion, List<String> groups, String description,
                 Date createTime, Date finishedTime,
@@ -182,7 +180,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 ModelPlotConfig modelPlotConfig, Long renormalizationWindowDays, TimeValue backgroundPersistInterval,
                 Long modelSnapshotRetentionDays, Long dailyModelSnapshotRetentionAfterDays, Long resultsRetentionDays,
                 Map<String, Object> customSettings, String modelSnapshotId, Version modelSnapshotMinVersion, String resultsIndexName,
-                boolean deleting, boolean allowLazyOpen, BlockReason blockReason) {
+                boolean deleting, boolean allowLazyOpen, Blocked blocked) {
 
         this.jobId = jobId;
         this.jobType = jobType;
@@ -206,7 +204,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.resultsIndexName = resultsIndexName;
         this.deleting = deleting;
         this.allowLazyOpen = allowLazyOpen;
-        this.blockReason = blockReason;
+        this.blocked = blocked == null ? Blocked.none() : blocked;
     }
 
     public Job(StreamInput in) throws IOException {
@@ -238,9 +236,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         deleting = in.readBoolean();
         allowLazyOpen = in.readBoolean();
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            blockReason = in.readOptionalEnum(BlockReason.class);
+            blocked = new Blocked(in);
         } else {
-            blockReason = deleting ? BlockReason.DELETE : null;
+            blocked = deleting ? new Blocked(Blocked.Reason.DELETE, null) : Blocked.none();
         }
     }
 
@@ -427,9 +425,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return allowLazyOpen;
     }
 
-    @Nullable
-    public BlockReason getBlockReason() {
-        return blockReason;
+    public Blocked getBlocked() {
+        return blocked;
     }
 
     /**
@@ -520,7 +517,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeBoolean(deleting);
         out.writeBoolean(allowLazyOpen);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalEnum(blockReason);
+            blocked.writeTo(out);
         }
     }
 
@@ -597,8 +594,8 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         builder.field(RESULTS_INDEX_NAME.getPreferredName(), resultsIndexName);
         builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
-        if (blockReason != null) {
-            builder.field(BLOCK_REASON.getPreferredName(), blockReason);
+        if (blocked.getReason() != Blocked.Reason.NONE) {
+            builder.field(BLOCKED.getPreferredName(), blocked);
         }
         return builder;
     }
@@ -636,7 +633,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                 && Objects.equals(this.resultsIndexName, that.resultsIndexName)
                 && Objects.equals(this.deleting, that.deleting)
                 && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
-                && Objects.equals(this.blockReason, that.blockReason);
+                && Objects.equals(this.blocked, that.blocked);
     }
 
     @Override
@@ -644,7 +641,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return Objects.hash(jobId, jobType, jobVersion, groups, description, createTime, finishedTime,
                 analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                 backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blockReason);
+                customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked);
     }
 
     // Class already extends from AbstractDiffable, so copied from ToXContentToBytes#toString()
@@ -694,7 +691,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         private String resultsIndexName;
         private boolean deleting;
         private boolean allowLazyOpen;
-        private BlockReason blockReason;
+        private Blocked blocked = Blocked.none();
 
         public Builder() {
         }
@@ -726,7 +723,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             this.resultsIndexName = job.getResultsIndexNameNoPrefix();
             this.deleting = job.isDeleting();
             this.allowLazyOpen = job.allowLazyOpen();
-            this.blockReason = job.getBlockReason();
+            this.blocked = job.getBlocked();
         }
 
         public Builder(StreamInput in) throws IOException {
@@ -757,9 +754,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             deleting = in.readBoolean();
             allowLazyOpen = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                blockReason = in.readOptionalEnum(BlockReason.class);
+                blocked = new Blocked(in);
             } else {
-                blockReason = null;
+                blocked = Blocked.none();
             }
         }
 
@@ -888,10 +885,10 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         public Builder setDeleting(boolean deleting) {
             this.deleting = deleting;
             if (deleting) {
-                this.blockReason = BlockReason.DELETE;
+                this.blocked = new Blocked(Blocked.Reason.DELETE, null);
             } else {
-                if (blockReason == BlockReason.DELETE) {
-                    blockReason = null;
+                if (blocked.getReason() == Blocked.Reason.DELETE) {
+                    blocked = Blocked.none();
                 }
             }
             return this;
@@ -902,19 +899,9 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return this;
         }
 
-        private Builder setBlockReason(String blockReason) {
-            if (blockReason == null) {
-                this.blockReason = null;
-                this.deleting = false;
-                return this;
-            } else {
-                return setBlockReason(BlockReason.fromString(blockReason));
-            }
-        }
-
-        public Builder setBlockReason(BlockReason blockReason) {
-            this.blockReason = blockReason;
-            this.deleting = (this.blockReason == BlockReason.DELETE);
+        public Builder setBlocked(Blocked blocked) {
+            this.blocked = ExceptionsHelper.requireNonNull(blocked, BLOCKED);
+            this.deleting = (this.blocked.getReason() == Blocked.Reason.DELETE);
             return this;
         }
 
@@ -984,7 +971,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeBoolean(deleting);
             out.writeBoolean(allowLazyOpen);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalEnum(blockReason);
+                blocked.writeTo(out);
             }
         }
 
@@ -1015,7 +1002,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     && Objects.equals(this.resultsIndexName, that.resultsIndexName)
                     && Objects.equals(this.deleting, that.deleting)
                     && Objects.equals(this.allowLazyOpen, that.allowLazyOpen)
-                    && Objects.equals(this.blockReason, that.blockReason);
+                    && Objects.equals(this.blocked, that.blocked);
         }
 
         @Override
@@ -1023,7 +1010,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             return Objects.hash(id, jobType, jobVersion, groups, description, analysisConfig, analysisLimits, dataDescription,
                     createTime, finishedTime, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blockReason);
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked);
         }
 
         /**
@@ -1182,7 +1169,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
                     id, jobType, jobVersion, groups, description, createTime, finishedTime,
                     analysisConfig, analysisLimits, dataDescription, modelPlotConfig, renormalizationWindowDays,
                     backgroundPersistInterval, modelSnapshotRetentionDays, dailyModelSnapshotRetentionAfterDays, resultsRetentionDays,
-                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blockReason);
+                    customSettings, modelSnapshotId, modelSnapshotMinVersion, resultsIndexName, deleting, allowLazyOpen, blocked);
         }
 
         private void checkValidBackgroundPersistInterval() {

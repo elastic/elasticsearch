@@ -14,7 +14,7 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -261,8 +261,7 @@ public class IndexNameExpressionResolver {
                 } else {
                     continue;
                 }
-            } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
-                        context.includeDataStreams() == false) {
+            } else if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 excludedDataStreams = true;
                 continue;
             }
@@ -932,7 +931,7 @@ public class IndexNameExpressionResolver {
                             throw indexNotFoundException(expression);
                         } else if (indexAbstraction.getType() == IndexAbstraction.Type.ALIAS && options.ignoreAliases()) {
                             throw aliasesNotSupportedException(expression);
-                        } else if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM &&
+                        } else if (indexAbstraction.isDataStreamRelated() &&
                             context.includeDataStreams() == false) {
                             throw indexNotFoundException(expression);
                         }
@@ -984,7 +983,7 @@ public class IndexNameExpressionResolver {
                 return false;
             }
 
-            if (indexAbstraction.getType() == IndexAbstraction.Type.DATA_STREAM && context.includeDataStreams() == false) {
+            if (indexAbstraction.isDataStreamRelated() && context.includeDataStreams() == false) {
                 return false;
             }
 
@@ -1053,7 +1052,7 @@ public class IndexNameExpressionResolver {
             }
             if (context.includeDataStreams() == false) {
                 shouldConsumeStream = true;
-                stream = stream.filter(e -> e.getValue().getType() != IndexAbstraction.Type.DATA_STREAM);
+                stream = stream.filter(e -> e.getValue().isDataStreamRelated() == false);
             }
             if (shouldConsumeStream) {
                 return stream.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

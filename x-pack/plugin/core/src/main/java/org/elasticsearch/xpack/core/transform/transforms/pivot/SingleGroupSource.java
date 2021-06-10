@@ -8,8 +8,9 @@
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /*
@@ -103,9 +105,13 @@ public abstract class SingleGroupSource implements Writeable, ToXContentObject {
         }
     }
 
-    boolean isValid() {
+    ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         // either a script or a field must be declared
-        return field != null || scriptConfig != null;
+        if (field == null && scriptConfig == null) {
+            validationException =
+                addValidationError("Required one of fields [field, script], but none were specified.", validationException);
+        }
+        return validationException;
     }
 
     @Override

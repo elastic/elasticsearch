@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.NODE_SETTINGS_CHECKS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -106,12 +108,32 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
         assertEquals("Realm that start with [_] will not be permitted in a future major release.", deprecationIssue.getMessage());
-        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
-            "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
-        assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
-                + " with reserved prefix [_]: ["
-                + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
-                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+        assertEquals(
+            "https://www.elastic.co/guide/en/elasticsearch/reference" + "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+            deprecationIssue.getUrl());
+        assertEquals(
+            "Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names") + " with reserved prefix [_]: [" + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()),
+                "; ") + "]. " + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
             deprecationIssue.getDetails());
+    }
+
+    public void testSingleDataNodeWatermarkSetting() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(NODE_SETTINGS_CHECKS, c -> c.apply(settings, null));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and" +
+                    " will not be available in a future version",
+                expectedUrl,
+                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured." +
+                    " Discontinue use of this setting."
+            )));
     }
 }

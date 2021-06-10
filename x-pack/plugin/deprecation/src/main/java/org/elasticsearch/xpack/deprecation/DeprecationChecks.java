@@ -34,7 +34,8 @@ public class DeprecationChecks {
 
     static List<BiFunction<Settings, PluginsAndModules, DeprecationIssue>> NODE_SETTINGS_CHECKS = List.of(
         NodeDeprecationChecks::checkSharedDataPathSetting,
-        NodeDeprecationChecks::checkReservedPrefixedRealmNames
+        NodeDeprecationChecks::checkReservedPrefixedRealmNames,
+        NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
     );
 
     static List<Function<IndexMetadata, DeprecationIssue>> INDEX_SETTINGS_CHECKS = List.of(

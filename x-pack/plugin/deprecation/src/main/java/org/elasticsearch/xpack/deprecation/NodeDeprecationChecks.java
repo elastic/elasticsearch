@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -140,7 +141,7 @@ public class NodeDeprecationChecks {
             return null;
         }
         List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
-        for (RealmConfig.RealmIdentifier realmIdentifier: realmSettings.keySet()) {
+        for (RealmConfig.RealmIdentifier realmIdentifier : realmSettings.keySet()) {
             if (realmIdentifier.getName().startsWith(RESERVED_REALM_NAME_PREFIX)) {
                 reservedPrefixedRealmIdentifiers.add(realmIdentifier);
             }
@@ -148,19 +149,32 @@ public class NodeDeprecationChecks {
         if (reservedPrefixedRealmIdentifiers.isEmpty()) {
             return null;
         } else {
-            return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "Realm that start with [" + RESERVED_REALM_NAME_PREFIX + "] will not be permitted in a future major release.",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
-                String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
-                        + " with reserved prefix [%s]: [%s]. "
-                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+                String.format(Locale.ROOT,
+                    "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ?
+                        "name" :
+                        "names") + " with reserved prefix [%s]: [%s]. " + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
                     RESERVED_REALM_NAME_PREFIX,
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining("; ")))
+                        .collect(Collectors.joining("; "))));
+        }
+    }
+
+    static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        if (DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.exists(settings)) {
+            String key = DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey();
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                String.format(Locale.ROOT, "setting [%s] is deprecated and will not be available in a future version", key),
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                    "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
+                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key)
             );
         }
+
+        return null;
     }
 }

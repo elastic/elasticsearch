@@ -13,7 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -180,6 +180,24 @@ public final class RepositoryData {
                 indices,
                 indexSnapshots,
                 shardGenerations,
+                indexMetaDataGenerations,
+                clusterUUID);
+    }
+
+    /**
+     * Creates a copy of this instance that does not track any shard generations.
+     *
+     * @return repository data with empty shard generations
+     */
+    public RepositoryData withoutShardGenerations() {
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotsDetails,
+                indices,
+                indexSnapshots,
+                ShardGenerations.EMPTY,
                 indexMetaDataGenerations,
                 clusterUUID);
     }

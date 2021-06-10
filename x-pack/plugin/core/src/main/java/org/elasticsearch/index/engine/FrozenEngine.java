@@ -15,7 +15,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Setting;
@@ -203,7 +203,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
 
             @Override
             public String getSearcherId() {
-                return commitId;
+                return getCommitId();
             }
         };
     }
@@ -216,8 +216,8 @@ public final class FrozenEngine extends ReadOnlyEngine {
             case "load_seq_no":
             case "load_version":
                 assert false : "this is a read-only engine";
-            case "doc_stats":
-                assert false : "doc_stats are overwritten";
+            case DOC_STATS_SOURCE:
+                assert false : "doc stats are eagerly loaded";
             case "refresh_needed":
                 assert false : "refresh_needed is always false";
             case "segments":

@@ -50,11 +50,11 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
@@ -310,7 +310,7 @@ public class RestoreService implements ClusterStateApplier {
 
         // Get data stream metadata for requested data streams
         Tuple<Map<String, DataStream>, Map<String, DataStreamAlias>> result =
-                getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata, requestIndices);
+                getDataStreamsToRestore(repository, snapshotId, snapshotInfo, globalMetadata, requestIndices, request.includeAliases());
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
@@ -442,35 +442,37 @@ public class RestoreService implements ClusterStateApplier {
                                                                                                  SnapshotId snapshotId,
                                                                                                  SnapshotInfo snapshotInfo,
                                                                                                  Metadata globalMetadata,
-                                                                                                 List<String> requestIndices) {
+                                                                                                 List<String> requestIndices,
+                                                                                                 boolean includeAliases) {
         Map<String, DataStream> dataStreams;
         Map<String, DataStreamAlias> dataStreamAliases;
         List<String> requestedDataStreams = filterIndices(snapshotInfo.dataStreams(), requestIndices.toArray(String[]::new),
             IndicesOptions.fromOptions(true, true, true, true));
         if (requestedDataStreams.isEmpty()) {
-            dataStreams = Collections.emptyMap();
-            dataStreamAliases = Collections.emptyMap();
+            dataStreams = Map.of();
+            dataStreamAliases = Map.of();
         } else {
             if (globalMetadata == null) {
                 globalMetadata = repository.getSnapshotGlobalMetadata(snapshotId);
             }
             final Map<String, DataStream> dataStreamsInSnapshot = globalMetadata.dataStreams();
-            final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
             dataStreams = new HashMap<>(requestedDataStreams.size());
-            dataStreamAliases = new HashMap<>();
             for (String requestedDataStream : requestedDataStreams) {
                 final DataStream dataStreamInSnapshot = dataStreamsInSnapshot.get(requestedDataStream);
                 assert dataStreamInSnapshot != null : "DataStream [" + requestedDataStream + "] not found in snapshot";
                 dataStreams.put(requestedDataStream, dataStreamInSnapshot);
-
             }
-            for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
-                List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                    .filter(requestedDataStreams::contains)
-                    .collect(Collectors.toList());
-                if (intersectingDataStreams.isEmpty() == false) {
-                    dataStreamAliases.put(alias.getName(), new DataStreamAlias(alias.getName(), intersectingDataStreams));
+            if (includeAliases) {
+                dataStreamAliases = new HashMap<>();
+                final Map<String, DataStreamAlias> dataStreamAliasesInSnapshot = globalMetadata.dataStreamAliases();
+                for (DataStreamAlias alias : dataStreamAliasesInSnapshot.values()) {
+                    DataStreamAlias copy = alias.intersect(requestedDataStreams::contains);
+                    if (copy.getDataStreams().isEmpty() == false) {
+                        dataStreamAliases.put(alias.getName(), copy);
+                    }
                 }
+            } else {
+                dataStreamAliases = Map.of();
             }
         }
         return new Tuple<>(dataStreams, dataStreamAliases);
@@ -1190,10 +1192,7 @@ public class RestoreService implements ClusterStateApplier {
                 // Optionally rename the data stream names for each alias
                 .map(alias -> {
                     if (request.renamePattern() != null && request.renameReplacement() != null) {
-                        List<String> renamedDataStreams = alias.getDataStreams().stream()
-                            .map(s -> s.replaceAll(request.renamePattern(), request.renameReplacement()))
-                            .collect(Collectors.toList());
-                        return new DataStreamAlias(alias.getName(), renamedDataStreams);
+                        return alias.renameDataStreams(request.renamePattern(), request.renameReplacement());
                     } else {
                         return alias;
                     }
@@ -1201,9 +1200,7 @@ public class RestoreService implements ClusterStateApplier {
                     final DataStreamAlias current = updatedDataStreamAliases.putIfAbsent(alias.getName(), alias);
                     if (current != null) {
                         // Merge data stream alias from snapshot with an existing data stream aliases in target cluster:
-                        Set<String> mergedDataStreams = new HashSet<>(current.getDataStreams());
-                        mergedDataStreams.addAll(alias.getDataStreams());
-                        DataStreamAlias newInstance = new DataStreamAlias(alias.getName(), List.copyOf(mergedDataStreams));
+                        DataStreamAlias newInstance = alias.merge(current);
                         updatedDataStreamAliases.put(alias.getName(), newInstance);
                     }
                 });

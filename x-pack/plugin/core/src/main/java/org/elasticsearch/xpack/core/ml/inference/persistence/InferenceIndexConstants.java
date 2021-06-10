@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.inference.persistence;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
@@ -26,8 +26,11 @@ public final class InferenceIndexConstants {
      *
      * version: 7.10.0: 000003
      *  - adds trained_model_metadata object
+     *
+     * version: 8.0.0: 000004
+     *  - adds binary_definition for TrainedModelDefinitionDoc
      */
-    public static final String INDEX_VERSION = "000003";
+    public static final String INDEX_VERSION = "000004";
     public static final String INDEX_NAME_PREFIX = ".ml-inference-";
     public static final String INDEX_PATTERN = INDEX_NAME_PREFIX + "*";
     public static final String LATEST_INDEX_NAME = INDEX_NAME_PREFIX + INDEX_VERSION;

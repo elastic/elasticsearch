@@ -55,12 +55,12 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
@@ -69,6 +69,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -111,7 +112,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
 import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
 import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
 
 /**
@@ -301,9 +301,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     // Add all resolved indices from the feature states to the list of indices
                     for (String feature : featureStatesSet) {
-                        for (String pattern : systemIndexDescriptorMap.get(feature).getAssociatedIndexPatterns()) {
-                            Collections.addAll(indexNames, indexNameExpressionResolver.concreteIndexNamesWithSystemIndexAccess(
-                                    currentState, LENIENT_EXPAND_OPEN_CLOSED_HIDDEN, pattern));
+                        for (AssociatedIndexDescriptor aid : systemIndexDescriptorMap.get(feature).getAssociatedIndexDescriptors()) {
+                            indexNames.addAll(aid.getMatchingIndices(currentState.metadata()));
                         }
                     }
                     indices = List.copyOf(indexNames);
@@ -2210,8 +2209,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                                         updatedAssignmentsBuilder.put(shardId, updated);
                                     }
                                 }
-                                snapshotEntries.add(entry.withStartedShards(updatedAssignmentsBuilder.build()));
+                                final SnapshotsInProgress.Entry updatedEntry = entry.withShardStates(updatedAssignmentsBuilder.build());
+                                snapshotEntries.add(updatedEntry);
                                 changed = true;
+                                if (updatedEntry.state().completed()) {
+                                    newFinalizations.add(entry);
+                                }
                             }
                         }
                     } else {
@@ -2422,12 +2425,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
         return dataStreamAliases.values().stream()
             .filter(alias -> alias.getDataStreams().stream().anyMatch(dataStreams::containsKey))
-            .map(alias -> {
-                List<String> intersectingDataStreams = alias.getDataStreams().stream()
-                    .filter(dataStreams::containsKey)
-                    .collect(Collectors.toList());
-                return new DataStreamAlias(alias.getName(), intersectingDataStreams);
-            }).collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
+            .map(alias -> alias.intersect(dataStreams::containsKey))
+            .collect(Collectors.toMap(DataStreamAlias::getName, Function.identity()));
     }
 
     /**

@@ -57,11 +57,13 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     private final CountDown counter;
 
-    public GetSnapshotInfoContext(Collection<SnapshotId> snapshotIds,
-                                  boolean abortOnFailure,
-                                  BooleanSupplier isCancelled,
-                                  BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
-                                  ActionListener<Void> doneListener) {
+    public GetSnapshotInfoContext(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
+        ActionListener<Void> doneListener
+    ) {
         assert snapshotIds.isEmpty() == false : "no snapshot ids to fetch given";
         this.snapshotIds = List.copyOf(snapshotIds);
         this.counter = new CountDown(snapshotIds.size());

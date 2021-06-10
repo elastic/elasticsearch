@@ -1,6 +1,5 @@
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,8 +25,9 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
-@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67887") 
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
 
@@ -111,7 +111,25 @@ public class HistogramGroupByIT extends ContinuousTestCase {
                 equalTo(bucket.getDocCount())
             );
 
-            // TODO: gh#63801 transform is not optimized for histogram it, it should only rewrite documents that require it
+            // test optimization, transform should only rewrite documents that require it
+            // we artificially created a trend, that's why smaller buckets should not get rewritten
+            if (transformBucketKey < iteration * METRIC_TREND) {
+                assertThat(
+                    "Ingest run: "
+                        + XContentMapValues.extractValue(INGEST_RUN_FIELD, source)
+                        + " did not match max run: "
+                        + XContentMapValues.extractValue(MAX_RUN_FIELD, source)
+                        + ", iteration: "
+                        + iteration
+                        + " full source: "
+                        + source,
+                    (Integer) XContentMapValues.extractValue(INGEST_RUN_FIELD, source) - (Integer) XContentMapValues.extractValue(
+                        MAX_RUN_FIELD,
+                        source
+                    ),
+                    is(lessThanOrEqualTo(1))
+                );
+            }
         }
 
         assertFalse(sourceIterator.hasNext());

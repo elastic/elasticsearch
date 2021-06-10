@@ -61,6 +61,8 @@ public class RepositoryStats implements Writeable {
 
     @Override
     public String toString() {
-        return "RepositoryStats{" + "requestCounts=" + requestCounts + '}';
+        return "RepositoryStats{" +
+            "requestCounts=" + requestCounts +
+            '}';
     }
 }

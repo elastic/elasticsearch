@@ -259,24 +259,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     String snapshot = parser.currentName();
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-<<<<<<< HEAD
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                        String snapshot = parser.currentName();
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                            if (token == XContentParser.Token.FIELD_NAME) {
-                                currentFieldName = parser.currentName();
-                                if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler())
-                                    && parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                    List<String> fileNames = new ArrayList<>();
-                                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                        fileNames.add(parser.text());
-                                    }
-                                    snapshotsMap.put(snapshot, fileNames);
-                                } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
-                                    parser.nextToken();
-                                    historyUUIDs.put(snapshot, parser.text());
-=======
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
                             if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) &&
@@ -284,7 +266,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                                 List<String> fileNames = new ArrayList<>();
                                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                                     fileNames.add(parser.text());
->>>>>>> master
                                 }
                                 snapshotsMap.put(snapshot, fileNames);
                             } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -307,9 +288,8 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(
-                new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.getKey()))
-            );
+            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
+                historyUUIDs.get(entry.getKey())));
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

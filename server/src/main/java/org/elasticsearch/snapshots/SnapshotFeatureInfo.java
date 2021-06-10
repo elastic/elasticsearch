@@ -26,15 +26,12 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
     final String pluginName;
     final List<String> indices;
 
-    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER = new ConstructingObjectParser<>(
-        "feature_info",
-        true,
-        (a, name) -> {
+    static final ConstructingObjectParser<SnapshotFeatureInfo, Void> SNAPSHOT_FEATURE_INFO_PARSER =
+        new ConstructingObjectParser<>("feature_info", true, (a, name) -> {
             String pluginName = (String) a[0];
             List<String> indices = (List<String>) a[1];
             return new SnapshotFeatureInfo(pluginName, indices);
-        }
-    );
+        });
 
     static {
         SNAPSHOT_FEATURE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("feature_name"));
@@ -94,7 +91,8 @@ public class SnapshotFeatureInfo implements Writeable, ToXContentObject {
         if (this == o) return true;
         if ((o instanceof SnapshotFeatureInfo) == false) return false;
         SnapshotFeatureInfo that = (SnapshotFeatureInfo) o;
-        return getPluginName().equals(that.getPluginName()) && getIndices().equals(that.getIndices());
+        return getPluginName().equals(that.getPluginName()) &&
+            getIndices().equals(that.getIndices());
     }
 
     @Override

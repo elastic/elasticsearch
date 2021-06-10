@@ -15,10 +15,8 @@ import org.elasticsearch.common.util.ArrayUtils;
 /**
  * Snapshots status request builder
  */
-public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<
-    SnapshotsStatusRequest,
-    SnapshotsStatusResponse,
-    SnapshotsStatusRequestBuilder> {
+public class SnapshotsStatusRequestBuilder extends MasterNodeOperationRequestBuilder<SnapshotsStatusRequest,
+        SnapshotsStatusResponse, SnapshotsStatusRequestBuilder> {
 
     /**
      * Constructs the new snapshot status request

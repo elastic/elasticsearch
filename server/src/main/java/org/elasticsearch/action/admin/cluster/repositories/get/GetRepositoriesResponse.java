@@ -47,6 +47,7 @@ public class GetRepositoriesResponse extends ActionResponse implements ToXConten
         return repositories.repositories();
     }
 
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         repositories.writeTo(out);

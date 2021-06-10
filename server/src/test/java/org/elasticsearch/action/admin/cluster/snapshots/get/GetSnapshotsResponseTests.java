@@ -50,16 +50,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         return GetSnapshotsResponse.fromXContent(parser);
     }
 
-<<<<<<< HEAD
-    private GetSnapshotsResponse copyInstance(GetSnapshotsResponse instance, Version version) throws IOException {
-        return copyInstance(
-            instance,
-            new NamedWriteableRegistry(Collections.emptyList()),
-            (out, value) -> value.writeTo(out),
-            in -> new GetSnapshotsResponse(in),
-            version
-        );
-=======
     private GetSnapshotsResponse copyInstance(GetSnapshotsResponse instance) throws IOException {
         return copyInstance(
                 instance,
@@ -67,7 +57,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                 (out, value) -> value.writeTo(out),
                 GetSnapshotsResponse::new,
                 Version.CURRENT);
->>>>>>> master
 
     }
 
@@ -89,14 +78,8 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             String reason = randomBoolean() ? null : "reason";
             ShardId shardId = new ShardId("index", UUIDs.base64UUID(), 2);
             List<SnapshotShardFailure> shardFailures = Collections.singletonList(new SnapshotShardFailure("node-id", shardId, "reason"));
-<<<<<<< HEAD
-            List<SnapshotFeatureInfo> featureInfos = randomList(0, () -> randomSnapshotFeatureInfo());
-            snapshots.add(
-                new SnapshotInfo(
-=======
             List<SnapshotFeatureInfo> featureInfos = randomList(5, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
             snapshots.add(new SnapshotInfo(
->>>>>>> master
                     snapshotId,
                     Arrays.asList("index1", "index2"),
                     Collections.singletonList("ds"),
@@ -106,17 +89,9 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                     randomIntBetween(2, 3),
                     shardFailures,
                     randomBoolean(),
-<<<<<<< HEAD
-                    SnapshotInfoTests.randomUserMetadata(),
-                    System.currentTimeMillis()
-                )
-            );
-
-=======
                     SnapshotInfoTestUtils.randomUserMetadata(),
                     System.currentTimeMillis(),
                     SnapshotInfoTestUtils.randomIndexSnapshotDetails()));
->>>>>>> master
         }
         return snapshots;
     }
@@ -147,26 +122,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-<<<<<<< HEAD
-        final Predicate<String> predicate = Pattern.compile("responses\\.\\d+\\.snapshots\\.\\d+\\.metadata.*").asMatchPredicate();
-        xContentTester(this::createParser, this::createTestInstance, ToXContent.EMPTY_PARAMS, this::doParseInstance).numberOfTestRuns(1)
-            .supportsUnknownFields(true)
-            .shuffleFieldsExceptions(Strings.EMPTY_ARRAY)
-            // Don't inject random fields into the custom snapshot metadata, because the metadata map is equality-checked after doing a
-            // round-trip through xContent serialization/deserialization. Even though the rest of the object ignores unknown fields,
-            // `metadata` doesn't ignore unknown fields (it just includes them in the parsed object, because the keys are arbitrary),
-            // so any new fields added to the metadata before it gets deserialized that weren't in the serialized version will
-            // cause the equality check to fail.
-
-            // The actual fields are nested in an array, so this regex matches fields with names of the form
-            // `responses.0.snapshots.3.metadata`
-            .randomFieldsExcludeFilter(predicate)
-            .assertEqualsConsumer(this::assertEqualInstances)
-            // We set it to false, because GetSnapshotsResponse contains
-            // ElasticsearchException, whose xContent creation/parsing are not stable.
-            .assertToXContentEquivalence(false)
-            .test();
-=======
         // Explicitly include the index details, excluded by default, since this is required for a faithful round-trip
         final ToXContent.MapParams params = new ToXContent.MapParams(Map.of(INDEX_DETAILS_XCONTENT_PARAM, "true"));
 
@@ -194,7 +149,6 @@ public class GetSnapshotsResponseTests extends ESTestCase {
                 // ElasticsearchException, whose xContent creation/parsing are not stable.
                 .assertToXContentEquivalence(false)
                 .test();
->>>>>>> master
     }
 
 }

@@ -17,7 +17,9 @@ public class FsBlobStoreRepositoryIntegTests extends ESFsBasedRepositoryIntegTes
 
     @Override
     protected Settings repositorySettings(String repositoryName) {
-        final Settings.Builder settings = Settings.builder().put("compress", randomBoolean()).put("location", randomRepoPath());
+        final Settings.Builder settings = Settings.builder()
+                .put("compress", randomBoolean())
+                .put("location", randomRepoPath());
         if (randomBoolean()) {
             long size = 1 << randomInt(10);
             settings.put("chunk_size", new ByteSizeValue(size, ByteSizeUnit.KB));

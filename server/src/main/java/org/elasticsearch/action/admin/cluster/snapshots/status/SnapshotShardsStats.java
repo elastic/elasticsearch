@@ -57,14 +57,8 @@ public class SnapshotShardsStats implements ToXContentObject {
         }
     }
 
-    public SnapshotShardsStats(
-        int initializingShards,
-        int startedShards,
-        int finalizingShards,
-        int doneShards,
-        int failedShards,
-        int totalShards
-    ) {
+    public SnapshotShardsStats(int initializingShards, int startedShards, int finalizingShards, int doneShards, int failedShards,
+                               int totalShards) {
         this.initializingShards = initializingShards;
         this.startedShards = startedShards;
         this.finalizingShards = finalizingShards;
@@ -141,8 +135,7 @@ public class SnapshotShardsStats implements ToXContentObject {
     }
 
     static final ConstructingObjectParser<SnapshotShardsStats, Void> PARSER = new ConstructingObjectParser<>(
-        Fields.SHARDS_STATS,
-        true,
+        Fields.SHARDS_STATS, true,
         (Object[] parsedObjects) -> {
             int i = 0;
             int initializingShards = (int) parsedObjects[i++];

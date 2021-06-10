@@ -32,7 +32,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     /**
      * Constructs a new delete snapshots request
      */
-    public DeleteSnapshotRequest() {}
+    public DeleteSnapshotRequest() {
+    }
 
     /**
      * Constructs a new delete snapshots request with repository and snapshot names
@@ -78,6 +79,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         }
         return validationException;
     }
+
 
     public DeleteSnapshotRequest repository(String repository) {
         this.repository = repository;

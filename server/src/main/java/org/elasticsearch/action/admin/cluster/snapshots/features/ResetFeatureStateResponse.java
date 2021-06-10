@@ -87,7 +87,9 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "ResetFeatureStateResponse{" + "resetFeatureStateStatusList=" + resetFeatureStateStatusList + '}';
+        return "ResetFeatureStateResponse{" +
+            "resetFeatureStateStatusList=" + resetFeatureStateStatusList +
+            '}';
     }
 
     /**
@@ -216,15 +218,11 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
         @Override
         public String toString() {
-<<<<<<< HEAD
-            return "ResetFeatureStateStatus{" + "featureName='" + featureName + '\'' + ", status='" + status + '\'' + '}';
-=======
             return "ResetFeatureStateStatus{" +
                 "featureName='" + featureName + '\'' +
                 ", status=" + status +
                 ", exception='" + exception + '\'' +
                 '}';
->>>>>>> master
         }
     }
 }

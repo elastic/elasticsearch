@@ -18,7 +18,8 @@ import java.io.IOException;
 /** Request for resetting feature state */
 public class ResetFeatureStateRequest extends ActionRequest {
 
-    public ResetFeatureStateRequest() {}
+    public ResetFeatureStateRequest() {
+    }
 
     public ResetFeatureStateRequest(StreamInput in) throws IOException {
         super(in);

@@ -55,14 +55,12 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
 
     public void testWhenMetadataAreLoaded() throws Exception {
         createIndex("docs");
-        indexRandom(
-            true,
+        indexRandom(true,
             client().prepareIndex("docs").setId("1").setSource("rank", 1),
             client().prepareIndex("docs").setId("2").setSource("rank", 2),
             client().prepareIndex("docs").setId("3").setSource("rank", 3),
             client().prepareIndex("others").setSource("rank", 4),
-            client().prepareIndex("others").setSource("rank", 5)
-        );
+            client().prepareIndex("others").setSource("rank", 5));
 
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 
@@ -75,23 +73,16 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting a snapshot does not load any metadata
-        GetSnapshotsResponse getSnapshotsResponse = client().admin()
-            .cluster()
-            .prepareGetSnapshots("repository")
-            .addSnapshots("snap")
-            .setVerbose(randomBoolean())
-            .get();
+        GetSnapshotsResponse getSnapshotsResponse =
+            client().admin().cluster().prepareGetSnapshots("repository").addSnapshots("snap").setVerbose(randomBoolean()).get();
         assertThat(getSnapshotsResponse.getSnapshots("repository"), hasSize(1));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 0);
         assertIndexMetadataLoads("snap", "others", 0);
 
         // Getting the status of a snapshot loads indices metadata but not global metadata
-        SnapshotsStatusResponse snapshotStatusResponse = client().admin()
-            .cluster()
-            .prepareSnapshotStatus("repository")
-            .setSnapshots("snap")
-            .get();
+        SnapshotsStatusResponse snapshotStatusResponse =
+            client().admin().cluster().prepareSnapshotStatus("repository").setSnapshots("snap").get();
         assertThat(snapshotStatusResponse.getSnapshots(), hasSize(1));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 1);
@@ -100,11 +91,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(client().admin().indices().prepareDelete("docs", "others"));
 
         // Restoring a snapshot loads indices metadata but not the global state
-        RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("repository", "snap")
-            .setWaitForCompletion(true)
-            .get();
+        RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("repository", "snap")
+                                                                                    .setWaitForCompletion(true)
+                                                                                    .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 2);
@@ -113,12 +102,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(client().admin().indices().prepareDelete("docs"));
 
         // Restoring a snapshot with selective indices loads only required index metadata
-        restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("repository", "snap")
-            .setIndices("docs")
-            .setWaitForCompletion(true)
-            .get();
+        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("repository", "snap")
+                                                            .setIndices("docs")
+                                                            .setWaitForCompletion(true)
+                                                            .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 3);
@@ -127,9 +114,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         assertAcked(client().admin().indices().prepareDelete("docs", "others"));
 
         // Restoring a snapshot including the global state loads it with the index metadata
-        restoreSnapshotResponse = client().admin()
-            .cluster()
-            .prepareRestoreSnapshot("repository", "snap")
+        restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot("repository", "snap")
             .setIndices("docs", "oth*")
             .setRestoreGlobalState(true)
             .setWaitForCompletion(true)
@@ -170,7 +155,7 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         RepositoriesService repositoriesService = internalCluster().getInstance(RepositoriesService.class, master);
         Repository repository = repositoriesService.repository("repository");
         assertThat(repository, instanceOf(CountingMockRepository.class));
-        return (CountingMockRepository) repository;
+        return  (CountingMockRepository) repository;
     }
 
     /** Compute a map key for the given snapshot and index names **/
@@ -184,14 +169,10 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         final Map<String, AtomicInteger> globalMetadata = new ConcurrentHashMap<>();
         final Map<String, AtomicInteger> indicesMetadata = new ConcurrentHashMap<>();
 
-        public CountingMockRepository(
-            final RepositoryMetadata metadata,
-            final Environment environment,
-            final NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
+        public CountingMockRepository(final RepositoryMetadata metadata,
+                                      final Environment environment,
+                                      final NamedXContentRegistry namedXContentRegistry, ClusterService clusterService,
+                                      BigArrays bigArrays, RecoverySettings recoverySettings) {
             super(metadata, environment, namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         }
 
@@ -202,8 +183,8 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         }
 
         @Override
-        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId indexId)
-            throws IOException {
+        public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId,
+                                                      IndexId indexId) throws IOException {
             indicesMetadata.computeIfAbsent(key(snapshotId.getName(), indexId.getName()), (s) -> new AtomicInteger(0)).incrementAndGet();
             return super.getSnapshotIndexMetaData(PlainActionFuture.get(this::getRepositoryData), snapshotId, indexId);
         }
@@ -215,17 +196,11 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         public static final String TYPE = "countingmock";
 
         @Override
-        public Map<String, Repository.Factory> getRepositories(
-            Environment env,
-            NamedXContentRegistry namedXContentRegistry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
-            return Collections.singletonMap(
-                TYPE,
-                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings)
-            );
+        public Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
+                                                               ClusterService clusterService, BigArrays bigArrays,
+                                                               RecoverySettings recoverySettings) {
+            return Collections.singletonMap(TYPE,
+                metadata -> new CountingMockRepository(metadata, env, namedXContentRegistry, clusterService, bigArrays, recoverySettings));
         }
     }
 }

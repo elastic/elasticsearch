@@ -92,22 +92,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-<<<<<<< HEAD
-    public T read(BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry, BigArrays bigArrays)
-        throws IOException {
-        String blobName = blobName(name);
-        try (
-            ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
-            InputStream in = blobContainer.readBlob(blobName)
-        ) {
-            Streams.copy(in, out, false);
-            return deserialize(blobName, namedXContentRegistry, out.bytes());
-=======
     public T read(BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry) throws IOException {
         String blobName = blobName(name);
         try (InputStream in = blobContainer.readBlob(blobName)) {
             return deserialize(namedXContentRegistry, in);
->>>>>>> master
         }
     }
 
@@ -118,31 +106,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
     public T deserialize(NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
-<<<<<<< HEAD
-            final IndexInput indexInput = bytes.length() > 0
-                ? new ByteBuffersIndexInput(new ByteBuffersDataInput(Arrays.asList(BytesReference.toByteBuffers(bytes))), resourceDesc)
-                : new ByteArrayIndexInput(resourceDesc, BytesRef.EMPTY_BYTES);
-            CodecUtil.checksumEntireFile(indexInput);
-            CodecUtil.checkHeader(indexInput, codec, VERSION, VERSION);
-            long filePointer = indexInput.getFilePointer();
-            long contentSize = indexInput.length() - CodecUtil.footerLength() - filePointer;
-            try (
-                XContentParser parser = XContentHelper.createParser(
-                    namedXContentRegistry,
-                    LoggingDeprecationHandler.INSTANCE,
-                    bytes.slice((int) filePointer, (int) contentSize),
-                    XContentType.SMILE
-                )
-            ) {
-                return reader.apply(parser);
-=======
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
             final InputStream wrappedStream;
             if (deserializeMetaBlobInputStream.nextBytesCompressed()) {
                 wrappedStream = CompressorFactory.COMPRESSOR.threadLocalInputStream(deserializeMetaBlobInputStream);
             } else {
                 wrappedStream = deserializeMetaBlobInputStream;
->>>>>>> master
             }
             final T result;
             try (XContentParser parser = XContentType.SMILE.xContent().createParser(
@@ -309,22 +278,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes, false));
     }
 
-    public void serialize(
-        final T obj,
-        final String blobName,
-        final boolean compress,
-        BigArrays bigArrays,
-        CheckedConsumer<BytesReference, IOException> consumer
-    ) throws IOException {
+    public void serialize(final T obj, final String blobName, final boolean compress, BigArrays bigArrays,
+                          CheckedConsumer<BytesReference, IOException> consumer) throws IOException {
         try (ReleasableBytesStreamOutput outputStream = new ReleasableBytesStreamOutput(bigArrays)) {
-            try (
-                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
-                    blobName,
-                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
-                    BUFFER_SIZE
-                )
-            ) {
+            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")", blobName,
+                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream), BUFFER_SIZE)) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -332,12 +291,9 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
-                };
-                    XContentBuilder builder = XContentFactory.contentBuilder(
-                        XContentType.SMILE,
-                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
-                    )
-                ) {
+                }; XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE,
+                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream)
+                                : indexOutputOutputStream)) {
                     builder.startObject();
                     obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
                     builder.endObject();

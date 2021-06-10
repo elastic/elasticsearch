@@ -30,11 +30,9 @@ public class RestoreClusterStateListener implements ClusterStateListener {
     private final String uuid;
     private final ActionListener<RestoreSnapshotResponse> listener;
 
-    private RestoreClusterStateListener(
-        ClusterService clusterService,
-        RestoreService.RestoreCompletionResponse response,
-        ActionListener<RestoreSnapshotResponse> listener
-    ) {
+
+    private RestoreClusterStateListener(ClusterService clusterService, RestoreService.RestoreCompletionResponse response,
+                                        ActionListener<RestoreSnapshotResponse> listener) {
         this.clusterService = clusterService;
         this.uuid = response.getUuid();
         this.listener = listener;
@@ -55,12 +53,10 @@ public class RestoreClusterStateListener implements ClusterStateListener {
             ImmutableOpenMap<ShardId, RestoreInProgress.ShardRestoreStatus> shards = prevEntry.shards();
             assert prevEntry.state().completed() : "expected completed snapshot state but was " + prevEntry.state();
             assert RestoreService.completed(shards) : "expected all restore entries to be completed";
-            RestoreInfo ri = new RestoreInfo(
-                prevEntry.snapshot().getSnapshotId().getName(),
+            RestoreInfo ri = new RestoreInfo(prevEntry.snapshot().getSnapshotId().getName(),
                 prevEntry.indices(),
                 shards.size(),
-                shards.size() - RestoreService.failedShards(shards)
-            );
+                shards.size() - RestoreService.failedShards(shards));
             RestoreSnapshotResponse response = new RestoreSnapshotResponse(ri);
             logger.debug("restore of [{}] completed", prevEntry.snapshot().getSnapshotId());
             listener.onResponse(response);
@@ -73,11 +69,8 @@ public class RestoreClusterStateListener implements ClusterStateListener {
      * Creates a cluster state listener and registers it with the cluster service. The listener passed as a
      * parameter will be called when the restore is complete.
      */
-    public static void createAndRegisterListener(
-        ClusterService clusterService,
-        RestoreService.RestoreCompletionResponse response,
-        ActionListener<RestoreSnapshotResponse> listener
-    ) {
+    public static void createAndRegisterListener(ClusterService clusterService, RestoreService.RestoreCompletionResponse response,
+                                                 ActionListener<RestoreSnapshotResponse> listener) {
         clusterService.addListener(new RestoreClusterStateListener(clusterService, response, listener));
     }
 }

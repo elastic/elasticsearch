@@ -22,3 +22,4 @@ public class VerifyRepositoryAction extends ActionType<VerifyRepositoryResponse>
         super(NAME, VerifyRepositoryResponse::new);
     }
 }
+

@@ -29,7 +29,8 @@ public class VerifyRepositoryRequest extends AcknowledgedRequest<VerifyRepositor
         name = in.readString();
     }
 
-    public VerifyRepositoryRequest() {}
+    public VerifyRepositoryRequest() {
+    }
 
     /**
      * Constructs a new unregister repository request with the provided name.

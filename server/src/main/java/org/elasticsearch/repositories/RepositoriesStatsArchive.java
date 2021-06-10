@@ -28,7 +28,9 @@ public final class RepositoriesStatsArchive {
     private final LongSupplier relativeTimeSupplier;
     private final Deque<ArchiveEntry> archive = new ArrayDeque<>();
 
-    public RepositoriesStatsArchive(TimeValue retentionPeriod, int maxCapacity, LongSupplier relativeTimeSupplier) {
+    public RepositoriesStatsArchive(TimeValue retentionPeriod,
+                                    int maxCapacity,
+                                    LongSupplier relativeTimeSupplier) {
         this.retentionPeriod = retentionPeriod;
         this.maxCapacity = maxCapacity;
         this.relativeTimeSupplier = relativeTimeSupplier;
@@ -88,11 +90,8 @@ public final class RepositoriesStatsArchive {
 
     private boolean containsRepositoryStats(RepositoryStatsSnapshot repositoryStats) {
         return archive.stream()
-            .anyMatch(
-                entry -> entry.repositoryStatsSnapshot.getRepositoryInfo().ephemeralId.equals(
-                    repositoryStats.getRepositoryInfo().ephemeralId
-                )
-            );
+            .anyMatch(entry ->
+                entry.repositoryStatsSnapshot.getRepositoryInfo().ephemeralId.equals(repositoryStats.getRepositoryInfo().ephemeralId));
     }
 
     private static class ArchiveEntry {

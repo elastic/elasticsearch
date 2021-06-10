@@ -24,3 +24,4 @@ public class DeleteSnapshotAction extends ActionType<AcknowledgedResponse> {
     }
 
 }
+

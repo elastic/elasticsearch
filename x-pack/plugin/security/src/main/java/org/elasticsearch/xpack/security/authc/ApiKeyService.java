@@ -210,7 +210,7 @@ public class ApiKeyService {
         final Integer maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
-                .setExpireAfterWrite(ttl)
+                .setExpireAfterAccess(ttl)
                 .setMaximumWeight(maximumWeight)
                 .build();
             final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
@@ -432,6 +432,9 @@ public class ApiKeyService {
                     }
                     validator.accept(apiKeyDoc);
                 } else {
+                    if (apiKeyAuthCache != null) {
+                        apiKeyAuthCache.invalidate(docId);
+                    }
                     listener.onResponse(
                         AuthenticationResult.unsuccessful("unable to find apikey with id " + credentials.getId(), null));
                 }
@@ -576,6 +579,9 @@ public class ApiKeyService {
         } else if (apiKeyDoc.invalidated == null) {
             listener.onResponse(AuthenticationResult.unsuccessful("api key document is missing invalidated field", null));
         } else if (apiKeyDoc.invalidated) {
+            if (apiKeyAuthCache != null) {
+                apiKeyAuthCache.invalidate(docId);
+            }
             listener.onResponse(AuthenticationResult.unsuccessful("api key has been invalidated", null));
         } else {
             if (apiKeyDoc.hash == null) {
@@ -645,6 +651,11 @@ public class ApiKeyService {
     // pkg private for testing
     CachedApiKeyHashResult getFromCache(String id) {
         return apiKeyAuthCache == null ? null : FutureUtils.get(apiKeyAuthCache.get(id), 0L, TimeUnit.MILLISECONDS);
+    }
+
+    // pkg private for testing
+    Cache<String, ListenableFuture<CachedApiKeyHashResult>> getApiKeyAuthCache() {
+        return apiKeyAuthCache;
     }
 
     // pkg private for testing

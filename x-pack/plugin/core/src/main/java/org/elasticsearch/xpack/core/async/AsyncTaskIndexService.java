@@ -21,14 +21,16 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -136,6 +138,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
+    private final BigArrays bigArrays;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -143,13 +146,15 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Client client,
                                  String origin,
                                  Writeable.Reader<R> reader,
-                                 NamedWriteableRegistry registry) {
+                                 NamedWriteableRegistry registry,
+                                 BigArrays bigArrays) {
         this.index = index;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
+        this.bigArrays = bigArrays;
     }
 
     /**
@@ -182,18 +187,22 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                R response,
                                ActionListener<IndexResponse> listener) throws IOException {
         try {
-            // TODO: Integrate with circuit breaker
-            final XContentBuilder source = XContentFactory.jsonBuilder()
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
                 .startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
-
+            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+            source.flush();
             final IndexRequest indexRequest = new IndexRequest(index)
                 .create(true)
                 .id(docId)
-                .source(source);
+                .source(buffer.bytes(), source.contentType());
             clientWithOrigin.index(indexRequest, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -204,20 +213,25 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Stores the final response if the place-holder document is still present (update).
      */
     public void updateResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> listener) {
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> listener) {
         try {
-            // TODO: Integrate with circuit breaker
-            final XContentBuilder source = XContentFactory.jsonBuilder()
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
                 .startObject()
                 .field(RESPONSE_HEADERS_FIELD, responseHeaders)
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
-            UpdateRequest request = new UpdateRequest()
+            // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+            source.flush();
+            final UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
-                .doc(source)
+                .doc(buffer.bytes(), source.contentType())
                 .retryOnConflict(5);
             clientWithOrigin.update(request, listener);
         } catch (Exception e) {

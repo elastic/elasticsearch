@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.ErrorsTestCase;

@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

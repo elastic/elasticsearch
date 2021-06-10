@@ -95,7 +95,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
                     resolved.put(sort, (Comparable<Object>) internalBucket.getKey());
                 } else {
                     Double bucketValue = BucketHelpers.resolveBucketValue(parentAgg, internalBucket, sortField, gapPolicy);
-                    if (GapPolicy.SKIP == gapPolicy && Double.isNaN(bucketValue)) {
+                    if (gapPolicy.isSkippable && Double.isNaN(bucketValue)) {
                         continue;
                     }
                     resolved.put(sort, (Comparable<Object>) (Object) bucketValue);

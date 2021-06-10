@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.execution;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
 
 import java.util.Iterator;

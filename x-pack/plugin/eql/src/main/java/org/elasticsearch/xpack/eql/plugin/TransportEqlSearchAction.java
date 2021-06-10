@@ -35,11 +35,11 @@ import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
-import org.elasticsearch.xpack.eql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.ql.expression.Order;
 
 import java.io.IOException;

@@ -4,9 +4,10 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.coordination.CoordinationStateTestCluster;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.test.ESTestCase;

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.cluster.coordination;
+package org.elasticsearch.cluster.coordination.votingonly;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
@@ -14,7 +14,9 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState.VoteCollection;
-import org.elasticsearch.cluster.coordination.VotingOnlyNodeFeatureSet.UsageTransportAction;
+import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.Join;
+import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -98,7 +100,7 @@ public class VotingOnlyNodePlugin extends Plugin implements DiscoveryPlugin, Net
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
         return Arrays.asList(
-            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, UsageTransportAction.class),
+            new ActionHandler<>(XPackUsageFeatureAction.VOTING_ONLY, VotingOnlyNodeFeatureSet.UsageTransportAction.class),
             new ActionHandler<>(XPackInfoFeatureAction.VOTING_ONLY, VotingOnlyNodeFeatureSet.UsageInfoAction.class)
         );
     }

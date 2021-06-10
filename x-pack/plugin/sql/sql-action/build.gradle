@@ -18,6 +18,8 @@ dependencies {
   api(project(':libs:elasticsearch-x-content')) {
     transitive = false
   }
+  api xpackProject('plugin:core')
+  api xpackProject('plugin:ql')
   api xpackProject('plugin:sql:sql-proto')
   api "org.apache.lucene:lucene-core:${versions.lucene}"
   api "joda-time:joda-time:${versions.joda}"

@@ -24,7 +24,7 @@ Retrieves usage information for {dfeeds}.
 [[ml-get-datafeed-stats-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+Requires the `monitor_ml` cluster privilege. This privilege is included in the
 `machine_learning_user` built-in role.
 
 [[ml-get-datafeed-stats-desc]]
@@ -100,6 +100,24 @@ The node name. For example, `0-o0tOo`.
 `transport_address`:::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+====
+--
+
+`running_state`::
+(object) An object containing the running state for this {dfeed}. It is only
+provided if the {dfeed} is started.
++
+--
+[%collapsible%open]
+====
+`real_time_configured`:::
+(boolean) Indicates if the {dfeed} is "real-time"; meaning that the {dfeed}
+has no configured `end` time.
+
+`real_time_running`:::
+(boolean) Indicates whether the {dfeed} has finished running on the available
+past data. For {dfeeds} without a configured `end` time, this means that
+the {dfeed} is now running on "real-time" data.
 ====
 --
 

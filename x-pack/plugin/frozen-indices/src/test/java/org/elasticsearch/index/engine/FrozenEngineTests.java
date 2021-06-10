@@ -44,8 +44,17 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, listener, null,
-                globalCheckpoint::get, new NoneCircuitBreakerService());
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                listener,
+                null,
+                globalCheckpoint::get,
+                new NoneCircuitBreakerService()
+            );
             try (InternalEngine engine = createEngine(config)) {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
@@ -55,8 +64,10 @@ public class FrozenEngineTests extends EngineTestCase {
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         assertFalse(frozenEngine.isReaderOpen());
                         try (Engine.Searcher searcher = reader.acquireSearcher("frozen")) {
-                            assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
-                                .getDirectoryReader()).shardId());
+                            assertEquals(
+                                config.getShardId(),
+                                ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()).shardId()
+                            );
                             assertTrue(frozenEngine.isReaderOpen());
                             TopDocs search = searcher.search(new MatchAllDocsQuery(), numDocs);
                             assertEquals(search.scoreDocs.length, numDocs);
@@ -81,8 +92,17 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, listener, null,
-                globalCheckpoint::get, new NoneCircuitBreakerService());
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                listener,
+                null,
+                globalCheckpoint::get,
+                new NoneCircuitBreakerService()
+            );
             try (InternalEngine engine = createEngine(config)) {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
@@ -124,8 +144,17 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, listener, null,
-                globalCheckpoint::get, new NoneCircuitBreakerService());
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                listener,
+                null,
+                globalCheckpoint::get,
+                new NoneCircuitBreakerService()
+            );
             try (InternalEngine engine = createEngine(config)) {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
@@ -159,11 +188,21 @@ public class FrozenEngineTests extends EngineTestCase {
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(),
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
                 NoMergePolicy.INSTANCE, // we don't merge we want no background merges to happen to ensure we have consistent breaker stats
-                null, listener, null, globalCheckpoint::get, new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
+                null,
+                listener,
+                null,
+                globalCheckpoint::get,
+                new HierarchyCircuitBreakerService(
+                    defaultSettings.getSettings(),
                     Collections.emptyList(),
-                    new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                    new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                )
+            );
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             final int docs;
             try (InternalEngine engine = createEngine(config)) {
@@ -203,8 +242,22 @@ public class FrozenEngineTests extends EngineTestCase {
         for (int i = 0; i < numDocs; i++) {
             numDocsAdded++;
             ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
-            engine.index(new Engine.Index(newUid(doc), doc, i, primaryTerm.get(), 1, null, Engine.Operation.Origin.REPLICA,
-                System.nanoTime(), -1, false, SequenceNumbers.UNASSIGNED_SEQ_NO, 0));
+            engine.index(
+                new Engine.Index(
+                    newUid(doc),
+                    doc,
+                    i,
+                    primaryTerm.get(),
+                    1,
+                    null,
+                    Engine.Operation.Origin.REPLICA,
+                    System.nanoTime(),
+                    -1,
+                    false,
+                    SequenceNumbers.UNASSIGNED_SEQ_NO,
+                    0
+                )
+            );
             if (rarely()) {
                 engine.flush();
             }
@@ -219,10 +272,21 @@ public class FrozenEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, null, globalCheckpoint::get,
-                new HierarchyCircuitBreakerService(defaultSettings.getSettings(),
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                null,
+                null,
+                globalCheckpoint::get,
+                new HierarchyCircuitBreakerService(
+                    defaultSettings.getSettings(),
                     Collections.emptyList(),
-                    new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
+                    new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+                )
+            );
             CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             try (InternalEngine engine = createEngine(config)) {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
@@ -270,8 +334,12 @@ public class FrozenEngineTests extends EngineTestCase {
         final Class<?> superClazz = clazz.getSuperclass();
         for (Method m : superClazz.getMethods()) {
             final int mods = m.getModifiers();
-            if (Modifier.isStatic(mods) || Modifier.isAbstract(mods) || Modifier.isFinal(mods) || m.isSynthetic()
-                || m.getName().equals("attributes") || m.getName().equals("getStats")) {
+            if (Modifier.isStatic(mods)
+                || Modifier.isAbstract(mods)
+                || Modifier.isFinal(mods)
+                || m.isSynthetic()
+                || m.getName().equals("attributes")
+                || m.getName().equals("getStats")) {
                 continue;
             }
             // The point of these checks is to ensure that methods from the super class
@@ -306,13 +374,23 @@ public class FrozenEngineTests extends EngineTestCase {
             beforeRefresh.set(0);
         }
     }
+
     public void testCanMatch() throws IOException {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
             CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, listener, null,
-                globalCheckpoint::get, new NoneCircuitBreakerService());
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                listener,
+                null,
+                globalCheckpoint::get,
+                new NoneCircuitBreakerService()
+            );
             try (InternalEngine engine = createEngine(config)) {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
@@ -323,8 +401,10 @@ public class FrozenEngineTests extends EngineTestCase {
                         try (Engine.Searcher searcher = reader.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
                             dirReader = searcher.getDirectoryReader();
                             assertNotNull(ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()));
-                            assertEquals(config.getShardId(), ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher
-                                .getDirectoryReader()).shardId());
+                            assertEquals(
+                                config.getShardId(),
+                                ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(searcher.getDirectoryReader()).shardId()
+                            );
                             assertEquals(0, listener.afterRefresh.get());
                             DirectoryReader unwrap = FilterDirectoryReader.unwrap(searcher.getDirectoryReader());
                             assertThat(unwrap, Matchers.instanceOf(RewriteCachingDirectoryReader.class));
@@ -349,8 +429,17 @@ public class FrozenEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            EngineConfig config = config(defaultSettings, store, createTempDir(), newMergePolicy(), null, null, null,
-                globalCheckpoint::get, new NoneCircuitBreakerService());
+            EngineConfig config = config(
+                defaultSettings,
+                store,
+                createTempDir(),
+                newMergePolicy(),
+                null,
+                null,
+                null,
+                globalCheckpoint::get,
+                new NoneCircuitBreakerService()
+            );
             final int totalDocs;
             try (InternalEngine engine = createEngine(config)) {
                 applyOperations(engine, generateHistoryOnReplica(between(10, 1000), false, randomBoolean(), randomBoolean()));

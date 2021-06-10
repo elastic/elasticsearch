@@ -28,8 +28,8 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.COLD_PHAS
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.DELETE_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.HOT_PHASE;
 import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.WARM_PHASE;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.CoreMatchers.is;
 
 public class MigrateActionTests extends AbstractActionTestCase<MigrateAction> {

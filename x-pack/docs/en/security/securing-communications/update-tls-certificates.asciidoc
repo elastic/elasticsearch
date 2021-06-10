@@ -90,6 +90,8 @@ in use.
 ./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 +
+[%collapsible%open]
+.Command parameters
 ====
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
    default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
@@ -125,7 +127,8 @@ file names match.
 
 [[node-certs-same-http]]
 ==== Generate a new certificate for the HTTP layer
-This certificate is used to verify other components when they connect to {es}.
+This certificate is used to verify other components when they connect to {es},
+such as {kib} or any of the Elastic language clients.
 
 . Stop {es} and {kib} if they are running.
 
@@ -159,7 +162,9 @@ explaining how to use these files.
 Each certificate will have its own private key, and will be issued for a
 specific hostname or IP address.
 
-   g. When prompted, enter the name of the first node in your cluster. Use the same node name that you used when <<generate-certificates,generating node certificates>>.
+   g. When prompted, enter the name of the first node in your cluster. Use the
+   same node name as the value for the `node.name` parameter in the
+   `elasticsearch.yml` file.
 
    h. Enter all hostnames used to connect to your first node. These hostnames
    will be added as DNS names in the Subject Alternative Name (SAN) field in your certificate.
@@ -250,8 +255,8 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 xpack.security.transport.ssl.truststore.password: password
 ----
 
-. On *any* node in your cluster, generate a new CA. You only need to complete
-this step once.
+. On *any* node in your cluster, generate a new CA certificate. You only need
+to complete this step once.
 +
 NOTE: If your organization has its own CA, then use that CA to generate a new
 CA certificate in PEM format.
@@ -261,6 +266,8 @@ CA certificate in PEM format.
 ./bin/elasticsearch-certutil ca --pem
 ----
 +
+[%collapsible%open]
+.Command parameters
 ====
    `--pem`:: Generates a directory containing a CA certificate and
     key in PEM format instead of PKCS#12. 
@@ -269,8 +276,8 @@ CA certificate in PEM format.
     a. Enter a name for the compressed output file that will contain your
     certificate and key, or accept the default name of `elastic-stack-ca.zip`.
 
-    b. Unzip the output file. The
-    resulting directory contains two files: `ca.crt` and `ca.key`.
+    b. Unzip the output file. The resulting directory contains a CA certificate
+    (`ca.crt`) and private key (`ca.key`).
 +
 --
 IMPORTANT: Keep these file in a secure location as they contain the private key
@@ -288,13 +295,24 @@ keytool -importcert -trustcacerts -noprompt -keystore elastic-stack-ca.p12 \
 -storepass <password>  -alias new-ca -file ca.crt
 ----
 +
+[%collapsible%open]
+.Command parameters
 ====
+   `-keystore`:: Name of the truststore that you are importing the new CA
+   certificate into. 
+
+   `-storepass`:: Password for the CA truststore. 
+
    `-alias`:: Name that you want to assign to the new CA certificate.
+
+   `-file`:: Name of the new CA certificate to import.
 ====
 
 . Check that the new CA certificate was added to your truststore. The output
 should contain both the existing CA certificate and your new certificate. Each
 CA certificate is identified by the `friendlyName` attribute in the output.
++
+When prompted, enter the password for the CA truststore.
 +
 [source,shell]
 ----
@@ -309,6 +327,8 @@ keytool -delete -noprompt -alias old-ca  -keystore config/elastic-stack-ca.p12 \
 -storepass <password>
 ----
 +
+[%collapsible%open]
+.Command parameters
 ====
    `-alias`:: Name of the old CA certificate that you want to remove from your
    truststore.
@@ -324,9 +344,9 @@ that contains information about each of your nodes. You can then use the
 `elasticsearch-certutil` tool to generate certificates for all of your nodes
 with a single command.
 
-. Create an `instances.yml` file that contains information about each of your
-nodes. Include all IP addresses and DNS names that you use to identify each
-node. 
+. On any node in your cluster, create an `instances.yml` file that contains
+information about each of your nodes. Include all IP addresses and DNS names
+that you use to identify each node. 
 +
 [source,yaml]
 ----
@@ -366,15 +386,17 @@ in your cluster. Include the `instances.yml` file that you created previously.
 --ca-key ca/ca.key
 ----
 +
+[%collapsible%open]
+.Command parameters
 ====
-   `-in`:: Specifies the name of the input YAML file containing information
-   about each of your nodes.
+   `-in`:: Specifies the name of the input YAML file (`instances.yml`)
+   containing information about each of your nodes.
 
-   `--ca-cert`:: Specifies the path to your new CA certificate (in PEM format).
-   You must also specify the `--ca-key` parameter.
+   `--ca-cert`:: Specifies the path to your new CA certificate (`ca.crt`) in PEM
+   format. You must also specify the `--ca-key` parameter.
 
-   `--ca-key`:: Specifies the path to the private key for your CA certificate.
-   You must also specify the `--ca-cert` parameter.
+   `--ca-key`:: Specifies the path to the private key (`ca.key`) for your CA
+   certificate. You must also specify the `--ca-cert` parameter.
 ====
 
    a. Enter a name for the output file or accept the default of
@@ -410,7 +432,9 @@ xpack.security.transport.ssl.keystore.password: password
 
 [[node-certs-different-http]]
 ==== Generate a new certificate for the HTTP layer
-This certificate is used to verify other components when they connect to {es}.
+You can generate certificates for the HTTP layer using your new CA certificate
+and private key. This certificate is used to verify other components when they
+connect to {es}, such as {kib} or any of the Elastic language clients.
 
 . Stop {es} and {kib} if they are running.
 
@@ -445,7 +469,9 @@ explaining how to use these files.
 Each certificate will have its own private key, and will be issued for a
 specific hostname or IP address.
 
-   g. When prompted, enter the name of the first node in your cluster. Use the same node name that you used when <<generate-certificates,generating node certificates>>.
+   g. When prompted, enter the name of the first node in your cluster. Use the
+   same node name as the value for the `node.name` parameter in the
+   `elasticsearch.yml` file.
 
    h. Enter all hostnames used to connect to your first node. These hostnames
    will be added as DNS names in the Subject Alternative Name (SAN) field in your certificate.
@@ -457,7 +483,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
    j. Repeat these steps for each additional node in your cluster.
 
 . After generating a certificate for each of your nodes, enter a password for
-   your private key when prompted.
+   your keystore when prompted.
 
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}. Additionally, a directory is
@@ -497,6 +523,6 @@ certificate to the incoming TLS connections.
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. [[cert-password-updates-https]] If your certificate is password protected, the password is stored in the {es} keystore, _and_ the password needs to change, then you must perform a <<restart-cluster-rolling,rolling restart>> on your cluster. Complete the steps until the step that indicates *Perform any needed changes*, and then continue to the next step to replace your existing certificates.
+. [[cert-password-update-https]] If your certificate is password protected, the password is stored in the {es} keystore, _and_ the password needs to change, then you must perform a <<restart-cluster-rolling,rolling restart>> on your cluster. Complete the steps until the step that indicates *Perform any needed changes*, and then continue to the next step to replace your existing certificates.
 
-. Repeat the previous steps on each node in your cluster to update the existing certificate, completing a rolling restart beforehand if your certificate matches the password stipulations outlined in <<cert-password-updates-https,this step>>.
+. Repeat the previous steps on each node in your cluster to update the existing certificate, completing a rolling restart beforehand if your certificate matches the password stipulations outlined in <<cert-password-update-https,this step>>.

@@ -20,6 +20,7 @@ import org.apache.lucene.store.SimpleFSDirectory;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.hash.MessageDigests;
 
@@ -59,6 +60,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.regex.Pattern;
 
 /**
@@ -70,6 +72,9 @@ import java.util.regex.Pattern;
  * in a single thread. Once decrypted, settings may be read in multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
+
+    /** Arbitrarily chosen maximum passphrase length */
+    public static final int MAX_PASSPHRASE_LENGTH = 128;
 
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {
@@ -191,6 +196,29 @@ public class KeyStoreWrapper implements SecureSettings {
         }
         wrapper.setString(SEED_SETTING.getKey(), characters);
         Arrays.fill(characters, (char)0);
+    }
+
+    public static KeyStoreWrapper bootstrap(Path configDir, CheckedSupplier<SecureString, Exception> passwordSupplier) throws Exception {
+        KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
+
+        SecureString password;
+        if (keystore != null && keystore.hasPassword()) {
+            password = passwordSupplier.get();
+        } else {
+            password = new SecureString(new char[0]);
+        }
+
+        try (password) {
+            if (keystore == null) {
+                final KeyStoreWrapper keyStoreWrapper = KeyStoreWrapper.create();
+                keyStoreWrapper.save(configDir, new char[0]);
+                return keyStoreWrapper;
+            } else {
+                keystore.decrypt(password.getChars());
+                KeyStoreWrapper.upgrade(keystore, configDir, password.getChars());
+            }
+        }
+        return keystore;
     }
 
     /**

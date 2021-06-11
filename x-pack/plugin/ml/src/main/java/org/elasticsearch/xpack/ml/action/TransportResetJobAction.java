@@ -13,8 +13,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
-import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -32,7 +30,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -50,7 +47,6 @@ import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
@@ -102,55 +98,28 @@ public class TransportResetJobAction extends AcknowledgedTransportMasterNodeActi
                     return;
                 }
 
-                ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
-                jobConfigProvider.updateJobBlockReason(job.getId(), new Blocked(Blocked.Reason.RESET, taskId), ActionListener.wrap(
-                    r -> resetJob(taskClient, (CancellableTask) task, request, listener),
-                    listener::onFailure
-                ));
-            },
-            listener::onFailure
-        );
-
-        ActionListener<TaskInfo> existingTaskListener = ActionListener.wrap(
-            existingTask -> {
-                if (existingTask == null) {
-                    jobConfigProvider.getJob(request.getJobId(), jobListener);
+                if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
+                    waitExistingResetTaskToComplete(job.getBlocked().getTaskId(), request, listener);
                 } else {
-                    waitExistingResetTaskToComplete(existingTask, request, listener);
+                    ParentTaskAssigningClient taskClient = new ParentTaskAssigningClient(client, taskId);
+                    jobConfigProvider.updateJobBlockReason(job.getId(), new Blocked(Blocked.Reason.RESET, taskId), ActionListener.wrap(
+                        r -> resetJob(taskClient, (CancellableTask) task, request, listener),
+                        listener::onFailure
+                    ));
                 }
             },
             listener::onFailure
         );
 
-        findExistingResetTask(taskId, request.getJobId(), existingTaskListener);
+        jobConfigProvider.getJob(request.getJobId(), jobListener);
     }
 
-    private void findExistingResetTask(TaskId currentTaskId, String jobId, ActionListener<TaskInfo> listener) {
-        ListTasksRequest listTasksRequest = new ListTasksRequest();
-        listTasksRequest.setActions(ResetJobAction.NAME);
-        listTasksRequest.setDescriptions(MlTasks.JOB_TASK_ID_PREFIX + jobId);
-        listTasksRequest.setDetailed(true);
-        listTasksRequest.setNodes(currentTaskId.getNodeId());
-        executeAsyncWithOrigin(client, ML_ORIGIN, ListTasksAction.INSTANCE, listTasksRequest, ActionListener.wrap(
-            listTasksResponse -> {
-                Optional<TaskInfo> existingResetTask = listTasksResponse.getTasks().stream()
-                    .filter(taskInfo -> taskInfo.getTaskId().equals(currentTaskId) == false).findAny();
-                if (existingResetTask.isPresent()) {
-                    listener.onResponse(listTasksResponse.getTasks().get(0));
-                } else {
-                    listener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        ));
-    }
-
-    private void waitExistingResetTaskToComplete(TaskInfo existingTask, ResetJobAction.Request request,
+    private void waitExistingResetTaskToComplete(TaskId existingTaskId, ResetJobAction.Request request,
                                                  ActionListener<AcknowledgedResponse> listener) {
         logger.debug(() -> new ParameterizedMessage(
-            "[{}] Waiting on existing reset task: {}", request.getJobId(), existingTask.toString()));
+            "[{}] Waiting on existing reset task: {}", request.getJobId(), existingTaskId));
         GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(existingTask.getTaskId());
+        getTaskRequest.setTaskId(existingTaskId);
         getTaskRequest.setWaitForCompletion(true);
         getTaskRequest.setTimeout(request.timeout());
         executeAsyncWithOrigin(client, ML_ORIGIN, GetTaskAction.INSTANCE, getTaskRequest, ActionListener.wrap(

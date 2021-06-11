@@ -39,7 +39,8 @@ public class BlockedTests extends AbstractSerializingTestCase<Blocked> {
 
     public static Blocked createRandom() {
         Blocked.Reason reason = randomFrom(Blocked.Reason.values());
-        TaskId taskId = randomBoolean() ? null : new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong());
+        TaskId taskId = (reason != Blocked.Reason.NONE && randomBoolean()) ?
+            new TaskId(randomAlphaOfLength(10) + ":" + randomNonNegativeLong()) : null;
         return new Blocked(reason, taskId);
     }
 

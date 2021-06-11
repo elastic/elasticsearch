@@ -202,9 +202,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         this.modelSnapshotId = modelSnapshotId;
         this.modelSnapshotMinVersion = modelSnapshotMinVersion;
         this.resultsIndexName = resultsIndexName;
-        this.deleting = deleting;
         this.allowLazyOpen = allowLazyOpen;
-        this.blocked = blocked == null ? Blocked.none() : blocked;
+
+        if (deleting == false && blocked.getReason() == Blocked.Reason.DELETE) {
+            this.deleting = true;
+        } else {
+            this.deleting = deleting;
+        }
+
+        if (deleting && blocked.getReason() != Blocked.Reason.DELETE) {
+            this.blocked = new Blocked(Blocked.Reason.DELETE, null);
+        } else {
+            this.blocked = blocked;
+        }
     }
 
     public Job(StreamInput in) throws IOException {
@@ -884,13 +894,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setDeleting(boolean deleting) {
             this.deleting = deleting;
-            if (deleting) {
-                this.blocked = new Blocked(Blocked.Reason.DELETE, null);
-            } else {
-                if (blocked.getReason() == Blocked.Reason.DELETE) {
-                    blocked = Blocked.none();
-                }
-            }
             return this;
         }
 
@@ -901,7 +904,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setBlocked(Blocked blocked) {
             this.blocked = ExceptionsHelper.requireNonNull(blocked, BLOCKED);
-            this.deleting = (this.blocked.getReason() == Blocked.Reason.DELETE);
             return this;
         }
 

@@ -10,10 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -65,8 +67,10 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         blockingCall(maintenanceService::triggerDeleteJobsInStateDeletingWithoutDeletionTask);
         assertThat(getJobIds(), containsInAnyOrder("maintenance-test-1", "maintenance-test-2", "maintenance-test-3"));
 
-        this.<Boolean>blockingCall(listener -> jobConfigProvider.markJobAsDeleting("maintenance-test-2", listener));
-        this.<Boolean>blockingCall(listener -> jobConfigProvider.markJobAsDeleting("maintenance-test-3", listener));
+        this.<PutJobAction.Response>blockingCall(listener -> jobConfigProvider.updateJobBlockReason(
+            "maintenance-test-2", new Blocked(Blocked.Reason.DELETE, null), listener));
+        this.<PutJobAction.Response>blockingCall(listener -> jobConfigProvider.updateJobBlockReason(
+            "maintenance-test-3", new Blocked(Blocked.Reason.DELETE, null), listener));
         assertThat(getJobIds(), containsInAnyOrder("maintenance-test-1", "maintenance-test-2", "maintenance-test-3"));
         assertThat(getJob("maintenance-test-1").get(0).isDeleting(), is(false));
         assertThat(getJob("maintenance-test-2").get(0).isDeleting(), is(true));

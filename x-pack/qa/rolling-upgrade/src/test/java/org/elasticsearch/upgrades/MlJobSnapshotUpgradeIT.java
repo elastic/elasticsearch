@@ -168,6 +168,8 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
 
+        closeJob(JOB_ID);
+
         // Does the snapshot still work?
         assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
                 .jobStats()

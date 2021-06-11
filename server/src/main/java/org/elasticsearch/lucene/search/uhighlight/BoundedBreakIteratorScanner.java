@@ -104,12 +104,8 @@ public class BoundedBreakIteratorScanner extends BreakIterator {
 
             // in case no break was found up to maxLen, find one afterwards.
             if (innerStart == innerEnd) {
-                if (targetEndOffset >= textEndIndex) {
-                    innerEnd = textEndIndex;
-                } else {
-                    innerEnd = mainBreak.following(targetEndOffset);
-                    assert innerEnd - innerStart > maxLen;
-                }
+                innerEnd = mainBreak.following(targetEndOffset);
+                assert innerEnd - innerStart > maxLen;
             } else {
                 assert innerEnd - innerStart <= maxLen;
             }

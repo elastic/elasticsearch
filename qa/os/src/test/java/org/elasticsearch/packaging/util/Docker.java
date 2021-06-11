@@ -480,11 +480,10 @@ public class Docker {
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p555);
 
         final String architecture = getArchitecture();
-        Stream.of("autodetect", "categorize", "controller", "data_frame_analyzer", "normalize")
-            .forEach(executableName -> {
-                final Path executablePath = es.modules.resolve("x-pack-ml/platform/linux-" + architecture + "/bin/" + executableName);
-                assertPermissionsAndOwnership(executablePath, p555);
-            });
+        Stream.of("autodetect", "categorize", "controller", "data_frame_analyzer", "normalize").forEach(executableName -> {
+            final Path executablePath = es.modules.resolve("x-pack-ml/platform/linux-" + architecture + "/bin/" + executableName);
+            assertPermissionsAndOwnership(executablePath, p555);
+        });
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
             .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));

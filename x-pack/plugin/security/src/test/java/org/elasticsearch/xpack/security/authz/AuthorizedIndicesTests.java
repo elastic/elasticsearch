@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
@@ -95,8 +96,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
         Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(
-            org.elasticsearch.common.collect.Set.of("all"),
-            org.elasticsearch.common.collect.Set.of())
+            org.elasticsearch.core.Set.of("all"),
+            org.elasticsearch.core.Set.of())
             .build();
         Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
@@ -189,7 +190,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build(), true)
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new DataStream("adatastream1", createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
+                List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
@@ -234,7 +235,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                 .build(), true)
             .put(new IndexMetadata.Builder(backingIndex).settings(indexSettings).numberOfShards(1).numberOfReplicas(0).build(), true)
             .put(new DataStream("adatastream1", createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
+                List.of(new Index(DataStream.getDefaultBackingIndexName("adatastream1", 1), "_na_"))))
             .build();
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);

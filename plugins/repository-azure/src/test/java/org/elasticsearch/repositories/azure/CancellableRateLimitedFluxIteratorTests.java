@@ -143,7 +143,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         latch.countDown();
         //noinspection ResultOfMethodCallIgnored
         assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
-        assertThat(cleaning, equalTo(org.elasticsearch.common.collect.Set.of(2)));
+        assertThat(cleaning, equalTo(org.elasticsearch.core.Set.of(2)));
         assertThat(iterator.getQueue(), is(empty()));
         iterator.cancel();
     }
@@ -193,7 +193,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         iterator.cancel();
         assertThat(iterator.hasNext(), equalTo(false));
 
-        assertBusy(() -> assertThat(cleanedElements, equalTo(org.elasticsearch.common.collect.Set.of(3, 4))));
+        assertBusy(() -> assertThat(cleanedElements, equalTo(org.elasticsearch.core.Set.of(3, 4))));
         assertThat(iterator.getQueue(), is(empty()));
     }
 
@@ -242,7 +242,7 @@ public class CancellableRateLimitedFluxIteratorTests extends ESTestCase {
         iterator.cancel();
         //noinspection ResultOfMethodCallIgnored
         assertBusy(() -> expectThrows(RuntimeException.class, iterator::hasNext));
-        assertBusy(() -> assertThat(cleanedElements, equalTo(org.elasticsearch.common.collect.Set.of(3))));
+        assertBusy(() -> assertThat(cleanedElements, equalTo(org.elasticsearch.core.Set.of(3))));
         assertThat(iterator.getQueue(), is(empty()));
     }
 

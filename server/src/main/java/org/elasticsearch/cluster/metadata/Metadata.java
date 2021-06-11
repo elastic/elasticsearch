@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.NamedDiffableValueSerializer;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.HppcMaps;
@@ -1319,20 +1319,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 String writeDataStream = isWriteDataStream != null && isWriteDataStream ? dataStream : null;
                 alias = new DataStreamAlias(aliasName, Collections.singletonList(dataStream), writeDataStream);
             } else {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                String writeDataStream = alias.getWriteDataStream();
-                if (isWriteDataStream == null || isWriteDataStream == false) {
-                    if (dataStream.equals(writeDataStream)) {
-                        writeDataStream = null;
-                    }
-                } else if (isWriteDataStream) {
-                    writeDataStream = dataStream;
-                }
-                boolean added = dataStreams.add(dataStream);
-                if (added == false && Objects.equals(alias.getWriteDataStream(), writeDataStream)) {
+                DataStreamAlias copy = alias.addDataStream(dataStream, isWriteDataStream);
+                if (copy == alias) {
                     return false;
                 }
-                alias = new DataStreamAlias(aliasName, dataStreams, writeDataStream);
+                alias = copy;
             }
             dataStreamAliases.put(aliasName, alias);
 
@@ -1355,18 +1346,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             Set<String> aliasesToDelete = new HashSet<>();
             List<DataStreamAlias> aliasesToUpdate = new ArrayList<>();
             for (DataStreamAlias alias : existingDataStreamAliases.values()) {
-                Set<String> dataStreams = new HashSet<>(alias.getDataStreams());
-                if (dataStreams.contains(name)) {
-                    dataStreams.remove(name);
-                    if (dataStreams.isEmpty()) {
-                        aliasesToDelete.add(alias.getName());
-                    } else {
-                        String writeDataStream = alias.getWriteDataStream();
-                        if (dataStreams.contains(writeDataStream) == false) {
-                            writeDataStream = null;
-                        }
-                        aliasesToUpdate.add(new DataStreamAlias(alias.getName(), dataStreams, writeDataStream));
+                DataStreamAlias copy = alias.removeDataStream(name);
+                if (copy != null) {
+                    if (copy == alias) {
+                        continue;
                     }
+                    aliasesToUpdate.add(copy);
+                } else {
+                    aliasesToDelete.add(alias.getName());
                 }
             }
             for (DataStreamAlias alias : aliasesToUpdate) {
@@ -1392,19 +1379,15 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             } else if (existing == null) {
                 return false;
             }
-            Set<String> dataStreams = new HashSet<>(existing.getDataStreams());
-            dataStreams.remove(dataStreamName);
-            if (dataStreams.isEmpty()) {
-                dataStreamAliases.remove(aliasName);
-            } else {
-                String writeDataStream = existing.getWriteDataStream();
-                if (dataStreamName.equals(writeDataStream)) {
-                    writeDataStream = null;
-                }
-                dataStreamAliases.put(aliasName,
-                    new DataStreamAlias(existing.getName(), dataStreams, writeDataStream));
+            DataStreamAlias copy = existing.removeDataStream(dataStreamName);
+            if (copy == existing) {
+                return false;
             }
-
+            if (copy != null) {
+                dataStreamAliases.put(aliasName, copy);
+            } else {
+                dataStreamAliases.remove(aliasName);
+            }
             Map<String, DataStream> existingDataStream =
                 Optional.ofNullable((DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE))
                     .map(dsmd -> new HashMap<>(dsmd.dataStreams()))

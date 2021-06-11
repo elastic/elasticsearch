@@ -11,8 +11,8 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -475,7 +475,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // build settings using same path.data as original but without data and master roles
         Settings noDataNoMasterSettings = Settings.builder()
             .put(settings)
-            .put(NodeRoles.removeRoles(nonDataNode(settings), org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.MASTER_ROLE)))
+            .put(NodeRoles.removeRoles(nonDataNode(settings), org.elasticsearch.core.Set.of(DiscoveryNodeRole.MASTER_ROLE)))
             .build();
 
         // test that we can create data=false and master=false with no meta information

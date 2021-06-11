@@ -115,8 +115,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // check snapshot info for for which
         clusterAdmin().prepareGetRepositories(REPO_NAME).get();
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME).get()
-            .getSnapshots().stream()
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+            .get()
+            .getSnapshots()
+            .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
@@ -190,15 +192,17 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
 
         // restore indices by feature, with only the regular index named explicitly
-        SnapshotRestoreException exception = expectThrows(SnapshotRestoreException.class,
-            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
-                .setWaitForCompletion(true)
-                .get());
+        SnapshotRestoreException exception = expectThrows(
+            SnapshotRestoreException.class,
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap").setWaitForCompletion(true).get()
+        );
 
-        assertThat(exception.getMessage(), containsString(
-            "cannot restore index [" +
-                SystemIndexTestPlugin.SYSTEM_INDEX_NAME
-                + "] because an open index with same name already exists"));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "cannot restore index [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "] because an open index with same name already exists"
+            )
+        );
     }
 
     /**
@@ -269,8 +273,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotSuccess(createSnapshotResponse);
 
         // verify the correctness of the snapshot
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME).get()
-            .getSnapshots().stream()
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+            .get()
+            .getSnapshots()
+            .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
@@ -322,10 +328,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setFeatureStates("SystemIndexTestPlugin", fakeFeatureStateName)
-                .get());
+                .get()
+        );
 
-        assertThat(exception.getMessage(),
-            containsString("requested feature states [[" + fakeFeatureStateName + "]] are not present in snapshot"));
+        assertThat(
+            exception.getMessage(),
+            containsString("requested feature states [[" + fakeFeatureStateName + "]] are not present in snapshot")
+        );
     }
 
     /**
@@ -352,11 +361,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         MockLogAppender mockLogAppender = new MockLogAppender();
         Loggers.addAppender(LogManager.getLogger("org.elasticsearch.deprecation.snapshots.RestoreService"), mockLogAppender);
         mockLogAppender.start();
-        mockLogAppender.addExpectation(new MockLogAppender.SeenEventExpectation(
-            "restore-system-index-from-snapshot",
-            "org.elasticsearch.deprecation.snapshots.RestoreService",
-            DeprecationLogger.DEPRECATION,
-            "Restoring system indices by name is deprecated. Use feature states instead. System indices: [.test-system-idx]"));
+        mockLogAppender.addExpectation(
+            new MockLogAppender.SeenEventExpectation(
+                "restore-system-index-from-snapshot",
+                "org.elasticsearch.deprecation.snapshots.RestoreService",
+                DeprecationLogger.DEPRECATION,
+                "Restoring system indices by name is deprecated. Use feature states instead. System indices: [.test-system-idx]"
+            )
+        );
 
         // restore system index by name, rather than feature state
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
@@ -476,7 +488,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setIndices(regularIndex)
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
-            .setFeatureStates(new String[]{ randomFrom("none", "NONE") })
+            .setFeatureStates(new String[] { randomFrom("none", "NONE") })
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -508,11 +520,18 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setRestoreGlobalState(true)
-                .setFeatureStates(new String[]{ randomFrom("none", "NONE") })
-                .get());
+                .setFeatureStates(new String[] { randomFrom("none", "NONE") })
+                .get()
+        );
 
-        assertThat(exception.getMessage(), containsString("cannot restore index [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME
-            + "] because an open index with same name already exists in the cluster."));
+        assertThat(
+            exception.getMessage(),
+            containsString(
+                "cannot restore index ["
+                    + SystemIndexTestPlugin.SYSTEM_INDEX_NAME
+                    + "] because an open index with same name already exists in the cluster."
+            )
+        );
     }
 
     /**
@@ -585,9 +604,14 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // And make sure they both have aliases
         final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
-        assertAcked(client().admin().indices().prepareAliases()
-            .addAlias(systemIndexName, systemIndexAlias)
-            .addAlias(regularIndex, regularAlias).get());
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareAliases()
+                .addAlias(systemIndexName, systemIndexAlias)
+                .addAlias(regularIndex, regularAlias)
+                .get()
+        );
 
         // run a snapshot including global state
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
@@ -638,8 +662,13 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setFeatureStates("SystemIndexTestPlugin", "none", "AnotherSystemIndexTestPlugin")
                 .get()
         );
-        assertThat(createEx.getMessage(), equalTo("the feature_states value [none] indicates that no feature states should be " +
-            "snapshotted, but other feature states were requested: [SystemIndexTestPlugin, none, AnotherSystemIndexTestPlugin]"));
+        assertThat(
+            createEx.getMessage(),
+            equalTo(
+                "the feature_states value [none] indicates that no feature states should be "
+                    + "snapshotted, but other feature states were requested: [SystemIndexTestPlugin, none, AnotherSystemIndexTestPlugin]"
+            )
+        );
 
         // create a successful snapshot with global state/all features
         CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
@@ -658,7 +687,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
         assertThat(
             restoreEx.getMessage(),
-            allOf( // the order of the requested feature states is non-deterministic so just check that it includes most of the right stuff
+            allOf(
+                // the order of the requested feature states is non-deterministic so just check that it includes most of the right stuff
                 containsString(
                     "the feature_states value [none] indicates that no feature states should be restored, but other feature states were "
                         + "requested:"
@@ -688,8 +718,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertSnapshotSuccess(createSnapshotResponse);
 
         // Verify that the system index was not included
-        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME).get()
-            .getSnapshots().stream()
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
+            .get()
+            .getSnapshots()
+            .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
             .collect(Collectors.toSet());
@@ -785,8 +817,11 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Stop a random data node so we lose a shard from the partial index
         internalCluster().stopRandomDataNode();
-        assertBusy(() -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
-            30, TimeUnit.SECONDS);
+        assertBusy(
+            () -> assertEquals(ClusterHealthStatus.RED, client().admin().cluster().prepareHealth().get().getStatus()),
+            30,
+            TimeUnit.SECONDS
+        );
 
         // Get ready to block
         blockMasterFromFinalizingSnapshotOnIndexFile(REPO_NAME);
@@ -804,12 +839,16 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         // Now get the snapshot and do our checks
         assertBusy(() -> {
-            GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                .prepareGetSnapshots(REPO_NAME).setSnapshots(partialSnapName).get();
+            GetSnapshotsResponse snapshotsStatusResponse = client().admin()
+                .cluster()
+                .prepareGetSnapshots(REPO_NAME)
+                .setSnapshots(partialSnapName)
+                .get();
             SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertNotNull(snapshotInfo);
             assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
-            List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
+            List<String> statesInSnapshot = snapshotInfo.featureStates()
+                .stream()
                 .map(SnapshotFeatureInfo::getPluginName)
                 .collect(Collectors.toList());
             assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
@@ -876,7 +915,8 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
         assertNotNull(snapshotInfo);
         assertThat(snapshotInfo.indices(), not(hasItem(indexToBeDeleted)));
-        List<String> statesInSnapshot = snapshotInfo.featureStates().stream()
+        List<String> statesInSnapshot = snapshotInfo.featureStates()
+            .stream()
             .map(SnapshotFeatureInfo::getPluginName)
             .collect(Collectors.toList());
         assertThat(statesInSnapshot, not(hasItem((new SystemIndexTestPlugin()).getFeatureName())));
@@ -885,8 +925,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
-            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
+        assertThat(
+            createSnapshotResponse.getSnapshotInfo().successfulShards(),
+            equalTo(createSnapshotResponse.getSnapshotInfo().totalShards())
+        );
     }
 
     private long getDocCount(String indexName) {

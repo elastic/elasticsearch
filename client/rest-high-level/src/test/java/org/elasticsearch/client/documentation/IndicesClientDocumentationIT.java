@@ -91,7 +91,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -2707,7 +2707,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         final RestHighLevelClient client = highLevelClient();
         {
             final PutIndexTemplateRequest putRequest = new PutIndexTemplateRequest("my-template")
-                .patterns(org.elasticsearch.common.collect.List.of("foo"));
+                .patterns(org.elasticsearch.core.List.of("foo"));
             assertTrue(client.indices().putTemplate(putRequest, LEGACY_TEMPLATE_OPTIONS).isAcknowledged());
         }
 

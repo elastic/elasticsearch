@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.autoscaling;
 
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;

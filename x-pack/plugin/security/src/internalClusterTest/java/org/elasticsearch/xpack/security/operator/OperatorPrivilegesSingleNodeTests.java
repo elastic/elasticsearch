@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
@@ -126,7 +127,7 @@ public class OperatorPrivilegesSingleNodeTests extends SecuritySingleNodeTestCas
     }
 
     private Client createOperatorClient() {
-        return client().filterWithHeader(org.elasticsearch.common.collect.Map.of("Authorization",
+        return client().filterWithHeader(Map.of("Authorization",
             basicAuthHeaderValue(OPERATOR_USER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
     }
 }

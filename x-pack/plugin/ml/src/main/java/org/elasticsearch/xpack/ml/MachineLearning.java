@@ -38,7 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
@@ -90,6 +90,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.core.ml.action.GetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -167,6 +168,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
+import org.elasticsearch.xpack.ml.action.TransportGetDatafeedRunningStateAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
@@ -226,6 +228,7 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.aggs.kstest.BucketCountKSTestAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
@@ -1047,7 +1050,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new ActionHandler<>(PutTrainedModelAliasAction.INSTANCE, TransportPutTrainedModelAliasAction.class),
                 new ActionHandler<>(DeleteTrainedModelAliasAction.INSTANCE, TransportDeleteTrainedModelAliasAction.class),
                 new ActionHandler<>(PreviewDataFrameAnalyticsAction.INSTANCE, TransportPreviewDataFrameAnalyticsAction.class),
-                new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class)
+                new ActionHandler<>(SetResetModeAction.INSTANCE, TransportSetResetModeAction.class),
+                new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class)
             );
     }
 
@@ -1105,7 +1109,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public List<PipelineAggregationSpec> getPipelineAggregations() {
         return Arrays.asList(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState()),
-            BucketCorrelationAggregationBuilder.buildSpec()
+            BucketCorrelationAggregationBuilder.buildSpec(),
+            BucketCountKSTestAggregationBuilder.buildSpec()
         );
     }
 
@@ -1205,7 +1210,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
 
     @Override
     public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new AssociatedIndexDescriptor(RESULTS_INDEX_PREFIX + "*", "Results indices"),
             new AssociatedIndexDescriptor(STATE_INDEX_PREFIX + "*", "State indices"),
             new AssociatedIndexDescriptor(MlStatsIndex.indexPattern(), "ML stats index"),

@@ -13,7 +13,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -129,9 +130,10 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
     public void setup() {
         clusterService = getInstanceFromNode(ClusterService.class);
         transportService = getInstanceFromNode(TransportService.class);
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         AsyncTaskIndexService<StoredAsyncResponse<TestResponse>> store =
             new AsyncTaskIndexService<>(index, clusterService, transportService.getThreadPool().getThreadContext(), client(), "test",
-                in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry());
+                in -> new StoredAsyncResponse<>(TestResponse::new, in), writableRegistry(), bigArrays);
         results = new AsyncResultsService<>(store, true, TestTask.class,
             (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
             transportService.getTaskManager(), clusterService);
@@ -147,8 +149,10 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
 
     private AsyncTaskManagementService<TestRequest, TestResponse, TestTask> createManagementService(
         AsyncTaskManagementService.AsyncOperation<TestRequest, TestResponse, TestTask> operation) {
+        BigArrays bigArrays = getInstanceFromNode(BigArrays.class);
         return new AsyncTaskManagementService<>(index, client(), "test_origin", writableRegistry(),
-            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool());
+            transportService.getTaskManager(), "test_action", operation, TestTask.class, clusterService, transportService.getThreadPool(),
+            bigArrays);
     }
 
     public void testReturnBeforeTimeout() throws Exception {

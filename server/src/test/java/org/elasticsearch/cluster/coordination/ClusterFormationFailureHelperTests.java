@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -189,7 +190,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             is("this node is unhealthy: unhealthy-info"));
 
         final DiscoveryNode masterNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), emptyMap(),
-            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+            Set.of(DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
         clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .version(12L).nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId())).build();
 

@@ -99,7 +99,7 @@ public class InternalHistogramTests extends InternalMultiBucketAggregationTestCa
     public void testLargeReduce() {
         expectReduceUsesTooManyBuckets(new InternalHistogram(
             "h",
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(),
             BucketOrder.key(true),
             0,
             new InternalHistogram.EmptyBucketInfo(5e-10, 0, 0, 100, InternalAggregations.EMPTY),

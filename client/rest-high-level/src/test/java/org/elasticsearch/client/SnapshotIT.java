@@ -156,7 +156,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
         final List<String> featureStates = randomFrom(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 Collections.emptyList(),
                 Collections.singletonList(TASKS_FEATURE_NAME),
                 Collections.singletonList(NO_FEATURE_STATES_VALUE)

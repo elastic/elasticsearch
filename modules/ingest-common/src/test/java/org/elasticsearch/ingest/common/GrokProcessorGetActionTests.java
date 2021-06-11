@@ -34,7 +34,7 @@ import static org.mockito.Mockito.mock;
 
 public class GrokProcessorGetActionTests extends ESTestCase {
     private static final Map<String, String> TEST_PATTERNS =
-        org.elasticsearch.common.collect.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
+        org.elasticsearch.core.Map.of("PATTERN2", "foo2", "PATTERN1", "foo1");
 
     public void testRequest() throws Exception {
         GrokProcessorGetAction.Request request = new GrokProcessorGetAction.Request(false);

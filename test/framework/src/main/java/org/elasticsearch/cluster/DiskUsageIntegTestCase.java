@@ -12,9 +12,10 @@ import org.apache.lucene.mockfile.FilterFileStore;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.fs.FsService;
@@ -71,7 +72,7 @@ public class DiskUsageIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(InternalSettingsPlugin.class);
+        return List.of(InternalSettingsPlugin.class);
     }
 
     @Override

@@ -251,7 +251,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
 
-        final Map<String, Object> authMetadata = new HashMap<>(org.elasticsearch.common.collect.Map.of(
+        final Map<String, Object> authMetadata = new HashMap<>(org.elasticsearch.core.Map.of(
             ApiKeyService.API_KEY_ID_KEY, "api_key_id",
             ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
             ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
@@ -291,7 +291,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
         Authentication.RealmRef realmRef = new Authentication.RealmRef(
             ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, "_node_name");
 
-        final Map<String, Object> authMetadata = new HashMap<>(org.elasticsearch.common.collect.Map.of(
+        final Map<String, Object> authMetadata = new HashMap<>(org.elasticsearch.core.Map.of(
             ApiKeyService.API_KEY_ID_KEY, "api_key_id",
             ApiKeyService.API_KEY_NAME_KEY, "api_key_name",
             ApiKeyService.API_KEY_CREATOR_REALM_NAME, "creator_realm_name",
@@ -358,12 +358,12 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             return new User(randomAlphaOfLengthBetween(3, 8),
                 randomArray(1, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)),
                 randomAlphaOfLengthBetween(5, 20), randomAlphaOfLengthBetween(8, 20),
-                randomFrom(org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of("key", "value")), true);
+                randomFrom(org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of("key", "value")), true);
         } else {
             final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
             return new User(principal, Strings.EMPTY_ARRAY, "Service account - " + principal, null,
-                randomFrom(org.elasticsearch.common.collect.Map.of(),
-                    org.elasticsearch.common.collect.Map.of("_elastic_service_account", true)), true);
+                randomFrom(org.elasticsearch.core.Map.of(),
+                    org.elasticsearch.core.Map.of("_elastic_service_account", true)), true);
         }
     }
 
@@ -375,7 +375,7 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
                 new Authentication.RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
             final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
             return new Authentication(user, authBy, null, Version.CURRENT, AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName(),
+                org.elasticsearch.core.Map.of("_token_name", ValidationTests.randomTokenName(),
                     "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         } else {
             final Authentication.RealmRef lookupBy;
@@ -390,8 +390,8 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             final AuthenticationType authenticationType = user.isRunAs() ? AuthenticationType.REALM
                 : randomFrom(AuthenticationType.REALM, AuthenticationType.INTERNAL, AuthenticationType.TOKEN, AuthenticationType.ANONYMOUS);
             final Map<String, Object> metadata = user.isRunAs() ?
-                org.elasticsearch.common.collect.Map.of() :
-                randomFrom(org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.Map.of("foo", "bar"));
+                org.elasticsearch.core.Map.of() :
+                randomFrom(org.elasticsearch.core.Map.of(), org.elasticsearch.core.Map.of("foo", "bar"));
             return new Authentication(user, authBy, lookupBy, Version.CURRENT, authenticationType, metadata);
         }
     }

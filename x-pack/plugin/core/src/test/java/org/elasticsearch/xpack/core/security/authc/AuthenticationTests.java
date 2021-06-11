@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
@@ -167,7 +168,7 @@ public class AuthenticationTests extends ESTestCase {
             randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()));
         final Map<String, Object> metadata;
         if (randomBoolean()) {
-            metadata = org.elasticsearch.common.collect.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
+            metadata = org.elasticsearch.core.Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
         } else {
             metadata = Arrays.stream(randomArray(1, 5, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)))
                 .collect(Collectors.toMap(s -> s, s -> randomAlphaOfLengthBetween(3, 8)));
@@ -187,10 +188,10 @@ public class AuthenticationTests extends ESTestCase {
             null,
             VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT),
             AuthenticationType.API_KEY,
-            org.elasticsearch.common.collect.Map.of(API_KEY_ID_KEY, apiKeyId));
+            org.elasticsearch.core.Map.of(API_KEY_ID_KEY, apiKeyId));
     }
 
     private boolean realmIsSingleton(RealmRef realmRef) {
-        return org.elasticsearch.common.collect.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
+        return Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE).contains(realmRef.getType());
     }
 }

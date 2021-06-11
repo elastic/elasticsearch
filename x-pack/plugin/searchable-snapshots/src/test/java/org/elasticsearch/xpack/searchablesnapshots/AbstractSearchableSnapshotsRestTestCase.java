@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -157,6 +158,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         assertThat("Wrong index count for index " + restoredIndexName, count.intValue(), equalTo(numDocs));
 
         testCaseBody.runTest(restoredIndexName, numDocs);
+
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
 
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
@@ -512,7 +516,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
-        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.common.collect.Set.of(
+        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.core.Set.of(
             SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
         );

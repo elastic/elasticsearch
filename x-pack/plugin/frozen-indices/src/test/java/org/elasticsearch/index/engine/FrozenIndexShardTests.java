@@ -29,9 +29,15 @@ public class FrozenIndexShardTests extends IndexShardTestCase {
         indexDoc(indexShard, "_doc", "3");
         indexShard.close("test", true);
         final ShardRouting shardRouting = indexShard.routingEntry();
-        IndexShard frozenShard = reinitShard(indexShard, ShardRoutingHelper.initWithSameId(shardRouting,
-            shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-        ), indexShard.indexSettings().getIndexMetadata(), config -> new FrozenEngine(config, true, randomBoolean()));
+        IndexShard frozenShard = reinitShard(
+            indexShard,
+            ShardRoutingHelper.initWithSameId(
+                shardRouting,
+                shardRouting.primary() ? RecoverySource.ExistingStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
+            ),
+            indexShard.indexSettings().getIndexMetadata(),
+            config -> new FrozenEngine(config, true, randomBoolean())
+        );
         recoverShardFromStore(frozenShard);
         assertThat(frozenShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(frozenShard.seqNoStats().getMaxSeqNo()));
         assertDocCount(frozenShard, 3);

@@ -33,8 +33,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
     /**
      * Constructs a new delete snapshots request
      */
-    public DeleteSnapshotRequest() {
-    }
+    public DeleteSnapshotRequest() {}
 
     /**
      * Constructs a new delete snapshots request with repository and snapshot names
@@ -62,7 +61,7 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         if (in.getVersion().onOrAfter(SnapshotsService.MULTI_DELETE_VERSION)) {
             snapshots = in.readStringArray();
         } else {
-            snapshots = new String[] {in.readString()};
+            snapshots = new String[] { in.readString() };
         }
     }
 
@@ -75,7 +74,8 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         } else {
             if (snapshots.length != 1) {
                 throw new IllegalArgumentException(
-                    "Can't write snapshot delete with more than one snapshot to version [" + out.getVersion() + "]");
+                    "Can't write snapshot delete with more than one snapshot to version [" + out.getVersion() + "]"
+                );
             }
             out.writeString(snapshots[0]);
         }
@@ -92,7 +92,6 @@ public class DeleteSnapshotRequest extends MasterNodeRequest<DeleteSnapshotReque
         }
         return validationException;
     }
-
 
     public DeleteSnapshotRequest repository(String repository) {
         this.repository = repository;

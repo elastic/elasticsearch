@@ -21,7 +21,7 @@ public class RestGetAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_autoscaling/policy/{name}"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_autoscaling/policy/{name}"));
     }
 
     @Override

@@ -28,11 +28,25 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportCreateSnapshotAction(TransportService transportService, ClusterService clusterService,
-                                         ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(CreateSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              CreateSnapshotRequest::new, indexNameExpressionResolver, CreateSnapshotResponse::new, ThreadPool.Names.SAME);
+    public TransportCreateSnapshotAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        SnapshotsService snapshotsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            CreateSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            CreateSnapshotRequest::new,
+            indexNameExpressionResolver,
+            CreateSnapshotResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.snapshotsService = snapshotsService;
     }
 
@@ -43,8 +57,11 @@ public class TransportCreateSnapshotAction extends TransportMasterNodeAction<Cre
     }
 
     @Override
-    protected void masterOperation(final CreateSnapshotRequest request, ClusterState state,
-        final ActionListener<CreateSnapshotResponse> listener) {
+    protected void masterOperation(
+        final CreateSnapshotRequest request,
+        ClusterState state,
+        final ActionListener<CreateSnapshotResponse> listener
+    ) {
         if (state.nodes().getMinNodeVersion().before(SnapshotsService.NO_REPO_INITIALIZE_VERSION)) {
             if (request.waitForCompletion()) {
                 snapshotsService.executeSnapshotLegacy(request, listener.map(CreateSnapshotResponse::new));

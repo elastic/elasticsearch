@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,7 +33,7 @@ public class InvalidationCountingCacheWrapperTests extends ESTestCase {
         final long invalidationCount = invalidationCountingCacheWrapper.getInvalidationCount();
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         new Thread(() -> {
-            invalidationCountingCacheWrapper.invalidate(org.elasticsearch.common.collect.List.of("fizz"));
+            invalidationCountingCacheWrapper.invalidate(List.of("fizz"));
             countDownLatch.countDown();
         }).start();
         countDownLatch.await();
@@ -51,7 +52,7 @@ public class InvalidationCountingCacheWrapperTests extends ESTestCase {
         assertEquals("buzz", invalidationCountingCacheWrapper.get("fizz"));
         assertEquals("world", invalidationCountingCacheWrapper.get("hello"));
 
-        invalidationCountingCacheWrapper.invalidate(org.elasticsearch.common.collect.List.of("foo", "hello"));
+        invalidationCountingCacheWrapper.invalidate(List.of("foo", "hello"));
         assertEquals(1, invalidationCountingCacheWrapper.count());
         assertEquals("buzz", invalidationCountingCacheWrapper.get("fizz"));
         assertNull(invalidationCountingCacheWrapper.get("foo"));

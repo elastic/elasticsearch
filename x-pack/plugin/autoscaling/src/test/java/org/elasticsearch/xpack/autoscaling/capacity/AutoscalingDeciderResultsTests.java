@@ -79,13 +79,13 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         Map<String, Object> map = toMap(results);
         boolean hasRequiredCapacity = results.requiredCapacity() != null;
         Set<String> roots = hasRequiredCapacity
-            ? org.elasticsearch.common.collect.Set.of("current_capacity", "current_nodes", "deciders", "required_capacity")
-            : org.elasticsearch.common.collect.Set.of("current_capacity", "current_nodes", "deciders");
+            ? org.elasticsearch.core.Set.of("current_capacity", "current_nodes", "deciders", "required_capacity")
+            : org.elasticsearch.core.Set.of("current_capacity", "current_nodes", "deciders");
         assertThat(map.keySet(), equalTo(roots));
         assertThat(map.get("current_nodes"), instanceOf(List.class));
         List<?> expectedNodes = results.currentNodes()
             .stream()
-            .map(dn -> org.elasticsearch.common.collect.Map.of("name", dn.getName()))
+            .map(dn -> org.elasticsearch.core.Map.of("name", dn.getName()))
             .collect(Collectors.toList());
         assertThat(map.get("current_nodes"), equalTo(expectedNodes));
         if (hasRequiredCapacity) {

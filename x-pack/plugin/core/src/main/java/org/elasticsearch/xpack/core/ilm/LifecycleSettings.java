@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;

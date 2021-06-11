@@ -81,14 +81,14 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         if (in.getVersion().onOrAfter(DATA_SET_SIZE_SIZE_VERSION)) {
             dataSetSizeMap = in.readMap(ShardId::new, StreamInput::readLong);
         } else {
-            dataSetSizeMap = org.elasticsearch.common.collect.Map.of();
+            dataSetSizeMap = org.elasticsearch.core.Map.of();
         }
         Map<ShardRouting, String> routingMap = in.readMap(ShardRouting::new, StreamInput::readString);
         Map<NodeAndPath, ReservedSpace> reservedSpaceMap;
         if (in.getVersion().onOrAfter(StoreStats.RESERVED_BYTES_VERSION)) {
             reservedSpaceMap = in.readMap(NodeAndPath::new, ReservedSpace::new);
         } else {
-            reservedSpaceMap = org.elasticsearch.common.collect.Map.of();
+            reservedSpaceMap = org.elasticsearch.core.Map.of();
         }
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();

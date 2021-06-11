@@ -37,7 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;

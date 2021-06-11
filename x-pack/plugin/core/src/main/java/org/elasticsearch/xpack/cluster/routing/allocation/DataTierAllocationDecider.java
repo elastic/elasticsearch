@@ -21,9 +21,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -95,7 +96,7 @@ public class DataTierAllocationDecider extends AllocationDecider {
 
     private static class DataTierValidator implements Setting.Validator<String> {
         private static final Collection<Setting<?>> dependencies =
-            org.elasticsearch.common.collect.List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
+            List.of(IndexModule.INDEX_STORE_TYPE_SETTING,
                 SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING);
 
         public static String getDefaultTierPreference(Settings settings) {

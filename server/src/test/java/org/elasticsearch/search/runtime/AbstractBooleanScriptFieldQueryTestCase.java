@@ -46,6 +46,6 @@ public abstract class AbstractBooleanScriptFieldQueryTestCase<T extends Abstract
                 leavesVisited.add(query);
             }
         });
-        assertThat(leavesVisited, equalTo(org.elasticsearch.common.collect.List.of(query)));
+        assertThat(leavesVisited, equalTo(org.elasticsearch.core.List.of(query)));
     }
 }

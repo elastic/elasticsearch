@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;

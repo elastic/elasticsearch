@@ -20,7 +20,7 @@ import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
 import java.io.InputStream;

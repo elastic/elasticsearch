@@ -30,11 +30,24 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportDeleteRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(DeleteRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              DeleteRepositoryRequest::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportDeleteRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            DeleteRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            DeleteRepositoryRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -44,9 +57,14 @@ public class TransportDeleteRepositoryAction extends AcknowledgedTransportMaster
     }
 
     @Override
-    protected void masterOperation(final DeleteRepositoryRequest request, ClusterState state,
-                                   final ActionListener<AcknowledgedResponse> listener) {
-        repositoriesService.unregisterRepository(request,
-                listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged())));
+    protected void masterOperation(
+        final DeleteRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        repositoriesService.unregisterRepository(
+            request,
+            listener.map(unregisterRepositoryResponse -> AcknowledgedResponse.of(unregisterRepositoryResponse.isAcknowledged()))
+        );
     }
 }

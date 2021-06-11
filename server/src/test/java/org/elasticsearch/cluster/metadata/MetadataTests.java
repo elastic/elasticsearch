@@ -989,7 +989,7 @@ public class MetadataTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build(), false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(idx.getIndex())));
+                org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -1005,7 +1005,7 @@ public class MetadataTests extends ESTestCase {
         Metadata.Builder b = Metadata.builder()
             .put(idx, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(idx.getIndex())));
+                org.elasticsearch.core.List.of(idx.getIndex())));
 
         IllegalStateException e = expectThrows(IllegalStateException.class, b::build);
         assertThat(e.getMessage(),
@@ -1024,7 +1024,7 @@ public class MetadataTests extends ESTestCase {
                 .put(idx, false)
                 .put(new DataStream(
                     dataStreamName,
-                    createTimestampField("@timestamp"), org.elasticsearch.common.collect.List.of(idx.getIndex()))
+                    createTimestampField("@timestamp"), org.elasticsearch.core.List.of(idx.getIndex()))
                 );
         b.build();
         assertWarnings("aliases [" + conflictingName + "] cannot refer to backing indices of data streams");
@@ -1233,7 +1233,7 @@ public class MetadataTests extends ESTestCase {
             }
         }
         DataStreamMetadata dataStreamMetadata =
-            new DataStreamMetadata(org.elasticsearch.common.collect.Map.of(dataStreamName, dataStream), Collections.emptyMap());
+            new DataStreamMetadata(org.elasticsearch.core.Map.of(dataStreamName, dataStream), Collections.emptyMap());
 
         // prefixed indices with a lower generation than the data stream's generation are allowed even if the non-prefixed, matching the
         // data stream backing indices naming pattern, indices are already in the system
@@ -1456,9 +1456,11 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
 
-        // Unset write flag
         mdBuilder = Metadata.builder(metadata);
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", randomBoolean() ? null : false), is(true));
+        // Side check: null value isn't changing anything:
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null), is(false));
+        // Unset write flag
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", false), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
@@ -1480,7 +1482,7 @@ public class MetadataTests extends ESTestCase {
 
         // change write flag:
         mdBuilder = Metadata.builder(metadata);
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", randomBoolean() ? null : false), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", false), is(true));
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());

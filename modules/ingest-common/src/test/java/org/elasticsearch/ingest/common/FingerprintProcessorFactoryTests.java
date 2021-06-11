@@ -98,7 +98,7 @@ public class FingerprintProcessorFactoryTests extends ESTestCase {
         assertThat(fingerprintProcessor.getFields(), equalTo(sortedFieldList));
 
         // fields is a list of length zero
-        config.put("fields", org.elasticsearch.common.collect.List.of());
+        config.put("fields", org.elasticsearch.core.List.of());
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config));
         assertThat(e.getMessage(), containsString("must specify at least one field"));
 

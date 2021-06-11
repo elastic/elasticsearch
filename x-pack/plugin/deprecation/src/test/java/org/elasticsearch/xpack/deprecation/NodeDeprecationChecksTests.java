@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
@@ -40,6 +44,9 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+
 public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckDefaults() {
@@ -53,7 +60,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(Settings.EMPTY, pluginsAndModules)
+            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE)
         );
 
         final DeprecationIssue expected = new DeprecationIssue(
@@ -134,7 +141,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings =
             Settings.builder()
                 .put("xpack.security.authc.realms." + realmIdentifier.getType() + "." + realmIdentifier.getName() + ".enabled", "false")
-            .build();
+                .build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
         assertTrue(deprecationIssues.isEmpty());
@@ -404,7 +411,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testDeprecatedBasicLicenseSettings() {
-        Collection<Setting<Boolean>> deprecatedXpackSettings = org.elasticsearch.common.collect.Set.of(
+        Collection<Setting<Boolean>> deprecatedXpackSettings = Set.of(
             XPackSettings.ENRICH_ENABLED_SETTING,
             XPackSettings.FLATTENED_ENABLED,
             XPackSettings.INDEX_LIFECYCLE_ENABLED,
@@ -464,9 +471,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings =
             Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
         final PluginsAndModules pluginsAndModules =
-            new PluginsAndModules(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of());
+            new PluginsAndModules(org.elasticsearch.core.List.of(), org.elasticsearch.core.List.of());
         final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
+                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
@@ -507,7 +515,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, pluginsAndModules)
+            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE)
         );
 
         if (isJvmEarlierThan11()) {
@@ -527,13 +535,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private String randomRealmTypeOtherThanFileOrNative() {
-        return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
+        return randomValueOtherThanMany(t -> Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
     }
 
     public void testMultipleDataPaths() {
         final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -549,13 +557,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoMultipleDataPaths() {
         Settings settings = Settings.builder().put("path.data", "data").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
         assertThat(issue, nullValue());
     }
 
     public void testDataPathsList() {
         final Settings settings = Settings.builder().putList("path.data", "d1").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -571,7 +579,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoDataPathsListDefault() {
         final Settings settings = Settings.builder().build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
         assertThat(issue, nullValue());
     }
 
@@ -580,7 +588,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
 
-        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
         assertThat(issue, equalTo(
@@ -628,5 +636,69 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         // test for absence of deprecated exporter passwords
         issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null);
         assertThat(issue, nullValue());
+    }  
+
+    public void testSingleDataNodeWatermarkSettingExplicit() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
+            null, null));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+                    " will not be available in a future version",
+                expectedUrl,
+                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured to false." +
+                    " Discontinue use of this setting or set it to true."
+            )));
+
+        assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+            " will not be available in a future version");
+    }
+
+    public void testSingleDataNodeWatermarkSettingDefault() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode master = new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        ClusterStateCreationUtils.state(node1, node1, node1);
+
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(Settings.EMPTY,
+                null, ClusterStateCreationUtils.state(node1, node1, node1)));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
+                " is deprecated and will be changed to true in a future version." +
+                " This cluster has only one data node and behavior will therefore change when upgrading",
+            expectedUrl,
+            "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] defaulting to false" +
+                " on a single data node cluster. Set it to true to avoid this warning." +
+                " Consider using [cluster.routing.allocation.disk.threshold_enabled] to disable disk based allocation"
+        );
+
+        assertThat(issues, hasItem(deprecationIssue));
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(master
+            , master, master)),
+            nullValue());
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
+            node1, node1, node2)),
+            nullValue());
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
+            master, node1, master)),
+            equalTo(deprecationIssue));
     }
 }

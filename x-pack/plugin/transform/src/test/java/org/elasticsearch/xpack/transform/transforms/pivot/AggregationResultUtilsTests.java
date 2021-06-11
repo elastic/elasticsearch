@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -776,13 +776,13 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         agg = new TestMultiValueAggregation(
             "mv_metric",
-            org.elasticsearch.common.collect.Map.of("ip", "192.168.1.1", "top_answer", "fortytwo")
+            org.elasticsearch.core.Map.of("ip", "192.168.1.1", "top_answer", "fortytwo")
         );
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
-                .value(agg, org.elasticsearch.common.collect.Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
-            equalTo(org.elasticsearch.common.collect.Map.of("top_answer", "fortytwo", "ip", "192.168.1.1"))
+                .value(agg, org.elasticsearch.core.Map.of("mv_metric.top_answer", "keyword", "mv_metric.ip", "ip"), ""),
+            equalTo(org.elasticsearch.core.Map.of("top_answer", "fortytwo", "ip", "192.168.1.1"))
         );
     }
 
@@ -806,24 +806,24 @@ public class AggregationResultUtilsTests extends ESTestCase {
 
         agg = new TestNumericMultiValueAggregation(
             "mv_metric",
-            org.elasticsearch.common.collect.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
+            org.elasticsearch.core.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Double.valueOf(42.0))
         );
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
                 .value(
                     agg,
-                    org.elasticsearch.common.collect.Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"),
+                    org.elasticsearch.core.Map.of("mv_metric.approx_answer", "double", "mv_metric.exact_answer", "long"),
                     ""
                 ),
-            equalTo(org.elasticsearch.common.collect.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
+            equalTo(org.elasticsearch.core.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
 
         assertThat(
             AggregationResultUtils.getExtractor(agg)
                 .value(
                     agg,
-                    org.elasticsearch.common.collect.Map.of(
+                    org.elasticsearch.core.Map.of(
                         "filter.mv_metric.approx_answer",
                         "double",
                         "filter.mv_metric.exact_answer",
@@ -831,7 +831,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
                     ),
                     "filter"
                 ),
-            equalTo(org.elasticsearch.common.collect.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
+            equalTo(org.elasticsearch.core.Map.of("approx_answer", Double.valueOf(42.2), "exact_answer", Long.valueOf(42)))
         );
     }
 

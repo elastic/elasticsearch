@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -22,7 +23,7 @@ import java.io.IOException;
 public class ValuesSourceConfigTests extends MapperServiceTestCase {
     public void testKeyword() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> b.field("field", "abc"))), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
@@ -36,7 +37,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testEmptyKeyword() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
@@ -57,7 +58,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testUnmappedKeyword() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, ValueType.STRING, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
@@ -78,7 +79,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testLong() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> b.field("field", 42))), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", 42))), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -93,7 +94,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testEmptyLong() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "long")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -114,7 +115,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testUnmappedLong() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, ValueType.NUMBER, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -135,7 +136,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testBoolean() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "boolean")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> b.field("field", true))), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", true))), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -150,7 +151,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testEmptyBoolean() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "boolean")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, null, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -171,7 +172,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
 
     public void testUnmappedBoolean() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {}));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> {})), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> {})), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, ValueType.BOOLEAN, "field", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -194,7 +195,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(mapping(b -> {}));
         withAggregationContext(
             mapperService,
-            org.elasticsearch.common.collect.List.of(source(b -> {})),
+            List.of(source(b -> {})),
             context -> {
                 ValuesSourceConfig.resolve(context, null, TypeFieldMapper.NAME, null, null, null, null, CoreValuesSourceType.KEYWORD);
             }
@@ -207,7 +208,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             b.startObject("field").field("type", "keyword").endObject();
             b.startObject("alias").field("type", "alias").field("path", "field").endObject();
         }));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> b.field("field", "value"))), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", "value"))), context -> {
             ValuesSourceConfig config;
             config = ValuesSourceConfig.resolve(context, ValueType.STRING, "alias", null, null, null, null, CoreValuesSourceType.KEYWORD);
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();

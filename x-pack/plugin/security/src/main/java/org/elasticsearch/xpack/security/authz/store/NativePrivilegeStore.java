@@ -23,11 +23,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -119,7 +119,7 @@ public class NativePrivilegeStore {
                               ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener) {
 
         final Set<String> applicationNamesCacheKey = (isEmpty(applications) || applications.contains("*")) ?
-            org.elasticsearch.common.collect.Set.of("*") : org.elasticsearch.common.collect.Set.copyOf(applications);
+            org.elasticsearch.core.Set.of("*") : org.elasticsearch.core.Set.copyOf(applications);
 
         // Always fetch for the concrete application names even when the passed-in application names has no wildcard.
         // This serves as a negative lookup, i.e. when a passed-in non-wildcard application does not exist.
@@ -465,7 +465,7 @@ public class NativePrivilegeStore {
         public void invalidate(Collection<String> updatedApplicationNames) {
             lockingAtomicCounter.increment();
             logger.debug("Invalidating application privileges caches for: {}", updatedApplicationNames);
-            final Set<String> uniqueNames = org.elasticsearch.common.collect.Set.copyOf(updatedApplicationNames);
+            final Set<String> uniqueNames = org.elasticsearch.core.Set.copyOf(updatedApplicationNames);
             // Always completely invalidate application names cache due to wildcard
             applicationNamesCache.invalidateAll();
             updatedApplicationNames.forEach(descriptorsCache::invalidate);

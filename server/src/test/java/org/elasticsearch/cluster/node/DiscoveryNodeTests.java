@@ -141,7 +141,7 @@ public class DiscoveryNodeTests extends ESTestCase {
             // a pre 7.3.0 node will only understand legacy roles so let's test a custom data containing node role is mapped onto the
             // `DATA` role
             DiscoveryNode nodeToWrite = new DiscoveryNode("name1", "id1", transportAddress, emptyMap(),
-                org.elasticsearch.common.collect.Set.of(customRole, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
+                org.elasticsearch.core.Set.of(customRole, DiscoveryNodeRole.MASTER_ROLE), Version.CURRENT);
 
             BytesStreamOutput streamOutput = new BytesStreamOutput();
             streamOutput.setVersion(Version.V_7_2_0);

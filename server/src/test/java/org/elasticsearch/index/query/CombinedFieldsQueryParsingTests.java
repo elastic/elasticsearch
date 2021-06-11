@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -62,7 +63,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
     @Override
     protected IndexAnalyzers createIndexAnalyzers(IndexSettings indexSettings) {
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer()),
                 "mock_synonym", new NamedAnalyzer("mock_synonym", AnalyzerScope.INDEX, new MockSynonymAnalyzer()),
                 "stop", new NamedAnalyzer("stop", AnalyzerScope.INDEX, new StopAnalyzer(EnglishAnalyzer.ENGLISH_STOP_WORDS_SET))),
             Collections.emptyMap(),
@@ -96,7 +97,7 @@ public class CombinedFieldsQueryParsingTests extends MapperServiceTestCase {
 
         e = expectThrows(IllegalArgumentException.class,
             () -> combinedFieldsQuery("the quick fox")
-                .fields(org.elasticsearch.common.collect.Map.of("field1", 2.0f, "field2", 0.3f))
+                .fields(Map.of("field1", 2.0f, "field2", 0.3f))
                 .toQuery(context));
         assertThat(e.getMessage(), containsString("[combined_fields] requires field boosts to be >= 1.0"));
     }

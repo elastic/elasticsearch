@@ -10,15 +10,16 @@ package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
@@ -266,7 +267,7 @@ public class DateHistogramValuesSourceBuilder
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, rounding, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 // TODO once composite is plugged in to the values source registry or at least understands Date values source types use it

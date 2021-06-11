@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 import org.mockito.Mockito;

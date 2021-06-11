@@ -14,7 +14,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -119,6 +119,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
 
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        final String excludedIndex = "metrics-20210102";
         try {
             int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
             Request request = new Request("PUT", "/_ccr/auto_follow/" + autoFollowPatternName);
@@ -129,6 +130,11 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     bodyBuilder.startArray("leader_index_patterns");
                     {
                         bodyBuilder.value("metrics-*");
+                    }
+                    bodyBuilder.endArray();
+                    bodyBuilder.startArray("leader_index_exclusion_patterns");
+                    {
+                        bodyBuilder.value(excludedIndex);
                     }
                     bodyBuilder.endArray();
                     bodyBuilder.field("remote_cluster", "leader_cluster");
@@ -144,6 +150,12 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 request.setJsonEntity(Strings.toString(bodyBuilder));
             }
             assertOK(client().performRequest(request));
+
+            try (RestClient leaderClient = buildLeaderClient()) {
+                request = new Request("PUT", "/" + excludedIndex);
+                request.setJsonEntity("{\"mappings\": {\"properties\": {\"field\": {\"type\": \"keyword\"}}}}");
+                assertOK(leaderClient.performRequest(request));
+            }
 
             try (RestClient leaderClient = buildLeaderClient()) {
                 request = new Request("PUT", "/metrics-20210101");
@@ -165,6 +177,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 } else {
                     assertThat(getIndexSettingsAsMap("metrics-20210101"), hasEntry("index.number_of_replicas", "1"));
                 }
+                assertThat(indexExists(excludedIndex), is(false));
             });
 
             assertBusy(() -> {
@@ -173,6 +186,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }, 30, TimeUnit.SECONDS);
 
         } finally {
+            cleanUpLeader(org.elasticsearch.core.List.of("metrics-20210101", excludedIndex), emptyList(), emptyList());
             cleanUpFollower(singletonList("metrics-20210101"), emptyList(), singletonList(autoFollowPatternName));
         }
     }
@@ -906,6 +920,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteAutoFollowPattern(client, autoFollowPattern);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete auto-follow pattern [{}] after test", autoFollowPattern), e);
             }
         }
@@ -913,6 +930,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteDataStream(client, dataStream);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete data stream [{}] after test", dataStream), e);
             }
         }
@@ -920,6 +940,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             try {
                 deleteIndex(client, index);
             } catch (IOException e) {
+                if (isNotFoundResponseException(e)) {
+                    continue;
+                }
                 logger.warn(() -> new ParameterizedMessage("failed to delete index [{}] after test", index), e);
             }
         }

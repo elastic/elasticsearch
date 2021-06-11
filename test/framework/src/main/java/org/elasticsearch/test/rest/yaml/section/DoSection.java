@@ -16,7 +16,7 @@ import org.elasticsearch.client.Node;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,7 +46,7 @@ import java.util.regex.Pattern;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static java.util.stream.Collectors.toCollection;
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -583,7 +583,7 @@ public class DoSection implements ExecutableSection {
             throw new XContentParseException(parser.getTokenLocation(), "expected [version] to be a value");
         }
         List<VersionRange> skipVersionRanges = parser.text().equals("current")
-            ? org.elasticsearch.common.collect.List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
+            ? org.elasticsearch.core.List.of(new VersionRange(Version.CURRENT, Version.CURRENT))
             : SkipSection.parseVersionRanges(parser.text());
         return new NodeSelector() {
             @Override

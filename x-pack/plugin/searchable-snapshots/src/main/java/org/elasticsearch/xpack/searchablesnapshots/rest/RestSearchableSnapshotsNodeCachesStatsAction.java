@@ -26,7 +26,7 @@ public class RestSearchableSnapshotsNodeCachesStatsAction extends BaseRestHandle
 
     @Override
     public List<RestHandler.Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new RestHandler.Route(GET, "/_searchable_snapshots/cache/stats"),
             new RestHandler.Route(GET, "/_searchable_snapshots/{nodeId}/cache/stats")
         );

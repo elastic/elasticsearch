@@ -36,7 +36,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -89,7 +89,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(org.elasticsearch.common.collect.Set.of(condition),
+        evaluateConditions(org.elasticsearch.core.Set.of(condition),
             buildStats(createMetadata(indexName), createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards)));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
@@ -103,7 +103,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
             new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = org.elasticsearch.common.collect.Set.of(
+        final Set<Condition<?>> conditions = org.elasticsearch.core.Set.of(
             maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
@@ -151,7 +151,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
             new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        final Set<Condition<?>> conditions = org.elasticsearch.common.collect.Set.of(
+        final Set<Condition<?>> conditions = org.elasticsearch.core.Set.of(
             maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()
@@ -189,7 +189,7 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
         MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition =
             new MaxPrimaryShardSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
-        final Set<Condition<?>> conditions = org.elasticsearch.common.collect.Set.of(
+        final Set<Condition<?>> conditions = org.elasticsearch.core.Set.of(
             maxAgeCondition, maxDocsCondition, maxSizeCondition, maxPrimaryShardSizeCondition);
 
         final Settings settings = Settings.builder()

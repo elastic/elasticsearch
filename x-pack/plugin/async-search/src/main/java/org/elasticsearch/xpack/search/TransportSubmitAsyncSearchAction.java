@@ -24,7 +24,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -64,14 +65,15 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                                             Client client,
                                             NodeClient nodeClient,
                                             SearchService searchService,
-                                            TransportSearchAction searchAction) {
+                                            TransportSearchAction searchAction,
+                                            BigArrays bigArrays) {
         super(SubmitAsyncSearchAction.NAME, transportService, actionFilters, SubmitAsyncSearchRequest::new);
         this.nodeClient = nodeClient;
         this.requestToAggReduceContextBuilder = request -> searchService.aggReduceContextBuilder(request).forFinalReduction();
         this.searchAction = searchAction;
         this.threadContext = transportService.getThreadPool().getThreadContext();
         this.store = new AsyncTaskIndexService<>(XPackPlugin.ASYNC_RESULTS_INDEX, clusterService, threadContext, client,
-            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry);
+            ASYNC_SEARCH_ORIGIN, AsyncSearchResponse::new, registry, bigArrays);
     }
 
     @Override

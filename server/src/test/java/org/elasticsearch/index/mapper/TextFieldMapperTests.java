@@ -222,11 +222,11 @@ public class TextFieldMapperTests extends MapperTestCase {
             )
         );
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop
             ),
-            org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of()
+            org.elasticsearch.core.Map.of(),
+            org.elasticsearch.core.Map.of()
         );
     }
 

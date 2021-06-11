@@ -39,7 +39,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     public void testDatePrepareRoundingWithNothing() throws IOException {
-        withAggregationContext(dateMapperService(), org.elasticsearch.common.collect.List.of(), context -> {
+        withAggregationContext(dateMapperService(), org.elasticsearch.core.List.of(), context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepareForUnknown();
@@ -62,7 +62,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
         MapperService mapperService = dateMapperService();
         Query query = mapperService.fieldType("field")
             .rangeQuery(min, max, true, true, ShapeRelation.CONTAINS, null, null, createSearchExecutionContext(mapperService));
-        withAggregationContext(null, mapperService, org.elasticsearch.common.collect.List.of(), query, context -> {
+        withAggregationContext(null, mapperService, org.elasticsearch.core.List.of(), query, context -> {
             Rounding rounding = mock(Rounding.class);
             CoreValuesSourceType.DATE.getField(context.buildFieldContext("field"), null, context).roundingPreparer().apply(rounding);
             verify(rounding).prepare(min, max);
@@ -104,6 +104,6 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
     }
 
     private List<SourceToParse> docsWithDatesBetween(long min, long max) throws IOException {
-        return org.elasticsearch.common.collect.List.of(source(b -> b.field("field", min)), source(b -> b.field("field", max)));
+        return org.elasticsearch.core.List.of(source(b -> b.field("field", min)), source(b -> b.field("field", max)));
     }
 }

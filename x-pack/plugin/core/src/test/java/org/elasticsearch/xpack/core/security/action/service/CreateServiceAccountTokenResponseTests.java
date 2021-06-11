@@ -53,9 +53,9 @@ public class CreateServiceAccountTokenResponseTests extends AbstractWireSerializ
             BytesReference.bytes(builder),
             false, builder.contentType()).v2();
 
-        assertThat(responseMap, equalTo(org.elasticsearch.common.collect.Map.of(
+        assertThat(responseMap, equalTo(org.elasticsearch.core.Map.of(
             "created", true,
-            "token", org.elasticsearch.common.collect.Map.of("name", response.getName(), "value", response.getValue().toString())
+            "token", org.elasticsearch.core.Map.of("name", response.getName(), "value", response.getValue().toString())
             )));
     }
 }

@@ -32,10 +32,10 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1919,7 +1919,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             new User("elastic/fleet-server"),
             new RealmRef("_service_account", "_service_account", "foo"), null,
             Version.CURRENT, AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of("_token_name", ValidationTests.randomTokenName(),
+            org.elasticsearch.core.Map.of("_token_name", ValidationTests.randomTokenName(),
                 "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         try (ThreadContext.StoredContext ignored = threadContext.newStoredContext(false)) {
             boolean requestIdAlreadyPresent = randomBoolean();

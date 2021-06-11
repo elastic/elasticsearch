@@ -13,7 +13,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -35,7 +35,7 @@ public class GrantApiKeyRequestTests extends ESTestCase {
     public void testToXContent() throws IOException {
         final Map<String, Object> apiKeyMetadata = CreateApiKeyRequestTests.randomMetadata();
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key",
-            org.elasticsearch.common.collect.List.of(), null, null,
+            org.elasticsearch.core.List.of(), null, null,
             apiKeyMetadata);
         final GrantApiKeyRequest.Grant grant = GrantApiKeyRequest.Grant.passwordGrant("kamala.khan", "JerseyGirl!".toCharArray());
         final GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest(grant, createApiKeyRequest);

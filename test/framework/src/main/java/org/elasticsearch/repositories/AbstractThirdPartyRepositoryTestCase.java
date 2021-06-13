@@ -198,7 +198,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         logger.info("--> deleting a snapshot to trigger repository cleanup");
         client().admin().cluster().deleteSnapshot(new DeleteSnapshotRequest("test-repo", snapshotName)).actionGet();
 
-        BlobStoreTestUtil.assertConsistency(repo, genericExec);
+        BlobStoreTestUtil.assertConsistency(repo);
 
         logger.info("--> Create dangling index");
         createDanglingIndex(repo, genericExec);

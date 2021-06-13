@@ -21,7 +21,7 @@ public class RestDeleteAutoscalingPolicyHandler extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_autoscaling/policy/{name}"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_autoscaling/policy/{name}"));
     }
 
     @Override

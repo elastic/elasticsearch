@@ -45,7 +45,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
     public void testFetchSourceValue() throws IOException {
         DenseVectorFieldMapper.DenseVectorFieldType ft = new DenseVectorFieldMapper.DenseVectorFieldType(
             "f", Version.CURRENT, 5, Collections.emptyMap());
-        List<Double> vector = org.elasticsearch.common.collect.List.of(0.0, 1.0, 2.0, 3.0, 4.0);
+        List<Double> vector = org.elasticsearch.core.List.of(0.0, 1.0, 2.0, 3.0, 4.0);
         assertEquals(vector, fetchSourceValue(ft, vector));
     }
 }

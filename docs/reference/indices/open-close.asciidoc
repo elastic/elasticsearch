@@ -25,7 +25,7 @@ POST /my-index-000001/_open
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias.
+or alias.
 
 [[open-index-api-desc]]
 ==== {api-description-title}
@@ -85,16 +85,13 @@ index creation applies to the `_open` and `_close` index actions as well.
 
 `<target>`::
 (Optional, string)
-Comma-separated list or wildcard (`*`) expression of data streams, indices, and
-index aliases used to limit the request.
-+
-To target all data streams and indices, use `_all` or `*`.
+Comma-separated list of data streams, indices, and aliases used to limit
+the request. Supports wildcards (`*`).
 +
 To disallow use of `_all` or wildcard expressions,
 change the `action.destructive_requires_name` cluster setting to `true`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
-
 
 [[open-index-api-query-params]]
 ==== {api-query-parms-title}

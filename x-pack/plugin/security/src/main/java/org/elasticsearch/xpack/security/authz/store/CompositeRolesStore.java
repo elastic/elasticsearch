@@ -12,12 +12,12 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -254,12 +254,12 @@ public class CompositeRolesStore {
 
     private void getRolesForServiceAccount(Authentication authentication, ActionListener<Role> roleActionListener) {
         serviceAccountService.getRoleDescriptor(authentication, ActionListener.wrap(roleDescriptor -> {
-            final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of(roleDescriptor.getName()), "service_account");
+            final RoleKey roleKey = new RoleKey(org.elasticsearch.core.Set.of(roleDescriptor.getName()), "service_account");
             final Role existing = roleCache.get(roleKey);
             if (existing == null) {
                 final long invalidationCounter = numInvalidation.get();
-                buildThenMaybeCacheRole(roleKey, org.elasticsearch.common.collect.List.of(roleDescriptor),
-                    org.elasticsearch.common.collect.Set.of(), true, invalidationCounter, roleActionListener);
+                buildThenMaybeCacheRole(roleKey, org.elasticsearch.core.List.of(roleDescriptor),
+                    org.elasticsearch.core.Set.of(), true, invalidationCounter, roleActionListener);
             } else {
                 roleActionListener.onResponse(existing);
             }
@@ -347,7 +347,7 @@ public class CompositeRolesStore {
         final Tuple<String, BytesReference> apiKeyIdAndBytes = apiKeyService.getApiKeyIdAndRoleBytes(authentication, limitedBy);
         final String roleDescriptorsHash =
                 MessageDigests.toHexString(MessageDigests.digest(apiKeyIdAndBytes.v2(), MessageDigests.sha256()));
-        final RoleKey roleKey = new RoleKey(org.elasticsearch.common.collect.Set.of("apikey:" + roleDescriptorsHash),
+        final RoleKey roleKey = new RoleKey(org.elasticsearch.core.Set.of("apikey:" + roleDescriptorsHash),
             limitedBy ? "apikey_limited_role" : "apikey_role");
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {

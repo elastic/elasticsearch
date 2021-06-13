@@ -52,7 +52,127 @@
       catch: missing
       ccr.get_auto_follow_pattern:
         name: my_pattern
+---
+"Test put and delete auto follow pattern without specifying exclusion patterns":
+  - skip:
+      version: " - 7.13.99"
+      reason: "auto-follow exclusion patterns is supported since 7.14.0"
 
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info: {}
+
+  - set: {nodes.$master.transport_address: local_ip}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.remote.local.seeds: $local_ip
+        flat_settings: true
+
+  - match: {transient: {cluster.remote.local.seeds: $local_ip}}
+
+  - do:
+      ccr.put_auto_follow_pattern:
+        name: my_pattern
+        body:
+          remote_cluster: local
+          leader_index_patterns: ['logs-*']
+          max_outstanding_read_requests: 2
+  - is_true: acknowledged
+
+  - do:
+      ccr.get_auto_follow_pattern:
+        name: my_pattern
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.leader_index_exclusion_patterns: [] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.get_auto_follow_pattern: {}
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.leader_index_exclusion_patterns: [] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.delete_auto_follow_pattern:
+        name: my_pattern
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      ccr.get_auto_follow_pattern:
+        name: my_pattern
+---
+"Test put and delete auto follow pattern with exclusion patterns":
+  - skip:
+      version: " - 7.13.99"
+      reason: "auto-follow exclusion patterns is supported since 7.14.0"
+
+  - do:
+      cluster.state: {}
+
+  - set: {master_node: master}
+
+  - do:
+      nodes.info: {}
+
+  - set: {nodes.$master.transport_address: local_ip}
+
+  - do:
+      cluster.put_settings:
+        body:
+          transient:
+            cluster.remote.local.seeds: $local_ip
+        flat_settings: true
+
+  - match: {transient: {cluster.remote.local.seeds: $local_ip}}
+
+  - do:
+      ccr.put_auto_follow_pattern:
+        name: my_pattern
+        body:
+          remote_cluster: local
+          leader_index_patterns: ['logs-*']
+          leader_index_exclusion_patterns: ['logs-excluded']
+          max_outstanding_read_requests: 2
+  - is_true: acknowledged
+
+  - do:
+      ccr.get_auto_follow_pattern:
+        name: my_pattern
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.leader_index_exclusion_patterns: ['logs-excluded'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.get_auto_follow_pattern: {}
+  - match: { patterns.0.name: 'my_pattern' }
+  - match: { patterns.0.pattern.remote_cluster: 'local' }
+  - match: { patterns.0.pattern.leader_index_patterns: ['logs-*'] }
+  - match: { patterns.0.pattern.leader_index_exclusion_patterns: ['logs-excluded'] }
+  - match: { patterns.0.pattern.max_outstanding_read_requests: 2 }
+
+  - do:
+      ccr.delete_auto_follow_pattern:
+        name: my_pattern
+  - is_true: acknowledged
+
+  - do:
+      catch: missing
+      ccr.get_auto_follow_pattern:
+        name: my_pattern
 ---
 "Test pause and resume auto follow pattern":
   - skip:

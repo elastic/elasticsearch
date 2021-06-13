@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.util.set;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashSet;

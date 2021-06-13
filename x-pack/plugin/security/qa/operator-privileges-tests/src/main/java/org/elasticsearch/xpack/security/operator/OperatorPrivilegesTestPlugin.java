@@ -34,6 +34,6 @@ public class OperatorPrivilegesTestPlugin extends Plugin implements ActionPlugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(new RestGetActionsAction());
+        return org.elasticsearch.core.List.of(new RestGetActionsAction());
     }
 }

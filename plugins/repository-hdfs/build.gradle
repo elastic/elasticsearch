@@ -200,6 +200,9 @@ for (String integTestTaskName : ['integTestHa', 'integTestSecure', 'integTestSec
           nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
           nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"
           jvmArgs "-Djava.security.krb5.conf=${krb5conf}"
+          if (BuildParams.getRuntimeJavaVersion() >= JavaVersion.VERSION_1_9) {
+            jvmArgs "--add-exports=java.security.jgss/sun.security.krb5=ALL-UNNAMED"
+          }
           nonInputProperties.systemProperty(
             "test.krb5.keytab.hdfs",
             project(':test:fixtures:krb5kdc-fixture').ext.krb5Keytabs("hdfs", "hdfs_hdfs.build.elastic.co.keytab")

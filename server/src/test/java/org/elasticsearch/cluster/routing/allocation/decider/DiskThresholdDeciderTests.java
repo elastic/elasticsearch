@@ -1133,6 +1133,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 " actual free: [20.0%]"));
     }
 
+    public void testSingleDataNodeDeprecationWarning() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        new DiskThresholdDecider(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+
+        assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+            " will not be available in a future version");
+    }
+
     public void testDiskThresholdWithSnapshotShardSizes() {
         final long shardSizeInBytes = randomBoolean() ? 10L : 50L;
         logger.info("--> using shard size [{}]", shardSizeInBytes);

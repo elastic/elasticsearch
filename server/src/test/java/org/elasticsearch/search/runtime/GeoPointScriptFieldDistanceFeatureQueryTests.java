@@ -20,6 +20,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
@@ -87,9 +88,9 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
     @Override
     public void testMatches() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"location\": [34, 6]}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"location\": [34, 6]}"))));
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}")))
+                List.of(new StoredField("_source", new BytesRef("{\"location\": [-3.56, -45.98]}")))
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);

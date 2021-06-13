@@ -15,6 +15,7 @@ import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheAction;
@@ -156,7 +157,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private Client createServiceAccountManagerClient() {
-        return client().filterWithHeader(org.elasticsearch.common.collect.Map.of("Authorization",
+        return client().filterWithHeader(Map.of("Authorization",
             basicAuthHeaderValue(SERVICE_ACCOUNT_MANAGER_NAME, new SecureString(TEST_PASSWORD.toCharArray()))));
     }
 
@@ -165,17 +166,17 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
     }
 
     private Client createServiceAccountClient(String bearerString) {
-        return client().filterWithHeader(org.elasticsearch.common.collect.Map.of("Authorization", "Bearer " + bearerString));
+        return client().filterWithHeader(Map.of("Authorization", "Bearer " + bearerString));
     }
 
     private Authentication getExpectedAuthentication(String tokenName, String tokenSource) {
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
         return new Authentication(
             new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                org.elasticsearch.common.collect.Map.of("_elastic_service_account", true), true),
+                Map.of("_elastic_service_account", true), true),
             new Authentication.RealmRef("_service_account", "_service_account", nodeName),
             null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of("_token_name", tokenName, "_token_source", tokenSource)
+            Map.of("_token_name", tokenName, "_token_source", tokenSource)
         );
     }
 

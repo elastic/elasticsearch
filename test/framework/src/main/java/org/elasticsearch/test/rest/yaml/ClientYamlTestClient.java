@@ -252,14 +252,15 @@ public class ClientYamlTestClient implements Closeable {
          * and the url and stuff.
          */
         NameValuePair param = new BasicNameValuePair("source", EntityUtils.toString(entity));
-        String encoded = URLEncodedUtils.format(org.elasticsearch.common.collect.List.of(param), StandardCharsets.UTF_8);
+        String encoded = URLEncodedUtils.format(org.elasticsearch.core.List.of(param), StandardCharsets.UTF_8);
         return encoded.length() < 3000;
     }
 
     private ClientYamlSuiteRestApi restApi(String apiName) {
         ClientYamlSuiteRestApi restApi = restSpec.getApi(apiName);
         if (restApi == null) {
-            throw new IllegalArgumentException("rest api [" + apiName + "] doesn't exist in the rest spec");
+            throw new IllegalArgumentException("Rest api [" + apiName + "] cannot be found in the rest spec. Either it doesn't exist or " +
+                "is missing from the test classpath. Check the 'restResources' block of your project's build.gradle file.");
         }
         return restApi;
     }

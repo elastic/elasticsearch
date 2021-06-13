@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestCustomMetadata;
 
@@ -93,9 +94,9 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 .put(idx1, false)
                 .put(idx2, false)
                 .put(new DataStream("data-stream1", createTimestampField("@timestamp"),
-                    org.elasticsearch.common.collect.List.of(idx1.getIndex())))
+                    List.of(idx1.getIndex())))
                 .put(new DataStream("data-stream2", createTimestampField("@timestamp"),
-                    org.elasticsearch.common.collect.List.of(idx2.getIndex())))
+                    List.of(idx2.getIndex())))
                 .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

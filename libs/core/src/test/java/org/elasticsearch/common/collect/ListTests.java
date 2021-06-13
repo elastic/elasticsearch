@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.collect;
 
+import org.elasticsearch.core.List;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;

@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.watcher.actions.index;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
@@ -25,7 +26,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 public class IndexAction implements Action {
 
@@ -188,7 +189,7 @@ public class IndexAction implements Action {
                 } else if (Field.OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         opType = DocWriteRequest.OpType.fromString(parser.text());
-                        if (org.elasticsearch.common.collect.List.of(
+                        if (List.of(
                             DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX).contains(opType) == false) {
                             throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. op_type value for field [{}] " +
                                 "must be [index] or [create]", TYPE, watchId, actionId, currentFieldName);

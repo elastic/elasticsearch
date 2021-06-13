@@ -13,7 +13,8 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -37,8 +38,8 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
 
     public void testSomeDocs() throws IOException {
         testCase(iw -> {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));
         }, new MatchAllDocsQuery(), (global, min) -> {
             assertEquals(2, global.getDocCount());
             assertEquals(1, min.getValue(), 0);
@@ -47,8 +48,8 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
 
     public void testIgnoresQuery() throws IOException {
         testCase(iw -> {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("number", 7)));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("number", 1)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 7)));
+            iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));
         }, LongPoint.newRangeQuery("number", 2, Long.MAX_VALUE), (global, min) -> {
             assertEquals(2, global.getDocCount());
             assertEquals(1, min.getValue(), 0);

@@ -10,6 +10,7 @@ package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -60,18 +61,18 @@ public class StringScriptFieldPrefixQueryTests extends AbstractStringScriptField
     @Override
     public void testMatches() {
         StringScriptFieldPrefixQuery query = new StringScriptFieldPrefixQuery(randomScript(), leafFactory, "test", "foo", false);
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("Foo")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foooo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("Foooo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("fo")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("fo", "foo")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("Fo", "fOo")));
+        assertTrue(query.matches(List.of("foo")));
+        assertFalse(query.matches(List.of("Foo")));
+        assertTrue(query.matches(List.of("foooo")));
+        assertFalse(query.matches(List.of("Foooo")));
+        assertFalse(query.matches(List.of("fo")));
+        assertTrue(query.matches(List.of("fo", "foo")));
+        assertFalse(query.matches(List.of("Fo", "fOo")));
 
         StringScriptFieldPrefixQuery ciQuery = new StringScriptFieldPrefixQuery(randomScript(), leafFactory, "test", "foo", true);
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("fOo")));
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("Foooo")));
-        assertTrue(ciQuery.matches(org.elasticsearch.common.collect.List.of("fo", "foO")));
+        assertTrue(ciQuery.matches(List.of("fOo")));
+        assertTrue(ciQuery.matches(List.of("Foooo")));
+        assertTrue(ciQuery.matches(List.of("fo", "foO")));
     }
 
     @Override

@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.ilm.step.info.AllocationInfo;
@@ -60,7 +61,7 @@ public class DataTierMigrationRoutedStep extends ClusterStateWaitStep {
     @Override
     public Result isConditionMet(Index index, ClusterState clusterState) {
         AllocationDeciders allocationDeciders = new AllocationDeciders(
-            org.elasticsearch.common.collect.List.of(
+            List.of(
                 new DataTierAllocationDecider(clusterState.getMetadata().settings(),
                     new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS))
             )

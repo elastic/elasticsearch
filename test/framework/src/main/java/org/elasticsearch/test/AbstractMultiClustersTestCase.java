@@ -107,8 +107,10 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
     @Override
     public List<String> filteredWarnings() {
         return Stream.concat(super.filteredWarnings().stream(),
-            Stream.of("Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
-            "multiple disks. This feature will be removed in 8.0.")).collect(Collectors.toList());
+            Stream.of("setting [path.shared_data] is deprecated and will be removed in a future release",
+            "Configuring [path.data] with a list is deprecated. Instead specify as a string value.",
+            "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing " +
+                "multiple disks. This feature will be removed in 8.0.")).collect(Collectors.toList());
     }
 
     @After

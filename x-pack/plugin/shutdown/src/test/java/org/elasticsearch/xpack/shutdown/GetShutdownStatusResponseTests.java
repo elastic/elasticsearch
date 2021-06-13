@@ -59,7 +59,7 @@ public class GetShutdownStatusResponseTests extends AbstractWireSerializingTestC
             randomNodeShutdownMetadata(),
             new ShutdownShardMigrationStatus(),
             new ShutdownPersistentTasksStatus(),
-            new ShutdownPluginsStatus()
+            new ShutdownPluginsStatus(randomBoolean())
         );
     }
 

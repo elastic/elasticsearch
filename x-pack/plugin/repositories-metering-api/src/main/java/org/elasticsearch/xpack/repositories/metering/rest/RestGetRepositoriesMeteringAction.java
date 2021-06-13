@@ -28,7 +28,7 @@ public final class RestGetRepositoriesMeteringAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_nodes/{nodeId}/_repositories_metering"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_nodes/{nodeId}/_repositories_metering"));
     }
 
     @Override

@@ -10,7 +10,7 @@ package org.elasticsearch.common.xcontent.support;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -180,9 +180,9 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertNull(XContentMapValues.extractValue("object1.missing", map, "NULL"));
 
         assertEquals("NULL", XContentMapValues.extractValue("other_field", map, "NULL"));
-        assertEquals(org.elasticsearch.common.collect.List.of("value1", "NULL", "value2"),
+        assertEquals(org.elasticsearch.core.List.of("value1", "NULL", "value2"),
             XContentMapValues.extractValue("array", map, "NULL"));
-        assertEquals(org.elasticsearch.common.collect.List.of("NULL", "value"),
+        assertEquals(org.elasticsearch.core.List.of("NULL", "value"),
             XContentMapValues.extractValue("object_array.field", map, "NULL"));
         assertEquals("NULL", XContentMapValues.extractValue("object1.object2.field", map, "NULL"));
     }
@@ -672,5 +672,63 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
     private static Map<String, Object> toMap(Builder test, XContentType xContentType, boolean humanReadable) throws IOException {
         ToXContentObject toXContent = (builder, params) -> test.apply(builder);
         return convertToMap(toXContent(toXContent, xContentType, humanReadable), true, xContentType).v2();
+    }
+
+    public void testExtractSingleNestedSource() {
+        Map<?, ?> map = map("nested", map("field", "nested1"));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, contains(map("field", "nested1")));
+    }
+
+    public void testExtractFlatArrayNestedSource() {
+        Map<?, ?> map = map("nested", list(
+            map("field", "nested1"),
+            map("field", "nested2")));
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            map("field", "nested1"),
+            map("field", "nested2")));
+    }
+
+    public void testNonExistentNestedSource() {
+        assertNull(XContentMapValues.extractNestedSources("nested", map("foo", "bar")));
+    }
+
+    public void testNestedSourceIsBadlyFormed() {
+        Exception e = expectThrows(IllegalStateException.class,
+            () -> XContentMapValues.extractNestedSources("nested", map("nested", "foo")));
+        assertThat(e.getMessage(), equalTo("Cannot extract nested source from path [nested]: got [foo]"));
+    }
+
+    public void testExtractNestedSources() {
+        Map<?, ?> map = map(
+            "obj.ect", list(
+                map("nested", list(map("field", "nested1"), map("field", "nested2"))),
+                map("nested", list(map("field", "nested3")))
+            ),
+            "obj", list(map("ect", map("nested", list(
+                map("field", "nested4"), map("field", "nested5"))
+            )))
+        );
+        List<Map<?, ?>> nestedSources = XContentMapValues.extractNestedSources("obj.ect.nested", map);
+        assertThat(nestedSources, containsInAnyOrder(
+            map("field", "nested1"),
+            map("field", "nested2"),
+            map("field", "nested3"),
+            map("field", "nested4"),
+            map("field", "nested5")
+        ));
+    }
+
+    private static Map<?, ?> map(String k1, Object v1) {
+        return org.elasticsearch.core.Map.of(k1, v1);
+    }
+
+    private static Map<?, ?> map(String k1, Object v1, String k2, Object v2) {
+        return org.elasticsearch.core.Map.of(k1, v1, k2, v2);
+    }
+
+    private static List<?> list(Object... vs) {
+        return org.elasticsearch.core.List.of(vs);
     }
 }

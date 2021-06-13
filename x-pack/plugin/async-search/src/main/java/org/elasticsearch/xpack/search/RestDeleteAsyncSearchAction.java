@@ -22,7 +22,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteAsyncSearchAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(DELETE, "/_async_search/{id}"));
+        return org.elasticsearch.core.List.of(new Route(DELETE, "/_async_search/{id}"));
     }
 
     @Override

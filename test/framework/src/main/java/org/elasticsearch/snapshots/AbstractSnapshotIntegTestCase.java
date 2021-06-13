@@ -33,7 +33,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -213,7 +213,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+    public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
     }
 
@@ -277,10 +277,16 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, node).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
-            .setType(type).setSettings(settings));
+            .setVerify(verify)
+            .setType(type)
+            .setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        createRepository(repoName, type, settings, true);
     }
 
     protected void createRepository(String repoName, String type, Path location) {

@@ -11,7 +11,7 @@ package org.elasticsearch.repositories;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -54,16 +54,17 @@ public final class SnapshotShardContext extends ActionListener.Delegating<ShardS
      * @param listener              listener invoked on completion
      */
     public SnapshotShardContext(
-            Store store,
-            MapperService mapperService,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            Engine.IndexCommitRef commitRef,
-            @Nullable String shardStateIdentifier,
-            IndexShardSnapshotStatus snapshotStatus,
-            Version repositoryMetaVersion,
-            Map<String, Object> userMetadata,
-            ActionListener<ShardSnapshotResult> listener) {
+        Store store,
+        MapperService mapperService,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        Engine.IndexCommitRef commitRef,
+        @Nullable String shardStateIdentifier,
+        IndexShardSnapshotStatus snapshotStatus,
+        Version repositoryMetaVersion,
+        Map<String, Object> userMetadata,
+        ActionListener<ShardSnapshotResult> listener
+    ) {
         super(ActionListener.runBefore(listener, commitRef::close));
         this.store = store;
         this.mapperService = mapperService;

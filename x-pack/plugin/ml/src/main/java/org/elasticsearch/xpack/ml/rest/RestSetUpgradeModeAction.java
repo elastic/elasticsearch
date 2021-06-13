@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,7 +24,7 @@ public class RestSetUpgradeModeAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, BASE_PATH + "set_upgrade_mode")
                 .replaces(POST, PRE_V7_BASE_PATH + "set_upgrade_mode", RestApiVersion.V_7).build()
         );

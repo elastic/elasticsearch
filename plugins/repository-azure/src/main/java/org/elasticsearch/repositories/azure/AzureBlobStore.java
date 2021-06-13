@@ -33,7 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -42,7 +42,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
@@ -596,7 +596,7 @@ public class AzureBlobStore implements BlobStore {
         private final AtomicLong putBlockListOperations = new AtomicLong();
 
         private Map<String, Long> toMap() {
-            return org.elasticsearch.common.collect.Map.of("GetBlob", getOperations.get(),
+            return org.elasticsearch.core.Map.of("GetBlob", getOperations.get(),
                 "ListBlobs", listOperations.get(),
                 "GetBlobProperties", headOperations.get(),
                 "PutBlob", putOperations.get(),

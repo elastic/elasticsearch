@@ -17,7 +17,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -92,7 +94,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
     public void testGetServiceAccountPrincipals() {
         assertThat(ServiceAccountService.getServiceAccountPrincipals(),
-            equalTo(org.elasticsearch.common.collect.Set.of("elastic/fleet-server")));
+            equalTo(Set.of("elastic/fleet-server")));
     }
 
     public void testTryParseToken() throws IOException, IllegalAccessException {
@@ -118,7 +120,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "service account token expects the 4 leading bytes")
             );
             final SecureString bearerString0 = createBearerString(
-                org.elasticsearch.common.collect.List.of(Arrays.copyOfRange(magicBytes, 0, randomIntBetween(0, 3))));
+                org.elasticsearch.core.List.of(Arrays.copyOfRange(magicBytes, 0, randomIntBetween(0, 3))));
             assertNull(ServiceAccountService.tryParseToken(bearerString0));
             appender.assertAllExpectationsMatched();
 
@@ -127,7 +129,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "prefix mismatch", ServiceAccountToken.class.getName(), Level.TRACE,
                 "service account token expects the 4 leading bytes"
             ));
-            final SecureString bearerString1 = createBearerString(org.elasticsearch.common.collect.List.of(
+            final SecureString bearerString1 = createBearerString(org.elasticsearch.core.List.of(
                 new byte[] { randomValueOtherThan((byte) 0, ESTestCase::randomByte) },
                 randomByteArrayOfLength(randomIntBetween(30, 50))));
             assertNull(ServiceAccountService.tryParseToken(bearerString1));
@@ -138,7 +140,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "no colon", ServiceAccountToken.class.getName(), Level.TRACE,
                 "failed to extract qualified service token name and secret, missing ':'"
             ));
-            final SecureString bearerString2 = createBearerString(org.elasticsearch.common.collect.List.of(
+            final SecureString bearerString2 = createBearerString(org.elasticsearch.core.List.of(
                 magicBytes,
                 randomAlphaOfLengthBetween(30, 50).getBytes(StandardCharsets.UTF_8)));
             assertNull(ServiceAccountService.tryParseToken(bearerString2));
@@ -150,13 +152,13 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "The qualified name of a service token should take format of 'namespace/service_name/token_name'"
             ));
             if (randomBoolean()) {
-                final SecureString bearerString3 = createBearerString(org.elasticsearch.common.collect.List.of(
+                final SecureString bearerString3 = createBearerString(org.elasticsearch.core.List.of(
                     magicBytes,
                     (randomAlphaOfLengthBetween(10, 20) + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
                 ));
                 assertNull(ServiceAccountService.tryParseToken(bearerString3));
             } else {
-                final SecureString bearerString3 = createBearerString(org.elasticsearch.common.collect.List.of(
+                final SecureString bearerString3 = createBearerString(org.elasticsearch.core.List.of(
                     magicBytes,
                     (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
                         + ":" + randomAlphaOfLengthBetween(10, 20)).getBytes(StandardCharsets.UTF_8)
@@ -170,7 +172,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 "invalid token name", ServiceAccountService.class.getName(), Level.TRACE,
                 "Cannot parse possible service account token"
             ));
-            final SecureString bearerString4 = createBearerString(org.elasticsearch.common.collect.List.of(
+            final SecureString bearerString4 = createBearerString(org.elasticsearch.core.List.of(
                 magicBytes,
                 (randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8)
                     + "/" + randomValueOtherThanMany(n -> n.contains("/"), ValidationTests::randomInvalidTokenName)
@@ -185,7 +187,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final String tokenName = ValidationTests.randomTokenName();
             final ServiceAccountId accountId = new ServiceAccountId(namespace, serviceName);
             final String secret = randomAlphaOfLengthBetween(10, 20);
-            final SecureString bearerString5 = createBearerString(org.elasticsearch.common.collect.List.of(
+            final SecureString bearerString5 = createBearerString(org.elasticsearch.core.List.of(
                 magicBytes,
                 (namespace + "/" + serviceName + "/" + tokenName + ":" + secret).getBytes(StandardCharsets.UTF_8)
             ));
@@ -268,10 +270,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
         assertThat(future5.get(), equalTo(
             new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY, "Service account - elastic/fleet-server", null,
-                    org.elasticsearch.common.collect.Map.of("_elastic_service_account", true), true),
+                    Map.of("_elastic_service_account", true), true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of("_token_name", "token1",
+                Map.of("_token_name", "token1",
                     "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
             )
         ));
@@ -367,11 +369,11 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertThat(authentication, equalTo(new Authentication(
                 new User("elastic/fleet-server", Strings.EMPTY_ARRAY,
                     "Service account - elastic/fleet-server", null,
-                    org.elasticsearch.common.collect.Map.of("_elastic_service_account", true),
+                    Map.of("_elastic_service_account", true),
                     true),
                 new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName),
                 null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-                org.elasticsearch.common.collect.Map.of("_token_name", token4.getTokenName(),
+                Map.of("_token_name", token4.getTokenName(),
                     "_token_source", tokenSource.name().toLowerCase(Locale.ROOT))
             )));
 
@@ -401,14 +403,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 Strings.EMPTY_ARRAY,
                 "Service account - elastic/fleet-server",
                 null,
-                org.elasticsearch.common.collect.Map.of("_elastic_service_account", true),
+                Map.of("_elastic_service_account", true),
                 true),
             new Authentication.RealmRef(
                 ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
                 "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
 
         final PlainActionFuture<RoleDescriptor> future1 = new PlainActionFuture<>();
@@ -421,13 +423,13 @@ public class ServiceAccountServiceTests extends ESTestCase {
             randomValueOtherThan("elastic/fleet-server", () -> randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8));
         final Authentication auth2 = new Authentication(
             new User(username, Strings.EMPTY_ARRAY, "Service account - " + username, null,
-                org.elasticsearch.common.collect.Map.of("_elastic_service_account", true), true),
+                Map.of("_elastic_service_account", true), true),
             new Authentication.RealmRef(
                 ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, randomAlphaOfLengthBetween(3, 8)),
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
                 "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         final PlainActionFuture<RoleDescriptor> future2 = new PlainActionFuture<>();
         serviceAccountService.getRoleDescriptor(auth2, future2);
@@ -462,7 +464,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             null,
             Version.CURRENT,
             Authentication.AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
+            Map.of("_token_name", randomAlphaOfLengthBetween(3, 8),
                 "_token_source", tokenSource.name().toLowerCase(Locale.ROOT)));
         service.getRoleDescriptor(authentication, future2);
         final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);

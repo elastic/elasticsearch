@@ -12,6 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 import org.elasticsearch.script.Script;
 
 import java.util.Arrays;
@@ -62,14 +63,14 @@ public class StringScriptFieldTermsQueryTests extends AbstractStringScriptFieldQ
             randomScript(),
             leafFactory,
             "test",
-            org.elasticsearch.common.collect.Set.of("foo", "bar")
+            org.elasticsearch.core.Set.of("foo", "bar")
         );
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("bar")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("baz")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("foo", "baz")));
-        assertTrue(query.matches(org.elasticsearch.common.collect.List.of("bar", "baz")));
-        assertFalse(query.matches(org.elasticsearch.common.collect.List.of("baz", "bort")));
+        assertTrue(query.matches(List.of("foo")));
+        assertTrue(query.matches(List.of("bar")));
+        assertFalse(query.matches(List.of("baz")));
+        assertTrue(query.matches(List.of("foo", "baz")));
+        assertTrue(query.matches(List.of("bar", "baz")));
+        assertFalse(query.matches(List.of("baz", "bort")));
     }
 
     @Override

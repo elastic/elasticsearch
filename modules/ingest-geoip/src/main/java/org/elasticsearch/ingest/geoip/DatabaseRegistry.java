@@ -19,8 +19,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -374,7 +374,7 @@ public final class DatabaseRegistry implements Closeable {
     }
 
     public Set<String> getAvailableDatabases() {
-        return org.elasticsearch.common.collect.Set.copyOf(databases.keySet());
+        return org.elasticsearch.core.Set.copyOf(databases.keySet());
     }
 
     public Set<String> getFilesInTemp() {

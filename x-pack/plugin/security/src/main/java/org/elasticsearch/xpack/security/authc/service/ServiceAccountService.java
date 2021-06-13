@@ -53,7 +53,7 @@ public class ServiceAccountService {
     }
 
     public static Map<String, ServiceAccount> getServiceAccounts() {
-        return org.elasticsearch.common.collect.Map.copyOf(ACCOUNTS);
+        return org.elasticsearch.core.Map.copyOf(ACCOUNTS);
     }
 
     /**
@@ -149,7 +149,7 @@ public class ServiceAccountService {
         final Authentication.RealmRef authenticatedBy =
             new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
     }
 

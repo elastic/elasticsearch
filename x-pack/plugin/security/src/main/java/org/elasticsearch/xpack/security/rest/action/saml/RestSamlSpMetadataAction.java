@@ -33,7 +33,7 @@ public class RestSamlSpMetadataAction extends SamlBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_security/saml/metadata/{realm}"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_security/saml/metadata/{realm}"));
     }
 
     @Override

@@ -82,8 +82,6 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String FEATURE_STATES = "feature_states";
     private static final String INDEX_DETAILS = "index_details";
 
-    private static final Version INCLUDE_GLOBAL_STATE_INTRODUCED = Version.V_6_2_0;
-
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
 
@@ -994,9 +992,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         } else {
             out.writeBoolean(false);
         }
-        if (out.getVersion().onOrAfter(INCLUDE_GLOBAL_STATE_INTRODUCED)) {
-            out.writeOptionalBoolean(includeGlobalState);
-        }
+        out.writeOptionalBoolean(includeGlobalState);
         if (out.getVersion().onOrAfter(METADATA_FIELD_INTRODUCED)) {
             out.writeMap(userMetadata);
         }

@@ -124,7 +124,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         jobBuilder.setBlocked(new Blocked(Blocked.Reason.REVERT, null));
         Exception e = expectThrows(ElasticsearchStatusException.class,
             () -> validateJobAndId("job_id", jobBuilder.build()));
-        assertEquals("Cannot open job [job_id] because it is executing [reset]", e.getMessage());
+        assertEquals("Cannot open job [job_id] because it is executing [revert]", e.getMessage());
     }
 
     public void testValidate_jobWithoutVersion() {

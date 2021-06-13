@@ -194,11 +194,11 @@ public class TransportRevertModelSnapshotAction extends TransportMasterNodeActio
     private void revertSnapshot(String jobId, RevertModelSnapshotAction.Request request,
                                 ActionListener<RevertModelSnapshotAction.Response> listener) {
         ActionListener<RevertModelSnapshotAction.Response> finalListener = ActionListener.wrap(
-            r -> jobManager.updateJobBlockReason(jobId, null, ActionListener.wrap(
+            r -> jobManager.updateJobBlockReason(jobId, Blocked.none(), ActionListener.wrap(
                     aBoolean -> listener.onResponse(r),
                     listener::onFailure
                 ))
-            , e -> jobManager.updateJobBlockReason(jobId, null, ActionListener.wrap(
+            , e -> jobManager.updateJobBlockReason(jobId, Blocked.none(), ActionListener.wrap(
                 aBoolean -> listener.onFailure(e),
                 listener::onFailure
             ))

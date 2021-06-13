@@ -200,16 +200,6 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testCustomRestWrapperDeprecationMessage() {
-        class FakeHandler implements RestHandler {
-            @Override
-            public List<Route> routes() {
-                return singletonList(new Route(GET, "/_dummy"));
-            }
-
-            @Override
-            public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-            }
-        }
         ActionPlugin secPlugin = new ActionPlugin() {
             @Override
             public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
@@ -231,6 +221,17 @@ public class ActionModuleTests extends ESTestCase {
                 "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
         } finally {
             threadPool.shutdown();
+        }
+    }
+
+    class FakeHandler implements RestHandler {
+        @Override
+        public List<Route> routes() {
+            return singletonList(new Route(GET, "/_dummy"));
+        }
+
+        @Override
+        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         }
     }
 }

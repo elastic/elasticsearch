@@ -174,27 +174,9 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
-      to know where to find them. Under the "Third-Party Checks" section,
-      click the "+" button.
-   3. Select `build-tools-internal/build/distributions/build-tools-internal-$VERSION.jar` where
-      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
-      always exist if you imported the project into IntelliJ before
-      configuring Checkstyle.
-   4. Make sure that "Checkstyle version" is set to the highest available version
-   5. Change the "Scan Scope" to "Only Java sources (including tests)"
-   6. Click the "+" under "Configuration file"
-   7. Set "Description" to "Elasticsearch"
-   8. Select "Use a local Checkstyle file"
-   9. For the "File", enter `checkstyle_ide.xml`
-   10. Tick "Store relative to project location"
-   11. Click "Next", then "Finish".
-   12. Click the box next to the new configuration to make it "Active".
-       Without doing this, you'll have to explicitly choose the
-       "Elasticsearch" configuration in the Checkstyle tool window and run
-       the check manually.
-   13. Click "OK" to apply the new preferences
+IntelliJ should be automatically configured to use the generated rules after
+import via the `.idea/checkstyle-idea.xml` configuration file. No further
+action is required.
 
 #### Formatting
 

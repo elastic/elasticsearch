@@ -26,18 +26,30 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action for verifying repository operation
  */
-public class TransportVerifyRepositoryAction extends
-    TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
+public class TransportVerifyRepositoryAction extends TransportMasterNodeAction<VerifyRepositoryRequest, VerifyRepositoryResponse> {
 
     private final RepositoriesService repositoriesService;
 
-
     @Inject
-    public TransportVerifyRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                           RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
-                                           IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(VerifyRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters,
-              VerifyRepositoryRequest::new, indexNameExpressionResolver, VerifyRepositoryResponse::new, ThreadPool.Names.SAME);
+    public TransportVerifyRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            VerifyRepositoryAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            VerifyRepositoryRequest::new,
+            indexNameExpressionResolver,
+            VerifyRepositoryResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -47,9 +59,15 @@ public class TransportVerifyRepositoryAction extends
     }
 
     @Override
-    protected void masterOperation(Task task, final VerifyRepositoryRequest request, ClusterState state,
-                                   final ActionListener<VerifyRepositoryResponse> listener) {
-        repositoriesService.verifyRepository(request.name(), listener.map(
-                verifyResponse -> new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0]))));
+    protected void masterOperation(
+        Task task,
+        final VerifyRepositoryRequest request,
+        ClusterState state,
+        final ActionListener<VerifyRepositoryResponse> listener
+    ) {
+        repositoriesService.verifyRepository(
+            request.name(),
+            listener.map(verifyResponse -> new VerifyRepositoryResponse(verifyResponse.toArray(new DiscoveryNode[0])))
+        );
     }
 }

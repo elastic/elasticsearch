@@ -3137,7 +3137,7 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     private Mapping dynamicUpdate() {
-        final RootObjectMapper root = new RootObjectMapper.Builder("some_type").build(new ContentPath());
+        final RootObjectMapper root = new RootObjectMapper.Builder("some_type", Version.CURRENT).build(new ContentPath());
         return new Mapping(root, new MetadataFieldMapper[0], emptyMap());
     }
 

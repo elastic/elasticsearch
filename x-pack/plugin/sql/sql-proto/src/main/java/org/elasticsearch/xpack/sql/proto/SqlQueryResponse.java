@@ -21,6 +21,9 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.ID_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_PARTIAL_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.IS_RUNNING_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.ROWS_NAME;
 
 /**
@@ -33,16 +36,25 @@ public class SqlQueryResponse {
             objects -> new SqlQueryResponse(
                     objects[0] == null ? "" : (String) objects[0],
                     (List<ColumnInfo>) objects[1],
-                    (List<List<Object>>) objects[2]));
+                    (List<List<Object>>) objects[2],
+                    (String) objects[3],
+                    objects[4] != null && (boolean) objects[4],
+                    objects[5] != null && (boolean) objects[5]));
 
     public static final ParseField CURSOR = new ParseField(CURSOR_NAME);
     public static final ParseField COLUMNS = new ParseField(COLUMNS_NAME);
     public static final ParseField ROWS = new ParseField(ROWS_NAME);
+    public static final ParseField ID = new ParseField(ID_NAME);
+    public static final ParseField IS_PARTIAL = new ParseField(IS_PARTIAL_NAME);
+    public static final ParseField IS_RUNNING = new ParseField(IS_RUNNING_NAME);
 
     static {
         PARSER.declareString(optionalConstructorArg(), CURSOR);
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ColumnInfo.fromXContent(p), COLUMNS);
         PARSER.declareField(constructorArg(), (p, c) -> parseRows(p), ROWS, ValueType.OBJECT_ARRAY);
+        PARSER.declareString(optionalConstructorArg(), ID);
+        PARSER.declareBoolean(optionalConstructorArg(), IS_PARTIAL);
+        PARSER.declareBoolean(optionalConstructorArg(), IS_RUNNING);
     }
 
     // TODO: Simplify cursor handling
@@ -50,11 +62,23 @@ public class SqlQueryResponse {
     private final List<ColumnInfo> columns;
     // TODO investigate reusing Page here - it probably is much more efficient
     private final List<List<Object>> rows;
+    // async
+    private final @Nullable String asyncExecutionId;
+    private final boolean isPartial;
+    private final boolean isRunning;
 
     public SqlQueryResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows) {
+        this(cursor, columns, rows, null, false, false);
+    }
+
+    public SqlQueryResponse(String cursor, @Nullable List<ColumnInfo> columns, List<List<Object>> rows, String asyncExecutionId,
+                            boolean isPartial, boolean isRunning) {
         this.cursor = cursor;
         this.columns = columns;
         this.rows = rows;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isPartial = isPartial;
+        this.isRunning = isRunning;
     }
 
     /**
@@ -75,6 +99,18 @@ public class SqlQueryResponse {
 
     public List<List<Object>> rows() {
         return rows;
+    }
+
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    public boolean isPartial() {
+        return isPartial;
+    }
+
+    public boolean isRunning() {
+        return isRunning;
     }
 
     public static SqlQueryResponse fromXContent(XContentParser parser) {
@@ -114,12 +150,15 @@ public class SqlQueryResponse {
         SqlQueryResponse that = (SqlQueryResponse) o;
         return Objects.equals(cursor, that.cursor) &&
                 Objects.equals(columns, that.columns) &&
-                Objects.equals(rows, that.rows);
+                Objects.equals(rows, that.rows) &&
+                Objects.equals(asyncExecutionId, that.asyncExecutionId) &&
+                isPartial == that.isPartial &&
+                isRunning == that.isRunning;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cursor, columns, rows);
+        return Objects.hash(cursor, columns, rows, asyncExecutionId, isPartial, isRunning);
     }
 
 }

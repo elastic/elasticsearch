@@ -78,20 +78,21 @@ public class RestoreSnapshotResponse extends ActionResponse implements ToXConten
     }
 
     public static final ConstructingObjectParser<RestoreSnapshotResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "restore_snapshot", true, v -> {
+        "restore_snapshot",
+        true,
+        v -> {
             RestoreInfo restoreInfo = (RestoreInfo) v[0];
             Boolean accepted = (Boolean) v[1];
-            assert (accepted == null && restoreInfo != null) ||
-                   (accepted != null && accepted && restoreInfo == null) :
-                "accepted: [" + accepted + "], restoreInfo: [" + restoreInfo + "]";
+            assert (accepted == null && restoreInfo != null) || (accepted != null && accepted && restoreInfo == null)
+                : "accepted: [" + accepted + "], restoreInfo: [" + restoreInfo + "]";
             return new RestoreSnapshotResponse(restoreInfo);
-    });
+        }
+    );
 
     static {
         PARSER.declareObject(optionalConstructorArg(), (parser, context) -> RestoreInfo.fromXContent(parser), new ParseField("snapshot"));
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("accepted"));
     }
-
 
     public static RestoreSnapshotResponse fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);

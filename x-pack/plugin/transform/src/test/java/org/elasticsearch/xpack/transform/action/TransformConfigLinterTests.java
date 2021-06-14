@@ -95,7 +95,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             new PivotConfig(
                 GroupConfigTests.randomGroupConfig(
                     () -> new HistogramGroupSource(
-                        randomAlphaOfLengthBetween(1, 20), null, false, randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false))),
+                        randomAlphaOfLengthBetween(1, 20), null, true, randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false))),
                 AggregationConfigTests.randomAggregationConfig(),
                 null);
         Function function = new Pivot(pivotConfig, new SettingsConfig(), Version.CURRENT);

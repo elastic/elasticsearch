@@ -428,7 +428,7 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     static class HistogramFieldCollector implements FieldCollector {
 
         // cutoff is calculated with max_range/current_range, current_range must be smaller
-        // the optimization gets only applied if we cut a certain range
+        // the optimization gets only applied if we cut at least by 20%
         private static final double MIN_CUT_OFF = 1.2;
         private final String sourceFieldName;
         private final boolean missingBucket;

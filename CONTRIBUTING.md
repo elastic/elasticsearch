@@ -183,6 +183,9 @@ action is required.
 We are in the process of migrating towards automatic formatting Java file
 using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
 Code Formatter] plugin installed, you can apply formatting directly in IntelliJ.
+The configuration for the plugin is held in
+`.idea/eclipseCodeFormatter.xml` and should be automatically applied, but
+manual instructions are below in case you you need them.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
@@ -194,7 +197,8 @@ Code Formatter] plugin installed, you can apply formatting directly in IntelliJ.
 
 Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
-automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
+automatically formatted in
+[build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
 
 #### Imports
 
@@ -210,15 +214,15 @@ configure IntelliJ's import ordering to match Spotless.
    4. Set "Names count to use static import with '*'" to 9999.
    5. Under "Import Layout", configure the following:
       - Import all other imports
-      - Blank line
+      - _&lt;blank line&gt;_
       - `com.*`
-      - Blank line
+      - _&lt;blank line&gt;_
       - `org.*`
-      - Blank line
+      - _&lt;blank line&gt;_
       - `java.*`
-      - Blank line
+      - _&lt;blank line&gt;_
       - `javax.*`
-      - Blank line
+      - _&lt;blank line&gt;_
       - import static all other imports
 
 ### Importing the project into Eclipse
@@ -295,12 +299,10 @@ form.
 
 ### Java Language Formatting Guidelines
 
-Java files in the Elasticsearch codebase are formatted with the Eclipse JDT
-formatter, using the [Spotless
-Gradle](https://github.com/diffplug/spotless/tree/master/plugin-gradle)
-plugin. This plugin is configured on a project-by-project basis, via
-`build.gradle` in the root of the repository. The formatting check can be
-run explicitly with:
+Java files in the Elasticsearch codebase are automatically formatted using
+the [Spotless Gradle] plugin. All new projects are automatically formatted,
+while existing projects are gradually being opted-in. The formatting check
+can be run explicitly with:
 
     ./gradlew spotlessJavaCheck
 
@@ -340,27 +342,11 @@ Please follow these formatting guidelines:
 
 IntelliJ IDEs can
 [import](https://blog.jetbrains.com/idea/2014/01/intellij-idea-13-importing-code-formatter-settings-from-eclipse/)
-the same settings file, and / or use the [Eclipse Code
-Formatter](https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter)
-plugin.
+the same settings file, and / or use the [Eclipse Code Formatter] plugin.
 
 You can also tell Spotless to [format a specific
 file](https://github.com/diffplug/spotless/tree/master/plugin-gradle#can-i-apply-spotless-to-specific-files)
 from the command line.
-
-#### Formatting failures
-
-Sometimes Spotless will report a "misbehaving rule which can't make up its
-mind" and will recommend enabling the `paddedCell()` setting. If you
-enabled this setting and run the format check again,
-Spotless will write files to
-`$PROJECT/build/spotless-diagnose-java/` to aid diagnosis. It writes
-different copies of the formatted files, so that you can see how they
-differ and infer what is the problem.
-
-The `paddedCell()` option is disabled for normal operation so that any
-misbehaviour is detected, and not just suppressed. You can enabled the
-option from the command line by running Gradle with `-Dspotless.paddedcell`.
 
 ### Javadoc
 
@@ -755,3 +741,4 @@ repeating in this section because it has come up in this context.
 [Checkstyle]: https://plugins.jetbrains.com/plugin/1065-checkstyle-idea
 [spotless]: https://github.com/diffplug/spotless
 [Eclipse Code Formatter]: https://plugins.jetbrains.com/plugin/6546-eclipse-code-formatter
+[Spotless Gradle]: https://github.com/diffplug/spotless/tree/master/plugin-gradle

@@ -40,7 +40,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public static final Version PAGINATED_GET_SNAPSHOTS_VERSION = Version.V_8_0_0;
 
-    private int size = 0;
+    public static final int NO_LIMIT = -1;
+
+    /**
+     * Number of snapshots to fetch information for or {@link #NO_LIMIT} for fetching all snapshots matching the request.
+     */
+    private int size = NO_LIMIT;
 
     @Nullable
     private After after;
@@ -127,11 +132,14 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (repositories == null || repositories.length == 0) {
             validationException = addValidationError("repositories are missing", validationException);
         }
+        if (size == 0) {
+            validationException = addValidationError("size must be -1 or greater than 0", validationException);
+        }
         if (verbose == false) {
             if (sort != SortBy.START_TIME) {
                 validationException = addValidationError("can't use non-default sort with verbose=false", validationException);
             }
-            if (size != 0) {
+            if (size > 0) {
                 validationException = addValidationError("can't use size limit with verbose=false", validationException);
             }
             if (after != null) {
@@ -213,9 +221,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public GetSnapshotsRequest pagination(@Nullable After after, SortBy sort, int size) {
         Objects.requireNonNull(sort);
-        if (size < 0) {
-            throw new IllegalArgumentException("pagination size must be >= 0 but was [" + size + "]");
-        }
         this.after = after;
         this.sort = sort;
         this.size = size;

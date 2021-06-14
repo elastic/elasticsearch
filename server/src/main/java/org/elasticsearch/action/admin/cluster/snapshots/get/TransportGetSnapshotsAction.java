@@ -564,7 +564,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return List.copyOf(size > 0 && size < afterStart.size() ? afterStart.subList(0, size) : afterStart);
     }
 
-    private static boolean nameIsAfter(String name, SnapshotInfo info) {
-        return name.compareTo(info.snapshotId().getName()) < 0;
+    private static boolean nameIsAfter(String afterName, SnapshotInfo info) {
+        return afterName.compareTo(info.snapshotId().getName()) < 0;
     }
 }

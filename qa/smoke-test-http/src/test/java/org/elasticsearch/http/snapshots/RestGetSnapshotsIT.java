@@ -88,7 +88,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             final int lastBatch = names.size() - batch1.size() - batch2.size();
             final List<SnapshotInfo> batch3 = sortedWithLimit(repoName, sort, batch2.get(1), lastBatch);
             assertEquals(batch3, allSnapshotsSorted.subList(batch1.size() + batch2.size(), names.size()));
-            final List<SnapshotInfo> batch3NoLimit = sortedWithLimit(repoName, sort, batch2.get(1), 0);
+            final List<SnapshotInfo> batch3NoLimit = sortedWithLimit(repoName, sort, batch2.get(1), GetSnapshotsRequest.NO_LIMIT);
             assertEquals(batch3, batch3NoLimit);
             final List<SnapshotInfo> batch3LargeLimit =
                     sortedWithLimit(repoName, sort, batch2.get(1), lastBatch + randomIntBetween(1, 100));
@@ -156,8 +156,8 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private static List<SnapshotInfo> allSnapshotsSorted(Collection<String> allSnapshotNames,
-                                                  String repoName,
-                                                  GetSnapshotsRequest.SortBy sortBy) throws IOException {
+                                                         String repoName,
+                                                         GetSnapshotsRequest.SortBy sortBy) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         final Response response = getRestClient().performRequest(request);

@@ -35,13 +35,22 @@ public class NestedObjectMapper extends ObjectMapper {
             this.indexCreatedVersion = indexCreatedVersion;
         }
 
+        public Builder(NestedObjectMapper fromMapper) {
+            super(fromMapper.simpleName());
+            this.indexCreatedVersion = fromMapper.indexCreatedVersion;
+            this.enabled = new Explicit<>(fromMapper.enabled.value(), fromMapper.enabled.explicit());
+            this.dynamic = fromMapper.dynamic;
+            includeInRoot(fromMapper.includeInRoot);
+            includeInParent(fromMapper.includeInParent);
+        }
+
         Builder includeInRoot(boolean includeInRoot) {
             this.includeInRoot = new Explicit<>(includeInRoot, true);
             return this;
         }
 
         void includeInRoot(Explicit<Boolean> includeInRoot) {
-            this.includeInRoot = includeInRoot;
+            this.includeInRoot = new Explicit<>(includeInRoot.value(), includeInRoot.explicit());
         }
 
         Builder includeInParent(boolean includeInParent) {
@@ -50,7 +59,7 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         void includeInParent(Explicit<Boolean> includeInParent) {
-            this.includeInParent = includeInParent;
+            this.includeInParent = new Explicit<>(includeInParent.value(), includeInParent.explicit());
         }
 
         @Override
@@ -182,7 +191,7 @@ public class NestedObjectMapper extends ObjectMapper {
             throw new IllegalArgumentException("can't merge a non nested mapping [" + mergeWith.name() + "] with a nested mapping");
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexCreatedVersion);
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(this);
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
             if (mergeWithObject.includeInParent.explicit()) {
                 builder.includeInParent(mergeWithObject.includeInParent);
@@ -194,11 +203,9 @@ public class NestedObjectMapper extends ObjectMapper {
             if (includeInParent.value() != mergeWithObject.includeInParent.value()) {
                 throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
             }
-            builder.includeInParent(includeInParent);
             if (includeInRoot.value() != mergeWithObject.includeInRoot.value()) {
                 throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
             }
-            builder.includeInRoot(includeInRoot);
         }
         for (Mapper child : mappers.values()) {
             builder.add(new Mapper.Builder(child.name()) {

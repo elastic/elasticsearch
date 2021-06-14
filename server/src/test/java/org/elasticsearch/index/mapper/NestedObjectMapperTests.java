@@ -843,4 +843,49 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         })));
         assertEquals("the [include_in_root] parameter can't be updated on a nested object mapping", e2.getMessage());
     }
+
+    public void testEnabled() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertFalse(nom.isEnabled());
+        }
+
+        merge(mapperService, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertFalse(nom.isEnabled());
+        }
+
+        // merging for index templates allows override of 'enabled' param
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "true");
+            b.endObject();
+        }));
+        {
+            NestedObjectMapper nom = (NestedObjectMapper) mapperService.mappingLookup().objectMappers().get("nested");
+            assertTrue(nom.isEnabled());
+        }
+
+        // but a normal merge does not permit 'enabled' overrides
+        Exception e = expectThrows(MapperException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("nested");
+            b.field("type", "nested");
+            b.field("enabled", "false");
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), containsString("the [enabled] parameter can't be updated for the object mapping [nested]"));
+    }
 }

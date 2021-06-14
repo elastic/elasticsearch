@@ -22,8 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -514,7 +512,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         int incrementalFileCount = 0;
         long incrementalSize = 0;
 
-        List<FileInfo> indexFiles = new ArrayList<>();
+        List<FileInfo> indexFiles = null;
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
@@ -543,9 +541,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
-                    while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                        indexFiles.add(FileInfo.fromXContent(parser));
-                    }
+                    indexFiles = XContentParserUtils.parseList(parser, FileInfo::fromXContent);
                 } else {
                     XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
@@ -557,7 +553,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         return new BlobStoreIndexShardSnapshot(
             snapshot,
             indexVersion,
-            Collections.unmodifiableList(indexFiles),
+            indexFiles == null ? List.of() : indexFiles,
             startTime,
             time,
             incrementalFileCount,

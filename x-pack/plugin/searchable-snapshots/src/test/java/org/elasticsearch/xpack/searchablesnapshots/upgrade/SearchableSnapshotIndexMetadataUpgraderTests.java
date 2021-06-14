@@ -17,7 +17,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.stream.StreamSupport;
 

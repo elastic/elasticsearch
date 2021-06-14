@@ -36,7 +36,7 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 
 import java.io.File;

@@ -146,11 +146,8 @@ testClusters.all {
 }
 
 tasks.named('splitPackagesAudit').configure {
-  // common should be owned by server, this should be renamed
-  ignoreClasses 'org.elasticsearch.common.network.InetAddressHelper',
-
-    // engine is owned by server, these should be renamed
-    'org.elasticsearch.index.engine.FrozenEngine',
+  // engine is owned by server, these should be renamed
+  ignoreClasses 'org.elasticsearch.index.engine.FrozenEngine',
     'org.elasticsearch.index.engine.RewriteCachingDirectoryReader',
 
     // snapshots are part of server, these should be renamed

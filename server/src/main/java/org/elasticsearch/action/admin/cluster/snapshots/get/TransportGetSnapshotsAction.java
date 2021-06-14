@@ -492,19 +492,38 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             switch (sortBy) {
                 case START_TIME:
                     final long start = Long.parseLong(after.value());
-                    for (int i = 0; i < snapshotInfos.size(); i++) {
-                        final SnapshotInfo info = snapshotInfos.get(i);
-                        if (start < info.startTime() || (start == info.startTime() && nameIsAfter(after.snapshotName(), info))) {
-                            startIndex = i;
-                            break;
+                    if (order == SortOrder.ASC) {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            if (startIsAfter(after, start, info)) {
+                                startIndex = i;
+                                break;
+                            }
+                        }
+                    } else {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            if (startIsBefore(after, start, info)) {
+                                startIndex = i;
+                                break;
+                            }
                         }
                     }
                     break;
                 case NAME:
-                    for (int i = 0; i < snapshotInfos.size(); i++) {
-                        if (nameIsAfter(after.snapshotName(), snapshotInfos.get(i))) {
-                            startIndex = i;
-                            break;
+                    if (order == SortOrder.ASC) {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            if (nameIsAfter(after.snapshotName(), snapshotInfos.get(i))) {
+                                startIndex = i;
+                                break;
+                            }
+                        }
+                    } else {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            if (nameIsBefore(after.snapshotName(), snapshotInfos.get(i))) {
+                                startIndex = i;
+                                break;
+                            }
                         }
                     }
                     break;
@@ -541,7 +560,19 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return List.copyOf(size > 0 && size < afterStart.size() ? afterStart.subList(0, size) : afterStart);
     }
 
+    private static boolean startIsAfter(@Nullable GetSnapshotsRequest.After after, long start, SnapshotInfo info) {
+        return start < info.startTime() || (start == info.startTime() && nameIsAfter(after.snapshotName(), info));
+    }
+
+    private static boolean startIsBefore(@Nullable GetSnapshotsRequest.After after, long start, SnapshotInfo info) {
+        return start > info.startTime() || (start == info.startTime() && nameIsBefore(after.snapshotName(), info));
+    }
+
     private static boolean nameIsAfter(String afterName, SnapshotInfo info) {
         return afterName.compareTo(info.snapshotId().getName()) < 0;
+    }
+
+    private static boolean nameIsBefore(String afterName, SnapshotInfo info) {
+        return afterName.compareTo(info.snapshotId().getName()) > 0;
     }
 }

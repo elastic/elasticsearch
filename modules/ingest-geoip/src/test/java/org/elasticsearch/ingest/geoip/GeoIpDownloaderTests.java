@@ -35,7 +35,6 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 

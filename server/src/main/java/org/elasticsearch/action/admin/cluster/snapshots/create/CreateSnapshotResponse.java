@@ -54,7 +54,7 @@ public class CreateSnapshotResponse extends ActionResponse implements ToXContent
 
     public CreateSnapshotResponse(StreamInput in) throws IOException {
         super(in);
-        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::new);
+        snapshotInfo = in.readOptionalWriteable(SnapshotInfo::readFrom);
     }
 
     private void setSnapshotInfoFromBuilder(SnapshotInfoBuilder snapshotInfoBuilder) {

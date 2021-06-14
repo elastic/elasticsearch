@@ -135,7 +135,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
                     clusterAdmin().prepareCleanupRepository(name).get();
                 }
-                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                BlobStoreTestUtil.assertConsistency(getRepositoryOnMaster(name));
             });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);

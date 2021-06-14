@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
@@ -151,11 +150,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 node = in.readOptionalWriteable(DiscoveryNode::new);
                 assignmentExplanation = in.readOptionalString();
                 timingStats = in.readOptionalWriteable(DatafeedTimingStats::new);
-                if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                    runningState = in.readOptionalWriteable(RunningState::new);
-                } else {
-                    runningState = null;
-                }
+                runningState = in.readOptionalWriteable(RunningState::new);
             }
 
             public String getDatafeedId() {
@@ -222,9 +217,7 @@ public class GetDatafeedsStatsAction extends ActionType<GetDatafeedsStatsAction.
                 out.writeOptionalWriteable(node);
                 out.writeOptionalString(assignmentExplanation);
                 out.writeOptionalWriteable(timingStats);
-                if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                    out.writeOptionalWriteable(runningState);
-                }
+                out.writeOptionalWriteable(runningState);
             }
 
             @Override

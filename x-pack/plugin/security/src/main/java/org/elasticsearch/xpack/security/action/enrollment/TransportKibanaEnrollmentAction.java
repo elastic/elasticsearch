@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
@@ -120,7 +121,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                 try {
                     client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
                         logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
-                        listener.onResponse(new KibanaEnrollmentResponse(httpCa, nodeList));
+                        listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa, nodeList));
                     }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
                 } finally {
                     Arrays.fill(password, '\0');

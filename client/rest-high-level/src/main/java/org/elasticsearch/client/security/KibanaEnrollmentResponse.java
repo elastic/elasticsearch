@@ -8,6 +8,7 @@
 
 package org.elasticsearch.client.security;
 
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -18,17 +19,17 @@ import java.util.Objects;
 
 public final class KibanaEnrollmentResponse {
 
-    private String password;
+    private SecureString password;
     private String httpCa;
     private List<String> nodesAddresses;
 
-    public KibanaEnrollmentResponse(String password, String httpCa, List<String> nodesAddresses) {
+    public KibanaEnrollmentResponse(SecureString password, String httpCa, List<String> nodesAddresses) {
         this.password = password;
         this.httpCa = httpCa;
         this.nodesAddresses = nodesAddresses;
     }
 
-    public String getPassword() { return password; }
+    public SecureString getPassword() { return password; }
 
     public String getHttpCa() {
         return httpCa;
@@ -46,7 +47,7 @@ public final class KibanaEnrollmentResponse {
     private static final ConstructingObjectParser<KibanaEnrollmentResponse, Void> PARSER =
         new ConstructingObjectParser<>(
             KibanaEnrollmentResponse.class.getName(), true,
-            a -> new KibanaEnrollmentResponse((String) a[0], (String) a[1], (List<String>) a[2]));
+            a -> new KibanaEnrollmentResponse(new SecureString(((String) a[0]).toCharArray()), (String) a[1], (List<String>) a[2]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), PASSWORD);

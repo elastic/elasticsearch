@@ -9,6 +9,7 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -43,7 +44,7 @@ public class ClientErnollmentResponseTests extends ESTestCase {
     }
 
     public void testEqualsHashCode() {
-        final String password = randomAlphaOfLength(14);
+        final SecureString password = new SecureString(randomAlphaOfLength(14).toCharArray());
         final String httpCa = randomAlphaOfLength(50);
         final List<String> nodesAddresses =  randomList(10, () -> buildNewFakeTransportAddress().toString());
         KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa, nodesAddresses);
@@ -60,14 +61,15 @@ public class ClientErnollmentResponseTests extends ESTestCase {
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {
         switch (randomIntBetween(0, 3)) {
             case 0:
-                return new KibanaEnrollmentResponse(randomAlphaOfLength(14), original.getHttpCa(), original.getNodesAddresses());
+                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
+                    original.getHttpCa(), original.getNodesAddresses());
             case 1:
                 return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51), original.getNodesAddresses());
             case 2:
                 return new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(),
                     original.getNodesAddresses().subList(0, original.getNodesAddresses().size()-1));
             case 3:
-                return new KibanaEnrollmentResponse(randomAlphaOfLength(14), original.getHttpCa(),
+                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()), original.getHttpCa(),
                     original.getNodesAddresses().subList(0, original.getNodesAddresses().size()-1));
             default:
                 return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51),

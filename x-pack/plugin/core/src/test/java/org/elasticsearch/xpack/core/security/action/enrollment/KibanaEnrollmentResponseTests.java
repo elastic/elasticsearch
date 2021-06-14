@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
@@ -20,6 +21,7 @@ public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<Kiba
 
     @Override protected KibanaEnrollmentResponse createTestInstance() {
         return new KibanaEnrollmentResponse(
+            new SecureString(randomAlphaOfLength(14).toCharArray()),
             randomAlphaOfLength(50),
             randomList(10, () -> buildNewFakeTransportAddress().toString()));
     }

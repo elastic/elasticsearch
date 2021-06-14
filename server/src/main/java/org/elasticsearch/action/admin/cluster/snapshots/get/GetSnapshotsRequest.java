@@ -120,7 +120,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeOptionalWriteable(after);
             out.writeEnum(sort);
             out.writeVInt(size);
-        } else if (sort != SortBy.START_TIME || size != 0 || after != null) {
+        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
     }

@@ -202,7 +202,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getSnapshotInfo(GetSnapshotInfoContext context) {}
+        public void getSnapshotInfo(GetSnapshotInfoContext context) {
+            throw new UnsupportedOperationException();
+        }
 
         @Override
         public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {

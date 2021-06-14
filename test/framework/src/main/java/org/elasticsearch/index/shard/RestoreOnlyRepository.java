@@ -65,6 +65,7 @@ public abstract class RestoreOnlyRepository extends AbstractLifecycleComponent i
 
     @Override
     public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

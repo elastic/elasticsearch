@@ -44,7 +44,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     /**
      * Listener resolved when fetching {@link SnapshotInfo} has completed. If resolved successfully, no more calls to
-     * {@link #onSnapshotInfo} will be made. Only resolves exceptionally if {@link #abortOnFailure} is true in case one or more
+     * {@link #consumer} will be made. Only resolves exceptionally if {@link #abortOnFailure} is true in case one or more
      * {@link SnapshotInfo} failed to be fetched.
      */
     private final ActionListener<Void> doneListener;
@@ -53,7 +53,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      * {@link BiConsumer} invoked for each {@link SnapshotInfo} that is fetched with this instance and the {@code SnapshotInfo} as
      * arguments.
      */
-    private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo;
+    private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> consumer;
 
     private final CountDown counter;
 
@@ -61,15 +61,17 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         Collection<SnapshotId> snapshotIds,
         boolean abortOnFailure,
         BooleanSupplier isCancelled,
-        BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
+        BiConsumer<GetSnapshotInfoContext, SnapshotInfo> consumer,
         ActionListener<Void> listener
     ) {
-        assert snapshotIds.isEmpty() == false : "no snapshot ids to fetch given";
+        if (snapshotIds.isEmpty()) {
+            throw new IllegalArgumentException("no snapshot ids to fetch given");
+        }
         this.snapshotIds = List.copyOf(snapshotIds);
         this.counter = new CountDown(snapshotIds.size());
         this.abortOnFailure = abortOnFailure;
         this.isCancelled = isCancelled;
-        this.onSnapshotInfo = onSnapshotInfo;
+        this.consumer = consumer;
         this.doneListener = listener;
     }
 
@@ -101,7 +103,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     @Override
     public void onResponse(SnapshotInfo snapshotInfo) {
         try {
-            onSnapshotInfo.accept(this, snapshotInfo);
+            consumer.accept(this, snapshotInfo);
         } catch (Exception e) {
             assert false : e;
             onFailure(e);

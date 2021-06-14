@@ -138,7 +138,7 @@ public class CoordinationStateTestCluster {
     final CoordinationMetadata.VotingConfiguration initialConfiguration;
     final long initialValue;
 
-    CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
+    public CoordinationStateTestCluster(List<DiscoveryNode> nodes, ElectionStrategy electionStrategy) {
         this.electionStrategy = electionStrategy;
         messages = new ArrayList<>();
 
@@ -203,7 +203,7 @@ public class CoordinationStateTestCluster {
         }
     }
 
-    void runRandomly() {
+    public void runRandomly() {
         final int iterations = 10000;
         final long maxTerm = 4;
         long nextTerm = 1;

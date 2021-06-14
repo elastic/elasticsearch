@@ -1156,12 +1156,16 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             var isNonSkippedLocalRelation = leafRelation instanceof LocalRelation &&
                 ((LocalRelation) leafRelation).executable() instanceof EmptyExecutable == false;
 
-            if(isNonSkippedLocalRelation) {
+            if (isNonSkippedLocalRelation) {
                 plan.forEachDown(Project.class, p -> {
                     List<Object> values = extractConstants(p.projections());
 
-                    assert values.size() == p.projections().size();
-                    assert optimizedPlan.get() == null;
+                    if (values.size() != p.projections().size()) {
+                        throw new IllegalStateException("Trying to execute non-constant projection in local relation.");
+                    }
+                    if (optimizedPlan.get() != null) {
+                        throw new IllegalStateException("More than one Project found.");
+                    }
 
                     optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 });
@@ -1181,8 +1185,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     values.size() == a.aggregates().size();
 
                 if (isNonSkippedLocalRelation || onlyConstantAggregations) {
-                    assert values.size() == a.aggregates().size();
-                    assert optimizedPlan.get() == null;
+                    if (values.size() != a.aggregates().size()) {
+                        throw new IllegalStateException("Trying to execute non-constant aggregation in local relation.");
+                    }
+                    if (optimizedPlan.get() != null) {
+                        throw new IllegalStateException("More than one Aggregate found.");
+                    }
 
                     optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }

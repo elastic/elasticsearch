@@ -13,7 +13,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 
 public class InvalidLicenseEnforcer implements LicenseStateListener {
@@ -22,16 +22,16 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
 
     private final ThreadPool threadPool;
     private final XPackLicenseState licenseState;
-    private final DatafeedManager datafeedManager;
+    private final DatafeedRunner datafeedRunner;
     private final AutodetectProcessManager autodetectProcessManager;
 
     private volatile boolean licenseStateListenerRegistered;
 
     InvalidLicenseEnforcer(XPackLicenseState licenseState, ThreadPool threadPool,
-                           DatafeedManager datafeedManager, AutodetectProcessManager autodetectProcessManager) {
+                           DatafeedRunner datafeedRunner, AutodetectProcessManager autodetectProcessManager) {
         this.threadPool = threadPool;
         this.licenseState = licenseState;
-        this.datafeedManager = datafeedManager;
+        this.datafeedRunner = datafeedRunner;
         this.autodetectProcessManager = autodetectProcessManager;
     }
 
@@ -59,7 +59,7 @@ public class InvalidLicenseEnforcer implements LicenseStateListener {
 
                 @Override
                 protected void doRun() throws Exception {
-                    datafeedManager.stopAllDatafeedsOnThisNode("invalid license");
+                    datafeedRunner.stopAllDatafeedsOnThisNode("invalid license");
                     autodetectProcessManager.closeAllJobsOnThisNode("invalid license");
                 }
             });

@@ -47,13 +47,20 @@ public class VerifyNodeRepositoryAction {
 
     private final RepositoriesService repositoriesService;
 
-    public VerifyNodeRepositoryAction(TransportService transportService, ClusterService clusterService,
-                                      RepositoriesService repositoriesService) {
+    public VerifyNodeRepositoryAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        RepositoriesService repositoriesService
+    ) {
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
-        transportService.registerRequestHandler(ACTION_NAME, ThreadPool.Names.SNAPSHOT, VerifyNodeRepositoryRequest::new,
-            new VerifyNodeRepositoryRequestHandler());
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            ThreadPool.Names.SNAPSHOT,
+            VerifyNodeRepositoryRequest::new,
+            new VerifyNodeRepositoryRequestHandler()
+        );
     }
 
     public void verify(String repository, String verificationToken, final ActionListener<List<DiscoveryNode>> listener) {
@@ -82,7 +89,10 @@ public class VerifyNodeRepositoryAction {
                     finishVerification(repository, listener, nodes, errors);
                 }
             } else {
-                transportService.sendRequest(node, ACTION_NAME, new VerifyNodeRepositoryRequest(repository, verificationToken),
+                transportService.sendRequest(
+                    node,
+                    ACTION_NAME,
+                    new VerifyNodeRepositoryRequest(repository, verificationToken),
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                         @Override
                         public void handleResponse(TransportResponse.Empty response) {
@@ -98,13 +108,18 @@ public class VerifyNodeRepositoryAction {
                                 finishVerification(repository, listener, nodes, errors);
                             }
                         }
-                    });
+                    }
+                );
             }
         }
     }
 
-    private static void finishVerification(String repositoryName, ActionListener<List<DiscoveryNode>> listener, List<DiscoveryNode> nodes,
-                                   CopyOnWriteArrayList<VerificationFailure> errors) {
+    private static void finishVerification(
+        String repositoryName,
+        ActionListener<List<DiscoveryNode>> listener,
+        List<DiscoveryNode> nodes,
+        CopyOnWriteArrayList<VerificationFailure> errors
+    ) {
         if (errors.isEmpty() == false) {
             RepositoryVerificationException e = new RepositoryVerificationException(repositoryName, errors.toString());
             for (VerificationFailure error : errors) {

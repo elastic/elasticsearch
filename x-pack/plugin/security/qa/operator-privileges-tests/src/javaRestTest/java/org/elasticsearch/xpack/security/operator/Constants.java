@@ -218,6 +218,7 @@ public class Constants {
         "cluster:admin/xpack/watcher/watch/execute",
         "cluster:admin/xpack/watcher/watch/put",
         "cluster:internal/xpack/ml/datafeed/isolate",
+        "cluster:internal/xpack/ml/datafeed/running_state",
         "cluster:internal/xpack/ml/inference/infer",
         "cluster:internal/xpack/ml/job/finalize_job_execution",
         "cluster:internal/xpack/ml/job/kill/process",
@@ -303,6 +304,7 @@ public class Constants {
         "cluster:monitor/xpack/searchable_snapshots/stats",
         "cluster:monitor/xpack/security/saml/metadata",
         "cluster:monitor/xpack/spatial/stats",
+        "cluster:monitor/xpack/sql/async/status", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_STATUS_ACTION_NAME
         "cluster:monitor/xpack/sql/stats/dist",
         "cluster:monitor/xpack/ssl/certificates/get",
         "cluster:monitor/xpack/usage",
@@ -414,6 +416,7 @@ public class Constants {
         "indices:data/read/sql",
         "indices:data/read/sql/close_cursor",
         "indices:data/read/sql/translate",
+        "indices:data/read/sql/async/get", // org.elasticsearch.xpack.core.sql.SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME
         "indices:data/read/tv",
         "indices:data/read/xpack/ccr/shard_changes",
         "indices:data/read/xpack/enrich/coordinate_lookups",

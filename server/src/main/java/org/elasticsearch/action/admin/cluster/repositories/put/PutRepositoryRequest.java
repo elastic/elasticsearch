@@ -49,8 +49,7 @@ public class PutRepositoryRequest extends AcknowledgedRequest<PutRepositoryReque
         verify = in.readBoolean();
     }
 
-    public PutRepositoryRequest() {
-    }
+    public PutRepositoryRequest() {}
 
     /**
      * Constructs a new put repository request with the provided name.

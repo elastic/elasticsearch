@@ -8,15 +8,18 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -24,6 +27,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NodeShutdownIT extends ESRestTestCase {
 
@@ -98,11 +102,13 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     /**
-     * Checks that a reroute is started immediately after registering a node shutdown, so that shards will actually start moving off of
-     * the node immediately, rather than waiting for something to trigger it.
+     * Checks that shards properly move off of a node that's marked for removal, including:
+     * 1) A reroute needs to be triggered automatically when the node is registered for shutdown, otherwise shards won't start moving
+     *    immediately.
+     * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
-    public void testRerouteStartedOnRemoval() throws Exception {
+    public void testShardsMoveOffRemovingNode() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -132,15 +138,25 @@ public class NodeShutdownIT extends ESRestTestCase {
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
         // assertBusy waiting for the shard to no longer be on that node
+        AtomicReference<List<Object>> debug = new AtomicReference<>();
         assertBusy(() -> {
             List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
             final long shardsOnNodeToShutDown = shardsResponse.stream()
                 .map(shard -> (Map<String, Object>) shard)
                 .filter(shard -> nodeIdToShutdown.equals(shard.get("id")))
-                .filter(shard -> "STARTED".equals(shard.get("state")))
+                .filter(shard -> "STARTED".equals(shard.get("state")) || "RELOCATING".equals(shard.get("state")))
                 .count();
             assertThat(shardsOnNodeToShutDown, is(0L));
+            debug.set(shardsResponse);
         });
+
+        // Now check the shard migration status
+        Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        Response statusResponse = client().performRequest(getStatusRequest);
+        Map<String, Object> status = entityAsMap(statusResponse);
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.reason", status), nullValue());
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {

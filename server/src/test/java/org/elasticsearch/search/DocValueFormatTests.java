@@ -64,7 +64,7 @@ public class DocValueFormatTests extends ESTestCase {
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
 
         dateFormat = (DocValueFormat.DateTime) DocValueFormat.enableFormatSortValues(dateFormat);
@@ -74,7 +74,7 @@ public class DocValueFormatTests extends ESTestCase {
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.MILLISECONDS, ((DocValueFormat.DateTime) vf).resolution);
         assertTrue(dateFormat.formatSortValues);
 
@@ -85,7 +85,7 @@ public class DocValueFormatTests extends ESTestCase {
         vf = in.readNamedWriteable(DocValueFormat.class);
         assertEquals(DocValueFormat.DateTime.class, vf.getClass());
         assertEquals("epoch_second", ((DocValueFormat.DateTime) vf).formatter.pattern());
-        assertEquals(ZoneOffset.UTC, ((DocValueFormat.DateTime) vf).timeZone);
+        assertEquals(ZoneOffset.ofHours(1), ((DocValueFormat.DateTime) vf).timeZone);
         assertEquals(Resolution.NANOSECONDS, ((DocValueFormat.DateTime) vf).resolution);
 
         out = new BytesStreamOutput();
@@ -267,7 +267,7 @@ public class DocValueFormatTests extends ESTestCase {
             zone,
             Resolution.MILLISECONDS
         );
-        long millis = randomLong();
+        long millis = randomNonNegativeLong();
         // Convert to seconds
         millis -= (millis % 1000);
         assertEquals(

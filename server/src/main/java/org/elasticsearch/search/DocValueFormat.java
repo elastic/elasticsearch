@@ -30,7 +30,6 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.time.ZoneId;
-import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Locale;
@@ -230,12 +229,9 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         private DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution, boolean formatSortValues) {
-            if (formatter.pattern().equals("epoch_second") || formatter.pattern().equals("epoch_millis")) {
-                timeZone = ZoneOffset.UTC;
-            }
-            this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = formatter.toDateMathParser();
+            this.formatter = formatter.withZone(timeZone);
+            this.parser = this.formatter.toDateMathParser();
             this.resolution = resolution;
             this.formatSortValues = formatSortValues;
         }

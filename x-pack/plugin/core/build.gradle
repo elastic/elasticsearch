@@ -144,9 +144,3 @@ testClusters.all {
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
 }
-
-tasks.named('splitPackagesAudit').configure {
-  // engine is owned by server, these should be renamed
-  ignoreClasses 'org.elasticsearch.index.engine.FrozenEngine',
-    'org.elasticsearch.index.engine.RewriteCachingDirectoryReader'
-}

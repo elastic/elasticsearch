@@ -155,9 +155,3 @@ testClusters.yamlRestTest {
 }
 
 tasks.named("testingConventions").configure { enabled = false }
-
-tasks.named('splitPackagesAudit').configure {
-  // engine is owned by server, these should be renamed
-  ignoreClasses 'org.elasticsearch.index.engine.FrozenEngine',
-    'org.elasticsearch.index.engine.RewriteCachingDirectoryReader'
-}

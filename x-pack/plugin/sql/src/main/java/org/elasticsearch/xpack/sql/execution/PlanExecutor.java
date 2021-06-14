@@ -118,6 +118,14 @@ public class PlanExecutor {
         cursor.clear(cfg, client, listener);
     }
 
+    public Client client() {
+        return client;
+    }
+
+    public NamedWriteableRegistry writeableRegistry() {
+        return writableRegistry;
+    }
+
     public Metrics metrics() {
         return this.metrics;
     }

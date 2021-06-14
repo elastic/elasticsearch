@@ -260,7 +260,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getAliasesRequest = new Request("GET", "/_aliases");
         Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertEquals(
-            Map.of("logs", Map.of("is_write_data_stream", true)),
+            Map.of("logs", Map.of("is_write_index", true)),
             XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)
         );
         assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
@@ -292,7 +292,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertEquals(Map.of("logs", Map.of()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
         assertEquals(
-            Map.of("logs", Map.of("is_write_data_stream", true)),
+            Map.of("logs", Map.of("is_write_index", true)),
             XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
         );
     }

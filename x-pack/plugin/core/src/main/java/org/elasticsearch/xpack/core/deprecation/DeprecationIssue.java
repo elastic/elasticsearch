@@ -59,15 +59,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         }
     }
 
-    private Level level;
-    private String message;
-    private String url;
-    private String details;
-
-    // pkg-private for tests
-    DeprecationIssue() {
-
-    }
+    private final Level level;
+    private final String message;
+    private final String url;
+    private final String details;
 
     public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
         this.level = level;

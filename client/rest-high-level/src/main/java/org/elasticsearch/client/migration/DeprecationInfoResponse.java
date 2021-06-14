@@ -130,10 +130,16 @@ public class DeprecationInfoResponse {
         private static final ParseField DETAILS = new ParseField("details");
         private static final ParseField META = new ParseField("meta");
 
-        @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
-            new ConstructingObjectParser<>("deprecation_issue", true,
-                a -> new DeprecationIssue(Level.fromString((String) a[0]), (String) a[1], (String) a[2], (String) a[3], (Map<String, Object>) a[4]));
+            new ConstructingObjectParser<>("deprecation_issue", true, args -> {
+                String logLevel = (String) args[0];
+                String message = (String) args[1];
+                String url = (String) args[2];
+                String details = (String) args[3];
+                @SuppressWarnings("unchecked")
+                Map<String, Object> meta = (Map<String, Object>) args[4];
+                return new DeprecationIssue(Level.fromString(logLevel), message, url, details, meta);
+            });
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEVEL);

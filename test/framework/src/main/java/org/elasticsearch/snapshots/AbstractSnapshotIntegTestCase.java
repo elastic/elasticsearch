@@ -191,6 +191,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
+    protected static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+    }
+
     public void waitForBlock(String node, String repository) throws Exception {
         logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
         MockRepository mockRepository = getRepositoryOnNode(repository, node);
@@ -303,11 +307,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName)
-                .setVerify(false)
-                .setType(type)
-                .setSettings(randomRepositorySettings()));
+        createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
     public static void createRepository(Logger logger, String repoName, String type) {

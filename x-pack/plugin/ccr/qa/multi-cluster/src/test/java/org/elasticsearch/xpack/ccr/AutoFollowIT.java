@@ -572,25 +572,6 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
     }
 
-    private void verifyDataStreamAlias(RestClient client,
-                                       String aliasName,
-                                       boolean checkWriteDataStream,
-                                       String... otherDataSteams) throws IOException {
-        try {
-            var getAliasRequest = new Request("GET", "/_alias/" + aliasName);
-            var responseBody = toMap(client.performRequest(getAliasRequest));
-            logger.error("verifyAlias={}", responseBody);
-            if (checkWriteDataStream) {
-                assertThat(ObjectPath.eval(otherDataSteams[0] + ".aliases." + aliasName + ".is_write_data_stream", responseBody), is(true));
-            }
-            for (String otherDataStream : otherDataSteams) {
-                assertThat(ObjectPath.eval(otherDataStream + ".aliases." + aliasName, responseBody), notNullValue());
-            }
-        } catch (ResponseException e) {
-            throw new AssertionError("get alias call failed", e);
-        }
-    }
-
     public void testDataStreamsBiDirectionalReplication() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;
@@ -702,9 +683,9 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                     ensureYellow(followerDataStreamName);
                     verifyDocuments(leaderClient, followerDataStreamName, numDocs);
                 });
-                assertBusy(() -> verifyDataStreamAlias(leaderClient, aliasName, true, leaderDataStreamName, followerDataStreamName));
+                assertBusy(() -> verifyAlias(leaderClient, aliasName, true, leaderDataStreamName, followerDataStreamName));
             }
-            assertBusy(() -> verifyDataStreamAlias(client(), aliasName, true, followerDataStreamName, leaderDataStreamName));
+            assertBusy(() -> verifyAlias(client(), aliasName, true, followerDataStreamName, leaderDataStreamName));
             // See all eu and na logs in leader and follower cluster:
             verifyDocuments(client(), aliasName, numDocs * 2);
             try (var leaderClient = buildLeaderClient()) {

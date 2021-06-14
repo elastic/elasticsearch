@@ -40,29 +40,38 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                     writer.addDocument(doc);
                 }
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves());
+                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
                     if (rarely) {
-                        assertArrayEquals(PointValues.getMaxPackedValue(reader, "rarely"),
-                            PointValues.getMaxPackedValue(cachingDirectoryReader, "rarely"));
-                        assertArrayEquals(PointValues.getMinPackedValue(reader, "rarely"),
-                            PointValues.getMinPackedValue(cachingDirectoryReader, "rarely"));
-                        assertEquals(PointValues.size(reader, "rarely"),
-                            PointValues.size(cachingDirectoryReader, "rarely"));
+                        assertArrayEquals(
+                            PointValues.getMaxPackedValue(reader, "rarely"),
+                            PointValues.getMaxPackedValue(cachingDirectoryReader, "rarely")
+                        );
+                        assertArrayEquals(
+                            PointValues.getMinPackedValue(reader, "rarely"),
+                            PointValues.getMinPackedValue(cachingDirectoryReader, "rarely")
+                        );
+                        assertEquals(PointValues.size(reader, "rarely"), PointValues.size(cachingDirectoryReader, "rarely"));
                     }
-                    assertArrayEquals(PointValues.getMaxPackedValue(reader, "test"),
-                        PointValues.getMaxPackedValue(cachingDirectoryReader, "test"));
-                    assertArrayEquals(PointValues.getMaxPackedValue(reader, "test_const"),
-                        PointValues.getMaxPackedValue(cachingDirectoryReader, "test_const"));
+                    assertArrayEquals(
+                        PointValues.getMaxPackedValue(reader, "test"),
+                        PointValues.getMaxPackedValue(cachingDirectoryReader, "test")
+                    );
+                    assertArrayEquals(
+                        PointValues.getMaxPackedValue(reader, "test_const"),
+                        PointValues.getMaxPackedValue(cachingDirectoryReader, "test_const")
+                    );
 
-                    assertArrayEquals(PointValues.getMinPackedValue(reader, "test"),
-                        PointValues.getMinPackedValue(cachingDirectoryReader, "test"));
-                    assertArrayEquals(PointValues.getMinPackedValue(reader, "test_const"),
-                        PointValues.getMinPackedValue(cachingDirectoryReader, "test_const"));
+                    assertArrayEquals(
+                        PointValues.getMinPackedValue(reader, "test"),
+                        PointValues.getMinPackedValue(cachingDirectoryReader, "test")
+                    );
+                    assertArrayEquals(
+                        PointValues.getMinPackedValue(reader, "test_const"),
+                        PointValues.getMinPackedValue(cachingDirectoryReader, "test_const")
+                    );
 
-                    assertEquals(PointValues.size(reader, "test"),
-                        PointValues.size(cachingDirectoryReader, "test"));
-                    assertEquals(PointValues.size(reader, "test_const"),
-                        PointValues.size(cachingDirectoryReader, "test_const"));
+                    assertEquals(PointValues.size(reader, "test"), PointValues.size(cachingDirectoryReader, "test"));
+                    assertEquals(PointValues.size(reader, "test_const"), PointValues.size(cachingDirectoryReader, "test_const"));
                 }
             }
         }
@@ -87,19 +96,25 @@ public class RewriteCachingDirectoryReaderTests extends ESTestCase {
                 doc.add(new LongPoint("test", 10));
                 writer.addDocument(doc);
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
-                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves());
+                    RewriteCachingDirectoryReader cachingDirectoryReader = new RewriteCachingDirectoryReader(dir, reader.leaves(), null);
                     DateFieldMapper.DateFieldType dateFieldType = new DateFieldMapper.DateFieldType("test");
                     QueryRewriteContext context = new QueryRewriteContext(xContentRegistry(), writableRegistry(), null, () -> 0);
-                    MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 0, 10,
-                        true, true, ZoneOffset.UTC, null, context);
+                    MappedFieldType.Relation relation = dateFieldType.isFieldWithinQuery(
+                        cachingDirectoryReader,
+                        0,
+                        10,
+                        true,
+                        true,
+                        ZoneOffset.UTC,
+                        null,
+                        context
+                    );
                     assertEquals(relation, MappedFieldType.Relation.WITHIN);
 
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 3, 11,
-                        true, true, ZoneOffset.UTC, null, context);
+                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 3, 11, true, true, ZoneOffset.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.INTERSECTS);
 
-                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 10, 11,
-                        false, true, ZoneOffset.UTC, null, context);
+                    relation = dateFieldType.isFieldWithinQuery(cachingDirectoryReader, 10, 11, false, true, ZoneOffset.UTC, null, context);
                     assertEquals(relation, MappedFieldType.Relation.DISJOINT);
                 }
             }

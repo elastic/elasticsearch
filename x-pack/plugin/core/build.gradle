@@ -39,11 +39,6 @@ dependencies {
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:4.0.8'
-  api project(path: ':modules:transport-netty4')
-  api( project(path: ':plugins:transport-nio')) {
-    // TODO: core exclusion should not be necessary, since it is a transitive dep of all plugins
-    exclude group: "org.elasticsearch", module: "elasticsearch-core"
-  }
 
   testImplementation 'org.elasticsearch:securemock:1.2'
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
@@ -60,6 +55,9 @@ dependencies {
   testImplementation(project(':x-pack:license-tools')) {
     transitive = false
   }
+
+  // Needed for usage API cancellation test. TODO: do this another way or at least isolate!
+  internalClusterTestImplementation project(path: ':plugins:transport-nio')
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
 
@@ -145,4 +143,15 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   keystore 'bootstrap.password', 'x-pack-test-password'
   user username: "x_pack_rest_user", password: "x-pack-test-password"
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // engine is owned by server, these should be renamed
+  ignoreClasses 'org.elasticsearch.index.engine.FrozenEngine',
+    'org.elasticsearch.index.engine.RewriteCachingDirectoryReader',
+
+    // snapshots are part of server, these should be renamed
+    'org.elasticsearch.snapshots.SeqIdGeneratingFilterReader',
+    'org.elasticsearch.snapshots.SourceOnlySnapshot',
+    'org.elasticsearch.snapshots.SourceOnlySnapshotRepository'
 }

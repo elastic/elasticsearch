@@ -90,8 +90,18 @@ public class Task {
      * Build a proper {@link TaskInfo} for this task.
      */
     protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
-        return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
-                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers);
+        return new TaskInfo(
+                new TaskId(localNodeId, getId()),
+                getType(),
+                getAction(),
+                description,
+                status,
+                startTime,
+                System.nanoTime() - startTimeNanos,
+                this instanceof CancellableTask,
+                this instanceof CancellableTask && ((CancellableTask)this).isCancelled(),
+                parentTask,
+                headers);
     }
 
     /**

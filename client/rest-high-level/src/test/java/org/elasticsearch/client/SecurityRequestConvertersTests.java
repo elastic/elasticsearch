@@ -45,9 +45,8 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
-import org.elasticsearch.client.security.ClientEnrollmentRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -59,7 +58,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.elasticsearch.client.RequestConvertersTests.assertToXContentBody;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
@@ -502,12 +500,4 @@ public class SecurityRequestConvertersTests extends ESTestCase {
         assertToXContentBody(invalidateApiKeyRequest, request.getEntity());
     }
 
-
-    public void testEnrollClient() throws IOException {
-        ClientEnrollmentRequest request = new ClientEnrollmentRequest(randomAlphaOfLengthBetween(5,8), null);
-        Request expectedRequest = SecurityRequestConverters.clientEnrollment(request);
-        assertEquals("/_security/enroll_client", expectedRequest.getEndpoint());
-        assertEquals(HttpPost.METHOD_NAME, expectedRequest.getMethod());
-        assertEquals(emptyMap(), expectedRequest.getParameters());
-    }
  }

@@ -32,7 +32,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         super(NAME, Response::new);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
+    public static class Request extends AcknowledgedRequest<Request> {
 
         public static Request parseRequest(String jobId, XContentParser parser) {
             Job.Builder jobBuilder = Job.STRICT_PARSER.apply(parser, null);
@@ -88,12 +88,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            jobBuilder.toXContent(builder, params);
-            return builder;
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
@@ -104,11 +98,6 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(jobBuilder);
-        }
-
-        @Override
-        public final String toString() {
-            return Strings.toString(this);
         }
     }
 

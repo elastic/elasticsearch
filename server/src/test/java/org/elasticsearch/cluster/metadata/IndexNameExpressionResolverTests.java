@@ -51,6 +51,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
@@ -2104,6 +2105,88 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Exception e = expectThrows(IndexNotFoundException.class,
                 () -> indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, "my-data-stream", false, false));
             assertThat(e.getMessage(), equalTo("no such index [null]"));
+        }
+    }
+
+    public void testDataStreamAliases() {
+        String dataStream1 = "my-data-stream-1";
+        IndexMetadata index1 = createBackingIndex(dataStream1, 1, epochMillis).build();
+        IndexMetadata index2 = createBackingIndex(dataStream1, 2, epochMillis).build();
+        String dataStream2 = "my-data-stream-2";
+        IndexMetadata index3 = createBackingIndex(dataStream2, 1, epochMillis).build();
+        IndexMetadata index4 = createBackingIndex(dataStream2, 2, epochMillis).build();
+        String dataStream3 = "my-data-stream-3";
+        IndexMetadata index5 = createBackingIndex(dataStream3, 1, epochMillis).build();
+        IndexMetadata index6 = createBackingIndex(dataStream3, 2, epochMillis).build();
+
+        String dataStreamAlias1 = "my-alias1";
+        String dataStreamAlias2 = "my-alias2";
+        String dataStreamAlias3 = "my-alias3";
+        Metadata.Builder mdBuilder = Metadata.builder()
+            .put(index1, false)
+            .put(index2, false)
+            .put(index3, false)
+            .put(index4, false)
+            .put(index5, false)
+            .put(index6, false)
+            .put(new DataStream(dataStream1, createTimestampField("@timestamp"), List.of(index1.getIndex(), index2.getIndex())))
+            .put(new DataStream(dataStream2, createTimestampField("@timestamp"), List.of(index3.getIndex(), index4.getIndex())))
+            .put(new DataStream(dataStream3, createTimestampField("@timestamp"), List.of(index5.getIndex(), index6.getIndex())));
+        mdBuilder.put(dataStreamAlias1, dataStream1, null);
+        mdBuilder.put(dataStreamAlias1, dataStream2, true);
+        mdBuilder.put(dataStreamAlias2, dataStream2, null);
+        mdBuilder.put(dataStreamAlias3, dataStream3, null);
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias1);
+            assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex()));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias2);
+            assertThat(result, arrayContainingInAnyOrder(index3.getIndex(), index4.getIndex()));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, dataStreamAlias3);
+            assertThat(result, arrayContainingInAnyOrder(index5.getIndex(), index6.getIndex()));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Exception e = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias1));
+            assertThat(e.getMessage(), equalTo("no such index [" + dataStreamAlias1 + "]"));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Exception e = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias2));
+            assertThat(e.getMessage(), equalTo("no such index [" + dataStreamAlias2 + "]"));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Exception e = expectThrows(IndexNotFoundException.class,
+                () -> indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, dataStreamAlias3));
+            assertThat(e.getMessage(), equalTo("no such index [" + dataStreamAlias3 + "]"));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, true, "my-alias*");
+            assertThat(result, arrayContainingInAnyOrder(index1.getIndex(), index2.getIndex(), index3.getIndex(), index4.getIndex(),
+                index5.getIndex(), index6.getIndex()));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-alias*");
+            assertThat(result, arrayWithSize(0));
+        }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true);
+            assertThat(result, notNullValue());
+            assertThat(result.getName(), backingIndexEqualTo(dataStream2, 2));
         }
     }
 

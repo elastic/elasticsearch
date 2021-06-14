@@ -40,8 +40,11 @@ public abstract class GeoGridTiler {
      * @param docValues        the array of long-encoded bucket keys to fill
      * @param geoValue         the input shape
      *
-     * @return the number of tiles the geoValue intersects
+     * @return the number of cells the geoValue intersects
      */
     public abstract int setValues(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue);
+
+    /** Maximum number of cells that can be created by this tiler */
+    protected abstract long getMaxCells();
 }
 

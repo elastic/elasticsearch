@@ -215,7 +215,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
         // This writes to the results index, which might need updating
         ElasticsearchMappings.addDocMappingIfMissing(
             AnomalyDetectorsIndex.jobResultsAliasedName(params.getJobId()),
-            AnomalyDetectorsIndex::resultsMapping,
+            AnomalyDetectorsIndex::wrappedResultsMapping,
             client,
             clusterState,
             PERSISTENT_TASK_MASTER_NODE_TIMEOUT,

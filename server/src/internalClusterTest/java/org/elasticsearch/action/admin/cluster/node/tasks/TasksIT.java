@@ -35,7 +35,7 @@ import org.elasticsearch.action.support.replication.TransportReplicationActionTe
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -72,8 +72,8 @@ import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singleton;
-import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_HEADER_SIZE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -819,8 +819,19 @@ public class TasksIT extends ESIntegTestCase {
         CyclicBarrier b = new CyclicBarrier(2);
         TaskResultsService resultsService = internalCluster().getInstance(TaskResultsService.class);
         resultsService.storeResult(new TaskResult(
-                new TaskInfo(new TaskId("fake", 1), "test", "test", "", null, 0, 0, false, TaskId.EMPTY_TASK_ID, Collections.emptyMap()),
-                new RuntimeException("test")),
+                    new TaskInfo(
+                            new TaskId("fake", 1),
+                            "test",
+                            "test",
+                            "",
+                            null,
+                            0,
+                            0,
+                            false,
+                            false,
+                            TaskId.EMPTY_TASK_ID,
+                            Collections.emptyMap()),
+                     new RuntimeException("test")),
             new ActionListener<Void>() {
                 @Override
                 public void onResponse(Void response) {

@@ -55,6 +55,7 @@ tasks.named("internalClusterTest").configure {
   if (useFixture) {
     nonInputProperties.systemProperty "geoip_endpoint", "${-> fixtureAddress()}"
   }
+  systemProperty "ingest.geoip.downloader.enabled.default", "true"
 }
 
 tasks.register("copyDefaultGeoIp2DatabaseFiles", Copy) {

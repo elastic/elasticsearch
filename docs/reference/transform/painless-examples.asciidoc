@@ -77,9 +77,8 @@ returned by each shard and returns the document with the latest timestamp
 (`last_doc`). In the response, the top hit (in other words, the `latest_doc`) is 
 nested below the `latest_doc` field.
 
-Check the
-<<scripted-metric-aggregation-scope,scope of scripts>>
-for detailed explanation on the respective scripts.
+Check the <<scripted-metric-aggregation-scope,scope of scripts>> for detailed 
+explanation on the respective scripts.
 
 You can retrieve the last value in a similar way: 
 

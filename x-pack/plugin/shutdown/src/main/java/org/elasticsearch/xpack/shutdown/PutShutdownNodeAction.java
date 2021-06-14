@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,7 +42,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "put_node_shutdown_request",
             false,
-            (a, nodeId) -> new Request(nodeId, SingleNodeShutdownMetadata.Type.valueOf((String) a[0]), (String) a[1])
+            (a, nodeId) -> new Request(nodeId, SingleNodeShutdownMetadata.Type.parse((String) a[0]), (String) a[1])
         );
 
         static {

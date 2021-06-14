@@ -53,10 +53,13 @@ and then the previous write index can be cloned.
 [[clone-index-api-desc]]
 ==== {api-description-title}
 
-Use the clone index API
-to clone an existing index into a new index,
-where each original primary shard is cloned
-into a new primary shard in the new index.
+Use the clone index API to clone an existing index into a new index, where each
+original primary shard is cloned into a new primary shard in the new index.
+
+IMPORTANT: Cloning doesn't copy index metadata. This metadata includes aliases,
+{ilm-init} phase definitions, and {ccr-init} follower information. For example,
+if you clone a {ccr-init} follower index, the resulting clone won't be a
+follower index.
 
 [[cloning-works]]
 ===== How cloning works
@@ -170,10 +173,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-
+[role="child_attributes"]
 [[clone-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the resulting index.
++
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]

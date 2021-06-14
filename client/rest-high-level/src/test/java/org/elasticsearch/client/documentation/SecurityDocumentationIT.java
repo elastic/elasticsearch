@@ -65,6 +65,7 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -88,13 +89,12 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.client.security.ClientEnrollmentRequest;
-import org.elasticsearch.client.security.ClientEnrollmentResponse;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
@@ -126,7 +126,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -692,7 +691,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             List<Role> roles = response.getRoles();
             assertNotNull(response);
-            // 29 system roles plus the three we created
+            // 31 system roles plus the three we created
             assertThat(roles.size(), equalTo(31 + 3));
         }
 
@@ -2566,57 +2565,74 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     }
 
     @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testClientEnrollment() throws Exception {
+    public void testNodeEnrollment() throws Exception {
         RestHighLevelClient client = highLevelClient();
 
         {
-            // tag::client-enrollment-kibana-request
-            char[] kibanaSystemPassword = new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'};
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest(
-                "kibana",    // <1>
-                kibanaSystemPassword   // <2>
-            );
-            // end::client-enrollment-kibana-request
+            // tag::node-enrollment-execute
+            NodeEnrollmentResponse response = client.security().enrollNode(RequestOptions.DEFAULT);
+            // end::node-enrollment-execute
+
+            // tag::node-enrollment-response
+            String httpCaKey = response.getHttpCaKey(); // <1>
+            String httpCaCert = response.getHttpCaCert(); // <2>
+            String transportKey = response.getTransportKey(); // <3>
+            String transportCert = response.getTransportCert(); // <4>
+            String clusterName = response.getClusterName(); // <5>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            // end::node-enrollment-response
+        }
+
+        {
+            // tag::node-enrollment-execute-listener
+            ActionListener<NodeEnrollmentResponse> listener =
+                new ActionListener<NodeEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(NodeEnrollmentResponse response) {
+                        // <1>
+                    }
+
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::node-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::node-enrollment-execute-async
+            client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
+            // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testKibanaEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
 
             // tag::client-enrollment-kibana-execute
-            ClientEnrollmentResponse response = client.security().enrollClient(request, RequestOptions.DEFAULT);
+            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
             // end::client-enrollment-kibana-execute
 
             // tag::client-enrollment-kibana-response
-            String httoCa = response.getHttpCa(); // <1>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <2>
+            String password = response.getPassword(); // <1>
+            String httoCa = response.getHttpCa(); // <2>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <3>
             // end::client-enrollment-kibana-response
             assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
         }
 
         {
-            // tag::client-enrollment-generic-client-request
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest(
-                "generic_client", // <1>
-                null  // <2>
-            );
-            // end::client-enrollment-generic-client-request
-
-            // tag::client-enrollment-generic-client-execute
-            ClientEnrollmentResponse response = client.security().enrollClient(request, RequestOptions.DEFAULT);
-            // end::client-enrollment-generic-client-execute
-
-            // tag::client-enrollment-generic-client-response
-            String httoCa = response.getHttpCa();
-            List<String> nodesAddresses = response.getNodesAddresses();
-            // end::client-enrollment-generic-client-response
-            assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
-            assertThat(httoCa,
-                endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        }
-
-        {
-            ClientEnrollmentRequest request = new ClientEnrollmentRequest("languange-client", null);
             // tag::client-enrollment-generic-client-execute-listener
-            ActionListener<ClientEnrollmentResponse> listener =
-                new ActionListener<ClientEnrollmentResponse>() {
+            ActionListener<KibanaEnrollmentResponse> listener =
+                new ActionListener<KibanaEnrollmentResponse>() {
                     @Override
-                    public void onResponse(ClientEnrollmentResponse response) {
+                    public void onResponse(KibanaEnrollmentResponse response) {
                         // <1>
                     }
 
@@ -2631,7 +2647,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             listener = new LatchedActionListener<>(listener, latch);
 
             // tag::client-enrollment-generic-client-execute-async
-            client.security().enrollClientAsync(request, RequestOptions.DEFAULT, listener);
+            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
             // end::client-enrollment-generic-client-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

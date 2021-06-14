@@ -46,15 +46,29 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
     public void testRecoverExistingReplica() throws Exception {
         final String indexName = "test-recover-existing-replica";
         internalCluster().ensureAtLeastNumDataNodes(2);
-        List<String> dataNodes = randomSubsetOf(2, Sets.newHashSet(
-            clusterService().state().nodes().getDataNodes().valuesIt()).stream().map(DiscoveryNode::getName).collect(Collectors.toSet()));
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put("index.routing.allocation.include._name", String.join(",", dataNodes))
-            .build());
-        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
-            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        List<String> dataNodes = randomSubsetOf(
+            2,
+            Sets.newHashSet(clusterService().state().nodes().getDataNodes().valuesIt())
+                .stream()
+                .map(DiscoveryNode::getName)
+                .collect(Collectors.toSet())
+        );
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name", String.join(",", dataNodes))
+                .build()
+        );
+        indexRandom(
+            randomBoolean(),
+            randomBoolean(),
+            randomBoolean(),
+            IntStream.range(0, randomIntBetween(0, 50))
+                .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n))
+                .collect(toList())
+        );
         ensureGreen(indexName);
         client().admin().indices().prepareFlush(indexName).get();
         // index more documents while one shard copy is offline

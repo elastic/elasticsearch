@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

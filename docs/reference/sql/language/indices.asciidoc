@@ -88,12 +88,8 @@ requires the keyword `LIKE` for SQL `LIKE` pattern.
 [[sql-index-frozen]]
 === Frozen Indices
 
-{es} <<frozen-indices, frozen indices>> are a useful and powerful tool for hot/warm architecture introduced in {es} 6.6, 
-essentially by trading speed for memory.
-{es-sql} supports frozen indices and similar to {es}, due to their performance characteristics, allows searches on them only
-when explicitly told so by user - in other words, by default, frozen indices are not included in searches.
-
-One can toggle the use of frozen indices through:
+By default, {es-sql} doesn't search <<freeze-index-api,frozen indices>>. To
+search frozen indices, use one of the following features:
 
 dedicated configuration parameter::
 Set to `true` properties `index_include_frozen` in the <<sql-rest>> or `index.include.frozen` in the drivers to include frozen indices.

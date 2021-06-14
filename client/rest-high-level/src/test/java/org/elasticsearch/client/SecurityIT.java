@@ -19,6 +19,7 @@ import org.elasticsearch.client.security.GetRolesRequest;
 import org.elasticsearch.client.security.GetRolesResponse;
 import org.elasticsearch.client.security.GetUsersRequest;
 import org.elasticsearch.client.security.GetUsersResponse;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
@@ -31,9 +32,8 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.client.security.ClientEnrollmentRequest;
-import org.elasticsearch.client.security.ClientEnrollmentResponse;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
+import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -157,22 +157,24 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(deleteRoleResponse.isFound(), is(true));
     }
 
-    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
-    public void testEnrollClient() throws Exception {
-        ClientEnrollmentRequest genericClientRequest = new ClientEnrollmentRequest("kibana", null);
-        ClientEnrollmentResponse genericClientResponse =
-            execute(genericClientRequest, highLevelClient().security()::enrollClient, highLevelClient().security()::enrollClientAsync);
-        assertThat(genericClientResponse, notNullValue());
-        assertThat(genericClientResponse.getHttpCa()
-            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        List<String> nodesAddresses = genericClientResponse.getNodesAddresses();
+    @AwaitsFix(bugUrl = "Determine behavior for keystore with multiple keys")
+    public void testEnrollNode() throws Exception {
+        final NodeEnrollmentResponse nodeEnrollmentResponse =
+            execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
+        assertThat(nodeEnrollmentResponse, notNullValue());
+        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("fSI09on8AgMBhqA="));
+        assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));
+        List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
         assertThat(nodesAddresses.size(), equalTo(1));
+    }
 
-        ClientEnrollmentRequest kibanaRequest = new ClientEnrollmentRequest("kibana",
-            new char[]{'k','i','b','a','n','a', '-', 'p', 'a', 's', 's', 'w', 'o', 'r', 'd'});
-        ClientEnrollmentResponse kibanaResponse =
-            execute(kibanaRequest, highLevelClient().security()::enrollClient, highLevelClient().security()::enrollClientAsync);
-        assertThat(kibanaRequest, notNullValue());
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testEnrollKibana() throws Exception {
+        KibanaEnrollmentResponse kibanaResponse =
+            execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
+        assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
             , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
         List<String> nodesAddresses2 = kibanaResponse.getNodesAddresses();

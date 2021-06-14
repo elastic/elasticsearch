@@ -26,15 +26,30 @@ import org.elasticsearch.xpack.core.frozen.FrozenIndicesFeatureSetUsage;
 public class FrozenIndicesUsageTransportAction extends XPackUsageFeatureTransportAction {
 
     @Inject
-    public FrozenIndicesUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                             ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(XPackUsageFeatureAction.FROZEN_INDICES.name(), transportService, clusterService, threadPool, actionFilters,
-            indexNameExpressionResolver);
+    public FrozenIndicesUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            XPackUsageFeatureAction.FROZEN_INDICES.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         int numFrozenIndices = 0;
         for (IndexMetadata indexMetadata : state.metadata()) {
             if (FrozenEngine.INDEX_FROZEN.get(indexMetadata.getSettings())) {

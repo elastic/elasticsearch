@@ -30,7 +30,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;

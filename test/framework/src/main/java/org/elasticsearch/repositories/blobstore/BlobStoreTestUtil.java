@@ -28,18 +28,16 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
-import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.DataInputStream;
@@ -55,7 +53,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -78,23 +75,25 @@ import static org.mockito.Mockito.when;
 
 public final class BlobStoreTestUtil {
 
-    public static void assertRepoConsistency(InternalTestCluster testCluster, String repoName) {
-        final BlobStoreRepository repo =
-            (BlobStoreRepository) testCluster.getCurrentMasterNodeInstance(RepositoriesService.class).repository(repoName);
-        BlobStoreTestUtil.assertConsistency(repo, repo.threadPool().executor(ThreadPool.Names.GENERIC));
-    }
-
     /**
      * Assert that there are no unreferenced indices or unreferenced root-level metadata blobs in any repository.
      * TODO: Expand the logic here to also check for unreferenced segment blobs and shard level metadata
      * @param repository BlobStoreRepository to check
-     * @param executor Executor to run all repository calls on. This is needed since the production {@link BlobStoreRepository}
-     *                 implementations assert that all IO inducing calls happen on the generic or snapshot thread-pools and hence callers
-     *                 of this assertion must pass an executor on those when using such an implementation.
      */
-    public static void assertConsistency(BlobStoreRepository repository, Executor executor) {
-        final PlainActionFuture<AssertionError> listener = PlainActionFuture.newFuture();
-        executor.execute(ActionRunnable.supply(listener, () -> {
+    public static void assertConsistency(BlobStoreRepository repository) {
+        final PlainActionFuture<AssertionError> listener = assertConsistencyAsync(repository);
+        final AssertionError err = listener.actionGet(TimeValue.timeValueMinutes(1L));
+        if (err != null) {
+            throw new AssertionError(err);
+        }
+    }
+
+    /**
+     * Same as {@link #assertConsistency(BlobStoreRepository)} but async so it can be used in tests that don't allow blocking.
+     */
+    public static PlainActionFuture<AssertionError> assertConsistencyAsync(BlobStoreRepository repository) {
+        final PlainActionFuture<AssertionError> future = PlainActionFuture.newFuture();
+        repository.threadPool().generic().execute(ActionRunnable.wrap(future, listener -> {
             try {
                 final BlobContainer blobContainer = repository.blobContainer();
                 final long latestGen;
@@ -113,15 +112,12 @@ public final class BlobStoreTestUtil {
                 assertIndexUUIDs(repository, repositoryData);
                 assertSnapshotUUIDs(repository, repositoryData);
                 assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
-                return null;
+                listener.onResponse(null);
             } catch (AssertionError e) {
-                return e;
+                listener.onResponse(e);
             }
         }));
-        final AssertionError err = listener.actionGet(TimeValue.timeValueMinutes(1L));
-        if (err != null) {
-            throw new AssertionError(err);
-        }
+        return future;
     }
 
     private static void assertIndexGenerations(BlobContainer repoRoot, long latestGen) throws IOException {

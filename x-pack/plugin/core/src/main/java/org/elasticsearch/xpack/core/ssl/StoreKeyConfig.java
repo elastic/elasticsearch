@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -165,6 +166,26 @@ public class StoreKeyConfig extends KeyConfig {
             return privateKeys;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to list keys", e);
+        }
+    }
+
+    public List<Tuple<PrivateKey, X509Certificate>> getPrivateKeyEntries(Environment environment) {
+        try {
+            final KeyStore keyStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+            List<Tuple<PrivateKey, X509Certificate>> entries = new ArrayList<>();
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                final String alias = e.nextElement();
+                if (keyStore.isKeyEntry(alias)) {
+                    Key key = keyStore.getKey(alias, keyPassword.getChars());
+                    Certificate certificate = keyStore.getCertificate(alias);
+                    if (key instanceof PrivateKey && certificate instanceof X509Certificate) {
+                        entries.add(Tuple.tuple((PrivateKey) key, (X509Certificate) certificate));
+                    }
+                }
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to list keys and certificates", e);
         }
     }
 

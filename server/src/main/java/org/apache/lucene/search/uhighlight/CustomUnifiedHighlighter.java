@@ -21,7 +21,7 @@ import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
 

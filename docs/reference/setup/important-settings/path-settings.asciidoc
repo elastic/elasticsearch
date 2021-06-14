@@ -12,11 +12,14 @@ subdirectories of `$ES_HOME` by default. However, files in `$ES_HOME` risk
 deletion during an upgrade.
 
 In production, we strongly recommend you set the `path.data` and `path.logs` in
-`elasticsearch.yml` to locations outside of `$ES_HOME`.
+`elasticsearch.yml` to locations outside of `$ES_HOME`. <<docker,Docker>>,
+<<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>, and <<windows,Windows
+`.msi`>> installations write data and log to locations outside of `$ES_HOME` by
+default.
 
-TIP: <<docker,Docker>>, <<deb,Debian>>, <<rpm,RPM>>, <<brew,macOS Homebrew>>,
-and <<windows,Windows `.msi`>> installations write data and log to locations
-outside of `$ES_HOME` by default.
+IMPORTANT: To avoid errors, only {es} should open files in the `path.data`
+directory. Exclude the `path.data` directory from other services that may open
+and lock its files, such as antivirus or backup programs.
 
 Supported `path.data` and `path.logs` values vary by platform:
 

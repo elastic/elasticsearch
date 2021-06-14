@@ -41,14 +41,14 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -163,7 +164,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
         GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
 
-        ObjectMapper.NESTED_CONTENT_TYPE, // TODO support for nested
+        NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
@@ -292,7 +293,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             randomInt(),
             () -> 0L,
             () -> false,
-            q -> q
+            q -> q,
+            true
         );
         releasables.add(context);
         return context;

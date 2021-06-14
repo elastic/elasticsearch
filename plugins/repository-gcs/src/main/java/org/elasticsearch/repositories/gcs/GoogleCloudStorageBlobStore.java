@@ -22,7 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -45,13 +45,12 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.net.HttpURLConnection.HTTP_GONE;
 import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
@@ -386,15 +385,23 @@ class GoogleCloudStorageBlobStore implements BlobStore {
             DeleteResult deleteResult = DeleteResult.ZERO;
             Page<Blob> page = client().list(bucketName, BlobListOption.prefix(pathStr));
             do {
-                final Collection<String> blobsToDelete = new ArrayList<>();
                 final AtomicLong blobsDeleted = new AtomicLong(0L);
                 final AtomicLong bytesDeleted = new AtomicLong(0L);
-                page.getValues().forEach(b -> {
-                    blobsToDelete.add(b.getName());
-                    blobsDeleted.incrementAndGet();
-                    bytesDeleted.addAndGet(b.getSize());
+                final Iterator<Blob> blobs = page.getValues().iterator();
+                deleteBlobsIgnoringIfNotExists(new Iterator<>() {
+                    @Override
+                    public boolean hasNext() {
+                        return blobs.hasNext();
+                    }
+
+                    @Override
+                    public String next() {
+                        final Blob next = blobs.next();
+                        blobsDeleted.incrementAndGet();
+                        bytesDeleted.addAndGet(next.getSize());
+                        return next.getName();
+                    }
                 });
-                deleteBlobsIgnoringIfNotExists(blobsToDelete);
                 deleteResult = deleteResult.add(blobsDeleted.get(), bytesDeleted.get());
                 page = page.getNextPage();
             } while (page != null);
@@ -407,17 +414,28 @@ class GoogleCloudStorageBlobStore implements BlobStore {
      *
      * @param blobNames names of the blobs to delete
      */
-    void deleteBlobsIgnoringIfNotExists(Collection<String> blobNames) throws IOException {
-        if (blobNames.isEmpty()) {
+    void deleteBlobsIgnoringIfNotExists(Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
             return;
         }
-        final List<BlobId> blobIdsToDelete = blobNames.stream().map(blob -> BlobId.of(bucketName, blob)).collect(Collectors.toList());
+        final Iterator<BlobId> blobIdsToDelete = new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return blobNames.hasNext();
+            }
+
+            @Override
+            public BlobId next() {
+                return BlobId.of(bucketName, blobNames.next());
+            }
+        };
         final List<BlobId> failedBlobs = Collections.synchronizedList(new ArrayList<>());
         try {
             SocketAccess.doPrivilegedVoidIOException(() -> {
                 final AtomicReference<StorageException> ioe = new AtomicReference<>();
                 final StorageBatch batch = client().batch();
-                for (BlobId blob : blobIdsToDelete) {
+                while (blobIdsToDelete.hasNext()) {
+                    BlobId blob = blobIdsToDelete.next();
                     batch.delete(blob).notify(
                         new BatchResult.Callback<>() {
                             @Override
@@ -427,7 +445,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                             @Override
                             public void error(StorageException exception) {
                                 if (exception.getCode() != HTTP_NOT_FOUND) {
-                                    failedBlobs.add(blob);
+                                    // track up to 10 failed blob deletions for the exception message below
+                                    if (failedBlobs.size() < 10) {
+                                        failedBlobs.add(blob);
+                                    }
                                     if (ioe.compareAndSet(null, exception) == false) {
                                         ioe.get().addSuppressed(exception);
                                     }
@@ -443,7 +464,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                 }
             });
         } catch (final Exception e) {
-            throw new IOException("Exception when deleting blobs [" + failedBlobs + "]", e);
+            throw new IOException("Exception when deleting blobs " + failedBlobs, e);
         }
         assert failedBlobs.isEmpty();
     }

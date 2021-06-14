@@ -34,7 +34,7 @@ public class BoundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     }
 
     @Override
-    protected long getMaxHashes() {
+    protected long getMaxCells() {
         return maxHashes;
     }
 

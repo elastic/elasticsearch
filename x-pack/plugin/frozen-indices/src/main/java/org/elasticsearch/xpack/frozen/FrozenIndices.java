@@ -36,7 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
@@ -64,10 +64,15 @@ public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin 
     }
 
     @Override
-    public List<RestHandler> getRestHandlers(Settings settings, RestController restController, ClusterSettings clusterSettings,
-                                             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter,
-                                             IndexNameExpressionResolver indexNameExpressionResolver,
-                                             Supplier<DiscoveryNodes> nodesInCluster) {
+    public List<RestHandler> getRestHandlers(
+        Settings settings,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster
+    ) {
         return Collections.singletonList(new RestFreezeIndexAction());
     }
 }

@@ -59,6 +59,8 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentRequest;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -67,8 +69,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
-import org.elasticsearch.client.security.ClientEnrollmentRequest;
-import org.elasticsearch.client.security.ClientEnrollmentResponse;
+import org.elasticsearch.client.security.KibanaEnrollmentRequest;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 
 import java.io.IOException;
 
@@ -1133,37 +1135,54 @@ public final class SecurityClient {
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 
-
     /**
-     * Enrolls a client to a secured cluster using the Enroll Client API
-     *
-     * @param clientEnrollmentRequest the request
+     * Allows a node to join to a cluster with security features enabled using the Enroll Node API.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @return the response
      * @throws IOException in case there is a problem sending the request or parsing back the response
      */
-    public ClientEnrollmentResponse enrollClient(
-        ClientEnrollmentRequest clientEnrollmentRequest,
-        RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(clientEnrollmentRequest,
-            SecurityRequestConverters::clientEnrollment,
+    public NodeEnrollmentResponse enrollNode(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously allows a node to join to a cluster with security features enabled using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     */
+    public Cancellable enrollNodeAsync(RequestOptions options, ActionListener<NodeEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
+    /**
+     * Enrolls a client to a secured cluster using the Enroll Client API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public KibanaEnrollmentResponse enrollKibana(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest,
             options,
-            ClientEnrollmentResponse::fromXContent,
+            KibanaEnrollmentResponse::fromXContent,
             emptySet());
     }
 
     /**
      * Asynchronously enrolls a client to a secured cluster using the Enroll Client API
-     *
-     * @param clientEnrollmentRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */
-    public Cancellable enrollClientAsync(ClientEnrollmentRequest clientEnrollmentRequest,
+    public Cancellable enrollKibanaAsync(
         RequestOptions options,
-        ActionListener<ClientEnrollmentResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(clientEnrollmentRequest,
-            SecurityRequestConverters::clientEnrollment, options, ClientEnrollmentResponse::fromXContent, listener, emptySet());
+        ActionListener<KibanaEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest, options, KibanaEnrollmentResponse::fromXContent, listener, emptySet());
     }
 
 }

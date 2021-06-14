@@ -102,7 +102,6 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         executeBlobCacheCreationTestCase(storage, 9876L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/71777")
     public void testBlobStoreCacheWithPartialCopyInMixedVersions() throws Exception {
         final Storage storage = Storage.SHARED_CACHE;
         assumeVersion(Version.V_7_12_0, Storage.SHARED_CACHE);
@@ -226,6 +225,22 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
             ensureGreen(index);
             assertHitCount(index, equalTo(numberOfDocs * 2L));
             deleteIndex(index);
+
+            if (UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_13_0)) {
+                final Request request = new Request("GET",
+                    "/.snapshot-blob-cache/_settings/index.routing.allocation.include._tier_preference");
+                request.setOptions(expectWarnings("this request accesses system indices: [.snapshot-blob-cache], but in a future major " +
+                    "version, direct access to system indices will be prevented by default"));
+                request.addParameter("flat_settings", "true");
+
+                final Map<String, ?> snapshotBlobCacheSettings = entityAsMap(adminClient().performRequest(request));
+                assertThat(snapshotBlobCacheSettings, notNullValue());
+                final String tierPreference = (String) extractValue(
+                    ".snapshot-blob-cache.settings.index.routing.allocation.include._tier_preference",
+                    snapshotBlobCacheSettings
+                );
+                assertThat(tierPreference, equalTo("data_content,data_hot"));
+            }
 
         } else if (CLUSTER_TYPE.equals(ClusterType.UPGRADED)) {
             for (String snapshot : snapshots) {

@@ -16,7 +16,7 @@ import org.elasticsearch.client.transform.transforms.SyncConfig;
 import org.elasticsearch.client.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.search.SearchModule;

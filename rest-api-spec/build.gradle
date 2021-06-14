@@ -14,7 +14,7 @@ restResources {
 }
 
 // REST API specifications are published under the Apache 2.0 License
-ext.projectLicenses = ['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0']
+ext.projectLicenses.set(['The Apache Software License, Version 2.0': 'http://www.apache.org/licenses/LICENSE-2.0'])
 ext.licenseFile = rootProject.file('licenses/APACHE-LICENSE-2.0.txt')
 
 artifacts {
@@ -36,17 +36,6 @@ tasks.named("yamlRestCompatTest").configure {
   }
 
   systemProperty 'tests.rest.blacklist', [
-    'bulk/11_basic_with_types/Array of objects',
-    'bulk/11_basic_with_types/Empty _id',
-    'bulk/11_basic_with_types/Empty _id with op_type create',
-    'bulk/11_basic_with_types/empty action',
-    'bulk/21_list_of_strings_with_types/List of strings',
-    'bulk/31_big_string_with_types/One big string',
-    'bulk/41_source_with_types/Source filtering',
-    'bulk/51_refresh_with_types/refresh=empty string immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=true immediately makes changes are visible in search',
-    'bulk/51_refresh_with_types/refresh=wait_for waits until changes are visible in search',
-    'bulk/81_cas_with_types/Compare And Swap Sequence Numbers',
     'cat.aliases/10_basic/Alias against closed index',
     'cat.aliases/10_basic/Alias name',
     'cat.aliases/10_basic/Alias sorting',
@@ -105,35 +94,46 @@ tasks.named("yamlRestCompatTest").configure {
     'cat.templates/10_basic/Normal templates',
     'cat.templates/10_basic/Select columns',
     'cat.thread_pool/10_basic/Test cat thread_pool output',
+    // type information about the type is removed and not passed down. The logic to check for this is also removed.
+    'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
+    // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
+    'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
+    // type information about the type is removed and not passed down. The logic to check for this is also removed.
+    'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
+    'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
+    //
+    // This test returns test_index.mappings:{} when {} was expected. difference between 20_missing_field and 21_missing_field_with_types?
+    'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',
+    // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+    'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',
+    // The information about the type is not present in the index. hence it cannot know if the type exist or not.
+    'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
+    'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
+    'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
+    'indices.get_mapping/20_missing_type/Non-existent type returns 404',
+    'indices.get_mapping/20_missing_type/Type missing when no types exist',
+    //
+    // The information about the type is not present in the index. hence it cannot know if the type was already used or not
+    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
+    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
+    // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
+    // field search on _type field- not implementing. The data for _type is considered incorrect in this search
+    'search/160_exists_query/Test exists query on _type field',
+    //type information is not stored, hence the the index will be found
+    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
+    // mget - these use cases are no longer valid, because we always default to _doc.
+    // This mean test cases where there is assertion on not finging by type won't work
+    'mget/11_default_index_type/Default index/type',
+    'mget/16_basic_with_types/Basic multi-get',
+    // asserting about type not found won't work as we ignore the type information
+    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+    // 89 - 15 = 74 tests won't be fixed
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'count/11_basic_with_types/count body without query element',
     'count/11_basic_with_types/count with body',
     'count/11_basic_with_types/count with empty body',
-    'delete/13_basic_with_types/Basic',
-    'delete/14_shard_header_with_types/Delete check shard header',
-    'delete/15_result_with_types/Delete result field',
-    'delete/21_cas_with_types/Internal version',
-    'delete/27_external_version_with_types/External version',
-    'delete/28_external_gte_version_with_types/External GTE version',
-    'delete/31_routing_with_types/Routing',
-    'delete/51_refresh_with_types/Refresh',
-    'delete/51_refresh_with_types/When refresh url parameter is an empty string that means "refresh immediately"',
-    'delete/51_refresh_with_types/refresh=wait_for waits until changes are visible in search',
-    'delete/61_missing_with_types/Missing document with catch',
-    'delete/61_missing_with_types/Missing document with ignore',
-    'delete/70_mix_typeless_typeful/DELETE with typeless API on an index that has types',
-    'explain/10_basic/Basic explain',
-    'explain/10_basic/Basic explain with alias',
-    'explain/11_basic_with_types/Basic explain',
-    'explain/11_basic_with_types/Basic explain with alias',
-    'explain/20_source_filtering/Source filtering',
-    'explain/21_source_filtering_with_types/Source filtering',
-    'explain/31_query_string_with_types/explain with query_string parameters',
-    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
     'field_caps/30_filter/Field caps with index filter',
-    // WILL NOT BE FIXED - failing due to not recognising missing type (the type path param is ignored)
-    'get/100_mix_typeless_typeful/GET with typeless API on an index that has types',
     'get_source/11_basic_with_types/Basic with types',
     'get_source/16_default_values_with_types/Default values',
     'get_source/41_routing_with_types/Routing',
@@ -144,61 +144,10 @@ tasks.named("yamlRestCompatTest").configure {
     'get_source/86_source_missing_with_types/Missing document source with catch',
     'get_source/86_source_missing_with_types/Missing document source with ignore',
     'indices.create/10_basic/Create index without soft deletes',
-    // 5 below await retrofitting Removes typed URLs from mapping APIs #41676
-    'indices.create/11_basic_with_types/Create index with mappings',
-    'indices.create/20_mix_typeless_typeful/Create a typed index while there is a typeless template',
-    'indices.create/20_mix_typeless_typeful/Create a typeless index while there is a typed template',
-    'indices.create/20_mix_typeless_typeful/Implicitly create a typed index while there is a typeless template',
-    'indices.create/20_mix_typeless_typeful/Implicitly create a typeless index while there is a typed template',
-    //
     'indices.flush/10_basic/Index synced flush rest test',
     'indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set',
-    'indices.get_field_mapping/10_basic/Get field mapping with local is deprecated',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping by index only',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping by type & field',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping by type & field, with another field that doesn\'t exist',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping should work without index specifying type and fields',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping with include_defaults',// awaits #41676
-    'indices.get_field_mapping/11_basic_with_types/Get field mapping with no index and type',// awaits #41676
-    'indices.get_field_mapping/21_missing_field_with_types/Return empty object if field doesn\'t exist, but type and index do',// awaits #41676
-    'indices.get_field_mapping/30_missing_type/Raise 404 when type doesn\'t exist',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping should work using \'*\' for indices and types',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping should work using \'_all\' for indices and types',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping should work using comma_separated values for indices and types',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping with * for fields',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping with *t1 for fields',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping with t* for fields',// awaits #41676
-    'indices.get_field_mapping/51_field_wildcards_with_types/Get field mapping with wildcarded relative names',// awaits #41676
-    'indices.get_mapping/11_basic_with_types/Get /*/_mapping/{type}',
-    'indices.get_mapping/11_basic_with_types/Get /_all/_mapping/{type}',
-    'indices.get_mapping/11_basic_with_types/Get /_mapping',
-    'indices.get_mapping/11_basic_with_types/Get /_mapping/{type}',
-    'indices.get_mapping/11_basic_with_types/Get /index*/_mapping/{type}',
-    'indices.get_mapping/11_basic_with_types/Get /index,index/_mapping/{type}',
-    'indices.get_mapping/11_basic_with_types/Get /{index}/_mapping',
-    'indices.get_mapping/11_basic_with_types/Get /{index}/_mapping/*',
-    'indices.get_mapping/11_basic_with_types/Get /{index}/_mapping/_all',
-    'indices.get_mapping/11_basic_with_types/Get /{index}/_mapping/{type*}',
-    'indices.get_mapping/11_basic_with_types/Get /{index}/_mapping/{type}',
-    'indices.get_mapping/20_missing_type/Existent and non-existent type returns 404 and the existing type',
-    'indices.get_mapping/20_missing_type/Existent and non-existent types returns 404 and the existing type',
-    'indices.get_mapping/20_missing_type/No type matching pattern returns 404',
-    'indices.get_mapping/20_missing_type/Non-existent type returns 404',
-    'indices.get_mapping/20_missing_type/Type missing when no types exist',
     'indices.open/10_basic/?wait_for_active_shards default is deprecated',
     'indices.open/10_basic/?wait_for_active_shards=index-setting',
-    'indices.put_mapping/10_basic/Put mappings with explicit _doc type',
-    'indices.put_mapping/11_basic_with_types/Test Create and update mapping',
-    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with _doc on an index that has types',
-    'indices.put_mapping/20_mix_typeless_typeful/PUT mapping with typeless API on an index that has types',
-    'indices.put_mapping/all_path_options_with_types/post a mapping with default analyzer twice',
-    'indices.put_mapping/all_path_options_with_types/put mapping in * index',
-    'indices.put_mapping/all_path_options_with_types/put mapping in _all index',
-    'indices.put_mapping/all_path_options_with_types/put mapping in list of indices',
-    'indices.put_mapping/all_path_options_with_types/put mapping in prefix* index',
-    'indices.put_mapping/all_path_options_with_types/put mapping with blank index',
-    'indices.put_mapping/all_path_options_with_types/put one mapping per index',
-    // there is a small distinction between empty mappings and no mappings at all. The code to implement this test was refactored #54003
     // not fixing this in #70966
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'indices.shrink/30_copy_settings/Copy settings during shrink index',
@@ -218,51 +167,22 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.upgrade/10_basic/Upgrade indices disallow no indices',
     'indices.upgrade/10_basic/Upgrade indices disallow unavailable',
     'indices.upgrade/10_basic/Upgrade indices ignore unavailable',
-    'mget/10_basic/Basic multi-get',
-    'mget/11_default_index_type/Default index/type',
-    'mget/14_alias_to_multiple_indices/Multi Get with alias that resolves to multiple indices',
-    'mget/16_basic_with_types/Basic multi-get',
-    'mget/17_default_index/Default index/type',
-    'mget/18_non_existent_index_with_types/Non-existent index',
-    'mget/19_missing_metadata_with_types/Missing metadata',
-    'mget/21_alias_to_multiple_indices_with_types/Multi Get with alias that resolves to multiple indices',
-    'mget/22_ids_with_types/IDs',
-    'mget/23_stored_fields_with_types/Stored fields',
-    'mget/41_routing_with_types/Routing',
-    'mget/61_realtime_refresh_with_types/Realtime Refresh',
-    'mget/71_source_filtering_with_types/Source filtering -  exclude field',
-    'mget/71_source_filtering_with_types/Source filtering -  include field',
-    'mget/71_source_filtering_with_types/Source filtering -  include nested field',
-    'mget/71_source_filtering_with_types/Source filtering -  true/false',
     'mlt/20_docs/Basic mlt query with docs',
     'mlt/30_unlike/Basic mlt query with unlike',
-    'msearch/12_basic_with_types/Basic multi-search',
-    'msearch/12_basic_with_types/Least impact smoke test',
-    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
     'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search.aggregation/20_terms/Deprecated _term order',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
-    'search.inner_hits/10_basic/Nested doc version and seqIDs',
-    'search.inner_hits/10_basic/Nested inner hits',
-    'search/100_stored_fields/Stored fields',
-    'search/10_source_filtering/docvalue_fields with default format',
-    'search/110_field_collapsing/field collapsing',
-    'search/110_field_collapsing/field collapsing and from',
-    'search/110_field_collapsing/field collapsing and multiple inner_hits',
-    'search/110_field_collapsing/field collapsing, inner_hits and maxConcurrentGroupRequests',
-    'search/110_field_collapsing/field collapsing, inner_hits and seq_no',
-    'search/110_field_collapsing/field collapsing and inner_hits',
-    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once',
-    'search/160_exists_query/Test exists query on _type field',
-    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL',
-    'search/20_default_values/Basic search',
-    'search/260_parameter_validation/test size=-1 is deprecated',
-    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception',
-    'search/340_type_query/type query',
-    'search/40_indices_boost/Indices boost using object',
-    'search/70_response_filtering/Search with response filtering',
-    'search/90_search_after/search with search_after parameter',
+    'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
+    'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
+    'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
+    'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
+    'search/40_indices_boost/Indices boost using object', //indices_boost
+    'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
+    'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
+    'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change
+    'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
+    'search/340_type_query/type query', // type_query - probably should behave like match_all
     'search_shards/10_basic/Search shards aliases with and without filters',
     'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
     'snapshot.get/10_basic/Get missing snapshot info throws an exception',
@@ -271,23 +191,8 @@ tasks.named("yamlRestCompatTest").configure {
     'snapshot.get/10_basic/Get snapshot info when verbose is false',
     'snapshot.get/10_basic/Get snapshot info with metadata',
     'snapshot.get/10_basic/Get snapshot info with index details',
-    'suggest/20_completion/Suggestions with source should work',
-    'termvectors/11_basic_with_types/Basic tests for termvector get',
-    'termvectors/20_issue7121/Term vector API should return \'found: false\' for docs between index and refresh',
-    'termvectors/21_issue7121_with_types/Term vector API should return \'found: false\' for docs between index and refresh',
-    'termvectors/31_realtime_with_types/Realtime Term Vectors',
-    'termvectors/50_mix_typeless_typeful/Term vectors with typeless API on an index that has types',
-    'update/14_shard_header_with_types/Update check shard header',
-    'update/15_result_with_types/Update result field',
-    'update/16_noop/Noop',
-    'update/21_doc_upsert_with_types/Doc upsert',
-    'update/24_doc_as_upsert_with_types/Doc as upsert',
-    'update/41_routing_with_types/Routing',
-    'update/61_refresh_with_types/Refresh',
-    'update/61_refresh_with_types/When refresh url parameter is an empty string that means "refresh immediately"',
-    'update/61_refresh_with_types/refresh=wait_for waits until changes are visible in search',
-    'update/81_source_filtering_with_types/Source filtering',
-  ].join(',')
+    'suggest/20_completion/Suggestions with source should work'
+   ].join(',')
 }
 
 tasks.named("transformV7RestTests").configure({ task ->
@@ -297,8 +202,105 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("nodes.\$node_id.roles.9", "remote_cluster_client", "node_info role test")
   task.removeMatch("nodes.\$node_id.roles.10", "node_info role test")
   task.replaceIsTrue("test_index.mappings.type_1", "test_index.mappings._doc")
-  task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
-  task.replaceIsFalse("test-1.mappings.my_type", "test-1.mappings._doc")
+  //override for indices.get and indices.create
+  //task.replaceIsFalse("test_index.mappings.type_1", "test_index.mappings._doc")
+  //overrides for indices.create/20_mix_typeless_typeful
+  task.replaceIsFalse("test-1.mappings._doc","false",  "Create a typed index while there is a typeless template")
+  task.replaceIsFalse("test-1.mappings._doc","false", "Create a typeless index while there is a typed template")
+
+  task.replaceIsTrue("test-1.mappings.my_type", "test-1.mappings._doc")
+  task.replaceIsTrue("test-1.mappings.my_type.properties.foo", "test-1.mappings._doc.properties.foo")
+  task.replaceIsTrue("test-1.mappings.my_type.properties.bar", "test-1.mappings._doc.properties.bar")
+
+  // overrides for indices.get_field_mapping
+  task.replaceKeyInLength("test_index.mappings.test_type.text.mapping.text.type",
+    "test_index.mappings._doc.text.mapping.text.type"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.analyzer",
+    "test_index.mappings._doc.text.mapping.text.analyzer"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.t1.full_name",
+    "test_index.mappings._doc.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.t2.full_name",
+    "test_index.mappings._doc.t2.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.t1.full_name",
+    "test_index.mappings._doc.obj\\.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t1.full_name",
+    "test_index.mappings._doc.obj\\.i_t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.obj\\.i_t3.full_name",
+    "test_index.mappings._doc.obj\\.i_t3.full_name"
+  )
+  task.replaceKeyInLength("test_index.mappings.test_type",
+    "test_index.mappings._doc"
+  )
+  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t1.full_name",
+    "test_index.mappings._doc.t1.full_name"
+  )
+  task.replaceKeyInMatch("test_index_2.mappings.test_type_2.t2.full_name",
+    "test_index.mappings._doc.t2.full_name"
+  )
+  task.replaceKeyInLength("test_index_2.mappings.test_type_2",
+    "test_index.mappings._doc"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.text.mapping.text.type",
+    "test_index.mappings._doc.text.mapping.text.type"
+  )
+  // overrides for indices.put_mapping/11_basic_with_types
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.type",
+    "test_index.mappings._doc.properties.text1.type"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.analyzer",
+    "test_index.mappings._doc.properties.text1.analyzer"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text2.type",
+    "test_index.mappings._doc.properties.text2.type"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text2.analyzer",
+    "test_index.mappings._doc.properties.text2.analyzer"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.subfield.properties.text3.type",
+    "test_index.mappings._doc.properties.subfield.properties.text3.type"
+  )
+  task.replaceKeyInMatch("test_index.mappings.test_type.properties.text1.fields.text_raw.type",
+    "test_index.mappings._doc.properties.text1.fields.text_raw.type"
+  )
+  // overrides for indices.put_mapping/all_path_options_with_types
+  task.replaceKeyInMatch("test_index1.mappings.test_type.properties.text.type",
+    "test_index1.mappings._doc.properties.text.type"
+  )
+  task.replaceKeyInMatch("test_index1.mappings.test_type.properties.text.analyzer",
+    "test_index1.mappings._doc.properties.text.analyzer"
+  )
+  task.replaceKeyInMatch("test_index2.mappings.test_type.properties.text.type",
+    "test_index2.mappings._doc.properties.text.type"
+  )
+  task.replaceKeyInMatch("test_index2.mappings.test_type.properties.text.analyzer",
+    "test_index2.mappings._doc.properties.text.analyzer"
+  )
+  task.replaceKeyInMatch("foo.mappings.test_type.properties.text.type",
+    "foo.mappings._doc.properties.text.type"
+  )
+  task.replaceKeyInMatch("foo.mappings.test_type.properties.text.analyzer",
+    "foo.mappings._doc.properties.text.analyzer"
+  )
+  // overrides for indices.get_mapping
+  task.replaceIsTrue("test_1.mappings.doc", "test_1.mappings._doc")
+  task.replaceIsTrue("test_2.mappings.doc", "test_2.mappings._doc")
+  // overrides for mget
+  task.replaceValueInMatch("docs.0._type", "_doc" , "Basic multi-get") // index found, but no doc
+  task.replaceValueInMatch("docs.0._type", "_doc", "Default index/type")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Non-existent index")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Missing metadata")
+  task.replaceValueInMatch("docs.0._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.1._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Multi Get with alias that resolves to multiple indices")
+  task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
+  task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
 })
 
 tasks.register('enforceYamlTestConvention').configure {

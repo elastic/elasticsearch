@@ -19,7 +19,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -58,8 +59,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -297,26 +296,35 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<ObjectMapper> nestedMappings() {
+    public List<NestedObjectMapper> nestedMappings() {
         return mappingLookup.getNestedMappers();
     }
 
     /**
-     * Returns all the fields that match a given pattern. If prefixed with a
-     * type then the fields will be returned with a type prefix.
+     * Returns the names of all mapped fields that match a given pattern
+     *
+     * All names returned by this method are guaranteed to resolve to a
+     * MappedFieldType if passed to {@link #getFieldType(String)}
+     *
+     * @param pattern the field name pattern
      */
-    public Set<String> simpleMatchToIndexNames(String pattern) {
+    public Set<String> getMatchingFieldNames(String pattern) {
         if (runtimeMappings.isEmpty()) {
-            return mappingLookup.simpleMatchToFullName(pattern);
+            return mappingLookup.getMatchingFieldNames(pattern);
         }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        Set<String> matches = new HashSet<>(mappingLookup.simpleMatchToFullName(pattern));
-        for (String name : runtimeMappings.keySet()) {
-            if (Regex.simpleMatch(pattern, name)) {
-                matches.add(name);
+        Set<String> matches = new HashSet<>(mappingLookup.getMatchingFieldNames(pattern));
+        if ("*".equals(pattern)) {
+            matches.addAll(runtimeMappings.keySet());
+        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcard
+            if (runtimeMappings.containsKey(pattern)) {
+                matches.add(pattern);
+            }
+        } else {
+            for (String name : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(pattern, name)) {
+                    matches.add(name);
+                }
             }
         }
         return matches;
@@ -333,15 +341,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
-    }
-
-    /**
-     * Returns the registered mapped field types.
-     */
-    public Collection<MappedFieldType> getFieldTypes() {
-        List<MappedFieldType> fields = new ArrayList<>(mappingLookup.fieldTypes());
-        fields.addAll(runtimeMappings.values());
-        return fields;
     }
 
     /**
@@ -624,12 +623,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         }
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
             mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
-        }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
+        return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 
     /**

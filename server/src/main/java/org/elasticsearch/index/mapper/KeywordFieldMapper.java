@@ -13,18 +13,20 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MultiTermQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
 import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
@@ -259,7 +261,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext) throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
             IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
 
             Terms terms = MultiTerms.getTerms(reader, name());
@@ -274,8 +277,38 @@ public final class KeywordFieldMapper extends FieldMapper {
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
-            return automaton.getTermsEnum(terms);            
+            
+            BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
+            
+            if (automaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum result = terms.iterator();
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(automaton, searchBytes);
         }
+        
+        // Initialises with a seek to a given term but excludes that term
+        // from any results. The problem it addresses is that termsEnum.seekCeil()
+        // would work but either leaves us positioned on the seek term (if it exists) or the 
+        // term after (if the seek term doesn't exist). That complicates any subsequent 
+        // iteration logic so this class simplifies the pagination use case. 
+        final class SearchAfterTermsEnum extends FilteredTermsEnum {
+            private final BytesRef afterRef;
+
+            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+                super(tenum);
+                afterRef = termText;
+                setInitialSeekTerm(termText);
+            }
+
+            @Override
+            protected AcceptStatus accept(BytesRef term) {
+                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
+            }
+        }          
 
         @Override
         public String typeName() {

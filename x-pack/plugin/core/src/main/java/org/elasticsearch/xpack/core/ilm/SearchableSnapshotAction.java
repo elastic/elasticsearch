@@ -8,12 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
@@ -80,11 +80,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
         this.snapshotRepository = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
-            this.forceMergeIndex = in.readBoolean();
-        } else {
-            this.forceMergeIndex = true;
-        }
+        this.forceMergeIndex = in.readBoolean();
     }
 
     boolean isForceMergeIndex() {
@@ -132,10 +128,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
                     // The index is already a searchable snapshot, let's see if the repository matches
-                    // TODO: move the searchable snapshot settings into x-pack
-                    //  core in the future, so the Settings can be used instead
-                    //  of strings here
-                    String repo = indexMetadata.getSettings().get("index.store.snapshot.repository_name");
+                    String repo = indexMetadata.getSettings().get(RepositoriesService.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY);
                     if (this.snapshotRepository.equals(repo) == false) {
                         // Okay, different repo, we need to go ahead with the searchable snapshot
                         logger.debug("[{}] action is configured for index [{}] in policy [{}] which is already mounted as a searchable " +
@@ -293,9 +286,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(snapshotRepository);
-        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
-            out.writeBoolean(forceMergeIndex);
-        }
+        out.writeBoolean(forceMergeIndex);
     }
 
     @Override

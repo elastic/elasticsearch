@@ -1,6 +1,8 @@
 ---
 setup:
   - skip:
+      version: " - 7.9.99"
+      reason:  TODO temporary version skip while we wait for backport to 7.x of search_after properties
       features: headers
   - do:
       cluster.health:
@@ -232,14 +234,14 @@ teardown:
 ---
 "Test basic term enumeration":
   - do:
-      termsenum:
+      terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 3}
 
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_*
         body:  {"field": "foo.bar", "string":"b"}
   - length: {terms: 1}
@@ -247,47 +249,136 @@ teardown:
 ---
 "Test case insensitivity":
   - do:
-      termsenum:
+      terms_enum:
         index:  test_k
         body:  {"field": "foo", "string":"B"}
   - length: {terms: 0}
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_k
         body:  {"field": "foo", "string":"B", "case_insensitive": true}
   - length: {terms: 1}
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_f
         body:  {"field": "foo.bar", "string":"B"}
   - length: {terms: 0}
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_f
         body:  {"field": "foo.bar", "string":"B", "case_insensitive": true}
   - length: {terms: 1}
 
   - do:
-      termsenum:
+      terms_enum:
         index:  test_f
         body:  {"field": "foo.Bar", "string":"B", "case_insensitive": true}
   - length: {terms: 0}
 
+---
+"Test null search string allowed":
+  - skip:
+      version: " - 7.99.99"
+      reason:  TODO remove this skip after PR 73144 is backported to 7.x
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo"}
+  - length: {terms: 1}
+---
+"Test search after keyword field":
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"bar_k"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_k
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+
+---
+"Test search after flattened field":
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"bar_f"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_f
+        body:  {"field": "foo.bar", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
+
+---
+"Test search after constant keyword field":
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"baz"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"bar_ck"}
+  - length: {terms: 0}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"b", "search_after":"baa"}
+  - length: {terms: 1}
+
+  - do:
+      terms_enum:
+        index:  test_ck
+        body:  {"field": "foo", "string":"", "search_after":"baa"}
+  - length: {terms: 1}
 
 ---
 "Test index filtering":
   - do:
-      termsenum:
+      terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b", "index_filter":{"range":{"timestamp":{"gte":"2021-01-01T01:01:01.000Z"}}}}
   - length: {terms: 1}
 ---
 "Test legal timeout":
   - do:
-      termsenum:
+      terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b", "timeout": "1s"}
   - length: {terms: 3}
@@ -295,7 +386,7 @@ teardown:
 "Test illegal timeout":
   - do:
       catch: /Timeout cannot be > 1 minute/
-      termsenum:
+      terms_enum:
         index:  test_*
         body:  {"field": "foo", "string":"b", "timeout": "2m"}
 ---
@@ -303,28 +394,28 @@ teardown:
 
   - do:
       headers: { Authorization: "Basic dGVzdF9hZG1pbjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # admin_user sees all docs
-      termsenum:
+      terms_enum:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 1}
 
   - do:
       headers: { Authorization: "Basic ZGxzX2FsbF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # dls_all_user sees all docs
-      termsenum:
+      terms_enum:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 1}
 
   - do:
       headers: { Authorization: "Basic ZGxzX3NvbWVfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" } # dls_some_user sees selected docs
-      termsenum:
+      terms_enum:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 0}
 
   - do:
       headers: { Authorization: "Basic ZmxzX3VzZXI6eC1wYWNrLXRlc3QtcGFzc3dvcmQ=" } # fls_user can't see field
-      termsenum:
+      terms_enum:
         index:  test_security
         body:  {"field": "foo", "string":"b"}
   - length: {terms: 0}

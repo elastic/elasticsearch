@@ -74,6 +74,10 @@ public class IndexMetadataVerifier {
 
         // First convert any shared_cache searchable snapshot indices to only use _tier_preference: data_frozen
         IndexMetadata newMetadata = convertSharedCacheTierPreference(indexMetadata);
+        // Remove _tier routing settings if available, because though these are technically not
+        // invalid settings, since they are now removed the FilterAllocationDecider treats them as
+        // regular attribute filters, and shards cannot be allocated.
+        newMetadata = removeTierFiltering(newMetadata);
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
@@ -214,6 +218,24 @@ public class IndexMetadataVerifier {
             }
         } else {
             return indexMetadata;
+        }
+    }
+
+    /**
+     * Removes index level ._tier allocation filters, if they exist
+     */
+    IndexMetadata removeTierFiltering(IndexMetadata indexMetadata) {
+        final Settings settings = indexMetadata.getSettings();
+        final Settings.Builder settingsBuilder = Settings.builder().put(settings);
+        // Clear any allocation rules other than preference for tier
+        settingsBuilder.remove("index.routing.allocation.include._tier");
+        settingsBuilder.remove("index.routing.allocation.exclude._tier");
+        settingsBuilder.remove("index.routing.allocation.require._tier");
+        final Settings newSettings = settingsBuilder.build();
+        if (settings.equals(newSettings)) {
+            return indexMetadata;
+        } else {
+            return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         }
     }
 }

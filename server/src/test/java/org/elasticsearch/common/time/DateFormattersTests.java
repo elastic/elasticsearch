@@ -84,8 +84,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testPrintersLongMinMaxValue() {
         for (FormatNames format : FormatNames.values()) {
             DateFormatter formatter = DateFormatters.forPattern(format.getName());
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_9999));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
         }
     }
 

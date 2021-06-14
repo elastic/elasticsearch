@@ -20,10 +20,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.engine.Engine;
@@ -149,9 +150,18 @@ public class TermVectorsService  {
     }
 
     private static void handleFieldWildcards(IndexShard indexShard, TermVectorsRequest request) {
+        // TODO rewrite this to use a field filter built from field patterns
+        // Using lookups doesn't work for eg dynamic fields
         Set<String> fieldNames = new HashSet<>();
         for (String pattern : request.selectedFields()) {
-            fieldNames.addAll(indexShard.mapperService().mappingLookup().simpleMatchToFullName(pattern));
+            Set<String> expandedFields = indexShard.mapperService().mappingLookup().getMatchingFieldNames(pattern);
+            if (expandedFields.isEmpty()) {
+                if (Regex.isSimpleMatchPattern(pattern) == false) {
+                    fieldNames.add(pattern);
+                }
+            } else {
+                fieldNames.addAll(expandedFields);
+            }
         }
         request.selectedFields(fieldNames.toArray(Strings.EMPTY_ARRAY));
     }

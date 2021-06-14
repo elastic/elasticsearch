@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.plan.logical;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,8 +18,6 @@ import org.elasticsearch.xpack.sql.session.Session;
 
 import java.util.List;
 import java.util.Objects;
-
-import static java.util.Collections.emptyList;
 
 public class LocalRelation extends LeafPlan implements Executable {
 

@@ -32,12 +32,6 @@ POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
 ==== {api-path-parms-title}
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
-+
-By default, you must explicitly name the indices you are analyzing the disk usage.
-To specify indices to close with `_all`, `*`, or other wildcard
-expressions, change the `action.destructive_requires_name` setting to `false`.
-You can update this setting in the `elasticsearch.yml` file
-or using the <<cluster-update-settings,cluster update settings>> API.
 
 [[analyze-index-disk-usage-api-query-params]]
 ==== {api-query-parms-title}

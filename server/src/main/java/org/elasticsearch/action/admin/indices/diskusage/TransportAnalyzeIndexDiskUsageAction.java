@@ -31,7 +31,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -64,23 +63,19 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeIndexDiskUsageRequest, AnalyzeIndexDiskUsageResponse,
     AnalyzeDiskUsageShardRequest, AnalyzeDiskUsageShardResponse> {
     private final IndicesService indicesService;
-    private final DestructiveOperations destructiveOperations;
 
     @Inject
     public TransportAnalyzeIndexDiskUsageAction(ClusterService clusterService,
                                                 TransportService transportService,
                                                 IndicesService indexServices, ActionFilters actionFilters,
-                                                IndexNameExpressionResolver indexNameExpressionResolver,
-                                                DestructiveOperations destructiveOperations) {
+                                                IndexNameExpressionResolver indexNameExpressionResolver) {
         super(AnalyzeIndexDiskUsageAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
             AnalyzeIndexDiskUsageRequest::new, AnalyzeDiskUsageShardRequest::new, ThreadPool.Names.ANALYZE);
         this.indicesService = indexServices;
-        this.destructiveOperations = destructiveOperations;
     }
 
     @Override
     protected void doExecute(Task task, AnalyzeIndexDiskUsageRequest request, ActionListener<AnalyzeIndexDiskUsageResponse> listener) {
-        destructiveOperations.failDestructive(request.indices());
         super.doExecute(task, request, listener);
     }
 

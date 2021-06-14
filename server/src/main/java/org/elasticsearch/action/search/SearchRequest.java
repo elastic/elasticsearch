@@ -78,6 +78,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private SearchSourceBuilder source;
 
     private Boolean requestCache;
+    private String requestCacheKey;
 
     private Boolean allowPartialSearchResults;
 
@@ -548,6 +549,20 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     public Boolean requestCache() {
         return this.requestCache;
+    }
+
+    /**
+     * Sets a custom request cache key for this request. By default, the entire search
+     * will be used as a cache key. Useful if you are sending really large searches to
+     * minimize memory usage in the request cache.
+     */
+    public SearchRequest requestCacheKey(String requestCacheKey) {
+        this.requestCacheKey = requestCacheKey;
+        return this;
+    }
+
+    public String requestCacheKey() {
+        return this.requestCacheKey;
     }
 
     /**

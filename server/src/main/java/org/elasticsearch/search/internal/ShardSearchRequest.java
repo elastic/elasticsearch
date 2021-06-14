@@ -17,22 +17,23 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -46,6 +47,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
@@ -67,6 +69,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     private final Scroll scroll;
     private final float indexBoost;
     private Boolean requestCache;
+    private String requestCacheKey;
     private final long nowInMillis;
     private final boolean allowPartialSearchResults;
     private final OriginalIndices originalIndices;
@@ -113,6 +116,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             searchRequest.searchType(),
             searchRequest.source(),
             searchRequest.requestCache(),
+            searchRequest.requestCacheKey(),
             aliasFilter,
             indexBoost,
             searchRequest.allowPartialSearchResults(),
@@ -129,7 +133,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     public ShardSearchRequest(ShardId shardId,
                               long nowInMillis,
                               AliasFilter aliasFilter) {
-        this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, null,
+        this(OriginalIndices.NONE, shardId, -1, -1, SearchType.QUERY_THEN_FETCH, null, null, null,
             aliasFilter, 1.0f, true, null, nowInMillis, null, null, null);
     }
 
@@ -140,6 +144,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
                                SearchType searchType,
                                SearchSourceBuilder source,
                                Boolean requestCache,
+                               @Nullable String requestCacheKey,
                                AliasFilter aliasFilter,
                                float indexBoost,
                                boolean allowPartialSearchResults,
@@ -154,6 +159,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.searchType = searchType;
         this.source = source;
         this.requestCache = requestCache;
+        this.requestCacheKey = requestCacheKey;
         this.aliasFilter = aliasFilter;
         this.indexBoost = indexBoost;
         this.allowPartialSearchResults = allowPartialSearchResults;
@@ -187,6 +193,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         indexBoost = in.readFloat();
         nowInMillis = in.readVLong();
         requestCache = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            requestCacheKey = in.readOptionalString();
+        }
         clusterAlias = in.readOptionalString();
         allowPartialSearchResults = in.readBoolean();
         if (in.getVersion().before(Version.V_7_11_0)) {
@@ -220,6 +229,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         this.indexBoost = clone.indexBoost;
         this.nowInMillis = clone.nowInMillis;
         this.requestCache = clone.requestCache;
+        this.requestCacheKey = clone.requestCacheKey;
         this.clusterAlias = clone.clusterAlias;
         this.allowPartialSearchResults = clone.allowPartialSearchResults;
         this.canReturnNullResponseIfMatchNoDocs = clone.canReturnNullResponseIfMatchNoDocs;
@@ -258,6 +268,9 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             out.writeVLong(nowInMillis);
         }
         out.writeOptionalBoolean(requestCache);
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            out.writeOptionalString(requestCacheKey);
+        }
         out.writeOptionalString(clusterAlias);
         out.writeBoolean(allowPartialSearchResults);
         if (asKey == false && out.getVersion().before(Version.V_7_11_0)) {
@@ -394,9 +407,16 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     }
 
     /**
-     * Returns the cache key for this shard search request, based on its content
+     * Returns the cache key for this shard search request.
+     * The cache key is either based on the content or a
+     * specified custom key.
      */
     public BytesReference cacheKey() throws IOException {
+
+        if (requestCacheKey != null) {
+            return new BytesArray((shardId.toString() + "_" + requestCacheKey).getBytes(StandardCharsets.UTF_8));
+        }
+
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);

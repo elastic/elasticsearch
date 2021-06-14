@@ -86,6 +86,67 @@ public class IndicesRequestCacheIT extends ESIntegTestCase {
         }
     }
 
+    public void testCacheAggsWithCustomKey() throws Exception {
+        Client client = client();
+        int numShards = 5;
+        assertAcked(client.admin().indices().prepareCreate("index")
+                .setMapping("id", "type=keyword")
+                .setSettings(Settings.builder()
+                        .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), true)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)).get());
+        String fieldName = "f";
+        indexRandom(true,
+                client.prepareIndex("index").setSource(fieldName, "123"),
+                client.prepareIndex("index").setSource(fieldName, "345"));
+        ensureSearchable("index");
+
+        final SearchResponse r1 = client.prepareSearch("index")
+                .setSize(0)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setRequestCacheKey("cacheKey1")
+                .setPreference("preference")
+                .get();
+        assertSearchResponse(r1);
+        assertThat(r1.getHits().getTotalHits().value, equalTo(2L));
+        // The cached is actually used
+        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
+                .getMemorySizeInBytes(), greaterThan(0L));
+
+        // Send requests that should hit the cache
+        long numRequestsThatShouldHitCache = 10L;
+        for (int i = 0; i < numRequestsThatShouldHitCache; ++i) {
+            final SearchResponse r2 = client.prepareSearch("index")
+                    .setSize(0)
+                    .setSearchType(SearchType.QUERY_THEN_FETCH)
+                    .setRequestCacheKey("cacheKey1")
+                    // Set preference so we always hit the node with the populated cache
+                    .setPreference("preference")
+                    .get();
+            assertSearchResponse(r2);
+            assertThat(r2.getHits().getTotalHits(), equalTo(r1.getHits().getTotalHits()));
+        }
+
+        // The cache was used to serve all requests
+        long expectedCacheHits = numRequestsThatShouldHitCache * numShards;
+        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(expectedCacheHits));
+
+        // Send another request with a different cache key
+        final SearchResponse r3 = client.prepareSearch("index")
+                .setQuery(QueryBuilders.termQuery(fieldName, "123"))
+                .setSize(0)
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setRequestCacheKey("cacheKey2")
+                .setPreference("preference")
+                .get();
+        assertSearchResponse(r3);
+        assertThat(r3.getHits().getTotalHits().value, equalTo(1L));
+
+        // Request didn't use the cache
+        assertThat(client.admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
+                .getHitCount(), equalTo(expectedCacheHits));
+    }
+
     public void testQueryRewrite() throws Exception {
         Client client = client();
         assertAcked(client.admin().indices().prepareCreate("index").setMapping("s", "type=date")

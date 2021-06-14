@@ -59,6 +59,9 @@ final class AsyncSearchRequestConverters {
         if (request.getRequestCache() != null) {
             params.withRequestCache(request.getRequestCache());
         }
+        if (request.getRequestCacheKey() != null) {
+            params.withRequestCacheKey(request.getRequestCacheKey());
+        }
         if (request.getAllowPartialSearchResults() != null) {
             params.withAllowPartialResults(request.getAllowPartialSearchResults());
         }

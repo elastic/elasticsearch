@@ -93,6 +93,9 @@ public class RandomSearchRequestGenerator {
             searchRequest.requestCache(randomBoolean());
         }
         if (randomBoolean()) {
+            searchRequest.requestCacheKey(randomAlphaOfLengthBetween(3, 40));
+        }
+        if (randomBoolean()) {
             searchRequest.routing(randomAlphaOfLengthBetween(3, 10));
         }
         if (randomBoolean()) {

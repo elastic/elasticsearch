@@ -94,6 +94,10 @@ public class AsyncSearchRequestConvertersTests extends ESTestCase {
             expectedParams.put("request_cache", Boolean.toString(request.getRequestCache()));
         }
         if (randomBoolean()) {
+            request.setRequestCacheKey(randomInt() + "");
+            expectedParams.put("request_cache_key", request.getRequestCacheKey());
+        }
+        if (randomBoolean()) {
             request.setBatchedReduceSize(randomIntBetween(2, Integer.MAX_VALUE));
             expectedParams.put("batched_reduce_size", Integer.toString(request.getBatchedReduceSize()));
         }

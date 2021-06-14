@@ -413,6 +413,10 @@ final class RequestConverters {
         if (searchRequest.requestCache() != null) {
             params.withRequestCache(searchRequest.requestCache());
         }
+        if (searchRequest.requestCacheKey() != null) {
+            params.withRequestCacheKey(searchRequest.requestCacheKey());
+        }
+
         if (searchRequest.allowPartialSearchResults() != null) {
             params.withAllowPartialResults(searchRequest.allowPartialSearchResults());
         }
@@ -905,6 +909,10 @@ final class RequestConverters {
 
         Params withRequestCache(boolean requestCache) {
             return putParam("request_cache", Boolean.toString(requestCache));
+        }
+
+        Params withRequestCacheKey(String requestCacheKey) {
+            return putParam("request_cache_key", requestCacheKey);
         }
 
         Params withAllowPartialResults(boolean allowPartialSearchResults) {

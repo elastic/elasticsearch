@@ -510,6 +510,16 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    /**
+     * Sets a custom request cache key for this request. By default, the entire search
+     * will be used as a cache key. Useful if you are sending really large searches to
+     * minimize memory usage in the request cache.
+     */
+    public SearchRequestBuilder setRequestCacheKey(String requestCacheKey) {
+        request.requestCacheKey(requestCacheKey);
+        return this;
+    }
+
 
     /**
      * Sets if this request should allow partial results.  (If method is not called,

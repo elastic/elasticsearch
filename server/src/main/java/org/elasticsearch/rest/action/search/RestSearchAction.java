@@ -173,6 +173,7 @@ public class RestSearchAction extends BaseRestHandler {
         }
         parseSearchSource(searchRequest.source(), request, setSize);
         searchRequest.requestCache(request.paramAsBoolean("request_cache", searchRequest.requestCache()));
+        searchRequest.requestCacheKey(request.param("request_cache_key", searchRequest.requestCacheKey()));
 
         String scroll = request.param("scroll");
         if (scroll != null) {

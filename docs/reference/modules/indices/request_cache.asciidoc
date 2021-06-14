@@ -105,13 +105,32 @@ query-string parameter detailed here.
 [discrete]
 ==== Cache key
 
-The whole JSON body is used as the cache key. This means that if the JSON
+By default, the whole JSON body is used as the cache key. This means that if the JSON
 changes -- for instance if keys are output in a different order -- then the
 cache key will not be recognised.
 
 TIP: Most JSON libraries support a _canonical_ mode which ensures that JSON
 keys are always emitted in the same order. This canonical mode can be used in
 the application to ensure that a request is always serialized in the same way.
+
+Alternatively, you could specify a custom cache key:
+[source,console]
+-----------------------------
+GET /my-index-000001/_search?request_cache=true&request_cache_key=xyz
+{
+  "size": 0,
+  "aggs": {
+    "popular_colors": {
+      "terms": {
+        "field": "colors"
+      }
+    }
+  }
+}
+-----------------------------
+// TEST[continued]
+Specifying a custom cache key is useful if you have large requests
+as it can minify the memory usage of the request cache.
 
 [discrete]
 ==== Cache settings

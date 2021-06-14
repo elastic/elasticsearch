@@ -207,6 +207,15 @@ public class SubmitAsyncSearchRequest implements Validatable {
         return this.searchRequest.requestCache();
     }
 
+
+    public void setRequestCacheKey(String requestCacheKey) {
+        this.searchRequest.requestCacheKey(requestCacheKey);
+    }
+
+    public String getRequestCacheKey() {
+        return this.searchRequest.requestCacheKey();
+    }
+
     /**
      * Returns the number of shard requests that should be executed concurrently on a single node.
      * The default is {@code 5}.

@@ -53,6 +53,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
                 assertThat(submitRequest.getSearchRequest().isCcsMinimizeRoundtrips(), equalTo(false));
                 assertThat(submitRequest.getSearchRequest().getBatchedReduceSize(), equalTo(5));
                 assertThat(submitRequest.getSearchRequest().requestCache(), equalTo(true));
+                assertThat(submitRequest.getSearchRequest().requestCacheKey(), equalTo(null));
                 assertThat(submitRequest.getSearchRequest().getPreFilterShardSize().intValue(), equalTo(1));
                 executeCalled.set(true);
                 return new AsyncSearchResponse("", randomBoolean(), randomBoolean(), 0L, 0L);

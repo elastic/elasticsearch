@@ -1960,6 +1960,10 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("request_cache", Boolean.toString(searchRequest.requestCache()));
         }
         if (randomBoolean()) {
+            searchRequest.requestCacheKey(randomInt() + "");
+            expectedParams.put("request_cache_key", searchRequest.requestCacheKey());
+        }
+        if (randomBoolean()) {
             searchRequest.allowPartialSearchResults(randomBoolean());
             expectedParams.put("allow_partial_search_results", Boolean.toString(searchRequest.allowPartialSearchResults()));
         }

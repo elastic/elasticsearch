@@ -383,7 +383,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             if (missingBucket) {
                 return null;
             }
-            // we only need to round the lower bound, because the checkpoint will not contain new data for the upper bound
             return new RangeQueryBuilder(sourceFieldName).gte(lowerBound).lte(upperBound).format("epoch_millis");
         }
 
@@ -458,7 +457,6 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             minAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".min";
             maxAggregationOutputName = COMPOSITE_AGGREGATION_NAME + "." + targetFieldName + ".max";
 
-            // the time field for the date histogram is different than for sync
             histogramFieldAggregations = new ArrayList<>();
             histogramFieldAggregations.add(AggregationBuilders.min(minAggregationOutputName).field(sourceFieldName));
             histogramFieldAggregations.add(AggregationBuilders.max(maxAggregationOutputName).field(sourceFieldName));

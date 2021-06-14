@@ -37,7 +37,7 @@ public class IndexDeprecationChecks {
                     "Index created before 7.0",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/" +
                         "breaking-changes-8.0.html",
-                    "This index was created using version: " + createdWith);
+                    "This index was created using version: " + createdWith, null);
             }
         return null;
     }
@@ -51,7 +51,7 @@ public class IndexDeprecationChecks {
                     "translog retention settings are ignored",
                     "https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-translog.html",
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored " +
-                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)");
+                        "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)", null);
             }
         }
         return null;
@@ -64,7 +64,7 @@ public class IndexDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found index data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
         }
         return null;
     }

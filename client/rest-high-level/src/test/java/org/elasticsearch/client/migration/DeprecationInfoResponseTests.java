@@ -9,6 +9,7 @@
 package org.elasticsearch.client.migration;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
@@ -94,7 +95,8 @@ public class DeprecationInfoResponseTests extends ESTestCase {
             list.add(new DeprecationInfoResponse.DeprecationIssue(randomFrom(WARNING, CRITICAL),
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
-                randomBoolean() ? randomAlphaOfLength(5) : null));
+                randomBoolean() ? randomAlphaOfLength(5) : null,
+                randomBoolean() ? randomMap(1, 5, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))) : null));
         }
         return list;
     }

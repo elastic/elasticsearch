@@ -116,8 +116,7 @@ public class DeprecationInfoResponse {
 
     @Override
     public String toString() {
-        return clusterSettingsIssues.toString() + ":" + nodeSettingsIssues.toString() + ":" + indexSettingsIssues.toString() +
-            ":" + mlSettingsIssues.toString();
+        return clusterSettingsIssues + ":" + nodeSettingsIssues + ":" + indexSettingsIssues + ":" + mlSettingsIssues;
     }
 
     /**
@@ -129,16 +128,19 @@ public class DeprecationInfoResponse {
         private static final ParseField MESSAGE = new ParseField("message");
         private static final ParseField URL = new ParseField("url");
         private static final ParseField DETAILS = new ParseField("details");
+        private static final ParseField META = new ParseField("meta");
 
+        @SuppressWarnings("unchecked")
         static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
             new ConstructingObjectParser<>("deprecation_issue", true,
-                a -> new DeprecationIssue(Level.fromString((String) a[0]), (String) a[1], (String) a[2], (String) a[3]));
+                a -> new DeprecationIssue(Level.fromString((String) a[0]), (String) a[1], (String) a[2], (String) a[3], (Map<String, Object>) a[4]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEVEL);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), MESSAGE);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), URL);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DETAILS);
+            PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> p.map(), META);
         }
 
         public enum Level {
@@ -156,16 +158,18 @@ public class DeprecationInfoResponse {
             }
         }
 
-        private Level level;
-        private String message;
-        private String url;
-        private String details;
+        private final Level level;
+        private final String message;
+        private final String url;
+        private final String details;
+        private final Map<String, Object> meta;
 
-        public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
+        public DeprecationIssue(Level level, String message, String url, @Nullable String details, @Nullable Map<String, Object> meta) {
             this.level = level;
             this.message = message;
             this.url = url;
             this.details = details;
+            this.meta = meta;
         }
 
         public Level getLevel() {
@@ -184,6 +188,10 @@ public class DeprecationInfoResponse {
             return details;
         }
 
+        public Map<String, Object> getMeta() {
+            return meta;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -196,12 +204,13 @@ public class DeprecationInfoResponse {
             return Objects.equals(level, that.level) &&
                 Objects.equals(message, that.message) &&
                 Objects.equals(url, that.url) &&
-                Objects.equals(details, that.details);
+                Objects.equals(details, that.details) &&
+                Objects.equals(meta, that.meta);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message, url, details);
+            return Objects.hash(level, message, url, details, meta);
         }
     }
 }

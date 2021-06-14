@@ -56,7 +56,7 @@ public class NodeDeprecationChecks {
             value,
             replacementSettingKey,
             replacementValue.apply(value, settings));
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
     }
 
     private static DeprecationIssue checkDeprecatedSetting(
@@ -99,7 +99,7 @@ public class NodeDeprecationChecks {
             replacementSettingKey,
             replacementValue.apply(value, settings),
             star);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
     }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
@@ -112,7 +112,7 @@ public class NodeDeprecationChecks {
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
     }
 
     static DeprecationIssue checkSharedDataPathSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {
@@ -122,7 +122,7 @@ public class NodeDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
         }
         return null;
     }
@@ -134,8 +134,8 @@ public class NodeDeprecationChecks {
                 String.format(Locale.ROOT, "setting [%s] is deprecated and will not be available in a future version", key),
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
                     "breaking-changes-7.14.html#deprecate-single-data-node-watermark",
-                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key)
-            );
+                String.format(Locale.ROOT, "found [%s] configured. Discontinue use of this setting.", key),
+                null);
         }
 
         return null;

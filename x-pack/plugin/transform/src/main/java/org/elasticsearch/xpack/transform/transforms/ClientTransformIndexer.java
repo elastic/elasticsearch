@@ -23,7 +23,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -157,13 +157,13 @@ class ClientTransformIndexer extends TransformIndexer {
                         deduplicatedFailures.values()
                     );
                     if (irrecoverableException == null) {
-                        String failureMessage = getBulkIndexDetailedFailureMessage(" Significant failures: ", deduplicatedFailures);
-                        logger.debug("[{}] Bulk index experienced [{}] failures.{}", getJobId(), failureCount, failureMessage);
+                        String failureMessage = getBulkIndexDetailedFailureMessage("Significant failures: ", deduplicatedFailures);
+                        logger.debug("[{}] Bulk index experienced [{}] failures. {}", getJobId(), failureCount, failureMessage);
 
                         Exception firstException = deduplicatedFailures.values().iterator().next().getFailure().getCause();
                         nextPhase.onFailure(
                             new BulkIndexingException(
-                                "Bulk index experienced [{}] failures. Significant falures: {}",
+                                "Bulk index experienced [{}] failures. {}",
                                 firstException,
                                 false,
                                 failureCount,
@@ -172,11 +172,11 @@ class ClientTransformIndexer extends TransformIndexer {
                         );
                     } else {
                         deduplicatedFailures.remove(irrecoverableException.getClass().getSimpleName());
-                        String failureMessage = getBulkIndexDetailedFailureMessage(" Other failures: ", deduplicatedFailures);
+                        String failureMessage = getBulkIndexDetailedFailureMessage("Other failures: ", deduplicatedFailures);
                         irrecoverableException = decorateBulkIndexException(irrecoverableException);
 
                         logger.debug(
-                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}].{}",
+                            "[{}] Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
                             getJobId(),
                             failureCount,
                             ExceptionRootCauseFinder.getDetailedMessage(irrecoverableException),
@@ -185,7 +185,7 @@ class ClientTransformIndexer extends TransformIndexer {
 
                         nextPhase.onFailure(
                             new BulkIndexingException(
-                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. Other failures: {}",
+                                "Bulk index experienced [{}] failures and at least 1 irrecoverable [{}]. {}",
                                 irrecoverableException,
                                 true,
                                 failureCount,
@@ -195,7 +195,6 @@ class ClientTransformIndexer extends TransformIndexer {
                         );
                     }
                 } else {
-                    auditBulkFailures = true;
                     nextPhase.onResponse(bulkResponse);
                 }
             }, nextPhase::onFailure)

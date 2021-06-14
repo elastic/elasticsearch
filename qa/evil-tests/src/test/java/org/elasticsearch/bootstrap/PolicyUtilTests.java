@@ -8,7 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;

@@ -9,7 +9,7 @@
 package org.elasticsearch.client.analytics;
 
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;

@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbMmapFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbSimpleFsDirectoryFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 

@@ -11,7 +11,7 @@ package org.elasticsearch.client.ccr;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.AbstractRequestTestCase;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;

@@ -162,7 +162,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     ) {
         // Only REMOVE-type shutdowns will try to move shards, so RESTART-type shutdowns should immediately complete
         if (SingleNodeShutdownMetadata.Type.RESTART.equals(shutdownType)) {
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.COMPLETE, 0);
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.COMPLETE,
+                0,
+                "no shard relocation is necessary for a node restart"
+            );
         }
 
         // First, check if there are any shards currently on this node, and if there are any relocating shards

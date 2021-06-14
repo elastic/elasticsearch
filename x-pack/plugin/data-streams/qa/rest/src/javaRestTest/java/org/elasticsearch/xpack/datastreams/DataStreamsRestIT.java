@@ -262,7 +262,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         Request getAliasesRequest = new Request("GET", "/_aliases");
         Map<String, Object> getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertEquals(
-            singletonMap("logs", singletonMap("is_write_data_stream", true)),
+            singletonMap("logs", singletonMap("is_write_index", true)),
             XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse)
         );
         assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse));
@@ -294,7 +294,7 @@ public class DataStreamsRestIT extends ESRestTestCase {
         getAliasesResponse = entityAsMap(client().performRequest(getAliasesRequest));
         assertEquals(singletonMap("logs", emptyMap()), XContentMapValues.extractValue("logs-emea.aliases", getAliasesResponse));
         assertEquals(
-            singletonMap("logs", singletonMap("is_write_data_stream", true)),
+            singletonMap("logs", singletonMap("is_write_index", true)),
             XContentMapValues.extractValue("logs-nasa.aliases", getAliasesResponse)
         );
     }

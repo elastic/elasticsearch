@@ -20,6 +20,7 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -38,7 +39,6 @@ public class RestCountActionTests extends RestActionTestCase {
         });
     }
 
-
     public void testTypeInPath() {
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withHeaders(Map.of("Accept", contentTypeHeader))
@@ -49,20 +49,19 @@ public class RestCountActionTests extends RestActionTestCase {
         dispatchRequest(request);
         assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
     }
-//todo is this a real scenario to use ?type instead of /index/type
 
-//    public void testTypeParameter() {
-//        Map<String, String> params = new HashMap<>();
-//        params.put("type", "some_type");
-//
-//        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-//            .withHeaders(Map.of("Accept", contentTypeHeader))
-//            .withMethod(Method.GET)
-//            .withPath("/some_index/_count")
-//            .withParams(params)
-//            .build();
-//
-//        dispatchRequest(request);
-//        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
-//    }
+    public void testTypeParameter() {
+        Map<String, String> params = new HashMap<>();
+        params.put("type", "some_type");
+
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+            .withHeaders(Map.of("Accept", contentTypeHeader))
+            .withMethod(Method.GET)
+            .withPath("/some_index/_count")
+            .withParams(params)
+            .build();
+
+        dispatchRequest(request);
+        assertWarnings(RestCountAction.TYPES_DEPRECATION_MESSAGE);
+    }
 }

@@ -18,7 +18,7 @@ import org.elasticsearch.tasks.Task;
 import java.util.Objects;
 
 /**
- * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
+ * Pattern converter to format the transaction id provided in the traceparent header into JSON fields <code>transaction.id</code>.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "TransactionIdConverter")
 @ConverterKeys({"transaction_id"})
@@ -43,7 +43,7 @@ public final class TransactionIdConverter extends LogEventPatternConverter {
     }
 
     /**
-     * Formats the cluster.uuid into json fields.
+     * Formats the transaction.id into json fields.
      *
      * @param event - a log event is ignored in this method as it uses the clusterId value
      *              from <code>NodeAndClusterIdStateListener</code> to format

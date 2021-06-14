@@ -23,7 +23,6 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -219,20 +218,27 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
-    public GetSnapshotsRequest pagination(@Nullable After after, SortBy sort, int size) {
-        Objects.requireNonNull(sort);
-        this.after = after;
-        this.sort = sort;
-        this.size = size;
-        return this;
-    }
-
     public After after() {
         return after;
     }
 
     public SortBy sort() {
         return sort;
+    }
+
+    public GetSnapshotsRequest after(@Nullable After after) {
+        this.after = after;
+        return this;
+    }
+
+    public GetSnapshotsRequest sort(SortBy sort) {
+        this.sort = sort;
+        return this;
+    }
+
+    public GetSnapshotsRequest size(int size) {
+        this.size = size;
+        return this;
     }
 
     public int size() {

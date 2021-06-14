@@ -139,7 +139,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             ActionRequestValidationException.class,
             () -> clusterAdmin().prepareGetSnapshots(repoName)
                 .setVerbose(false)
-                .pagination(null, GetSnapshotsRequest.SortBy.DURATION, GetSnapshotsRequest.NO_LIMIT)
+                .setSort(GetSnapshotsRequest.SortBy.DURATION)
+                .setSize(GetSnapshotsRequest.NO_LIMIT)
                 .execute()
                 .actionGet()
         );
@@ -147,7 +148,8 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             ActionRequestValidationException.class,
             () -> clusterAdmin().prepareGetSnapshots(repoName)
                 .setVerbose(false)
-                .pagination(null, GetSnapshotsRequest.SortBy.START_TIME, randomIntBetween(1, 100))
+                .setSort(GetSnapshotsRequest.SortBy.START_TIME)
+                .setSize(randomIntBetween(1, 100))
                 .execute()
                 .actionGet()
         );
@@ -184,7 +186,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private static List<SnapshotInfo> sortedWithLimit(String repoName, GetSnapshotsRequest.SortBy sortBy, SnapshotInfo after, int size) {
-        return baseGetSnapshotsRequest(repoName).pagination(after, sortBy, size).get().getSnapshots(repoName);
+        return baseGetSnapshotsRequest(repoName).setAfter(after, sortBy).setSize(size).get().getSnapshots(repoName);
     }
 
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoName) {

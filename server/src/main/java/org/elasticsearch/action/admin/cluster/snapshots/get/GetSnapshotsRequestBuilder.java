@@ -97,8 +97,23 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
-    public GetSnapshotsRequestBuilder pagination(@Nullable SnapshotInfo after, GetSnapshotsRequest.SortBy sortBy, int size) {
-        request.pagination(GetSnapshotsRequest.After.from(after, sortBy), sortBy, size);
+    public GetSnapshotsRequestBuilder setAfter(@Nullable SnapshotInfo after, GetSnapshotsRequest.SortBy sortBy) {
+        return setAfter(GetSnapshotsRequest.After.from(after, sortBy)).setSort(sortBy);
+    }
+
+    public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {
+        request.after(after);
         return this;
     }
+
+    public GetSnapshotsRequestBuilder setSort(GetSnapshotsRequest.SortBy sort) {
+        request.sort(sort);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setSize(int size) {
+        request.size(size);
+        return this;
+    }
+
 }

@@ -54,7 +54,9 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
         final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
+        getSnapshotsRequest.sort(sort);
         final int size = request.paramAsInt("size", getSnapshotsRequest.size());
+        getSnapshotsRequest.size(size);
         final String[] afterString = request.paramAsStringArray("after", Strings.EMPTY_ARRAY);
         final GetSnapshotsRequest.After after;
         if (afterString.length == 0) {
@@ -65,7 +67,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
             throw new IllegalArgumentException("illegal ?after value [" + Strings.arrayToCommaDelimitedString(afterString) +
                     "] must be of the form '${sort_value},${snapshot_name}'");
         }
-        getSnapshotsRequest.pagination(after, sort, size);
+        getSnapshotsRequest.after(after);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
                 .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));

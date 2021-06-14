@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import java.util.Map;
-
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+
+import java.util.Map;
 
 class ExecuteEnrichPolicyTask extends Task {
 

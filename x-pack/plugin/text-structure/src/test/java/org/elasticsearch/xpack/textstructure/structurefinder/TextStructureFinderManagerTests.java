@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import com.ibm.icu.text.CharsetMatch;
+
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;

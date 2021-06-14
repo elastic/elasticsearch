@@ -110,11 +110,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
+JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 15 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -151,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 15. When importing into IntelliJ you will need
+Elasticsearch builds using Java 16. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"15"** so that the project import will detect it automatically. For more details
+"16"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -182,7 +182,7 @@ action is required.
 
 We are in the process of migrating towards automatic formatting Java file
 using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
-Code Formatter] installed, you can apply formatting directly in IntelliJ.
+Code Formatter] plugin installed, you can apply formatting directly in IntelliJ.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
@@ -196,9 +196,34 @@ Note that only some sub-projects in the Elasticsearch project are currently
 fully-formatted. You can see a list of project that **are not**
 automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
 
+#### Imports
+
+It is import that you configure the correct import ordering in IntelliJ.
+We configure Spotless (above) to sort the imports in Java files, and
+while the [Eclipse Code Formatter] plugin supports an option for ordering
+imports, in practice this option appears unreliable, so instead you must
+configure IntelliJ's import ordering to match Spotless.
+
+   1. Open **Preferences > Editor > Code Style > Java**
+   2. Click the **Imports** tab
+   3. Set "Class count to use import with '*'" to 9999.
+   4. Set "Names count to use static import with '*'" to 9999.
+   5. Under "Import Layout", configure the following:
+      - Import all other imports
+      - Blank line
+      - `com.*`
+      - Blank line
+      - `org.*`
+      - Blank line
+      - `java.*`
+      - Blank line
+      - `javax.*`
+      - Blank line
+      - import static all other imports
+
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >

@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInput;
 
 import java.util.concurrent.atomic.AtomicLong;

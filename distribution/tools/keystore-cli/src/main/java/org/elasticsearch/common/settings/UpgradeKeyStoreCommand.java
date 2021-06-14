@@ -9,6 +9,7 @@
 package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
 

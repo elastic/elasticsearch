@@ -8,17 +8,18 @@
 
 package org.elasticsearch.common.settings;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Arrays;
-
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
 
 /**
  * A sub-command for the keystore cli to create a new keystore.

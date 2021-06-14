@@ -6,16 +6,16 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.internal.io.IOUtils;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.SequenceInputStream;
 import java.util.Objects;
-
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 /**
  * A {@code ChainingInputStream} concatenates multiple component input streams into a

@@ -9,6 +9,7 @@
 package org.elasticsearch.tools.launchers;
 
 import com.sun.management.OperatingSystemMXBean;
+
 import org.elasticsearch.tools.java_version_checker.JavaVersion;
 import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
 

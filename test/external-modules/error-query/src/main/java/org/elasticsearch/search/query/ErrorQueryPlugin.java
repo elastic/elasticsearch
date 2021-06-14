@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.query;
 
-import java.util.List;
-
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+
+import java.util.List;
 
 import static java.util.Collections.singletonList;
 

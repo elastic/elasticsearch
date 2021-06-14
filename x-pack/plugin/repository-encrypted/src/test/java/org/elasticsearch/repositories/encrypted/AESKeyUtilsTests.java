@@ -9,10 +9,10 @@ package org.elasticsearch.repositories.encrypted;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.security.InvalidKeyException;
+
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
-import java.security.InvalidKeyException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;

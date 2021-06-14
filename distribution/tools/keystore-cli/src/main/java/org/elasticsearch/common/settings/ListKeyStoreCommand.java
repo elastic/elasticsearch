@@ -8,13 +8,14 @@
 
 package org.elasticsearch.common.settings;
 
+import joptsimple.OptionSet;
+
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.env.Environment;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
-import joptsimple.OptionSet;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.env.Environment;
 
 /**
  * A subcommand for the keystore cli to list all settings in the keystore.

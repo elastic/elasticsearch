@@ -219,6 +219,7 @@ subprojects {
           }
 
           removeUnusedImports()
+          importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
           eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')
           trimTrailingWhitespace()
 

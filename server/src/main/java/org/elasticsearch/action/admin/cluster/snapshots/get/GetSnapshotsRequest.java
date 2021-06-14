@@ -261,7 +261,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         START_TIME("start_time"),
         NAME("name"),
         DURATION("duration"),
-        INDICES("indices");
+        INDICES("index_count");
 
         private final String param;
 
@@ -282,7 +282,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                     return NAME;
                 case "duration":
                     return DURATION;
-                case "indices":
+                case "index_count":
                     return INDICES;
                 default:
                     throw new IllegalArgumentException("unknown sort order [" + value + "]");

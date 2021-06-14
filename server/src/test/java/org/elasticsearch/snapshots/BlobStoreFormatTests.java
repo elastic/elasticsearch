@@ -85,8 +85,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         final String normalText = "checksum smile: " + randomText;
         checksumSMILE.write(new BlobObj(normalText), blobContainer, "check-smile", false, MockBigArrays.NON_RECYCLING_INSTANCE);
         final String compressedText = "checksum smile compressed: " + randomText;
-        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true,
-                MockBigArrays.NON_RECYCLING_INSTANCE);
+        checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
 
         // Assert that all checksum blobs can be read
         assertEquals(normalText, checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText());
@@ -116,8 +115,7 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobObj blobObj = new BlobObj(testString);
         ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
         checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean(), MockBigArrays.NON_RECYCLING_INSTANCE);
-        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry()).getText(),
-                testString);
+        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {
             checksumFormat.read(blobContainer, "test-path", xContentRegistry());

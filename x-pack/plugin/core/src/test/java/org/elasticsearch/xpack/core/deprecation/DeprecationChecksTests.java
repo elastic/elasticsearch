@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -17,7 +16,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DeprecationChecksTests extends ESTestCase {
 
-    public void testFilterChecks() throws IOException {
+    public void testFilterChecks() {
         DeprecationIssue issue = DeprecationIssueTests.createTestInstance();
         int numChecksPassed = randomIntBetween(0, 5);
         int numChecksFailed = 10 - numChecksPassed;

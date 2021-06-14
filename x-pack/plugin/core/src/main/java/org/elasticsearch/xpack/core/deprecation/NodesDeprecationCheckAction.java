@@ -52,7 +52,7 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
     }
 
     public static class NodeResponse extends BaseNodeResponse {
-        private List<DeprecationIssue> deprecationIssues;
+        private final List<DeprecationIssue> deprecationIssues;
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);

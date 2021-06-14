@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,8 +22,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -85,10 +82,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DiscoveryNode discoveryNode = DiscoveryNode.createLocal(Settings.EMPTY,
             new TransportAddress(TransportAddress.META_ADDRESS, 9300), "test");
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).build();
-        List<DatafeedConfig> datafeeds = Collections.singletonList(DatafeedConfigTests.createRandomizedDatafeedConfig("foo"));
         IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false,
-            true, true);
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();

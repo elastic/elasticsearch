@@ -2615,20 +2615,21 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
         {
 
-            // tag::client-enrollment-kibana-execute
+            // tag::kibana-enrollment-execute
             KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
-            // end::client-enrollment-kibana-execute
+            // end::kibana-enrollment-execute
 
-            // tag::client-enrollment-kibana-response
+            // tag::kibana-enrollment-response
             String password = response.getPassword(); // <1>
             String httoCa = response.getHttpCa(); // <2>
             List<String> nodesAddresses = response.getNodesAddresses();  // <3>
-            // end::client-enrollment-kibana-response
+            // end::kibana-enrollment-response
             assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
+            assertThat(password.length(), equalTo(14));
         }
 
         {
-            // tag::client-enrollment-generic-client-execute-listener
+            // tag::kibana-enrollment-execute-listener
             ActionListener<KibanaEnrollmentResponse> listener =
                 new ActionListener<KibanaEnrollmentResponse>() {
                     @Override
@@ -2641,14 +2642,14 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     public void onFailure(Exception e) {
                         // <2>
                     }};
-            // end::client-enrollment-generic-client-execute-listener
+            // end::kibana-enrollment-execute-listener
 
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::client-enrollment-generic-client-execute-async
+            // tag::kibana-enrollment-execute-async
             client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
-            // end::client-enrollment-generic-client-execute-async
+            // end::kibana-enrollment-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

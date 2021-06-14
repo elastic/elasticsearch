@@ -53,7 +53,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     GetSnapshotsResponse(StreamInput in) throws IOException {
         super(in);
-        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::new));
+        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::readFrom));
     }
 
     /**

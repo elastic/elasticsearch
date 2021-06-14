@@ -20,6 +20,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
@@ -29,6 +30,22 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocValueFormatTests extends ESTestCase {
+    public void testParseEpochSecondsTimezone() {
+        ZoneId zone = randomZone();
+        DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_second"),
+            zone,
+            Resolution.MILLISECONDS
+        );
+        long millis = randomLong();
+        // Convert to seconds
+        millis = (millis % 1000);
+        assertEquals(
+            "failed formatting for tz " + zone,
+            millis,
+            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+    }
 
     public void testSerialization() throws Exception {
         List<Entry> entries = new ArrayList<>();

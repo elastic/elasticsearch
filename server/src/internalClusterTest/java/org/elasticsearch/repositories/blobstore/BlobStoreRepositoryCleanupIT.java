@@ -167,6 +167,6 @@ public class BlobStoreRepositoryCleanupIT extends AbstractSnapshotIntegTestCase 
         logger.info("--> cleanup repository");
         client().admin().cluster().prepareCleanupRepository(repoName).get();
 
-        BlobStoreTestUtil.assertConsistency(repository, repository.threadPool().generic());
+        BlobStoreTestUtil.assertConsistency(repository);
     }
 }

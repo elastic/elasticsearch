@@ -101,7 +101,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 builder.startObject()
                     .startObject("nodes")
                     .startObject("sxLDrFu8SnKepObrEOjPZQ")
-                    .field("ver", "8.0.0")
+                    .field("version", "8.0.0")
                     .startObject("http")
                     .startArray("bound_address")
                     .value("127.0.0.1:9200")

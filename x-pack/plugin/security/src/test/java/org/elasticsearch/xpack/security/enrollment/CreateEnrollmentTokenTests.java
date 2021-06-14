@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -21,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -106,6 +105,10 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                     .startObject("sxLDrFu8SnKepObrEOjPZQ")
                     .field("version", "8.0.0")
                     .startObject("http")
+                    .startArray("bound_address")
+                    .value("127.0.0.1:9200")
+                    .value("192.168.17:9201")
+                    .endArray()
                     .field("publish_address", "127.0.0.1:9200")
                     .endObject().endObject().endObject().endObject();
                 getHttpInfoResponseBody = Strings.toString(builder);
@@ -120,7 +123,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
             Map<String, String> info = getDecoded(token);
             assertEquals("8.0.0", info.get("version"));
-            assertEquals("[127.0.0.1:9200]", info.get("adr"));
+            assertEquals("[127.0.0.1:9200, 192.168.17:9201]", info.get("adr"));
             assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", info.get("fgr"));
             assertEquals("x3YqU_rqQwm-ESrkExcnOg", info.get("key"));
         } catch (Exception e) {
@@ -141,7 +144,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling POST "));
         } catch (Exception e) {
@@ -181,7 +184,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
         } catch (Exception e) {
@@ -242,7 +245,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
 
             CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment_not_enabled, client);
-            UserException ex = expectThrows(UserException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.equalTo("'xpack.security.enrollment' must be enabled to create an enrollment token"));
         } catch (Exception e) {

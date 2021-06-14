@@ -277,6 +277,22 @@ public class DocValueFormatTests extends ESTestCase {
         );
     }
 
+    public void testParseEpochMillisTimezone() {
+        ZoneId zone = randomZone();
+        DocValueFormat.DateTime formatter = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("epoch_millis"),
+            zone,
+            Resolution.MILLISECONDS
+        );
+        long millis = randomNonNegativeLong();
+        assertEquals(
+            "failed formatting for tz " + zone,
+            millis,
+            formatter.parseLong(formatter.format(millis), false, () -> { throw new UnsupportedOperationException("don't use now"); })
+        );
+    }
+
+
     public void testDateHMSTimezone() {
         DocValueFormat.DateTime tokyo = new DocValueFormat.DateTime(
             DateFormatter.forPattern("date_hour_minute_second"),

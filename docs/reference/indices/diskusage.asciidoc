@@ -79,10 +79,11 @@ The following request analyzes the disk usage of index `my-index-000001`.
 --------------------------------------------------
 POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
+// TEST[setup:my_index]
 
 The API returns the following response:
 
-[source,console-result]
+[source,console-response]
 --------------------------------------------------
 {
     "_shards": {
@@ -156,5 +157,4 @@ The API returns the following response:
     }
 }
 --------------------------------------------------
-// TESTRESPONSE[s/"_all": \{[^}]*\}/"_all": $body.$_path/]
-// TESTRESPONSE[s/"fields": \{[^}]*\}/"fields": $body.$_path/]
+// TESTRESPONSE[skip: just an example]

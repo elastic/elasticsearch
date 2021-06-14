@@ -1826,4 +1826,7 @@ public abstract class Engine implements Closeable {
      */
     public abstract ShardLongFieldRange getRawFieldRange(String field) throws IOException;
 
+    public final EngineConfig getEngineConfig() {
+        return engineConfig;
+    }
 }

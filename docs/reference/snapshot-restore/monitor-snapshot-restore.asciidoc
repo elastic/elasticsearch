@@ -143,8 +143,8 @@ process that creates the required number of replicas. When all required
 replicas are created, the cluster switches to the `green` states.
 
 NOTE: A restore operation doesn't require a specific cluster health status to
-complete. A restore completes once it attempts all recovery and replication
-steps. This applies even if one or more of the steps fail.
+complete. A restore operation completes once it attempts all recovery and
+replication steps. This applies even if one or more of the steps fail.
 
 The cluster health operation provides only a high level status of the restore process. It's possible to get more
 detailed insight into the current state of the recovery process by using <<indices-recovery, index recovery>> and

@@ -59,7 +59,7 @@ public class DeprecationInfoResponse {
 
     private static List<DeprecationIssue> parseDeprecationIssues(XContentParser parser) throws IOException {
         List<DeprecationIssue> issues = new ArrayList<>();
-        XContentParser.Token token = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 issues.add(DeprecationIssue.PARSER.parse(parser, null));

@@ -106,8 +106,8 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request returns a response when the restore
-operation completes. The operation completes once it attempts all
-<<_monitoring_restore_operations,recovery and replication steps>>.
+operation completes. A restore operation is considered complete once it attempts
+all <<_monitoring_restore_operations,recovery and replication steps>>.
 +
 If `false`, the request returns a response when the restore
 operation initializes. Defaults to `false`.

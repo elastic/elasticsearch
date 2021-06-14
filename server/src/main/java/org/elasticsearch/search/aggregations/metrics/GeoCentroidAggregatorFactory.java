@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 class GeoCentroidAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final MetricAggregatorSupplier aggregatorSupplier;

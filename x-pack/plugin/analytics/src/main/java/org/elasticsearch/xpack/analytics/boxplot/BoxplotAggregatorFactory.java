@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
 

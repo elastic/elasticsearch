@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 

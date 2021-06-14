@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.Set;
 
 public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<RangeAggregator.Range> {
 

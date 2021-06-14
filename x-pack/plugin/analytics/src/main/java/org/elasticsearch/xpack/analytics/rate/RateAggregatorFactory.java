@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSou
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
-import java.util.Set;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 

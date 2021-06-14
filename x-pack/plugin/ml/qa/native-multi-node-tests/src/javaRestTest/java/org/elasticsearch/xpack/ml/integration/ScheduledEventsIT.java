@@ -384,7 +384,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
         assertEquals(0, buckets.get(2).getScheduledEvents().size());
     }
 
-        private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
+    private Job.Builder createJob(String jobId, TimeValue bucketSpan) {
         Detector.Builder detector = new Detector.Builder("count", null);
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(detector.build()));
         analysisConfig.setBucketSpan(bucketSpan);

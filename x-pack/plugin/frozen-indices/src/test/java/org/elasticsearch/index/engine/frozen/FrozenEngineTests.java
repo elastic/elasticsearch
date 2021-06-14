@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.engine.frozen;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
@@ -17,6 +17,12 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.EngineTestCase;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
@@ -59,7 +65,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true, randomBoolean())) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     assertFalse(frozenEngine.isReaderOpen());
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         assertFalse(frozenEngine.isReaderOpen());
@@ -107,7 +113,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocs = Math.min(10, addDocuments(globalCheckpoint, engine));
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true, randomBoolean())) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     assertFalse(frozenEngine.isReaderOpen());
                     Engine.SearcherSupplier reader1 = frozenEngine.acquireSearcherSupplier(Function.identity());
                     try (Engine.Searcher searcher1 = reader1.acquireSearcher("test")) {
@@ -159,7 +165,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true, randomBoolean())) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         SegmentsStats segmentsStats = frozenEngine.segmentsStats(randomBoolean(), false);
                         try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
@@ -292,7 +298,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 int numIters = randomIntBetween(100, 1000);
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true, randomBoolean())) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     int numThreads = randomIntBetween(2, 4);
                     Thread[] threads = new Thread[numThreads];
                     CyclicBarrier barrier = new CyclicBarrier(numThreads);
@@ -395,7 +401,7 @@ public class FrozenEngineTests extends EngineTestCase {
                 addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
                 listener.reset();
-                try (FrozenEngine frozenEngine = new FrozenEngine(engine.engineConfig, true, randomBoolean())) {
+                try (FrozenEngine frozenEngine = new FrozenEngine(engine.getEngineConfig(), true, randomBoolean())) {
                     DirectoryReader dirReader;
                     try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
                         try (Engine.Searcher searcher = reader.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {

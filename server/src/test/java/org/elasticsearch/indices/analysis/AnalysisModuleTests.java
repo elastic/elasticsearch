@@ -117,6 +117,7 @@ public class AnalysisModuleTests extends ESTestCase {
     public void testSimpleConfigurationYaml() throws IOException {
         Settings settings = loadFromClasspath("/org/elasticsearch/index/analysis/test1.yml");
         testSimpleConfiguration(settings);
+        assertWarnings("Setting [version] on analysis component [custom7] has no effect and is deprecated");
     }
 
     public void testVersionedAnalyzers() throws Exception {

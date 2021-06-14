@@ -52,7 +52,6 @@ setup:
   - gt: { $stat.stored_fields_in_bytes: 0 }
   - gt: { $stat.doc_values_in_bytes: 0 }
   - gt: { $stat.points_in_bytes: 0 }
-  - gt: { $stat.norms_in_bytes: 0 }
   - match: { $stat.vectors_in_bytes: 0 }
 
   # name
@@ -64,7 +63,6 @@ setup:
   - match: { $stat.stored_fields_in_bytes: 0 }
   - match: { $stat.doc_values_in_bytes: 0 }
   - match: { $stat.points_in_bytes: 0 }
-  - gt: { $stat.norms_in_bytes: 0 }
   - match: {$stat.vectors_in_bytes: 0}
 
   # price

@@ -6,17 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.index.store;
+package org.elasticsearch.index.store.smb;
 
 import org.elasticsearch.common.settings.Settings;
 
 
-public class SmbSimpleFsTests extends AbstractAzureFsTestCase {
+public class SmbMMapFsTests extends AbstractAzureFsTestCase {
+
     @Override
     public Settings indexSettings() {
         return Settings.builder()
                 .put(super.indexSettings())
-                .put("index.store.type", "smb_simple_fs")
+                .put("index.store.type", "smb_mmap_fs")
                 .build();
     }
+
 }

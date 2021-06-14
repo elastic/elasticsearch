@@ -125,20 +125,14 @@ tasks.named("yamlRestCompatTest").configure {
     // This mean test cases where there is assertion on not finging by type won't work
     'mget/11_default_index_type/Default index/type',
     'mget/16_basic_with_types/Basic multi-get',
-    // 88 - 14 = 74 tests won't be fixed
+    // asserting about type not found won't work as we ignore the type information
+    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+    // 89 - 15 = 74 tests won't be fixed
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion and specifying both node_ids and node_names',
     'cluster.voting_config_exclusions/10_basic/Throw exception when adding voting config exclusion without specifying nodes',
     'count/11_basic_with_types/count body without query element',
     'count/11_basic_with_types/count with body',
     'count/11_basic_with_types/count with empty body',
-    'explain/10_basic/Basic explain',
-    'explain/10_basic/Basic explain with alias',
-    'explain/11_basic_with_types/Basic explain',
-    'explain/11_basic_with_types/Basic explain with alias',
-    'explain/20_source_filtering/Source filtering',
-    'explain/21_source_filtering_with_types/Source filtering',
-    'explain/31_query_string_with_types/explain with query_string parameters',
-    'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
     'field_caps/30_filter/Field caps with index filter',
     'get_source/11_basic_with_types/Basic with types',
     'get_source/16_default_values_with_types/Default values',

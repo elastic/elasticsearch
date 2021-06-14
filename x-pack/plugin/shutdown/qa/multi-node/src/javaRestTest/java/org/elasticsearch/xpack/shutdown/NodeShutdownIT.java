@@ -21,6 +21,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -179,6 +181,52 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Check that the shard is assigned now
         ensureGreen(indexName);
+    }
+
+    public void testStalledShardMigrationProperlyDetected() throws Exception {
+        String nodeIdToShutdown = getRandomNodeId();
+        int numberOfShards = randomIntBetween(1,5);
+
+        // Create an index, pin the allocation to the node we're about to shut down
+        final String indexName = "test-idx";
+        Request createIndexRequest = new Request("PUT", indexName);
+        createIndexRequest.setJsonEntity(
+            "{\"settings\":  {\"number_of_shards\": "
+                + numberOfShards
+                + ", \"number_of_replicas\": 0, \"index.routing.allocation.require._id\": \""
+                + nodeIdToShutdown
+                + "\"}}"
+        );
+        assertOK(client().performRequest(createIndexRequest));
+
+        // Mark the node for shutdown
+        putNodeShutdown(nodeIdToShutdown, "remove");
+        {
+            // Now check the shard migration status
+            Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Response statusResponse = client().performRequest(getStatusRequest);
+            Map<String, Object> status = entityAsMap(statusResponse);
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("STALLED"));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
+            assertThat(
+                ObjectPath.eval("nodes.0.shard_migration.reason", status),
+                allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
+            );
+        }
+
+        // Now update the allocation requirements to unblock shard relocation
+        Request updateSettingsRequest = new Request("PUT", indexName + "/_settings");
+        updateSettingsRequest.setJsonEntity("{\"index.routing.allocation.require._id\": null}");
+        assertOK(client().performRequest(updateSettingsRequest));
+
+        assertBusy(() -> {
+            Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Response statusResponse = client().performRequest(getStatusRequest);
+            Map<String, Object> status = entityAsMap(statusResponse);
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
+                        assertThat(ObjectPath.eval("nodes.0.shard_migration.reason", status), nullValue());
+        });
     }
 
     @SuppressWarnings("unchecked")

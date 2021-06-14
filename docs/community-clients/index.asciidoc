@@ -241,7 +241,7 @@ client].
 [[swift]]
 == Swift
 * https://github.com/brokenhandsio/elasticsearch-nio-client[Elasticsearch NIO Client]: a library for
-  working with Elasticsearch Swift, built on top of SwiftNIO and Swift Package Manager.
+  working with Elasticsearch in Swift, built on top of SwiftNIO and Swift Package Manager.
 
 [[vertx]]
 == Vert.x

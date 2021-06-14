@@ -185,16 +185,17 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         ArrayList<String> indices = new ArrayList<>(indicesMap.size());
         indicesMap.keysIt().forEachRemaining(indices::add);
 
-        context.onResponse(
-                new SnapshotInfo(
-                        SNAPSHOT_ID,
-                        indices,
-                        new ArrayList<>(metadata.dataStreams().keySet()),
-                        Collections.emptyList(),
-                        response.getState().getNodes().getMaxNodeVersion(),
-                        SnapshotState.SUCCESS
-                )
-        );
+        // fork to the snapshot meta pool because the context expects to run on it and asserts that it does
+        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> context.onResponse(
+            new SnapshotInfo(
+                SNAPSHOT_ID,
+                indices,
+                new ArrayList<>(metadata.dataStreams().keySet()),
+                Collections.emptyList(),
+                response.getState().getNodes().getMaxNodeVersion(),
+                SnapshotState.SUCCESS
+            )
+        ));
     }
 
     @Override

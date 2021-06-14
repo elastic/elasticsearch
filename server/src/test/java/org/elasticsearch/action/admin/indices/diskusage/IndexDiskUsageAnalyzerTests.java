@@ -113,14 +113,14 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 final IndexDiskUsageStats stats = analyzer.analyze();
                 final IndexDiskUsageStats perField = collectPerFieldStats(dir);
                 logger.info("--> stats {} per field {}", stats, perField);
-                assertFieldStats("total", "vectors",
-                    stats.total().getVectorsBytes(), perField.total().getVectorsBytes(), 0.01, 1024);
+                assertFieldStats("total", "term vectors",
+                    stats.total().getTermVectorsBytes(), perField.total().getTermVectorsBytes(), 0.01, 1024);
                 assertFieldStats("v1", "term vectors",
-                    stats.getFields().get("v1").getVectorsBytes(), stats.total().getVectorsBytes() / 7, 0.01, 512);
+                    stats.getFields().get("v1").getTermVectorsBytes(), stats.total().getTermVectorsBytes() / 7, 0.01, 512);
                 assertFieldStats("v2", "term vectors",
-                    stats.getFields().get("v2").getVectorsBytes(), stats.total().getVectorsBytes() * 2 / 7, 0.01, 512);
+                    stats.getFields().get("v2").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 2 / 7, 0.01, 512);
                 assertFieldStats("v3", "term vectors",
-                    stats.getFields().get("v3").getVectorsBytes(), stats.total().getVectorsBytes() * 4 / 7, 0.01, 512);
+                    stats.getFields().get("v3").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 4 / 7, 0.01, 512);
             }
         }
     }
@@ -424,7 +424,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                         break;
                     case "tvx":
                     case "tvd":
-                        stats.addVectors("_all_vectors_fields", bytes);
+                        stats.addTermVectors("_all_vectors_fields", bytes);
                         break;
                     case "nvd":
                     case "nvm":
@@ -500,7 +500,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
-            assertFieldStats(field, "docValues", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
+            assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
             // Allow up 50% difference as we don't know how to traverse the term index exhaustedly
             assertFieldStats(field, "terms", actualField.getTermsBytes(), expectedField.getTermsBytes(), 0.5, 1024);
             assertFieldStats(field, "postings", actualField.getPostingsBytes(), expectedField.getPostingsBytes(), 0.05, 1024);
@@ -510,8 +510,8 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         // We are not able to collect per field stats for stored, vector, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();
         IndexDiskUsageStats.PerFieldDiskUsage expectedTotal = perFieldStats.total();
-        assertFieldStats("total", "stored-fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.05, 1024);
-        assertFieldStats("total", "vectors", actualTotal.getVectorsBytes(), expectedTotal.getVectorsBytes(), 0.05, 1024);
+        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.05, 1024);
+        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.05, 1024);
         assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.05, 1024);
     }
 

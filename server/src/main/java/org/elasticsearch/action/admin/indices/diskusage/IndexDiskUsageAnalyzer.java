@@ -412,7 +412,7 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
             final double ratio = (double) (directory.getBytesRead()) / (double) (totalBytes);
             for (Map.Entry<String, Long> field : visitor.fields.entrySet()) {
                 final long fieldBytes = (long) Math.ceil(field.getValue() * ratio);
-                stats.addVectors(field.getKey(), fieldBytes);
+                stats.addTermVectors(field.getKey(), fieldBytes);
             }
         }
     }

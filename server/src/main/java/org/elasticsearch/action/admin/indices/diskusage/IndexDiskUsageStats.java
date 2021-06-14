@@ -43,8 +43,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String POINTS_IN_BYTES = "points_in_bytes";
     public static final String NORMS = "norms";
     public static final String NORMS_IN_BYTES = "norms_in_bytes";
-    public static final String VECTORS = "vectors";
-    public static final String VECTORS_IN_BYTES = "vectors_in_bytes";
+    public static final String TERM_VECTORS = "term_vectors";
+    public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
 
     private final Map<String, PerFieldDiskUsage> fields;
 
@@ -119,9 +119,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         getOrAdd(fieldName).normsBytes += bytes;
     }
 
-    public void addVectors(String fieldName, long bytes) {
+    public void addTermVectors(String fieldName, long bytes) {
         checkByteSize(bytes);
-        getOrAdd(fieldName).vectorsBytes += bytes;
+        getOrAdd(fieldName).termVectorsBytes += bytes;
     }
 
     public IndexDiskUsageStats add(IndexDiskUsageStats other) {
@@ -167,7 +167,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         private long docValuesBytes;
         private long pointsBytes;
         private long normsBytes;
-        private long vectorsBytes;
+        private long termVectorsBytes;
 
         private PerFieldDiskUsage() {
 
@@ -181,7 +181,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             docValuesBytes = in.readZLong();
             pointsBytes = in.readZLong();
             normsBytes = in.readZLong();
-            vectorsBytes = in.readZLong();
+            termVectorsBytes = in.readZLong();
         }
 
         private void add(PerFieldDiskUsage other) {
@@ -192,7 +192,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             docValuesBytes += other.docValuesBytes;
             pointsBytes += other.pointsBytes;
             normsBytes += other.normsBytes;
-            vectorsBytes += other.vectorsBytes;
+            termVectorsBytes += other.termVectorsBytes;
         }
 
         @Override
@@ -204,7 +204,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeZLong(docValuesBytes);
             out.writeZLong(pointsBytes);
             out.writeZLong(normsBytes);
-            out.writeZLong(vectorsBytes);
+            out.writeZLong(termVectorsBytes);
         }
 
         public long getPostingsBytes() {
@@ -235,13 +235,13 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             return normsBytes;
         }
 
-        public long getVectorsBytes() {
-            return vectorsBytes;
+        public long getTermVectorsBytes() {
+            return termVectorsBytes;
         }
 
         long totalBytes() {
             return termsBytes + postingsBytes + proximityBytes +
-                storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + vectorsBytes;
+                storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
         }
 
         @Override
@@ -271,8 +271,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             builder.field(NORMS, new ByteSizeValue(normsBytes));
             builder.field(NORMS_IN_BYTES, normsBytes);
 
-            builder.field(VECTORS, new ByteSizeValue(vectorsBytes));
-            builder.field(VECTORS_IN_BYTES, vectorsBytes);
+            builder.field(TERM_VECTORS, new ByteSizeValue(termVectorsBytes));
+            builder.field(TERM_VECTORS_IN_BYTES, termVectorsBytes);
             return builder;
         }
 

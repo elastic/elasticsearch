@@ -839,15 +839,15 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         if (rewriteQuery instanceof MatchNoneQueryBuilder) {
             requestCache = true;
         }
-        assertEquals("query should " + (requestCache ? "" : "not") + " be eligible for the request cache: " + queryBuilder.toString(), requestCache,
-                context.isCacheable());
+        assertEquals("query should " + (requestCache ? "" : "not") + " be eligible for the request cache: " + queryBuilder.toString(),
+            requestCache, context.isCacheable());
 
         // test query cache
         if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
             Query luceneQuery = rewriteQuery.toQuery(context);
             Weight queryWeight = context.searcher().createWeight(searcher.rewrite(luceneQuery), ScoreMode.COMPLETE, 1.0f);
             for (LeafReaderContext ctx : context.getIndexReader().leaves()) {
-                assertFalse("" + searcher.rewrite(luceneQuery) + " " + rewriteQuery.toString(), queryWeight.isCacheable(ctx));
+                assertFalse(queryWeight.isCacheable(ctx));
             }
         }
 
@@ -858,7 +858,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         context = createSearchExecutionContext(searcher);
         rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertTrue("function script query should be eligible for the request cache: " + queryBuilder.toString(), context.isCacheable());
+        assertTrue("function script query should be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
 
         // test query cache
         if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {
@@ -875,7 +876,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         context = createSearchExecutionContext(searcher);
         rewriteQuery = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewriteQuery.toQuery(context));
-        assertFalse("function random query should not be eligible for the request cache: " + queryBuilder.toString(), context.isCacheable());
+        assertFalse("function random query should not be eligible for the request cache: " + queryBuilder.toString(),
+            context.isCacheable());
 
         // test query cache
         if (rewriteQuery instanceof MatchNoneQueryBuilder == false) {

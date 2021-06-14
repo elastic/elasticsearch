@@ -289,6 +289,7 @@ public class RestoreService implements ClusterStateApplier {
         BiConsumer<ClusterState, Metadata.Builder> updater,
         ActionListener<RestoreCompletionResponse> listener
     ) throws IOException {
+        assert Repository.assertSnapshotMetaThread();
         final SnapshotId snapshotId = snapshotInfo.snapshotId();
         final String repositoryName = repository.getMetadata().name();
         final Snapshot snapshot = new Snapshot(repositoryName, snapshotId);

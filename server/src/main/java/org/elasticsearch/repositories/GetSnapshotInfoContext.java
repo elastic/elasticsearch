@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.List;
@@ -46,12 +47,13 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
      * Listener resolved when fetching {@link SnapshotInfo} has completed. If resolved successfully, no more calls to
      * {@link #consumer} will be made. Only resolves exceptionally if {@link #abortOnFailure} is true in case one or more
      * {@link SnapshotInfo} failed to be fetched.
+     * This listener is always invoked on the {@link ThreadPool.Names#SNAPSHOT_META} pool.
      */
     private final ActionListener<Void> doneListener;
 
     /**
      * {@link BiConsumer} invoked for each {@link SnapshotInfo} that is fetched with this instance and the {@code SnapshotInfo} as
-     * arguments.
+     * arguments. This consumer is always invoked on the {@link ThreadPool.Names#SNAPSHOT_META} pool.
      */
     private final BiConsumer<GetSnapshotInfoContext, SnapshotInfo> consumer;
 
@@ -102,6 +104,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     @Override
     public void onResponse(SnapshotInfo snapshotInfo) {
+        assert Repository.assertSnapshotMetaThread();
         try {
             consumer.accept(this, snapshotInfo);
         } catch (Exception e) {
@@ -121,6 +124,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
 
     @Override
     public void onFailure(Exception e) {
+        assert Repository.assertSnapshotMetaThread();
         if (abortOnFailure) {
             if (counter.fastForward()) {
                 failDoneListener(e);

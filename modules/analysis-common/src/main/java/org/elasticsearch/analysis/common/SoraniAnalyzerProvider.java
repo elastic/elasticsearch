@@ -29,7 +29,6 @@ public class SoraniAnalyzerProvider extends AbstractIndexAnalyzerProvider<Sorani
             Analysis.parseStopWords(env, settings, SoraniAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

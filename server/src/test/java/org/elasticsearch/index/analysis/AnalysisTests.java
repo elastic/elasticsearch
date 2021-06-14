@@ -8,10 +8,14 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.CharArraySet;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.BufferedWriter;
@@ -94,6 +98,5 @@ public class AnalysisTests extends ESTestCase {
         Environment env = TestEnvironment.newEnvironment(nodeSettings);
         List<String> wordList = Analysis.getWordList(env, nodeSettings, "foo.bar");
         assertEquals(Arrays.asList("hello", "world"), wordList);
-
     }
 }

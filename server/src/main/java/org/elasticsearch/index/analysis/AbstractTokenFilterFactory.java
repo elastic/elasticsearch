@@ -17,20 +17,14 @@ public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent 
 
     private final String name;
 
-    protected final Version version;
-
     public AbstractTokenFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
         super(indexSettings);
         this.name = name;
-        this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);
+        Analysis.checkForDeprecatedVersion(name, settings);
     }
 
     @Override
     public String name() {
         return this.name;
-    }
-
-    public final Version version() {
-        return version;
     }
 }

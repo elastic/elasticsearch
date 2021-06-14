@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.test.ESTestCase;
 
@@ -39,7 +40,7 @@ public class DocValueFormatTests extends ESTestCase {
         );
         long millis = randomLong();
         // Convert to seconds
-        millis = (millis % 1000);
+        millis -= (millis % 1000);
         assertEquals(
             "failed formatting for tz " + zone,
             millis,

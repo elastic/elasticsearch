@@ -81,6 +81,7 @@ import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.Persist
 import static org.elasticsearch.persistent.PersistentTasksCustomMetadata.TYPE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -143,7 +144,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         databaseRegistry.checkDatabases(state);
         DatabaseReaderLazyLoader database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
         assertThat(database, nullValue());
-        verify(client, times(10)).search(any());
+        verify(client, times(0)).search(any());
         try (Stream<Path> files = Files.list(geoIpTmpDir.resolve("geoip-databases").resolve("nodeId"))) {
             assertEquals(0, files.count());
         }
@@ -161,6 +162,8 @@ public class DatabaseRegistryTests extends ESTestCase {
             .build();
         databaseRegistry.checkDatabases(state);
         database = databaseRegistry.getDatabase("GeoIP2-City.mmdb", false);
+        assertThat(database, notNullValue());
+        verify(client, times(10)).search(any());
         //30 days check passed but we mocked mmdb data so parsing will fail
         expectThrows(InvalidDatabaseException.class, database::get);
     }

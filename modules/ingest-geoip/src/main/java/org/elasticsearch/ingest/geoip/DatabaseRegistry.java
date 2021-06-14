@@ -202,7 +202,7 @@ public final class DatabaseRegistry implements Closeable {
             PersistentTasksCustomMetadata.getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
         boolean isEnabled = GeoIpDownloaderTaskExecutor.ENABLED_SETTING.get(state.metadata().settings());
         // Empty state will purge stale entries in databases map.
-        GeoIpTaskState taskState = isEnabled == false || task == null || task.getState() == null ? GeoIpTaskState.EMPTY :
+        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY :
             (GeoIpTaskState) task.getState();
 
         taskState.getDatabases().entrySet().stream()

@@ -22,11 +22,11 @@ import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -286,6 +286,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     }
 
     private void scheduleNextRun(TimeValue time) {
-        scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+        if (threadPool.scheduler().isShutdown() == false) {
+            scheduled = threadPool.schedule(this::runDownloader, time, ThreadPool.Names.GENERIC);
+        }
     }
 }

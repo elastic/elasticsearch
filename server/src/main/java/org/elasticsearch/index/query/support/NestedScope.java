@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.query.support;
 
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.Deque;
@@ -19,20 +18,20 @@ import java.util.LinkedList;
  */
 public final class NestedScope {
 
-    private final Deque<NestedObjectMapper> levelStack = new LinkedList<>();
+    private final Deque<ObjectMapper> levelStack = new LinkedList<>();
 
     /**
      * @return For the current nested level returns the object mapper that belongs to that
      */
-    public NestedObjectMapper getObjectMapper() {
+    public ObjectMapper getObjectMapper() {
         return levelStack.peek();
     }
 
     /**
      * Sets the new current nested level and pushes old current nested level down the stack returns that level.
      */
-    public NestedObjectMapper nextLevel(NestedObjectMapper level) {
-        NestedObjectMapper previous = levelStack.peek();
+    public ObjectMapper nextLevel(ObjectMapper level) {
+        ObjectMapper previous = levelStack.peek();
         levelStack.push(level);
         return previous;
     }

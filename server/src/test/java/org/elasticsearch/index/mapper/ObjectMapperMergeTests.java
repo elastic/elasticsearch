@@ -8,6 +8,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -67,7 +68,7 @@ public class ObjectMapperMergeTests extends ESTestCase {
         // GIVEN a mapping with "foo" field disabled
         Map<String, Mapper> mappers = new HashMap<>();
         //the field is disabled, and we are not trying to re-enable it, hence merge should work
-        mappers.put("disabled", new ObjectMapper.Builder("disabled").build(new ContentPath()));
+        mappers.put("disabled", new ObjectMapper.Builder("disabled", Version.CURRENT).build(new ContentPath()));
         RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
 
         RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
@@ -99,10 +100,10 @@ public class ObjectMapperMergeTests extends ESTestCase {
     public void testMergeDisabledRootMapper() {
         String type = MapperService.SINGLE_MAPPING_NAME;
         final RootObjectMapper rootObjectMapper =
-            (RootObjectMapper) new RootObjectMapper.Builder(type).enabled(false).build(new ContentPath());
+            (RootObjectMapper) new RootObjectMapper.Builder(type, Version.CURRENT).enabled(false).build(new ContentPath());
         //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
         final RootObjectMapper mergeWith =
-            new RootObjectMapper.Builder(type).setRuntime(
+            new RootObjectMapper.Builder(type, Version.CURRENT).setRuntime(
                 Collections.singletonMap("test", new TestRuntimeField("test", "long"))).build(new ContentPath());
 
         RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
@@ -112,27 +113,23 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     public void testMergeNested() {
-
-        NestedObjectMapper firstMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
-            .includeInParent(true)
-            .includeInRoot(true)
-            .build(new ContentPath());
-        NestedObjectMapper secondMapper = new NestedObjectMapper.Builder("nested1", Version.CURRENT)
-            .includeInParent(false)
-            .includeInRoot(true)
-            .build(new ContentPath());
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        ObjectMapper firstMapper = createNestedMapper(type,
+            ObjectMapper.Nested.newNested(new Explicit<>(true, true), new Explicit<>(true, true)));
+        ObjectMapper secondMapper = createNestedMapper(type,
+            ObjectMapper.Nested.newNested(new Explicit<>(false, true), new Explicit<>(false, false)));
 
         MapperException e = expectThrows(MapperException.class, () -> firstMapper.merge(secondMapper));
         assertThat(e.getMessage(), containsString("[include_in_parent] parameter can't be updated on a nested object mapping"));
 
-        NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
-        assertFalse(result.isIncludeInParent());
-        assertTrue(result.isIncludeInRoot());
+        ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
+        assertFalse(result.nested().isIncludeInParent());
+        assertTrue(result.nested().isIncludeInRoot());
     }
 
     private static RootObjectMapper createRootObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
         final RootObjectMapper rootObjectMapper
-            = (RootObjectMapper) new RootObjectMapper.Builder(name).enabled(enabled).build(new ContentPath());
+            = (RootObjectMapper) new RootObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(rootObjectMapper::putMapper);
 
@@ -140,11 +137,17 @@ public class ObjectMapperMergeTests extends ESTestCase {
     }
 
     private static ObjectMapper createObjectMapper(String name, boolean enabled, Map<String, Mapper> mappers) {
-        final ObjectMapper mapper = new ObjectMapper.Builder(name).enabled(enabled).build(new ContentPath());
+        final ObjectMapper mapper = new ObjectMapper.Builder(name, Version.CURRENT).enabled(enabled).build(new ContentPath());
 
         mappers.values().forEach(mapper::putMapper);
 
         return mapper;
+    }
+
+    private static ObjectMapper createNestedMapper(String name, ObjectMapper.Nested nested) {
+        return new ObjectMapper.Builder(name, Version.CURRENT)
+            .nested(nested)
+            .build(new ContentPath());
     }
 
     private TextFieldMapper createTextFieldMapper(String name) {

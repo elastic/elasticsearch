@@ -21,7 +21,6 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.util.function.Function;
@@ -103,7 +102,7 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper.isNested()) {
+            if (mapper != null && mapper.nested().isNested()) {
                 return true;
             }
         }
@@ -171,12 +170,11 @@ public final class NestedHelper {
         }
         for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
             ObjectMapper mapper = objectMapperLookup.apply(parent);
-            if (mapper != null && mapper.isNested()) {
-                NestedObjectMapper nestedMapper = (NestedObjectMapper) mapper;
+            if (mapper!= null && mapper.nested().isNested()) {
                 if (mapper.fullPath().equals(nestedPath)) {
                     // If the mapper does not include in its parent or in the root object then
                     // the query might only match nested documents with the given path
-                    return nestedMapper.isIncludeInParent() || nestedMapper.isIncludeInRoot();
+                    return mapper.nested().isIncludeInParent() || mapper.nested().isIncludeInRoot();
                 } else {
                     // the first parent nested mapper does not have the expected path
                     // It might be misconfiguration or a sub nested mapper

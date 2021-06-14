@@ -69,8 +69,8 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> numericDetection = new Explicit<>(Defaults.NUMERIC_DETECTION, false);
         protected Map<String, RuntimeField> runtimeFields;
 
-        public Builder(String name) {
-            super(name);
+        public Builder(String name, Version indexCreatedVersion) {
+            super(name, indexCreatedVersion);
         }
 
         public Builder dynamicDateTimeFormatter(Collection<DateFormatter> dateTimeFormatters) {
@@ -96,11 +96,46 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(ContentPath contentPath) {
-            return new RootObjectMapper(name, enabled, dynamic, buildMappers(contentPath),
-                runtimeFields == null ? Collections.emptyMap() : runtimeFields,
-                dynamicDateTimeFormatters,
-                dynamicTemplates,
-                dateDetection, numericDetection);
+            return (RootObjectMapper) super.build(contentPath);
+        }
+
+        @Override
+        protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
+                Map<String, Mapper> mappers, Version indexCreatedVersion) {
+            assert nested.isNested() == false;
+            return new RootObjectMapper(name, enabled, dynamic, mappers,
+                    runtimeFields == null ? Collections.emptyMap() : runtimeFields,
+                    dynamicDateTimeFormatters,
+                    dynamicTemplates,
+                    dateDetection, numericDetection, indexCreatedVersion);
+        }
+    }
+
+    /**
+     * Removes redundant root includes in {@link ObjectMapper.Nested} trees to avoid duplicate
+     * fields on the root mapper when {@code isIncludeInRoot} is {@code true} for a node that is
+     * itself included into a parent node, for which either {@code isIncludeInRoot} is
+     * {@code true} or which is transitively included in root by a chain of nodes with
+     * {@code isIncludeInParent} returning {@code true}.
+     */
+    public void fixRedundantIncludes() {
+       fixRedundantIncludes(this, true);
+    }
+
+    private static void fixRedundantIncludes(ObjectMapper objectMapper, boolean parentIncluded) {
+        for (Mapper mapper : objectMapper) {
+            if (mapper instanceof ObjectMapper) {
+                ObjectMapper child = (ObjectMapper) mapper;
+                Nested nested = child.nested();
+                boolean isNested = nested.isNested();
+                boolean includeInRootViaParent = parentIncluded && isNested && nested.isIncludeInParent();
+                boolean includedInRoot = isNested && nested.isIncludeInRoot();
+                if (includeInRootViaParent && includedInRoot) {
+                    nested.setIncludeInParent(true);
+                    nested.setIncludeInRoot(false);
+                }
+                fixRedundantIncludes(child, includeInRootViaParent || includedInRoot);
+            }
         }
     }
 
@@ -109,7 +144,7 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
             throws MapperParsingException {
-            RootObjectMapper.Builder builder = new Builder(name);
+            RootObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -199,8 +234,8 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(String name, Explicit<Boolean> enabled, Dynamic dynamic, Map<String, Mapper> mappers,
                      Map<String, RuntimeField> runtimeFields,
                      Explicit<DateFormatter[]> dynamicDateTimeFormatters, Explicit<DynamicTemplate[]> dynamicTemplates,
-                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection) {
-        super(name, name, enabled, dynamic, mappers);
+                     Explicit<Boolean> dateDetection, Explicit<Boolean> numericDetection, Version indexCreatedVersion) {
+        super(name, name, enabled, Nested.NO, dynamic, mappers, indexCreatedVersion);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;

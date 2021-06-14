@@ -8,7 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.nested;
 
-import org.elasticsearch.index.mapper.NestedObjectMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,9 +23,9 @@ import java.util.Map;
 public class ReverseNestedAggregatorFactory extends AggregatorFactory {
 
     private final boolean unmapped;
-    private final NestedObjectMapper parentObjectMapper;
+    private final ObjectMapper parentObjectMapper;
 
-    public ReverseNestedAggregatorFactory(String name, boolean unmapped, NestedObjectMapper parentObjectMapper,
+    public ReverseNestedAggregatorFactory(String name, boolean unmapped, ObjectMapper parentObjectMapper,
                                           AggregationContext context, AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactories,
                                           Map<String, Object> metadata) throws IOException {

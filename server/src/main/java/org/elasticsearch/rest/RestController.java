@@ -29,6 +29,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -344,6 +345,18 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         BytesRestResponse.
                             createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
                     return;
+                } else if (name.equals(Task.TRACE_PARENT)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    // TODO rely on high performance `TraceContext` from apm-agent-java
+                    // This does little validation of the actual id values, since we only use them to persist in logging for now this
+                    // should be fine. Once we actually start instrumenting through apm-agent-java it will take care of validation.
+                    // Java has a fast path for single character regexes so this should not be as bad as its signature implies
+                    String[] tokens  = traceparent.split("-");
+                    if (tokens.length == 4) {
+                        threadContext.putTransient(Task.TRACE_ID, tokens[1]);
+                        threadContext.putTransient(Task.TRANSACTION_ID, tokens[2]);
+                    }
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }

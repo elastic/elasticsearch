@@ -15,34 +15,30 @@ import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.tasks.Task;
 
-import java.util.Map;
+import java.util.Objects;
 
 /**
  * Pattern converter to format the cluster_id variable into JSON fields <code>cluster.id</code>.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "TraceParentConverter")
-@ConverterKeys({"trace_parent"})
-public final class TraceParentConverter extends LogEventPatternConverter {
+@Plugin(category = PatternConverter.CATEGORY, name = "TraceIdConverter")
+@ConverterKeys({"trace_id"})
+public final class TraceIdConverter extends LogEventPatternConverter {
     /**
      * Called by log4j2 to initialize this converter.
      */
-    public static TraceParentConverter newInstance(@SuppressWarnings("unused") final String[] options) {
-        return new TraceParentConverter();
+    public static TraceIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
+        return new TraceIdConverter();
     }
 
-    public TraceParentConverter() {
-        super("trace_parent", "trace_parent");
+    public TraceIdConverter() {
+        super("trace_id", "trace_id");
     }
 
-    public static String getTraceParent() {
+    public static String getTraceId() {
         return HeaderWarning.THREAD_CONTEXT.stream()
-            .filter(t -> t.getHeader(Task.TRACE_PARENT) != null)
+            .map(t -> t.<String>getTransient(Task.TRACE_ID))
+            .filter(Objects::nonNull)
             .findFirst()
-            .map(t -> {
-                Map<String, String> headers = t.getRequestHeadersOnly();
-                return headers.get(Task.TRACE_PARENT);
-
-            } )
             .orElse(null);
     }
 
@@ -54,9 +50,9 @@ public final class TraceParentConverter extends LogEventPatternConverter {
      */
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {
-        String traceParent = getTraceParent();
-        if (traceParent != null) {
-            toAppendTo.append(traceParent);
+        String traceId = getTraceId();
+        if (traceId != null) {
+            toAppendTo.append(traceId);
         }
     }
 

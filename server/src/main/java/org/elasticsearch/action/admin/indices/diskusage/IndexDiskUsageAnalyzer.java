@@ -492,7 +492,7 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
-        public TrackingReadBytesDirectory(Directory in) {
+        TrackingReadBytesDirectory(Directory in) {
             super(in);
         }
 

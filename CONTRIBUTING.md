@@ -181,11 +181,12 @@ action is required.
 #### Formatting
 
 We are in the process of migrating towards automatic formatting Java file
-using [spotless], backed by the Eclipse formatter. If you have the [Eclipse
-Code Formatter] plugin installed, you can apply formatting directly in IntelliJ.
-The configuration for the plugin is held in
-`.idea/eclipseCodeFormatter.xml` and should be automatically applied, but
-manual instructions are below in case you you need them.
+using [spotless], backed by the Eclipse formatter. **We strongly recommend
+installing using the [Eclipse Code Formatter] plugin** so that you can
+apply the correct formatting directly in IntelliJ.  The configuration for
+the plugin is held in `.idea/eclipseCodeFormatter.xml` and should be
+automatically applied, but manual instructions are below in case you you
+need them.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
@@ -202,11 +203,11 @@ automatically formatted in
 
 #### Imports
 
-It is import that you configure the correct import ordering in IntelliJ.
-We configure Spotless (above) to sort the imports in Java files, and
-while the [Eclipse Code Formatter] plugin supports an option for ordering
-imports, in practice this option appears unreliable, so instead you must
-configure IntelliJ's import ordering to match Spotless.
+It is also important that you configure the correct import ordering in
+IntelliJ.  We configure Spotless (above) to sort the imports in Java files,
+and while the [Eclipse Code Formatter] plugin supports an option for
+ordering imports, in practice this option appears unreliable, so instead
+you must configure IntelliJ's import ordering to match Spotless.
 
    1. Open **Preferences > Editor > Code Style > Java**
    2. Click the **Imports** tab

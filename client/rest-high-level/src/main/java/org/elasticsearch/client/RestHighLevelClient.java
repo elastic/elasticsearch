@@ -2172,7 +2172,20 @@ public class RestHighLevelClient implements Closeable {
         if (major < 6) {
             return Optional.of("Elasticsearch version 6 or more is required");
         }
-        if (major == 6 || (major == 7 && minor < 14)) {
+
+        if (major == 6) {
+            return Optional.empty();
+        }
+
+        if ("default".equals(Build.CURRENT.flavor()) && "default".equals(mainResponse.getVersion().getBuildFlavor()) == false) {
+            return Optional.of("Invalid or missing build flavor [" + mainResponse.getVersion().getBuildFlavor() + "]");
+        }
+
+        if ("You Know, for Search".equalsIgnoreCase(mainResponse.getTagline()) == false) {
+            return Optional.of("Invalid or missing tagline [" + mainResponse.getTagline() + "]");
+        }
+
+        if (major == 7 && minor < 14) {
             return Optional.empty();
         }
 

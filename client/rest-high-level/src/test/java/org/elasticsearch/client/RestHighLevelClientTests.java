@@ -127,6 +127,7 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.net.SocketTimeoutException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -187,14 +188,19 @@ public class RestHighLevelClientTests extends ESTestCase {
     }
 
     /**
-     * Mock rest client to return a valid response to async GET "/"
+     * Mock rest client to return a valid response to async GET with the current build "/"
      */
     static void mockGetRoot(RestClient restClient) throws IOException{
-        mockGetRoot(restClient, Build.CURRENT, true);
+        Build build = new Build(
+            Build.Flavor.DEFAULT, Build.CURRENT.type(), Build.CURRENT.hash(),
+            Build.CURRENT.date(), false, Build.CURRENT.getQualifiedVersion()
+        );
+
+        mockGetRoot(restClient, build, true);
     }
 
     /**
-     *  Mock rest client to return a valid response to async GET "/"
+     *  Mock rest client to return a valid response to async GET with a specific build version "/"
      */
     public static void mockGetRoot(RestClient restClient, Build build, boolean setProductHeader) throws IOException {
         org.elasticsearch.action.main.MainResponse mainResp = new org.elasticsearch.action.main.MainResponse(
@@ -209,8 +215,14 @@ public class RestHighLevelClientTests extends ESTestCase {
         XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), baos);
         mainResp.toXContent(builder, ToXContent.EMPTY_PARAMS);
         builder.close();
-        NByteArrayEntity entity = new NByteArrayEntity(baos.toByteArray(), ContentType.APPLICATION_JSON);
+        mockGetRoot(restClient, baos.toByteArray(), setProductHeader);
+    }
 
+    /**
+     *  Mock rest client to return a valid response to async GET with an arbitrary binary payload "/"
+     */
+    public static void mockGetRoot(RestClient restClient, byte[] responseBody, boolean setProductHeader) throws IOException {
+        NByteArrayEntity entity = new NByteArrayEntity(responseBody, ContentType.APPLICATION_JSON);
         Response response = mock(Response.class);
         when(response.getStatusLine()).thenReturn(newStatusLine(RestStatus.OK));
         when(response.getEntity()).thenReturn(entity);
@@ -1055,6 +1067,84 @@ public class RestHighLevelClientTests extends ESTestCase {
 
         // Version 8.x, product header
         doTestProductCompatibilityCheck(true, "8.0.0", true);
+    }
+
+    public void testProductCompatibilityTagline() throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient = new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        byte[] bytes = ("{" +
+            "  'cluster_name': '97b2b946a8494276822c3876d78d4f9c', " +
+            "  'cluster_uuid': 'SUXRYY1fQ5uMKEiykuR5ZA', " +
+            "  'version': { " +
+            "    'build_date': '2021-03-18T06:17:15.410153305Z', " +
+            "    'minimum_wire_compatibility_version': '6.8.0', " +
+            "    'build_hash': '78722783c38caa25a70982b5b042074cde5d3b3a', " +
+            "    'number': '7.12.0', " +
+            "    'lucene_version': '8.8.0', " +
+            "    'minimum_index_compatibility_version': '6.0.0-beta1', " +
+            "    'build_flavor': 'default', " +
+            "    'build_snapshot': false, " +
+            "    'build_type': 'docker' " +
+            "  }, " +
+            "  'name': 'instance-0000000000', " +
+            "  'tagline': 'hello world'" +
+            "}"
+        ).replace('\'', '"').getBytes(StandardCharsets.UTF_8);
+
+        mockGetRoot(restClient, bytes, true);
+
+        expectThrows(ElasticsearchException.class, () ->
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+        );
+    }
+
+    public void testProductCompatibilityFlavor() throws Exception {
+
+        // An endpoint different from "/" that returns a boolean
+        GetSourceRequest apiRequest = new GetSourceRequest("foo", "bar");
+        StatusLine apiStatus = mock(StatusLine.class);
+        when(apiStatus.getStatusCode()).thenReturn(200);
+        Response apiResponse = mock(Response.class);
+        when(apiResponse.getStatusLine()).thenReturn(apiStatus);
+        when(restClient.performRequest(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")))).thenReturn(apiResponse);
+
+        RestHighLevelClient highLevelClient =  new RestHighLevelClient(restClient, RestClient::close, Collections.emptyList());
+
+        byte[]
+            bytes = ("{" +
+            "  'cluster_name': '97b2b946a8494276822c3876d78d4f9c', " +
+            "  'cluster_uuid': 'SUXRYY1fQ5uMKEiykuR5ZA', " +
+            "  'version': { " +
+            "    'build_date': '2021-03-18T06:17:15.410153305Z', " +
+            "    'minimum_wire_compatibility_version': '6.8.0', " +
+            "    'build_hash': '78722783c38caa25a70982b5b042074cde5d3b3a', " +
+            "    'number': '7.12.0', " +
+            "    'lucene_version': '8.8.0', " +
+            "    'minimum_index_compatibility_version': '6.0.0-beta1', " +
+            // Invalid flavor
+            "    'build_flavor': 'foo', " +
+            "    'build_snapshot': false, " +
+            "    'build_type': 'docker' " +
+            "  }, " +
+            "  'name': 'instance-0000000000', " +
+            "  'tagline': 'You Know, for Search'" +
+            "}"
+        ).replace('\'', '"').getBytes(StandardCharsets.UTF_8);
+
+        mockGetRoot(restClient, bytes, true);
+
+        expectThrows(ElasticsearchException.class, () ->
+            highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT)
+        );
     }
 
     public void testProductCompatibilityRequestFailure() throws Exception {

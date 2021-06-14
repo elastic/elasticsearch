@@ -122,13 +122,12 @@ Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorti
 (Optional, integer)
  Maximum number of snapshots to return. Defaults to `0` which means return all that match the request without limit.
 
-`after`::
+`order`::
 (Optional, string)
-  Offset from which to start the snapshot listing defined by sort value and snapshot name as a string of the form
-  `<sort_value>,<snapshot_name>`. Defaults to not set which means that listing will start from the first snapshot that matches the
-  request.
+Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `desc`, meaning descending order.
 
-NOTE: The pagination parameters `size`, `after`, and `sort` are not supported when using `verbose=false`.
+NOTE: The pagination parameters `size`, `order`, and `sort` are not supported when using `verbose=false` and the sort order for
+requests with `verbose=false` is undefined.
 
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -50,6 +51,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private After after;
 
     private SortBy sort = SortBy.START_TIME;
+
+    private SortOrder order = SortOrder.DESC;
 
     private String[] repositories;
 
@@ -95,6 +98,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             after = in.readOptionalWriteable(After::new);
             sort = in.readEnum(SortBy.class);
             size = in.readVInt();
+            order = SortOrder.readFromStream(in);
         }
     }
 
@@ -120,7 +124,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeOptionalWriteable(after);
             out.writeEnum(sort);
             out.writeVInt(size);
-        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null) {
+            order.writeTo(out);
+        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.DESC) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
     }
@@ -243,6 +248,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     public int size() {
         return size;
+    }
+
+    public SortOrder order() {
+        return order;
+    }
+
+    public GetSnapshotsRequest order(SortOrder order) {
+        this.order = order;
+        return this;
     }
 
     /**

@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 /**
@@ -113,6 +114,11 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
 
     public GetSnapshotsRequestBuilder setSize(int size) {
         request.size(size);
+        return this;
+    }
+
+    public GetSnapshotsRequestBuilder setOrder(SortOrder order) {
+        request.order(order);
         return this;
     }
 

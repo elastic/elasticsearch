@@ -53,6 +53,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -673,7 +674,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         });
     }
 
-    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsRequest.SortBy sort) {
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsRequest.SortBy sort,
+                                                SortOrder sortOrder) {
         final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
         if (sort == null) {
             assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
@@ -696,8 +698,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     throw new AssertionError("unknown sort column [" + sort + "]");
             }
         }
+        final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;
+        if (sortOrder == SortOrder.ASC) {
+            orderAssertion = assertion;
+        } else {
+            orderAssertion = (s1, s2) -> assertion.accept(s2, s1);
+        }
         for (int i = 0; i < snapshotInfos.size() - 1; i++) {
-            assertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
+            orderAssertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
         }
     }
 }

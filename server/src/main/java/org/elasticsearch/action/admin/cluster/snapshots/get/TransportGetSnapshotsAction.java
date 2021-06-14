@@ -473,7 +473,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
-        CollectionUtil.timSort(snapshotInfos, comparator);
+        CollectionUtil.timSort(snapshotInfos, comparator.reversed());
+        // TODO: support asc order + make use of it below as well
         int startIndex = 0;
         if (after != null) {
             switch (sortBy) {

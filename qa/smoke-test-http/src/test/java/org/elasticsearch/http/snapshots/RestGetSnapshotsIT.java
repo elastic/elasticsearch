@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -61,16 +62,25 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         allSnapshotNames.addAll(snapshotNamesWithoutIndex);
 
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(repoName);
-        assertSnapshotListSorted(defaultSorting, null);
+        assertSnapshotListSorted(defaultSorting, null, SortOrder.DESC);
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME), GetSnapshotsRequest.SortBy.NAME);
-        assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION), GetSnapshotsRequest.SortBy.DURATION
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME),
+            GetSnapshotsRequest.SortBy.NAME,
+            SortOrder.DESC
         );
         assertSnapshotListSorted(
-                allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES), GetSnapshotsRequest.SortBy.INDICES);
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION),
+            GetSnapshotsRequest.SortBy.DURATION,
+            SortOrder.DESC
+        );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME), GetSnapshotsRequest.SortBy.START_TIME
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES),
+            GetSnapshotsRequest.SortBy.INDICES,
+            SortOrder.DESC);
+        assertSnapshotListSorted(
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME),
+            GetSnapshotsRequest.SortBy.START_TIME,
+            SortOrder.DESC
         );
     }
 

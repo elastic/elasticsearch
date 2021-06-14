@@ -2592,7 +2592,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                         // <1>
                     }
 
-
                     @Override
                     public void onFailure(Exception e) {
                         // <2>
@@ -2614,7 +2613,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         {
-
             // tag::kibana-enrollment-execute
             KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
             // end::kibana-enrollment-execute
@@ -2636,7 +2634,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     public void onResponse(KibanaEnrollmentResponse response) {
                         // <1>
                     }
-
 
                     @Override
                     public void onFailure(Exception e) {

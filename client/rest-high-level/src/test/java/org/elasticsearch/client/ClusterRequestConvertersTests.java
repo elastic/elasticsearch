@@ -147,5 +147,4 @@ public class ClusterRequestConvertersTests extends ESTestCase {
         assertEquals(HttpGet.METHOD_NAME, expectedRequest.getMethod());
         assertEquals(emptyMap(), expectedRequest.getParameters());
     }
-
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.release;
 
 import groovy.text.SimpleTemplateEngine;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -35,21 +36,23 @@ public class ReleaseNotesIndexUpdater {
         final List<String> existingVersions = indexLines.stream()
             .filter(line -> line.startsWith("* <<release-notes-"))
             .map(line -> line.replace("* <<release-notes-", "").replace(">>", ""))
+            .distinct()
             .collect(Collectors.toList());
 
         final List<String> existingIncludes = indexLines.stream()
             .filter(line -> line.startsWith("include::"))
             .map(line -> line.replace("include::release-notes/", "").replace(".asciidoc[]", ""))
+            .distinct()
             .collect(Collectors.toList());
 
-        final String versionString = VersionProperties.getElasticsearch();
+        final String versionString = version.toString();
 
         if (existingVersions.contains(versionString) == false) {
             int insertionIndex = existingVersions.size() - 1;
             while (insertionIndex > 0 && Version.fromString(existingVersions.get(insertionIndex)).before(version)) {
                 insertionIndex -= 1;
             }
-            existingVersions.add(insertionIndex, version.toString());
+            existingVersions.add(insertionIndex, versionString);
         }
 
         final String includeString = version.getMajor() + "." + version.getMinor();

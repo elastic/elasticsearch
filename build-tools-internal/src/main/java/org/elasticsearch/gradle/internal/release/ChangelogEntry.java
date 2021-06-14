@@ -191,6 +191,10 @@ public class ChangelogEntry {
             this.body = body;
         }
 
+        public String getAnchor() {
+            return generatedAnchor(this.title);
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -277,10 +281,10 @@ public class ChangelogEntry {
             }
             Breaking breaking = (Breaking) o;
             return notable == breaking.notable
-                   && Objects.equals(area, breaking.area)
-                   && Objects.equals(title, breaking.title)
-                   && Objects.equals(details, breaking.details)
-                   && Objects.equals(impact, breaking.impact);
+                && Objects.equals(area, breaking.area)
+                && Objects.equals(title, breaking.title)
+                && Objects.equals(details, breaking.details)
+                && Objects.equals(impact, breaking.impact);
         }
 
         @Override
@@ -295,7 +299,8 @@ public class ChangelogEntry {
                 area,
                 title,
                 details,
-                impact, notable
+                impact,
+                notable
             );
         }
     }
@@ -342,9 +347,7 @@ public class ChangelogEntry {
                 return false;
             }
             Deprecation that = (Deprecation) o;
-            return Objects.equals(area, that.area)
-                && Objects.equals(title, that.title)
-                && Objects.equals(body, that.body);
+            return Objects.equals(area, that.area) && Objects.equals(title, that.title) && Objects.equals(body, that.body);
         }
 
         @Override
@@ -361,7 +364,11 @@ public class ChangelogEntry {
     private static String generatedAnchor(String input) {
         final List<String> excludes = List.of("the", "is", "a");
 
-        final String[] words = input.replaceAll("[^\\w]+", "_").replaceFirst("^_+", "").replaceFirst("_+$", "").split("_+");
+        final String[] words = input.toLowerCase(Locale.ROOT)
+            .replaceAll("[^\\w]+", "_")
+            .replaceFirst("^_+", "")
+            .replaceFirst("_+$", "")
+            .split("_+");
         return Arrays.stream(words).filter(word -> excludes.contains(word) == false).collect(Collectors.joining("_"));
     }
 }

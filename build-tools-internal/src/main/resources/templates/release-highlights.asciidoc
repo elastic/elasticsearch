@@ -12,23 +12,24 @@ endif::[]
 // Add previous release to the list
 Other versions:
 
-<% print priorVersions.join("\n| ") %>
-<% } %>
+<%
+print priorVersions.join("\n| ")
+print "\n"
+}
 
-<% if (notableHighlights.empty == false) { %>
+if (notableHighlights.empty == false) { %>
 // tag::notable-highlights[]
 <% for (highlight in notableHighlights) { %>
 [discrete]
+[[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
-
 <% } %>
 // end::notable-highlights[]
 <% } %>
-
 <% for (highlight in nonNotableHighlights) { %>
 [discrete]
+[[${ highlight.anchor }]]
 === ${highlight.title}
 ${highlight.body.trim()}
-
 <% } %>

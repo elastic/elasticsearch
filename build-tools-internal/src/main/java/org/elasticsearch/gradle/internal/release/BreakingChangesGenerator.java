@@ -9,18 +9,15 @@
 package org.elasticsearch.gradle.internal.release;
 
 import groovy.text.SimpleTemplateEngine;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
-import java.io.Closeable;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
@@ -34,10 +31,15 @@ public class BreakingChangesGenerator {
     public static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
         final Version version = VersionProperties.getElasticsearchVersion();
 
-        final Map<String, List<ChangelogEntry.Breaking>> breakingChangesByArea = entries.stream()
+        final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
             .map(ChangelogEntry::getBreaking)
             .filter(Objects::nonNull)
-            .collect(Collectors.groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList()));
+            .collect(
+                Collectors.groupingBy(
+                    ChangelogEntry.Breaking::isNotable,
+                    Collectors.groupingBy(ChangelogEntry.Breaking::getArea, TreeMap::new, Collectors.toList())
+                )
+            );
 
         final Map<String, List<ChangelogEntry.Deprecation>> deprecationsByArea = entries.stream()
             .map(ChangelogEntry::getDeprecation)
@@ -45,7 +47,7 @@ public class BreakingChangesGenerator {
             .collect(Collectors.groupingBy(ChangelogEntry.Deprecation::getArea, TreeMap::new, Collectors.toList()));
 
         final Map<String, Object> bindings = new HashMap<>();
-        bindings.put("breakingChangesByArea", breakingChangesByArea);
+        bindings.put("breakingChangesByNotabilityByArea", breakingChangesByNotabilityByArea);
         bindings.put("deprecationsByArea", deprecationsByArea);
         bindings.put("isElasticsearchSnapshot", VersionProperties.isElasticsearchSnapshot());
         bindings.put("majorDotMinor", version.getMajor() + "." + version.getMinor());

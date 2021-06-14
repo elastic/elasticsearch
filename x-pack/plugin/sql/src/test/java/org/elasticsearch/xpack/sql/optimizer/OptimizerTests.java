@@ -1156,9 +1156,9 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSkipQueryOnEsAggregationWithOnlyConstants() {
         final var plan = new Aggregate(EMPTY,
-        new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
-        List.of(),
-        List.of(new Alias(EMPTY, "a", TRUE))
+            new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
+            List.of(),
+            List.of(new Alias(EMPTY, "a", TRUE))
         );
 
         final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);

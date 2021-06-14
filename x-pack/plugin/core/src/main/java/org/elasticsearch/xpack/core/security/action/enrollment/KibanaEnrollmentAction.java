@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionType;
 
 public final class KibanaEnrollmentAction extends ActionType<KibanaEnrollmentResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/enrollment/enroll/kibana";
+    public static final String NAME = "cluster:admin/xpack/security/enroll/kibana";
     public static final KibanaEnrollmentAction INSTANCE = new KibanaEnrollmentAction();
 
     private KibanaEnrollmentAction() {

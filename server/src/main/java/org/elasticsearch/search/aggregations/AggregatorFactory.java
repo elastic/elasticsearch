@@ -79,7 +79,10 @@ public abstract class AggregatorFactory {
     }
 
     /**
-     * Returns which fields that this aggregation will potentially access
+     * Returns which fields that this aggregation will potentially access.
+     * It only covers those fields that are directly "aggregated on" and does
+     * not include other accesses that are typically associated with a query context,
+     * e.g. filter(s) aggregations.
      */
     public abstract Set<String> fieldsUsed();
 

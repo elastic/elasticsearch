@@ -30,7 +30,7 @@ import org.elasticsearch.index.reindex.ReindexPlugin;
 import org.elasticsearch.painless.PainlessPlugin;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.Plugin;TransportClusterStatsAction
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.junit.annotations.TestLogging;

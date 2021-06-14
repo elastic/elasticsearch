@@ -67,10 +67,6 @@ public class PrivilegeTests extends ESTestCase {
         verifyClusterActionDenied(noneClusterPrivilege, "cluster:monitor/*");
         verifyClusterActionDenied(noneClusterPrivilege, "*");
 
-        ClusterPrivilege enrollNodeClusterPrivilege = ClusterPrivilegeResolver.resolve("enroll_node");
-        assertThat(enrollNodeClusterPrivilege, is(ClusterPrivilegeResolver.ENROLL_NODE));
-        verifyClusterActionAllowed(enrollNodeClusterPrivilege, "cluster:admin/xpack/security/enrollment/enroll/node");
-
         ClusterPermission monitorClusterPermission = monitorClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
         ClusterPermission allClusterPermission = allClusterPrivilege.buildPermission(ClusterPermission.builder()).build();
 

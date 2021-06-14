@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.TaskOperationFailure;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -21,7 +19,6 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
@@ -65,7 +62,7 @@ public class CreateEnrollmentToken {
         this.client = client;
     }
 
-    public String create(Terminal terminal, String user, SecureString password) throws Exception {
+    public String create(String user, SecureString password) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("'xpack.security.enrollment' must be enabled to create an enrollment token");
         }
@@ -92,7 +89,7 @@ public class CreateEnrollmentToken {
                     .field("expiration", ENROLL_API_KEY_EXPIRATION)
                     .startObject("role_descriptors")
                     .startObject("create_enrollment_token")
-                    .field("cluster", "[" + ClusterPrivilegeResolver.ENROLL_NODE.name() + "]")
+                    .field("cluster", "[cluster:admin/xpack/security/enrollment/enroll/node]")
                     .endObject()
                     .endObject()
                     .endObject();
@@ -108,22 +105,23 @@ public class CreateEnrollmentToken {
 
             try {
                 final URL url = new URL(client.getDefaultURL());
-                final HttpResponse httpResponseApiKey = client.execute("POST", createAPIKeyURL(url), user, password,
-                    createApiKeyRequestBodySupplier, is -> responseBuilder(is, terminal));
+                final URL Url = createAPIKeyURL(url);
+                final HttpResponse httpResponseApiKey = client.execute("POST", Url, user, password,
+                    createApiKeyRequestBodySupplier, is -> responseBuilder(is));
                 int httpCode = httpResponseApiKey.getHttpStatus();
 
                 if (httpCode != HttpURLConnection.HTTP_OK) {
                     throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
-                        + createAPIKeyURL(url));
+                        + Url);
                 }
 
                 final String apiKey = Objects.toString(httpResponseApiKey.getResponseBody().get("api_key"), "");
-                if (apiKey == null || apiKey.isEmpty()) {
+                if (Strings.isNullOrEmpty(apiKey)) {
                     throw new IllegalStateException("Could not create an api key.");
                 }
 
                 final HttpResponse httpResponseHttp = client.execute("GET", getHttpInfoURL(url), user, password,
-                    getHttpInfoRequestBodySupplier, is -> responseBuilder(is, terminal));
+                    getHttpInfoRequestBodySupplier, is -> responseBuilder(is));
                 httpCode = httpResponseHttp.getHttpStatus();
 
                 if (httpCode != HttpURLConnection.HTTP_OK) {
@@ -144,14 +142,14 @@ public class CreateEnrollmentToken {
 
                 final XContentBuilder builder = JsonXContent.contentBuilder();
                 builder.startObject();
-                builder.field("version", stackVersion);
+                builder.field("ver", stackVersion);
                 builder.startArray("adr");
                 for (String bound_address : addresses){
                     builder.value(bound_address);
                 }
                 builder.endArray();
                 builder.field("fgr", fingerprint);
-                builder.field("key", apiKey);//  CreateApiKeyResponse.getKey().toString());
+                builder.field("key", apiKey);
                 builder.endObject();
                 final String jsonString = Strings.toString(builder);
                 return Base64.getUrlEncoder().encodeToString(jsonString.getBytes(StandardCharsets.UTF_8));
@@ -162,15 +160,15 @@ public class CreateEnrollmentToken {
         }
     }
 
-    private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is, Terminal terminal) throws IOException {
+    private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
         final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
         if (is != null) {
             byte[] bytes = toByteArray(is);
             String responseBody = new String(bytes, StandardCharsets.UTF_8);
-            terminal.println(Terminal.Verbosity.VERBOSE, responseBody);
+            logger.debug(responseBody);
             httpResponseBuilder.withResponseBody(responseBody);
         } else {
-            terminal.println(Terminal.Verbosity.VERBOSE, "<Empty response>");
+            logger.debug("<Empty response>");
         }
         return httpResponseBuilder;
     }

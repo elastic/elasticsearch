@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.enrollment;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -47,7 +46,6 @@ import static org.mockito.Mockito.when;
 
 public class CreateEnrollmentTokenTests extends ESTestCase {
     private Environment environment;
-    private final MockTerminal terminal = new MockTerminal();
 
     @Before
     public void setupMocks() throws Exception {
@@ -103,7 +101,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 builder.startObject()
                     .startObject("nodes")
                     .startObject("sxLDrFu8SnKepObrEOjPZQ")
-                    .field("version", "8.0.0")
+                    .field("ver", "8.0.0")
                     .startObject("http")
                     .startArray("bound_address")
                     .value("127.0.0.1:9200")
@@ -119,10 +117,10 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
 
-            final String token = createEnrollmentToken.create(terminal, "elastic", new SecureString("elastic"));
+            final String token = createEnrollmentToken.create("elastic", new SecureString("elastic"));
 
             Map<String, String> info = getDecoded(token);
-            assertEquals("8.0.0", info.get("version"));
+            assertEquals("8.0.0", info.get("ver"));
             assertEquals("[127.0.0.1:9200, 192.168.17:9201]", info.get("adr"));
             assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", info.get("fgr"));
             assertEquals("x3YqU_rqQwm-ESrkExcnOg", info.get("key"));
@@ -144,7 +142,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create("elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling POST "));
         } catch (Exception e) {
@@ -184,7 +182,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
                 any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
 
             final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
-            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create("elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
         } catch (Exception e) {
@@ -245,7 +243,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
 
             CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment_not_enabled, client);
-            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create(terminal, "elastic",
+            IllegalStateException ex = expectThrows(IllegalStateException.class, () -> createEnrollmentToken.create("elastic",
                 new SecureString("elastic")));
             assertThat(ex.getMessage(), Matchers.equalTo("'xpack.security.enrollment' must be enabled to create an enrollment token"));
         } catch (Exception e) {

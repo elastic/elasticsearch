@@ -66,7 +66,6 @@ A successful call returns an object with "cluster" and "index" fields.
     "cancel_task",
     "create_snapshot",
     "delegate_pki",
-    "enroll_node",
     "grant_api_key",
     "manage",
     "manage_api_key",

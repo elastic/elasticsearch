@@ -76,13 +76,4 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         // Child Aggregation is registered in non-standard way, so it might return child's values type
         return OTHER_SUBTYPE;
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

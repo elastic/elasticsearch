@@ -63,13 +63,4 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregatorSupplier
                 .build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

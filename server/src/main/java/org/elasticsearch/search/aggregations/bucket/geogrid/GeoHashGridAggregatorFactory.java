@@ -116,13 +116,4 @@ public class GeoHashGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 );
             }, true);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

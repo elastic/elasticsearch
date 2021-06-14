@@ -72,13 +72,4 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
             .build(name, config.getValuesSource(), context, parent,
                    percents, percentilesConfig, keyed, config.format(), metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

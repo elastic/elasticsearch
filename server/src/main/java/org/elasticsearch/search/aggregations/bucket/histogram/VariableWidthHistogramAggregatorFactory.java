@@ -73,13 +73,4 @@ public class VariableWidthHistogramAggregatorFactory extends ValuesSourceAggrega
         return new VariableWidthHistogramAggregator(name, factories, numBuckets, shardSize, initialBuffer, config,
             context, parent, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

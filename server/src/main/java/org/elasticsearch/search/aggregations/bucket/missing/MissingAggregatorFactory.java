@@ -50,13 +50,4 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregatorSupplier
             .build(name, factories, config, context, parent, cardinality, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

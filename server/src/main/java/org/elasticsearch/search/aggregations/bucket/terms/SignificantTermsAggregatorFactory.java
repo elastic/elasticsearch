@@ -360,13 +360,4 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             return parseField.getPreferredName();
         }
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

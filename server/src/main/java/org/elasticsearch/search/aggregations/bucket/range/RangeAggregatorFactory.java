@@ -47,13 +47,4 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
             aggregatorSupplier
         );
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

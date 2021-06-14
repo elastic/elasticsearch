@@ -106,13 +106,4 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
         return new NumericHistogramAggregator(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds,
             hardBounds, config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

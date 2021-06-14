@@ -146,13 +146,4 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
         return new DateHistogramAggregator(name, factories, rounding, null, order, keyed, minDocCount, extendedBounds, hardBounds,
             config, context, parent, CardinalityUpperBound.NONE, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

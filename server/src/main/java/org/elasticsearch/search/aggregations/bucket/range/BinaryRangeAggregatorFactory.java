@@ -61,13 +61,4 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
             .build(name, factories, config.getValuesSource(), config.format(),
                    ranges, keyed, context, parent, cardinality, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

@@ -57,13 +57,4 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregatorSupplier
             .build(name, config.getValuesSource(), showDistribution, config.format(), context, parent, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

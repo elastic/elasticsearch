@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
 
@@ -56,5 +57,13 @@ public abstract class ValuesSourceAggregatorFactory extends AggregatorFactory {
     @Override
     public String getStatsSubtype() {
         return config.valueSourceType().typeName();
+    }
+
+    @Override
+    public Set<String> fieldsUsed() {
+        if (config.fieldType() != null) {
+            return Set.of(config.fieldType().name());
+        }
+        return Set.of();
     }
 }

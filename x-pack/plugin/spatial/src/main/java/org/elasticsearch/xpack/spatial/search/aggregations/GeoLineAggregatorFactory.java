@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoLineMultiV
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 final class GeoLineAggregatorFactory extends MultiValuesSourceAggregatorFactory {
 

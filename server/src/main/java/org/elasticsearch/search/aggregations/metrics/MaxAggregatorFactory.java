@@ -57,13 +57,4 @@ class MaxAggregatorFactory extends ValuesSourceAggregatorFactory {
         return aggregatorSupplier
             .build(name, config, context, parent, metadata);
     }
-
-    @Override
-    public Set<String> fieldsUsed() {
-        if (config.fieldType() != null) {
-            return Set.of(config.fieldType().name());
-        }
-        return Set.of();
-    }
-
 }

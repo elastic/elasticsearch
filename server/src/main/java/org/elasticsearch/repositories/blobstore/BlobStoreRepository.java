@@ -1486,14 +1486,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             } catch (NoSuchFileException ex) {
                 failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
             } catch (IOException | NotXContentException ex) {
-                failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshots", ex);
+                failure = new SnapshotException(metadata.name(), snapshotId, "failed to get snapshot info" + snapshotId, ex);
             } catch (Exception e) {
                 failure = e instanceof SnapshotException
                     ? e
                     : new SnapshotException(metadata.name(), snapshotId, "Snapshot could not be read", e);
             }
             if (failure != null) {
-                if (context.failFast()) {
+                if (context.abortOnFailure()) {
                     queue.clear();
                 }
                 context.onFailure(failure);

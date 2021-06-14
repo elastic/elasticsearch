@@ -327,7 +327,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             } else {
                 final List<SnapshotStatus> threadSafeBuilder = Collections.synchronizedList(builder);
                 repositoriesService.repository(repositoryName)
-                    .getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsToLoad, true, () -> false, (context, snapshotInfo) -> {
+                    .getSnapshotInfo(new GetSnapshotInfoContext(snapshotIdsToLoad, true, task::isCancelled, (context, snapshotInfo) -> {
                         List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                         final Map<ShardId, IndexShardSnapshotStatus> shardStatuses;
                         try {

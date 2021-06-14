@@ -20,7 +20,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
 
 /**
- * Describes the context of fetching {@link SnapshotInfo} via {@link Repository#getSnapshotInfo(GetSnapshotInfoContext)}.
+ * Describes the context of fetching one or more {@link SnapshotInfo} via {@link Repository#getSnapshotInfo(GetSnapshotInfoContext)}.
  */
 public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo> {
 
@@ -62,7 +62,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         boolean abortOnFailure,
         BooleanSupplier isCancelled,
         BiConsumer<GetSnapshotInfoContext, SnapshotInfo> onSnapshotInfo,
-        ActionListener<Void> doneListener
+        ActionListener<Void> listener
     ) {
         assert snapshotIds.isEmpty() == false : "no snapshot ids to fetch given";
         this.snapshotIds = List.copyOf(snapshotIds);
@@ -70,7 +70,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
         this.abortOnFailure = abortOnFailure;
         this.isCancelled = isCancelled;
         this.onSnapshotInfo = onSnapshotInfo;
-        this.doneListener = doneListener;
+        this.doneListener = listener;
     }
 
     public List<SnapshotId> snapshotIds() {
@@ -80,7 +80,7 @@ public final class GetSnapshotInfoContext implements ActionListener<SnapshotInfo
     /**
      * @return true if fetching {@link SnapshotInfo} should be stopped after encountering any exception
      */
-    public boolean failFast() {
+    public boolean abortOnFailure() {
         return abortOnFailure;
     }
 

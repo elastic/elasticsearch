@@ -34,6 +34,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -111,6 +112,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             request.size(),
             request.sort(),
             request.after(),
+            request.order(),
             listener
         );
     }
@@ -125,6 +127,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable GetSnapshotsRequest.After after,
+        SortOrder order,
         ActionListener<GetSnapshotsResponse> listener
     ) {
         // short-circuit if there are no repos, because we can not create GroupedActionListener of size 0
@@ -152,6 +155,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 sortBy,
                 size,
                 after,
+                order,
                 groupedActionListener.delegateResponse((groupedListener, e) -> {
                     if (e instanceof ElasticsearchException) {
                         groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
@@ -173,11 +177,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         int size,
         @Nullable final GetSnapshotsRequest.After after,
+        SortOrder order,
         ActionListener<List<SnapshotInfo>> listener
     ) {
         final Map<String, SnapshotId> allSnapshotIds = new HashMap<>();
         final List<SnapshotInfo> currentSnapshots = new ArrayList<>();
-        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, size, after, sortBy)) {
+        for (SnapshotInfo snapshotInfo : sortedCurrentSnapshots(snapshotsInProgress, repo, size, after, sortBy, order)) {
             SnapshotId snapshotId = snapshotInfo.snapshotId();
             allSnapshotIds.put(snapshotId.getName(), snapshotId);
             currentSnapshots.add(snapshotInfo);
@@ -204,6 +209,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 size,
                 after,
                 sortBy,
+                order,
                 listener
             ),
             listener::onFailure
@@ -222,7 +228,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         String repositoryName,
         int size,
         @Nullable final GetSnapshotsRequest.After after,
-        GetSnapshotsRequest.SortBy sortBy
+        GetSnapshotsRequest.SortBy sortBy,
+        SortOrder order
     ) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
         List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
@@ -233,7 +240,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(new SnapshotInfo(entry));
         }
-        return sortSnapshots(snapshotList, sortBy, after, size);
+        return sortSnapshots(snapshotList, sortBy, after, size, order);
     }
 
     private void loadSnapshotInfos(
@@ -249,6 +256,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         int size,
         @Nullable final GetSnapshotsRequest.After after,
         GetSnapshotsRequest.SortBy sortBy,
+        SortOrder order,
         ActionListener<List<SnapshotInfo>> listener
     ) {
         if (task.isCancelled()) {
@@ -290,19 +298,20 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         if (verbose) {
-            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, size, after, listener);
+            snapshots(snapshotsInProgress, repo, toResolve, ignoreUnavailable, task, sortBy, size, after, order, listener);
         } else {
             final List<SnapshotInfo> snapshotInfos;
             if (repositoryData != null) {
                 // want non-current snapshots as well, which are found in the repository data
-                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, size, after, sortBy);
+                snapshotInfos = buildSimpleSnapshotInfos(toResolve, repositoryData, currentSnapshots, size, after, sortBy, order);
             } else {
                 // only want current snapshots
                 snapshotInfos = sortSnapshots(
                     currentSnapshots.stream().map(SnapshotInfo::basic).collect(Collectors.toList()),
                     sortBy,
                     after,
-                    size
+                    size,
+                    order
                 );
             }
             listener.onResponse(snapshotInfos);
@@ -327,6 +336,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         GetSnapshotsRequest.SortBy sortBy,
         int size,
         @Nullable GetSnapshotsRequest.After after,
+        SortOrder order,
         ActionListener<List<SnapshotInfo>> listener
     ) {
         if (task.isCancelled()) {
@@ -356,7 +366,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
-            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, size));
+            listener.onResponse(sortSnapshots(snapshotList, sortBy, after, size, order));
         });
         if (snapshotIdsToIterate.isEmpty()) {
             allDoneListener.onResponse(null);
@@ -405,7 +415,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final List<SnapshotInfo> currentSnapshots,
         final int size,
         @Nullable final GetSnapshotsRequest.After after,
-        final GetSnapshotsRequest.SortBy sortBy
+        final GetSnapshotsRequest.SortBy sortBy,
+        final SortOrder order
     ) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
         for (SnapshotInfo snapshotInfo : currentSnapshots) {
@@ -434,7 +445,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 )
             );
         }
-        return sortSnapshots(snapshotInfos, sortBy, after, size);
+        return sortSnapshots(snapshotInfos, sortBy, after, size, order);
     }
 
     private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparing(SnapshotInfo::startTime)
@@ -454,7 +465,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         List<SnapshotInfo> snapshotInfos,
         GetSnapshotsRequest.SortBy sortBy,
         @Nullable GetSnapshotsRequest.After after,
-        int size
+        int size,
+        SortOrder order
     ) {
         final Comparator<SnapshotInfo> comparator;
         switch (sortBy) {
@@ -473,7 +485,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
-        CollectionUtil.timSort(snapshotInfos, comparator.reversed());
+        CollectionUtil.timSort(snapshotInfos, order == SortOrder.DESC ? comparator.reversed() : comparator);
         // TODO: support asc order + make use of it below as well
         int startIndex = 0;
         if (after != null) {

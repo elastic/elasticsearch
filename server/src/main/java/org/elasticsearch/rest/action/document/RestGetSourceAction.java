@@ -14,6 +14,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
@@ -37,7 +38,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
  * The REST handler for get source and head source APIs.
  */
 public class RestGetSourceAction extends BaseRestHandler {
-    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source"
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetSourceAction.class);
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in get_source and exist_source "
         + "requests is deprecated.";
 
     @Override
@@ -62,6 +64,7 @@ public class RestGetSourceAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
             request.param("type"); // consume and ignore the type
+            deprecationLogger.compatibleApiWarning("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));

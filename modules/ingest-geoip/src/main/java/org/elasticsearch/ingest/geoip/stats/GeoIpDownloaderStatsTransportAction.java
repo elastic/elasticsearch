@@ -49,12 +49,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
     public void setTaskExecutor(GeoIpDownloaderTaskExecutor taskExecutor){
         geoIpDownloaderTaskExecutor = taskExecutor;
     }
-
-    @Override
-    protected void newResponseAsync(Task task, Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures, ActionListener<Response> listener) {
-
-    }
-
+    
     @Override
     protected Response newResponse(Request request, List<NodeResponse> nodeResponses, List<FailedNodeException> failures) {
         return new Response(clusterService.getClusterName(), nodeResponses, failures);

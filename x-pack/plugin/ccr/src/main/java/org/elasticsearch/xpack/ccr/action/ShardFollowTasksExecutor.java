@@ -277,8 +277,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                     } else {
                         parentDataStreamName = null;
                     }
-                    logger.info("followerIndex={},parentDataStreamName={}",
-                        followerIndexMetadata.getIndex().getName(), parentDataStreamName);
 
                     // partition the aliases into the three sets
                     final var aliasesOnLeaderNotOnFollower = new HashSet<String>();
@@ -319,9 +317,6 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             }
                         }
                     }
-
-                    logger.info("aliasesOnLeaderNotOnFollower={},aliasesInCommon={},aliasesOnFollowerNotOnLeader={}",
-                        aliasesOnLeaderNotOnFollower, aliasesInCommon, aliasesOnFollowerNotOnLeader);
 
                     final var aliasActions = new ArrayList<IndicesAliasesRequest.AliasActions>();
 
@@ -378,13 +373,12 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
                             final var leaderDataStreamAliasWithoutWriteDataStream =
                                 new DataStreamAlias(leaderDataStreamAlias.getName(), leaderDataStreamAlias.getDataStreams(), null);
                             final var followerDataStreamAlias = followerMetadata.dataStreamAliases().get(aliasName);
-                            if (leaderDataStreamAliasWithoutWriteDataStream.equals(followerDataStreamAlias)) {
-                                continue;
+                            if (leaderDataStreamAliasWithoutWriteDataStream.equals(followerDataStreamAlias) == false) {
+                                aliasActions.add(IndicesAliasesRequest.AliasActions.add()
+                                    .index(parentDataStreamName)
+                                    .alias(leaderDataStreamAlias.getName())
+                                    .writeIndex(false));
                             }
-                            aliasActions.add(IndicesAliasesRequest.AliasActions.add()
-                                .index(parentDataStreamName)
-                                .alias(leaderDataStreamAlias.getName())
-                                .writeIndex(false));
                         }
                     }
 

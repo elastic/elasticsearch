@@ -324,7 +324,23 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
             return;
         }
         pointsReader = pointsReader.getMergeInstance();
-        final PointsVisitor visitor = new PointsVisitor(cancellationChecker);
+        final PointValues.IntersectVisitor visitor = new PointValues.IntersectVisitor() {
+            @Override
+            public void visit(int docID) {
+                assert false : "Must never be called";
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void visit(int docID, byte[] packedValue) {
+                cancellationChecker.logEvent();
+            }
+
+            @Override
+            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+            }
+        };
         for (FieldInfo field : reader.getFieldInfos()) {
             cancellationChecker.checkForCancellation();
             directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_ONLY);
@@ -336,33 +352,6 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
                     stats.addPoints(field.name, length);
                 }
             }
-        }
-    }
-
-    private static class PointsVisitor implements PointValues.IntersectVisitor {
-        private final CancellationChecker cancellationChecker;
-
-        PointsVisitor(CancellationChecker cancellationChecker) {
-            this.cancellationChecker = cancellationChecker;
-        }
-
-        @Override
-        public void visit(int docID) throws IOException {
-            assert false : "Must never be called";
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public void visit(int docID, byte[] packedValue) throws IOException {
-            cancellationChecker.logEvent();
-            if (packedValue == null) {
-                throw new IllegalStateException("packedValue is null");
-            }
-        }
-
-        @Override
-        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            return PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }
 

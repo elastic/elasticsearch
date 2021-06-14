@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

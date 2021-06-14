@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -458,6 +458,11 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
         assertThat("expected a single document but got: " + count, (int) count.get("count"), equalTo(1));
+
+        assertBusy(() -> assertTrue(
+            "Expecting the mounted index to be deleted and to be converted to an alias",
+            aliasExists(searchableSnapMountedIndexName, SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index))
+        );
     }
 
     public void testSecondSearchableSnapshotUsingDifferentRepoThrows() throws Exception {

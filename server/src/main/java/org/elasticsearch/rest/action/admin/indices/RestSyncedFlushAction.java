@@ -22,7 +22,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -57,7 +57,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
         return channel -> client.admin().indices().flush(flushRequest, new SimulateSyncedFlushResponseListener(channel));
     }
 
-    static final class SimulateSyncedFlushResponseListener extends RestToXContentListener<FlushResponse> {
+    static final class SimulateSyncedFlushResponseListener extends RestBuilderListener<FlushResponse> {
 
         SimulateSyncedFlushResponseListener(RestChannel channel) {
             super(channel);

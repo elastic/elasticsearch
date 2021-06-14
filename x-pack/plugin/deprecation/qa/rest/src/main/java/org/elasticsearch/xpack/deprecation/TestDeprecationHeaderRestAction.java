@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;

@@ -172,9 +172,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         // First, check if there are any shards currently on this node, and if there are any relocating shards
         int startedShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
         int relocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
-        int initializingShards = currentState.getRoutingNodes()
-            .node(nodeId)
-            .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+        int initializingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.INITIALIZING);
         int totalRemainingShards = relocatingShards + startedShards + initializingShards;
 
         // If there's relocating shards, or no shards on this node, we'll just use the number of shards left to move

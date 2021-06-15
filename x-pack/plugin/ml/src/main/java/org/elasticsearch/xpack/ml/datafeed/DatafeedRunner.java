@@ -53,9 +53,9 @@ import static org.elasticsearch.persistent.PersistentTasksService.WaitForPersist
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public class DatafeedManager {
+public class DatafeedRunner {
 
-    private static final Logger logger = LogManager.getLogger(DatafeedManager.class);
+    private static final Logger logger = LogManager.getLogger(DatafeedRunner.class);
 
     private final Client client;
     private final ClusterService clusterService;
@@ -69,9 +69,9 @@ public class DatafeedManager {
     private final AutodetectProcessManager autodetectProcessManager;
     private final DatafeedContextProvider datafeedContextProvider;
 
-    public DatafeedManager(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
-                           Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
-                           AutodetectProcessManager autodetectProcessManager, DatafeedContextProvider datafeedContextProvider) {
+    public DatafeedRunner(ThreadPool threadPool, Client client, ClusterService clusterService, DatafeedJobBuilder datafeedJobBuilder,
+                          Supplier<Long> currentTimeSupplier, AnomalyDetectionAuditor auditor,
+                          AutodetectProcessManager autodetectProcessManager, DatafeedContextProvider datafeedContextProvider) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.threadPool = Objects.requireNonNull(threadPool);

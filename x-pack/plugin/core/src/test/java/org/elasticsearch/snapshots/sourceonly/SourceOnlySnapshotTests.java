@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.snapshots;
+package org.elasticsearch.snapshots.sourceonly;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;

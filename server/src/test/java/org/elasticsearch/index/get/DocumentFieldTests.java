@@ -10,11 +10,11 @@ package org.elasticsearch.index.get;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -123,7 +123,7 @@ public class DocumentFieldTests extends ESTestCase {
                     DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
                     return Tuple.tuple(listField, listField);
                 case 2:
-                    List<Object> objectValues = randomList(1, 5, () -> mapWithRandomKeys());
+                    List<Object> objectValues = randomList(1, 5, () -> mapWithUniqueKeys());
                     DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
                     return Tuple.tuple(objectField, objectField);
                 default:
@@ -132,13 +132,9 @@ public class DocumentFieldTests extends ESTestCase {
         }
     }
 
-    public static Map<String, Object> mapWithRandomKeys() {
-        String k1 = randomAlphaOfLength(5);
-        String k2 = randomValueOtherThan(k1, () -> randomAlphaOfLength(5));
-        String k3 = randomValueOtherThanMany(t -> t.equals(k1) || t.equals(k2), () -> randomAlphaOfLength(5));
-
-        return Map.of(k1, randomInt(),
-            k2, randomBoolean(),
-            k3, randomAlphaOfLength(10));
+    public static Map<String, Object> mapWithUniqueKeys() {
+        return Map.of("key1", randomInt(),
+            "key2", randomBoolean(),
+            "key3", randomAlphaOfLength(10));
     }
 }

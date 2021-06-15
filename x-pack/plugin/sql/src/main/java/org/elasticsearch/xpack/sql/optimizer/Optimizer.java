@@ -1157,10 +1157,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
 
             Optional<LogicalPlan> optimized = plan.collectFirstDown(p -> {
-                List<Object> foldedValues = null;
+                Optional<List<Object>> foldedValues = Optional.empty();
 
                 if (p instanceof Project && isNonSkippedLocalRelation) {
-                    foldedValues = extractConstants(((Project) p).projections());
+                    foldedValues = Optional.of(extractConstants(((Project) p).projections()));
                 } else if (p instanceof Aggregate) {
                     Aggregate a = (Aggregate) p;
                     List<Object> folded = extractConstants(a.aggregates());
@@ -1170,15 +1170,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         a.groupings().isEmpty();
 
                     if (isNonSkippedLocalRelation || onlyConstantAggregations) {
-                        foldedValues = folded;
+                        foldedValues = Optional.of(folded);
                     }
                 }
 
-                if (foldedValues != null) {
-                    return Optional.of(new LocalRelation(p.source(), new SingletonExecutable(p.output(), foldedValues.toArray())));
-                }
-
-                return Optional.empty();
+                return foldedValues.map(
+                    values -> new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
             });
 
             return optimized.orElse(plan);

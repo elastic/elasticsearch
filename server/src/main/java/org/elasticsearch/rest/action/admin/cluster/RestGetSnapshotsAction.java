@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -68,6 +69,8 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                     "] must be of the form '${sort_value},${snapshot_name}'");
         }
         getSnapshotsRequest.after(after);
+        final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
+        getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
                 .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));

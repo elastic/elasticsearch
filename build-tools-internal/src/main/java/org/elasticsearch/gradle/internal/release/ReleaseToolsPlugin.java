@@ -49,16 +49,16 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsAgainstYamlTask = project.getTasks()
             .register("validateChangelogsAgainstSchema", ValidateYamlAgainstSchemaTask.class, task -> {
                 task.setGroup("Documentation");
-                task.setDescription("Validates that all the changelog YAML files comply with the changelog schema");
+                task.setDescription("Validate that the changelog YAML files comply with the changelog schema");
                 task.setInputFiles(yamlFiles);
                 task.setJsonSchema(new File(project.getRootDir(), RESOURCES + "changelog-schema.json"));
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
-        final TaskProvider<ValidateYamlTask> validateChangelogsTask = project.getTasks()
-            .register("validateChangelogs", ValidateYamlTask.class, task -> {
+        final TaskProvider<ValidateChangelogEntryTask> validateChangelogsTask = project.getTasks()
+            .register("validateChangelogs", ValidateChangelogEntryTask.class, task -> {
                 task.setGroup("Documentation");
-                task.setDescription("Validates that all the changelog YAML files are well-formed");
+                task.setDescription("Validate that all changelog YAML files are well-formed");
                 task.setChangelogs(yamlFiles);
                 task.dependsOn(validateChangelogsAgainstYamlTask);
             });

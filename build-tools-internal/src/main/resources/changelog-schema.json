@@ -7,8 +7,7 @@
       "type": "object",
       "properties": {
         "pr": {
-          "type": "integer",
-          "minimum": 1
+          "type": "integer"
         },
         "issues": {
           "type": "array",
@@ -93,8 +92,10 @@
             "deprecation",
             "enhancement",
             "feature",
+            "known-issue",
             "new-aggregation",
             "regression",
+            "security",
             "upgrade"
           ]
         },
@@ -121,8 +122,6 @@
         }
       },
       "required": [
-        "pr",
-        "area",
         "type",
         "summary",
         "versions"

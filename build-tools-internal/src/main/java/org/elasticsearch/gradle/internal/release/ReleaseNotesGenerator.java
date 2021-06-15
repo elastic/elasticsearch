@@ -11,13 +11,10 @@ package org.elasticsearch.gradle.internal.release;
 import groovy.text.SimpleTemplateEngine;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
-import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintStream;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -39,10 +36,10 @@ public class ReleaseNotesGenerator {
     static {
         TYPE_LABELS.put("breaking", "Breaking changes");
         TYPE_LABELS.put("breaking-java", "Breaking Java changes");
-        TYPE_LABELS.put("deprecation", "Deprecations");
-        TYPE_LABELS.put("feature", "New features");
-        TYPE_LABELS.put("enhancement", "Enhancements");
         TYPE_LABELS.put("bug", "Bug fixes");
+        TYPE_LABELS.put("deprecation", "Deprecations");
+        TYPE_LABELS.put("enhancement", "Enhancements");
+        TYPE_LABELS.put("feature", "New features");
         TYPE_LABELS.put("regression", "Regressions");
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
@@ -82,17 +79,24 @@ public class ReleaseNotesGenerator {
                         .findFirst()
                         .get(),
 
-                    // Generate a reverse-ordered map
+                    // Generate a reverse-ordered map. Despite the IDE saying the type can be inferred, removing it
+                    // causes the compiler to complain.
                     () -> new TreeMap<Version, Map<String, Map<String, List<ChangelogEntry>>>>(Comparator.reverseOrder()),
 
                     // Group changelogs entries by their change type
                     Collectors.groupingBy(
-                        // Breaking changes come first in the output
+                        // Entries with breaking info are always put in the breaking section
                         entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
                         TreeMap::new,
-
                         // Group changelogs for each type by their team area
-                        Collectors.groupingBy(ChangelogEntry::getArea, TreeMap::new, Collectors.toList())
+                        Collectors.groupingBy(
+                            // `security` and `known-issue` areas don't need to supply an area
+                            entry -> entry.getType().equals("known-issue") || entry.getType().equals("security")
+                                ? "_all_"
+                                : entry.getArea(),
+                            TreeMap::new,
+                            Collectors.toList()
+                        )
                     )
                 )
             );

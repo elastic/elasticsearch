@@ -5,7 +5,25 @@
 coming[$version]
 <% } %>
 Also see <<breaking-changes-${ version.major }.${ version.minor },Breaking changes in ${ version.major }.${ version.minor }>>.
-<% for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
+<% if (changelogsByVersionByTypeByArea[version]["security"] != null) { %>
+[discrete]
+[[security-updates-${version}]]
+=== Security updates
+
+<% for (change in changelogsByVersionByTypeByArea[version].remove("security").remove("_all_")) {
+    print "* ${change.summary}\n"
+}
+}
+if (changelogsByVersionByTypeByArea[version]["known-issue"] != null) { %>
+[discrete]
+[[known-issues-${version}]]
+=== Known issues
+
+<% for (change in changelogsByVersionByTypeByArea[version].remove("known-issue").remove("_all_")) {
+    print "* ${change.summary}\n"
+}
+}
+for (changeType in changelogsByVersionByTypeByArea[version].keySet()) { %>
 [[${ changeType }-${ version }]]
 [float]
 === ${ TYPE_LABELS[changeType] }

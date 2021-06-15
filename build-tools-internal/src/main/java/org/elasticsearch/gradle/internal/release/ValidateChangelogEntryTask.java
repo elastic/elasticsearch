@@ -25,12 +25,12 @@ import java.util.stream.Collectors;
 /**
  * Performs additional checks on changelog files, beyond whether they conform to the schema.
  */
-public class ValidateYamlTask extends DefaultTask {
+public class ValidateChangelogEntryTask extends DefaultTask {
     private final ConfigurableFileCollection changelogs;
     private final ProjectLayout projectLayout;
 
     @Inject
-    public ValidateYamlTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
+    public ValidateChangelogEntryTask(ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.changelogs = objectFactory.fileCollection();
         this.projectLayout = projectLayout;
     }
@@ -45,13 +45,27 @@ public class ValidateYamlTask extends DefaultTask {
         // We don't try to find all such errors, because we expect them to be rare e.g. only
         // when a new file is added.
         changelogs.forEach((path, entry) -> {
-            if ((entry.getType().equals("breaking") || entry.getType().equals("breaking-java")) && entry.getBreaking() == null) {
+            final String type = entry.getType();
+
+            if (type.equals("known-issue") == false && type.equals("security") == false) {
+                if (entry.getPr() == null) {
+                    throw new GradleException("[" + path + "] must provide a [pr] number (only 'known-issue' and " +
+                        "'security' entries can omit this");
+                }
+
+                if (entry.getArea() == null) {
+                    throw new GradleException("[" + path + "] must provide an [area] (only 'known-issue' and " +
+                        "'security' entries can omit this");
+                }
+            }
+
+            if ((type.equals("breaking") || type.equals("breaking-java")) && entry.getBreaking() == null) {
                 throw new GradleException(
-                    "[" + path + "] has type [breaking] and must supply a [breaking] section with further information"
+                    "[" + path + "] has type [" + type + "] and must supply a [breaking] section with further information"
                 );
             }
 
-            if (entry.getType().equals("deprecation") && entry.getDeprecation() == null) {
+            if (type.equals("deprecation") && entry.getDeprecation() == null) {
                 throw new GradleException(
                     "[" + path + "] has type [deprecation] and must supply a [deprecation] section with further information"
                 );

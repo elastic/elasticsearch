@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * This class ensures that the release notes index page has the appropriate anchor and include directive
+ * This class ensures that the release notes index page has the appropriate anchors and include directives
  * for the current repository version. It achieves this by parsing out the existing entries and writing
  * out the file again.
  */

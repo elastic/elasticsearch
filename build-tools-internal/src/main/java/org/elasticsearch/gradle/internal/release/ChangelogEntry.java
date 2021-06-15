@@ -21,15 +21,15 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
- * This class models the contents of a changelog YAML file. It contains no validation of its own,
- * because we check it against a JSON Schema document. See also:
+ * This class models the contents of a changelog YAML file. We validate it using a
+ * JSON Schema, as well as some programmatic checks in {@link ValidateChangelogEntryTask}.
  * <ul>
  *   <li><code>buildSrc/src/main/resources/changelog-schema.json</code></li>
  *   <li><a href="https://json-schema.org/understanding-json-schema/">Understanding JSON Schema</a></li>
  * </ul>
  */
 public class ChangelogEntry {
-    private int pr;
+    private Integer pr;
     private List<Integer> issues;
     private String area;
     private String type;
@@ -49,11 +49,11 @@ public class ChangelogEntry {
         }
     }
 
-    public int getPr() {
+    public Integer getPr() {
         return pr;
     }
 
-    public void setPr(int pr) {
+    public void setPr(Integer pr) {
         this.pr = pr;
     }
 
@@ -130,7 +130,7 @@ public class ChangelogEntry {
             return false;
         }
         ChangelogEntry that = (ChangelogEntry) o;
-        return pr == that.pr
+        return Objects.equals(pr, that.pr)
             && Objects.equals(issues, that.issues)
             && Objects.equals(area, that.area)
             && Objects.equals(type, that.type)

@@ -392,8 +392,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        XContentBuilder docSource = service.newDocument(
-            getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),"test", authentication,
+        XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()),"test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT, metadata);
         if (invalidated) {
@@ -1100,7 +1099,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 List<RoleDescriptor> keyRoles,
                                                                 Version version) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(
-                getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())), "test", authentication,
+                new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
                 userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(

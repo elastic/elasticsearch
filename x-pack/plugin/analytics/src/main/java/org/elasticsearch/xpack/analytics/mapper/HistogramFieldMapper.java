@@ -260,7 +260,7 @@ public class HistogramFieldMapper extends FieldMapper {
                         if (val < previousVal) {
                             // values must be in increasing order
                             throw new MapperParsingException("error parsing field ["
-                                + name() + "], ["+ COUNTS_FIELD + "] values must be in increasing order, got [" + val +
+                                + name() + "], ["+ VALUES_FIELD + "] values must be in increasing order, got [" + val +
                                 "] but previous value was [" + previousVal +"]");
                         }
                         values.add(val);

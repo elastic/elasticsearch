@@ -33,8 +33,7 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     private boolean ignoreUnavailable;
 
-    public SnapshotsStatusRequest() {
-    }
+    public SnapshotsStatusRequest() {}
 
     /**
      * Constructs a new get snapshots request with given repository name and list of snapshots

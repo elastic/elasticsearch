@@ -92,16 +92,25 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
 
     @Override
     public String toString() {
-        return "SnapshotShardFailure{" +
-            "shardId=" + shardId +
-            ", reason='" + reason + '\'' +
-            ", nodeId='" + nodeId + '\'' +
-            ", status=" + status +
-            '}';
+        return "SnapshotShardFailure{"
+            + "shardId="
+            + shardId
+            + ", reason='"
+            + reason
+            + '\''
+            + ", nodeId='"
+            + nodeId
+            + '\''
+            + ", status="
+            + status
+            + '}';
     }
 
-    static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER =
-        new ConstructingObjectParser<>("shard_failure", true, SnapshotShardFailure::constructSnapshotShardFailure);
+    static final ConstructingObjectParser<SnapshotShardFailure, Void> SNAPSHOT_SHARD_FAILURE_PARSER = new ConstructingObjectParser<>(
+        "shard_failure",
+        true,
+        SnapshotShardFailure::constructSnapshotShardFailure
+    );
 
     static {
         SNAPSHOT_SHARD_FAILURE_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("index"));
@@ -171,10 +180,10 @@ public class SnapshotShardFailure extends ShardOperationFailedException {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SnapshotShardFailure that = (SnapshotShardFailure) o;
-        return shardId.equals(that.shardId) &&
-            Objects.equals(reason, that.reason) &&
-            Objects.equals(nodeId, that.nodeId) &&
-            status.getStatus() == that.status.getStatus();
+        return shardId.equals(that.shardId)
+            && Objects.equals(reason, that.reason)
+            && Objects.equals(nodeId, that.nodeId)
+            && status.getStatus() == that.status.getStatus();
     }
 
     @Override

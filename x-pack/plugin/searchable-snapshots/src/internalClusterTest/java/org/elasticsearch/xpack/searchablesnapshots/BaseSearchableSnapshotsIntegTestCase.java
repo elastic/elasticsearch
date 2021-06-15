@@ -47,6 +47,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.blob.BlobStoreCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;

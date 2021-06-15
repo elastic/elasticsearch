@@ -80,8 +80,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         try {
             // Request body is closed in the finally block
             final BytesReference requestBody = Streams.readFully(Streams.noCloseStream(exchange.getRequestBody()));
-            if (request.equals("GET /") &&
-                "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
+            if (request.equals("GET /") && "Google".equals(exchange.getRequestHeaders().getFirst("Metadata-Flavor"))) {
                 // the SDK checks this endpoint to determine if it's running within Google Compute Engine
                 exchange.getResponseHeaders().add("Metadata-Flavor", "Google");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), 0);
@@ -118,11 +117,11 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     }
                 }
 
-                byte[] response = ("{\"kind\":\"storage#objects\",\"items\":[" +
-                    String.join(",", listOfBlobs) +
-                    "],\"prefixes\":[" +
-                    String.join(",", prefixes) +
-                    "]}").getBytes(UTF_8);
+                byte[] response = ("{\"kind\":\"storage#objects\",\"items\":["
+                    + String.join(",", listOfBlobs)
+                    + "],\"prefixes\":["
+                    + String.join(",", prefixes)
+                    + "]}").getBytes(UTF_8);
 
                 exchange.getResponseHeaders().add("Content-Type", "application/json; charset=utf-8");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
@@ -194,8 +193,13 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                 } else {
-                    throw new AssertionError("Could not read multi-part request to [" + request + "] with headers ["
-                        + new HashMap<>(exchange.getRequestHeaders()) + "]");
+                    throw new AssertionError(
+                        "Could not read multi-part request to ["
+                            + request
+                            + "] with headers ["
+                            + new HashMap<>(exchange.getRequestHeaders())
+                            + "]"
+                    );
                 }
 
             } else if (Regex.simpleMatch("POST /upload/storage/v1/b/" + bucket + "/*uploadType=resumable*", request)) {
@@ -208,14 +212,23 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 if (Paths.get(blobName).getFileName().toString().startsWith(BlobStoreRepository.UPLOADED_DATA_BLOB_PREFIX) == false) {
                     final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
-                    assert parsedBody.get("md5Hash") != null :
-                            "file [" + blobName + "] is not a data blob but did not come with a md5 checksum";
+                    assert parsedBody.get("md5Hash") != null
+                        : "file [" + blobName + "] is not a data blob but did not come with a md5 checksum";
                 }
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
-                exchange.getResponseHeaders().add("Location", httpServerUrl(exchange) + "/upload/storage/v1/b/" + bucket + "/o?"
-                    + "uploadType=resumable"
-                    + "&upload_id=" + UUIDs.randomBase64UUID()
-                    + "&test_blob_name=" + blobName); // not a Google Storage parameter, but it allows to pass the blob name
+                exchange.getResponseHeaders()
+                    .add(
+                        "Location",
+                        httpServerUrl(exchange)
+                            + "/upload/storage/v1/b/"
+                            + bucket
+                            + "/o?"
+                            + "uploadType=resumable"
+                            + "&upload_id="
+                            + UUIDs.randomBase64UUID()
+                            + "&test_blob_name="
+                            + blobName
+                    ); // not a Google Storage parameter, but it allows to pass the blob name
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                 exchange.getResponseBody().write(response);
 
@@ -260,10 +273,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private String buildBlobInfoJson(String blobName, int size) {
         return "{\"kind\":\"storage#object\","
-            + "\"bucket\":\"" + bucket + "\","
-            + "\"name\":\"" + blobName + "\","
-            + "\"id\":\"" + blobName + "\","
-            + "\"size\":\"" + size + "\""
+            + "\"bucket\":\""
+            + bucket
+            + "\","
+            + "\"name\":\""
+            + blobName
+            + "\","
+            + "\"id\":\""
+            + blobName
+            + "\","
+            + "\"size\":\""
+            + size
+            + "\""
             + "}";
     }
 
@@ -307,7 +328,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     } else if (start.startsWith(bucketPrefix)) {
                         markAndContinue = true;
                         final String line = fullRequestBody.slice(
-                            startPos + bucketPrefix.length(), endPos - startPos - bucketPrefix.length()).utf8ToString();
+                            startPos + bucketPrefix.length(),
+                            endPos - startPos - bucketPrefix.length()
+                        ).utf8ToString();
                         Matcher matcher = NAME_PATTERN.matcher(line);
                         if (matcher.find()) {
                             name = matcher.group(1);
@@ -326,8 +349,12 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         }
         if (content == null) {
             final InputStream stream = fullRequestBody.streamInput();
-            logger.warn(() -> new ParameterizedMessage("Failed to find multi-part upload in [{}]", new BufferedReader(
-                new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))));
+            logger.warn(
+                () -> new ParameterizedMessage(
+                    "Failed to find multi-part upload in [{}]",
+                    new BufferedReader(new InputStreamReader(stream)).lines().collect(Collectors.joining("\n"))
+                )
+            );
         }
         return Optional.ofNullable(content);
     }
@@ -360,14 +387,18 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
     }
 
     public static int getContentRangeStart(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
-                (start, end) -> Integer.parseInt(start)));
+        return parse(
+            PATTERN_CONTENT_RANGE,
+            contentRange,
+            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes, (start, end) -> Integer.parseInt(start))
+        );
     }
 
     public static int getContentRangeEnd(final String contentRange) {
-        return parse(PATTERN_CONTENT_RANGE, contentRange,
-            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes,
-                (start, end) -> Integer.parseInt(end)));
+        return parse(
+            PATTERN_CONTENT_RANGE,
+            contentRange,
+            (bytes, limit) -> parse(PATTERN_CONTENT_RANGE_BYTES, bytes, (start, end) -> Integer.parseInt(end))
+        );
     }
 }

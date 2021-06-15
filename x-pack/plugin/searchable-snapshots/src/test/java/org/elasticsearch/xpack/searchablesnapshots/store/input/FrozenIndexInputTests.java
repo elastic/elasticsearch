@@ -28,7 +28,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;

@@ -14,13 +14,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Nullable;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -137,16 +138,18 @@ public final class PhaseCacheManagement {
                 .filter(meta -> isIndexPhaseDefinitionUpdatable(xContentRegistry, client, meta, newPolicy.getPolicy()))
                 .collect(Collectors.toList());
 
+        final List<String> refreshedIndices = new ArrayList<>(indicesThatCanBeUpdated.size());
         for (IndexMetadata index : indicesThatCanBeUpdated) {
             try {
                 refreshPhaseDefinition(mb, index, newPolicy);
+                refreshedIndices.add(index.getIndex().getName());
             } catch (Exception e) {
                 logger.warn(new ParameterizedMessage("[{}] unable to refresh phase definition for updated policy [{}]",
                     index, newPolicy.getName()), e);
             }
         }
-
-        return indicesThatCanBeUpdated.size() > 0;
+        logger.debug("refreshed policy [{}] phase definition for [{}] indices", newPolicy.getName(), refreshedIndices.size());
+        return refreshedIndices.size() > 0;
     }
 
     /**

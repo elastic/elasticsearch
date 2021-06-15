@@ -178,7 +178,8 @@ public class ShrinkAction implements LifecycleAction {
             new GenerateUniqueIndexNameStep(generateShrinkIndexNameKey, setSingleNodeKey, SHRUNKEN_INDEX_PREFIX,
                 (generatedIndexName, lifecycleStateBuilder) -> lifecycleStateBuilder.setShrinkIndexName(generatedIndexName));
         // choose a node to collocate the source index in preparation for shrink
-        SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
+        SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client,
+            numberOfShards);
 
         // wait for the source shards to be collocated before attempting to shrink the index. we're waiting until a configured threshold is
         // breached (controlled by LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD) at which point we rewind to the

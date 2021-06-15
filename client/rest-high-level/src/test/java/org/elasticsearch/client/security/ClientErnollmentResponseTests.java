@@ -26,15 +26,11 @@ public class ClientErnollmentResponseTests extends ESTestCase {
     public void testFromXContent() throws IOException {
         final String password = randomAlphaOfLength(14);
         final String httpCa = randomAlphaOfLength(50);
-        final List<String> nodesAddresses =  randomList(10, () -> buildNewFakeTransportAddress().toString());
+        final List<String> nodesAddresses = randomList(2, 10, () -> buildNewFakeTransportAddress().toString());
 
         final XContentType xContentType = randomFrom(XContentType.values());
         final XContentBuilder builder = XContentFactory.contentBuilder(xContentType);
-        builder.startObject()
-            .field("password", password)
-            .field("http_ca", httpCa)
-            .field("nodes_addresses", nodesAddresses)
-            .endObject();
+        builder.startObject().field("password", password).field("http_ca", httpCa).field("nodes_addresses", nodesAddresses).endObject();
         BytesReference xContent = BytesReference.bytes(builder);
 
         final KibanaEnrollmentResponse response = KibanaEnrollmentResponse.fromXContent(createParser(xContentType.xContent(), xContent));
@@ -46,11 +42,10 @@ public class ClientErnollmentResponseTests extends ESTestCase {
     public void testEqualsHashCode() {
         final SecureString password = new SecureString(randomAlphaOfLength(14).toCharArray());
         final String httpCa = randomAlphaOfLength(50);
-        final List<String> nodesAddresses =  randomList(10, () -> buildNewFakeTransportAddress().toString());
+        final List<String> nodesAddresses = randomList(2, 10, () -> buildNewFakeTransportAddress().toString());
         KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa, nodesAddresses);
 
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            kibanaEnrollmentResponse,
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
             (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(), original.getNodesAddresses()));
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
@@ -62,18 +57,22 @@ public class ClientErnollmentResponseTests extends ESTestCase {
         switch (randomIntBetween(0, 3)) {
             case 0:
                 return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
-                    original.getHttpCa(), original.getNodesAddresses());
+                    original.getHttpCa(),
+                    original.getNodesAddresses());
             case 1:
                 return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51), original.getNodesAddresses());
             case 2:
-                return new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size()-1));
+                return new KibanaEnrollmentResponse(original.getPassword(),
+                    original.getHttpCa(),
+                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
             case 3:
-                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()), original.getHttpCa(),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size()-1));
+                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
+                    original.getHttpCa(),
+                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
             default:
-                return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size()-1));
+                return new KibanaEnrollmentResponse(original.getPassword(),
+                    randomAlphaOfLength(51),
+                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
         }
     }
 }

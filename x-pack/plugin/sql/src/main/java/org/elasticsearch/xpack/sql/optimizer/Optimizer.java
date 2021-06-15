@@ -100,6 +100,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -1149,64 +1150,38 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            Holder<LocalRelation> optimizedPlan = new Holder<>();
-            LeafPlan leafRelation = leafRelation(plan);
+            LeafPlan relation = plan.collectFirstDown(LeafPlan.class).get();
 
             // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-            boolean isNonSkippedLocalRelation = leafRelation instanceof LocalRelation &&
-                ((LocalRelation) leafRelation).executable() instanceof EmptyExecutable == false;
+            boolean isNonSkippedLocalRelation = relation instanceof LocalRelation &&
+                ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
 
-            if (isNonSkippedLocalRelation) {
-                plan.forEachDown(Project.class, p -> {
-                    List<Object> values = extractConstants(p.projections());
+            Optional<LogicalPlan> optimized = plan.collectFirstDown(p -> {
+                List<Object> foldedValues = null;
 
-                    if (values.size() != p.projections().size()) {
-                        throw new IllegalStateException("Trying to execute non-constant projection in local relation.");
+                if (p instanceof Project && isNonSkippedLocalRelation) {
+                    foldedValues = extractConstants(((Project) p).projections());
+                } else if (p instanceof Aggregate) {
+                    Aggregate a = (Aggregate) p;
+                    List<Object> folded = extractConstants(a.aggregates());
+
+                    boolean onlyConstantAggregations = relation instanceof EsRelation &&
+                        folded.size() == a.aggregates().size() &&
+                        a.groupings().isEmpty();
+
+                    if (isNonSkippedLocalRelation || onlyConstantAggregations) {
+                        foldedValues = folded;
                     }
-                    if (optimizedPlan.get() != null) {
-                        throw new IllegalStateException("More than one Project found.");
-                    }
-
-                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
-                });
-            }
-
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
-            }
-
-            plan.forEachDown(Aggregate.class, a -> {
-                List<Object> values = extractConstants(a.aggregates());
-
-                // aggregations on only constant values like "SELECT 'foo' FROM test GROUP BY 1"
-                // can also be executed locally
-                boolean onlyConstantAggregations = leafRelation instanceof EsRelation &&
-                    a.groupings().isEmpty() &&
-                    values.size() == a.aggregates().size();
-
-                if (isNonSkippedLocalRelation || onlyConstantAggregations) {
-                    if (values.size() != a.aggregates().size()) {
-                        throw new IllegalStateException("Trying to execute non-constant aggregation in local relation.");
-                    }
-                    if (optimizedPlan.get() != null) {
-                        throw new IllegalStateException("More than one Aggregate found.");
-                    }
-
-                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
+
+                if (foldedValues != null) {
+                    return Optional.of(new LocalRelation(p.source(), new SingletonExecutable(p.output(), foldedValues.toArray())));
+                }
+
+                return Optional.empty();
             });
 
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
-            }
-
-            return plan;
-        }
-
-        private LeafPlan leafRelation(LogicalPlan plan) {
-            Holder<LeafPlan> result = new Holder<LeafPlan>();
-            plan.forEachDown(LeafPlan.class, result::set);
-            return result.get();
+            return optimized.orElse(plan);
         }
 
         private List<Object> extractConstants(List<? extends NamedExpression> named) {

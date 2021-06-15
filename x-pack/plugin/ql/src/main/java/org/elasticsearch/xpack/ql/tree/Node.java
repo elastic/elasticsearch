@@ -13,9 +13,11 @@ import java.util.BitSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 
@@ -159,6 +161,33 @@ public abstract class Node<T extends Node<T>> {
                 child.doCollectFirst(predicate, matches);
             }
         }
+    }
+
+    public <R> Optional<R> collectFirstDown(Class<R> typeToken) {
+        return collectFirstDown(n -> {
+            if (typeToken.isInstance(n)) {
+                return Optional.of(typeToken.cast(n));
+            } else {
+                return Optional.empty();
+            }
+        });
+    }
+
+    @SuppressWarnings("unchecked")
+    public <R> Optional<R> collectFirstDown(Function<T, Optional<R>> fn) {
+        Optional<R> result = fn.apply((T) this);
+        if (result.isPresent()) {
+            return result;
+        } else {
+            for (T child : children()) {
+                Optional<R> childResult = child.collectFirstDown(fn);
+                if (childResult.isPresent()) {
+                    return childResult;
+                }
+            }
+        }
+
+        return Optional.empty();
     }
 
     // TODO: maybe add a flatMap (need to double check the Stream bit)

@@ -1145,7 +1145,7 @@ public class OptimizerTests extends ESTestCase {
     public void testSkipQueryOnLocalRelation() {
         // SELECT TRUE as a
         Project plan = new Project(EMPTY,
-            new LocalRelation(EMPTY, new SingletonExecutable(List.of())),
+            new LocalRelation(EMPTY, new SingletonExecutable(emptyList())),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
         LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
@@ -1157,8 +1157,8 @@ public class OptimizerTests extends ESTestCase {
     public void testSkipQueryOnEsAggregationWithOnlyConstants() {
         Aggregate plan = new Aggregate(EMPTY,
             new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
-            List.of(),
-            List.of(new Alias(EMPTY, "a", TRUE))
+            emptyList(),
+            singletonList(new Alias(EMPTY, "a", TRUE))
         );
 
         LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);

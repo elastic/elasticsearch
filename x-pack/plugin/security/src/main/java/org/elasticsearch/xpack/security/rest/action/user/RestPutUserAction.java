@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.rest.action.user;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,7 +47,7 @@ public class RestPutUserAction extends SecurityBaseRestHandler implements RestRe
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_security/user/{username}")
                 .replaces(POST, "/_xpack/security/user/{username}", RestApiVersion.V_7).build(),
             Route.builder(PUT, "/_security/user/{username}")

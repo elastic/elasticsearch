@@ -94,8 +94,8 @@ public class SamlServiceProviderResolverTests extends ESTestCase {
         assertThat(serviceProvider.getPrivileges().getResource(), equalTo(resource));
         final Function<String, Set<String>> roleMapping = serviceProvider.getPrivileges().getRoleMapping();
         assertThat(roleMapping, notNullValue());
-        assertThat(roleMapping.apply("role:foo"), equalTo(org.elasticsearch.common.collect.Set.of("foo")));
-        assertThat(roleMapping.apply("foo:bar"), equalTo(org.elasticsearch.common.collect.Set.of()));
+        assertThat(roleMapping.apply("role:foo"), equalTo(org.elasticsearch.core.Set.of("foo")));
+        assertThat(roleMapping.apply("foo:bar"), equalTo(org.elasticsearch.core.Set.of()));
     }
 
     public void testResolveReturnsCachedObject() throws Exception {

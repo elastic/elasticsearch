@@ -29,9 +29,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -250,9 +250,9 @@ public class TransportBulkActionTests extends ESTestCase {
             Map.of("plugin", new SystemIndices.Feature(
                 "plugin",
                 "test feature",
-                org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".test", "")))
+                org.elasticsearch.core.List.of(new SystemIndexDescriptor(".test", "")))
             ));
-        List<String> onlySystem = org.elasticsearch.common.collect.List.of(".foo", ".bar");
+        List<String> onlySystem = org.elasticsearch.core.List.of(".foo", ".bar");
         assertTrue(bulkAction.isOnlySystem(buildBulkRequest(onlySystem), indicesLookup, systemIndices));
 
         onlySystem = Arrays.asList(".foo", ".bar", ".test");

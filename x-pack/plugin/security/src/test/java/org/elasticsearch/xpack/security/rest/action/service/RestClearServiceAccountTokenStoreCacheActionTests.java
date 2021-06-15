@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -83,7 +85,7 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         dispatchRequest(restRequest);
 
         final ClearSecurityCacheRequest clearSecurityCacheRequest = requestHolder.get();
-        assertThat(org.elasticsearch.common.collect.Set.of(clearSecurityCacheRequest.keys()),
+        assertThat(Set.of(clearSecurityCacheRequest.keys()),
             equalTo(Arrays.stream(names).map(n -> namespace + "/" + service + "/" + n).collect(Collectors.toSet())));
     }
 
@@ -96,7 +98,7 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         names[names.length - 1] = ValidationTests.randomTokenName();
 
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
-            .withParams(org.elasticsearch.common.collect.Map.of(
+            .withParams(Map.of(
                 "namespace", randomAlphaOfLengthBetween(3, 8),
                 "service", randomAlphaOfLengthBetween(3, 8),
                 "name", Strings.arrayToCommaDelimitedString(names)))
@@ -105,5 +107,6 @@ public class RestClearServiceAccountTokenStoreCacheActionTests extends RestActio
         final IllegalArgumentException e =
             expectThrows(IllegalArgumentException.class, () -> restAction.innerPrepareRequest(fakeRestRequest, mock(NodeClient.class)));
         assertThat(e.getMessage(), containsString(Validation.INVALID_SERVICE_ACCOUNT_TOKEN_NAME_MESSAGE));
+        assertThat(e.getMessage(), containsString("invalid service token name [" + names[0] + "]"));
     }
 }

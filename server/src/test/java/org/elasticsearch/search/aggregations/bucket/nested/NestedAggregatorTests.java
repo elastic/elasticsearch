@@ -27,8 +27,8 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -876,7 +876,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return MOCK_OBJECT_MAPPERS;
     }
 
-    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = org.elasticsearch.common.collect.List.of(
+    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = org.elasticsearch.core.List.of(
         nestedObject(NESTED_OBJECT),
         nestedObject(NESTED_OBJECT + "." + NESTED_OBJECT2),
         nestedObject("nested_reseller"),

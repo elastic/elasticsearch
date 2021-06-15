@@ -12,7 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -32,7 +32,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(GET, "_cat/ml/datafeeds/{" + DatafeedConfig.ID + "}"),
             new Route(GET, "_cat/ml/datafeeds")
         );

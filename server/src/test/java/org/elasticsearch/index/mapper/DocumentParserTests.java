@@ -50,7 +50,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new DocumentParserTestsPlugin());
+        return org.elasticsearch.core.List.of(new DocumentParserTestsPlugin());
     }
 
     public void testParseWithRuntimeField() throws Exception {

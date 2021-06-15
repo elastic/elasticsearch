@@ -20,9 +20,9 @@ officially supported on clusters with {security-features} enabled.
 [discrete]
 === Changes in wildcard behavior
 
-{es} clusters with the {security-features} enabled apply the `/_all`
-wildcard, and all other wildcards, to the data streams, indices, and index aliases that the current user has
-privileges for, not all data streams, indices, and index aliases on the cluster.
+{es} clusters with the {security-features} enabled apply `_all` and other
+wildcards to data streams, indices, and aliases the current user has privileges
+for, not all data streams, indices, and aliases on the cluster.
 
 [discrete]
 === Multi document APIs

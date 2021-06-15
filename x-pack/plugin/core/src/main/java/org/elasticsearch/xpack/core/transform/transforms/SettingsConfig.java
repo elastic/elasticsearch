@@ -108,10 +108,6 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return validationException;
     }
 
-    public boolean isValid() {
-        return true;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalInt(maxPageSearchSize);

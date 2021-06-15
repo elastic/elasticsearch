@@ -29,9 +29,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -1233,7 +1233,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 HashMap::putAll);
             for (ApiKey apiKey : response.getApiKeyInfos()) {
                 final Map<String, Object> metadata = idToMetadata.get(apiKey.getId());
-                assertThat(apiKey.getMetadata(), equalTo(metadata == null ? org.elasticsearch.common.collect.Map.of() : metadata));
+                assertThat(apiKey.getMetadata(), equalTo(metadata == null ? org.elasticsearch.core.Map.of() : metadata));
             }
         }
     }

@@ -13,7 +13,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -50,7 +50,8 @@ public class ServiceAccountIT extends ESRestTestCase {
         + "  \"full_name\": \"Service account - elastic/fleet-server\",\n"
         + "  \"email\": null,\n"
         + "  \"token\": {\n"
-        + "    \"name\": \"%s\"\n"
+        + "    \"name\": \"%s\",\n"
+        + "    \"type\": \"_service_account_%s\"\n"
         + "  },\n"
         + "  \"metadata\": {\n"
         + "    \"_elastic_service_account\": true\n"
@@ -176,7 +177,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "token1", "file")),
                 false, XContentType.JSON).v2()));
     }
 
@@ -233,7 +234,7 @@ public class ServiceAccountIT extends ESRestTestCase {
 
         assertThat(responseMap.get("username"), equalTo("elastic/fleet-server"));
         assertThat(responseMap.get("authentication_type"), equalTo("realm"));
-        assertThat(responseMap.get("roles"), equalTo(org.elasticsearch.common.collect.List.of("superuser")));
+        assertThat(responseMap.get("roles"), equalTo(org.elasticsearch.core.List.of("superuser")));
         Map<?, ?> authRealm = (Map<?, ?>) responseMap.get("authentication_realm");
         assertThat(authRealm, hasEntry("type", "file"));
     }
@@ -254,7 +255,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertOK(response);
         assertThat(responseAsMap(response),
             equalTo(XContentHelper.convertToMap(
-                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1")),
+                new BytesArray(String.format(Locale.ROOT, AUTHENTICATE_RESPONSE, "api-token-1", "index")),
                 false, XContentType.JSON).v2()));
     }
 
@@ -297,9 +298,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Map<String, Object> getTokensResponseMap1 = responseAsMap(getTokensResponse1);
         assertThat(getTokensResponseMap1.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap1.get("count"), equalTo(1));
-        assertThat(getTokensResponseMap1.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of()));
+        assertThat(getTokensResponseMap1.get("tokens"), equalTo(org.elasticsearch.core.Map.of()));
         assertThat(getTokensResponseMap1.get("file_tokens"),
-            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
+            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
 
         final Request createTokenRequest1 = new Request("POST", "_security/service/elastic/fleet-server/credential/token/api-token-1");
         final Response createTokenResponse1 = client().performRequest(createTokenRequest1);
@@ -315,10 +316,10 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap2.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap2.get("count"), equalTo(3));
         assertThat(getTokensResponseMap2.get("file_tokens"),
-            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
-        assertThat(getTokensResponseMap2.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of(
-            "api-token-1", org.elasticsearch.common.collect.Map.of(),
-            "api-token-2", org.elasticsearch.common.collect.Map.of()
+            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
+        assertThat(getTokensResponseMap2.get("tokens"), equalTo(org.elasticsearch.core.Map.of(
+            "api-token-1", org.elasticsearch.core.Map.of(),
+            "api-token-2", org.elasticsearch.core.Map.of()
         )));
 
         final Request deleteTokenRequest1 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/api-token-2");
@@ -332,9 +333,9 @@ public class ServiceAccountIT extends ESRestTestCase {
         assertThat(getTokensResponseMap3.get("service_account"), equalTo("elastic/fleet-server"));
         assertThat(getTokensResponseMap3.get("count"), equalTo(2));
         assertThat(getTokensResponseMap3.get("file_tokens"),
-            equalTo(org.elasticsearch.common.collect.Map.of("token1", org.elasticsearch.common.collect.Map.of())));
-        assertThat(getTokensResponseMap3.get("tokens"), equalTo(org.elasticsearch.common.collect.Map.of(
-            "api-token-1", org.elasticsearch.common.collect.Map.of()
+            equalTo(org.elasticsearch.core.Map.of("token1", org.elasticsearch.core.Map.of())));
+        assertThat(getTokensResponseMap3.get("tokens"), equalTo(org.elasticsearch.core.Map.of(
+            "api-token-1", org.elasticsearch.core.Map.of()
         )));
 
         final Request deleteTokenRequest2 = new Request("DELETE", "_security/service/elastic/fleet-server/credential/token/non-such-thing");
@@ -390,7 +391,7 @@ public class ServiceAccountIT extends ESRestTestCase {
         final Response invalidateApiKeysResponse = client().performRequest(invalidateApiKeysRequest);
         assertOK(invalidateApiKeysResponse);
         final Map<String, Object> invalidateApiKeysResponseMap = responseAsMap(invalidateApiKeysResponse);
-        assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(org.elasticsearch.common.collect.List.of(apiKeyId1)));
+        assertThat(invalidateApiKeysResponseMap.get("invalidated_api_keys"), equalTo(org.elasticsearch.core.List.of(apiKeyId1)));
 
         assertApiKeys(apiKeyId1, "key-1", true, requestOptions);
     }
@@ -418,7 +419,7 @@ public class ServiceAccountIT extends ESRestTestCase {
                                                     String serviceAccountPrincipal,
                                                     String roleDescriptorString) throws IOException {
         final Map<String, Object> responseMap = responseAsMap(response);
-        assertThat(responseMap, hasEntry(serviceAccountPrincipal, org.elasticsearch.common.collect.Map.of("role_descriptor",
+        assertThat(responseMap, hasEntry(serviceAccountPrincipal, org.elasticsearch.core.Map.of("role_descriptor",
             XContentHelper.convertToMap(new BytesArray(roleDescriptorString), false, XContentType.JSON).v2())));
     }
 }

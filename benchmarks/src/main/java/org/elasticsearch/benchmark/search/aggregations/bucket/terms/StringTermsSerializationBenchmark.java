@@ -40,9 +40,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Benchmark)
 public class StringTermsSerializationBenchmark {
     private static final NamedWriteableRegistry REGISTRY = new NamedWriteableRegistry(
-        org.elasticsearch.common.collect.List.of(
-            new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new)
-        )
+        org.elasticsearch.core.List.of(new NamedWriteableRegistry.Entry(InternalAggregation.class, StringTerms.NAME, StringTerms::new))
     );
     @Param(value = { "1000" })
     private int buckets;
@@ -51,14 +49,14 @@ public class StringTermsSerializationBenchmark {
 
     @Setup
     public void initResults() {
-        results = DelayableWriteable.referencing(InternalAggregations.from(org.elasticsearch.common.collect.List.of(newTerms(true))));
+        results = DelayableWriteable.referencing(InternalAggregations.from(org.elasticsearch.core.List.of(newTerms(true))));
     }
 
     private StringTerms newTerms(boolean withNested) {
         List<StringTerms.Bucket> resultBuckets = new ArrayList<>(buckets);
         for (int i = 0; i < buckets; i++) {
             InternalAggregations inner = withNested
-                ? InternalAggregations.from(org.elasticsearch.common.collect.List.of(newTerms(false)))
+                ? InternalAggregations.from(org.elasticsearch.core.List.of(newTerms(false)))
                 : InternalAggregations.EMPTY;
             resultBuckets.add(new StringTerms.Bucket(new BytesRef("test" + i), i, inner, false, 0, DocValueFormat.RAW));
         }

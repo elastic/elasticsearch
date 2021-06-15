@@ -22,19 +22,16 @@ which have not yet been removed by the merge process.
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `read`
-<<privileges-list-indices,index privilege>> for any data stream, index, or index
-alias you retrieve.
+<<privileges-list-indices,index privilege>> for any data stream, index, or alias
+you retrieve.
 
 [[cat-count-api-path-params]]
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[cat-count-api-query-params]]
 ==== {api-query-parms-title}

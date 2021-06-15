@@ -12,6 +12,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.elasticsearch.core.List;
 
 import java.util.function.Supplier;
 
@@ -38,8 +39,8 @@ public class StringScriptFieldExistsQueryTests extends AbstractStringScriptField
 
     @Override
     public void testMatches() {
-        assertTrue(createTestInstance().matches(org.elasticsearch.common.collect.List.of("test")));
-        assertFalse(createTestInstance().matches(org.elasticsearch.common.collect.List.of()));
+        assertTrue(createTestInstance().matches(List.of("test")));
+        assertFalse(createTestInstance().matches(List.of()));
     }
 
     @Override

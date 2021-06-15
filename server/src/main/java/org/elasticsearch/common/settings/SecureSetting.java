@@ -13,7 +13,7 @@ import java.security.GeneralSecurityException;
 import java.util.EnumSet;
 import java.util.Set;
 
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.util.ArrayUtils;
 
 /**

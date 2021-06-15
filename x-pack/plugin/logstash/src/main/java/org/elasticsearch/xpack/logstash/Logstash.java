@@ -65,7 +65,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new ActionHandler<>(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
             new ActionHandler<>(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
             new ActionHandler<>(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
@@ -82,11 +82,7 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(
-            new RestPutPipelineAction(),
-            new RestGetPipelineAction(),
-            new RestDeletePipelineAction()
-        );
+        return org.elasticsearch.core.List.of(new RestPutPipelineAction(), new RestGetPipelineAction(), new RestDeletePipelineAction());
     }
 
     @Override

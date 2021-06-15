@@ -317,7 +317,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(
             new Classification("foo").getParams(fieldInfo),
             equalTo(
-                org.elasticsearch.common.collect.Map.of(
+                org.elasticsearch.core.Map.of(
                     "dependent_variable", "foo",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
@@ -329,7 +329,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
         assertThat(
             new Classification("bar").getParams(fieldInfo),
             equalTo(
-                org.elasticsearch.common.collect.Map.of(
+                org.elasticsearch.core.Map.of(
                     "dependent_variable", "bar",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,
@@ -349,7 +349,7 @@ public class ClassificationTests extends AbstractBWCSerializationTestCase<Classi
                 null,
                 null).getParams(fieldInfo),
             equalTo(
-                org.elasticsearch.common.collect.Map.of(
+                org.elasticsearch.core.Map.of(
                     "dependent_variable", "baz",
                     "class_assignment_objective", Classification.ClassAssignmentObjective.MAXIMIZE_MINIMUM_RECALL,
                     "num_top_classes", 2,

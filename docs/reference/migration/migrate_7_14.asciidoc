@@ -15,8 +15,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
 
-//tag::notable-breaking-changes[]
-
 [discrete]
 [[breaking-changes-7.14]]
 === Breaking changes
@@ -32,6 +30,59 @@ Significant changes in behavior are deprecated in a minor release and
 the old behavior is supported until the next major release.
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_714_cluster_changes]]
+==== Cluster changes
+
+[[breaking_714_version_barrier]]
+.Version barrier applies to all upgrades
+[%collapsible]
+====
+*Details* +
+If a failure occurs during a rolling upgrade then {es} may prematurely conclude
+that the upgrade is complete and enable functionality which is incompatible
+with earlier versions. In versions before 7.14 {es} would accept older nodes
+into the cluster after completing the upgrade despite having enabled
+incompatible functionality, as long as the older nodes were from the same major
+series. From 7.14 onwards {es} will not accept any older nodes into a
+fully-upgraded cluster.
+
+*Impact* +
+If a failure occurs during a rolling upgrade and older nodes cannot rejoin the
+cluster then you must upgrade the affected nodes. Once upgraded, they will join
+the cluster again.
+====
+
+[discrete]
+[[breaking_714_core_deprecations]]
+=== Core deprecations
+
+[discrete]
+[[deprecate-single-data-node-watermark]]
+.Setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+should never be explicitly set to false. In 8.0, the only legal value will be
+true. In a future release, the setting will be removed completely, with same
+behavior as if the setting was `true`.
+
+*Impact* +
+
+If your cluster has a single data node then set
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node: true`
+to opt in to the future behaviour today. If you wish to disable the disk
+watermarks then set `cluster.routing.allocation.disk.threshold_enabled: false`.
+
+If your cluster has multiple data nodes then the
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+has no effect and you should discontinue its use.
+====
+
+// end::notable-breaking-changes[]
 
 [discrete]
 [[deprecated-7.14]]

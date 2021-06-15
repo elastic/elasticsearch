@@ -29,8 +29,9 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -85,7 +86,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         when(clusterService.getSettings()).thenReturn(settings);
         Set<Setting<?>> settingsSet = Sets.union(
             ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
-            org.elasticsearch.common.collect.Set.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT)
+            org.elasticsearch.core.Set.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT)
         );
         ClusterSettings clusterSettings = new ClusterSettings(settings, settingsSet);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -170,7 +171,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
-            org.elasticsearch.common.collect.List.of()
+            org.elasticsearch.core.List.of()
         );
 
         client.respond(response, () -> {});
@@ -201,7 +202,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
-            org.elasticsearch.common.collect.List.of()
+            org.elasticsearch.core.List.of()
         );
 
         // implicit retry on cluster state update.
@@ -217,7 +218,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
-            org.elasticsearch.common.collect.List.of()
+            org.elasticsearch.core.List.of()
         );
 
         client.respond(response, () -> {});
@@ -239,7 +240,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
                 .stream()
                 .map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000)))
                 .collect(Collectors.toList()),
-            org.elasticsearch.common.collect.List.of()
+            org.elasticsearch.core.List.of()
         );
 
         client.respond(restartedStatsResponse, () -> {});
@@ -259,7 +260,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         NodesStatsResponse response = new NodesStatsResponse(
             ClusterName.DEFAULT,
             nodes.stream().map(n -> statsForNode(n, randomLongBetween(0, Long.MAX_VALUE / 1000))).collect(Collectors.toList()),
-            org.elasticsearch.common.collect.List.of()
+            org.elasticsearch.core.List.of()
         );
 
         List<Thread> threads = new ArrayList<>();
@@ -381,7 +382,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         public void respond(NodesStatsResponse response, Runnable whileFetching) {
             respond((request, listener) -> {
                 assertThat(
-                    org.elasticsearch.common.collect.Set.of(request.nodesIds()),
+                    org.elasticsearch.core.Set.of(request.nodesIds()),
                     Matchers.equalTo(
                         Stream.concat(
                             response.getNodesMap().keySet().stream(),
@@ -433,14 +434,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
     }
 
     private DiscoveryNode newNode(String nodeName, Set<DiscoveryNodeRole> roles) {
-        return new DiscoveryNode(
-            nodeName,
-            UUIDs.randomBase64UUID(),
-            buildNewFakeTransportAddress(),
-            org.elasticsearch.common.collect.Map.of(),
-            roles,
-            Version.CURRENT
-        );
+        return new DiscoveryNode(nodeName, UUIDs.randomBase64UUID(), buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT);
     }
 
     private DiscoveryNode restartNode(DiscoveryNode node) {

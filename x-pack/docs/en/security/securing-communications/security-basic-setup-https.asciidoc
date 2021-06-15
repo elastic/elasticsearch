@@ -596,7 +596,7 @@ See {metricbeat-ref}/configuration-ssl.html[Configure SSL for {metricbeat}].
 +
 [source,shell]
 ----
-/.metricbeat -e
+./metricbeat -e
 ----
 +
 `-e` is optional and sends output to standard error instead of the configured

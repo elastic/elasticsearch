@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.datastreams.mapper;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DateFieldMapper;

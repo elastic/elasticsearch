@@ -32,7 +32,7 @@ public class RestDeleteServiceAccountTokenAction extends SecurityBaseRestHandler
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(DELETE, "/_security/service/{namespace}/{service}/credential/token/{name}"));
     }
 

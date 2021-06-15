@@ -37,7 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.xpack.core.DataTier;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,6 +114,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 containsString("node does not match all cluster setting [cluster.routing.allocation.require._tier] " +
                     "tier filters [data_hot]"));
         }
+        assertWarnings("[cluster.routing.allocation.require._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testClusterIncludes() {
@@ -126,6 +128,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .build());
         Decision d;
         RoutingNode node;
+        assertWarnings("[cluster.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
 
         for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
@@ -161,7 +165,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             .build());
         Decision d;
         RoutingNode node;
-
+        assertWarnings("[cluster.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
         for (DiscoveryNode n : Arrays.asList(WARM_NODE, DATA_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
             d = decider.canAllocate(shard, node, allocation);
@@ -216,6 +221,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(d.getExplanation(),
                 containsString("node does not match all index setting [index.routing.allocation.require._tier] tier filters [data_hot]"));
         }
+        assertWarnings("[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexIncludes() {
@@ -250,6 +257,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                 containsString("node does not match any index setting [index.routing.allocation.include._tier] " +
                     "tier filters [data_warm,data_cold]"));
         }
+        assertWarnings("[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexExcludes() {
@@ -285,6 +294,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canRemain(shard, node, allocation);
             assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
         }
+        assertWarnings("[index.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexPrefer() {
@@ -428,6 +439,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(node.toString(), d.getExplanation(),
                 containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
         }
+
+        assertWarnings("[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexPreferWithExclude() {
@@ -452,6 +466,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         allocation.debugDecision(true);
         Decision d;
         RoutingNode node;
+
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, COLD_NODE, CONTENT_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
@@ -490,6 +505,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(node.toString(), d.getExplanation(),
                 containsString("node matches any index setting [index.routing.allocation.exclude._tier] tier filters [data_warm]"));
         }
+        assertWarnings("[index.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testIndexPreferWithRequire() {
@@ -552,6 +569,8 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             assertThat(node.toString(), d.getExplanation(),
                 containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_warm]"));
         }
+        assertWarnings("[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testClusterAndIndex() {
@@ -601,6 +620,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             d = decider.canRemain(shard, node, allocation);
             assertThat(n.toString(), d.type(), equalTo(Decision.Type.YES));
         }
+        assertWarnings("[cluster.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testTierNodesPresent() {
@@ -670,7 +693,10 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             EmptySnapshotsInfoService.INSTANCE);
 
         ClusterState clusterState = prepareState(service.reroute(ClusterState.EMPTY_STATE, "initial state"));
-
+        assertWarnings("[cluster.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[cluster.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.");
         RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, clusterState.getRoutingNodes(), clusterState,
             null, null, 0);
         allocation.debugDecision(true);
@@ -727,6 +753,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
         Settings settings = builder.build();
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
         assertThat(exception.getMessage(), equalTo("[data_frozen] tier can only be used for partial searchable snapshots"));
+        allowedWarnings("[index.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testFrozenLegalForPartialSnapshot() {
@@ -739,6 +771,12 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         // validate do not throw
         assertThat(setting.get(settings), equalTo(DATA_FROZEN));
+        allowedWarnings("[index.routing.allocation.exclude._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[index.routing.allocation.include._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.",
+            "[index.routing.allocation.require._tier] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release! See the breaking changes documentation for the next major version.");
     }
 
     public void testDefaultValueForPreference() {

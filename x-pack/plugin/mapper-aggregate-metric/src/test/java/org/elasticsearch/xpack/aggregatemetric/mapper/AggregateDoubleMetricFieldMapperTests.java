@@ -11,6 +11,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -45,7 +46,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
+        return org.elasticsearch.core.List.of(new AggregateMetricMapperPlugin(Settings.EMPTY));
     }
 
     @Override
@@ -91,7 +92,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Object getSampleValueForDocument() {
-        return org.elasticsearch.common.collect.Map.of("min", -10.1, "max", 50.0, "value_count", 14);
+        return Map.of("min", -10.1, "max", 50.0, "value_count", 14);
     }
 
     @Override

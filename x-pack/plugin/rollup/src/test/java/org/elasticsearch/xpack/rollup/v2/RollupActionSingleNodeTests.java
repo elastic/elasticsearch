@@ -527,7 +527,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             null
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate(
-            org.elasticsearch.common.collect.List.of(dataStreamName + "*"),
+            org.elasticsearch.core.List.of(dataStreamName + "*"),
             idxTemplate,
             null,
             null,

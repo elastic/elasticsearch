@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.List;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Collections;
@@ -98,7 +99,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
+                        List.of(originalIndexMeta.getIndex(),
                         rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)

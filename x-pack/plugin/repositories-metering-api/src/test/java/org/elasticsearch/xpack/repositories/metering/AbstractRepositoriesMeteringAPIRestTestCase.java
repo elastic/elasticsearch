@@ -120,7 +120,7 @@ public abstract class AbstractRepositoriesMeteringAPIRestTestCase extends ESRest
     }
 
     public void testRegisterMultipleRepositoriesAndGetStats() throws Exception {
-        List<String> repositoryNames = org.elasticsearch.common.collect.List.of("repo-a", "repo-b", "repo-c");
+        List<String> repositoryNames = org.elasticsearch.core.List.of("repo-a", "repo-b", "repo-c");
         for (String repositoryName : repositoryNames) {
             registerRepository(repositoryName, repositoryType(), false, repositorySettings());
         }

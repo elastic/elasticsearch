@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.relique.io.TableReader;
 import org.relique.jdbc.csv.CsvConnection;

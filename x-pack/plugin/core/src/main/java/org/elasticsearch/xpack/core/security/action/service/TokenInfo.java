@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Map;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -64,7 +65,7 @@ public class TokenInfo implements Writeable, ToXContentObject, Comparable<TokenI
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(name, org.elasticsearch.common.collect.Map.of());
+        return builder.field(name, Map.of());
     }
 
     @Override

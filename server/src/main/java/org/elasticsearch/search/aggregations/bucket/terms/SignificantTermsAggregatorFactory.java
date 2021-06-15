@@ -9,7 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -300,7 +300,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
                 ValuesSource.Bytes.WithOrdinals.FieldData ordinalsValuesSource =
                     (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSourceConfig.getValuesSource();
-                SortedSetDocValues values = TermsAggregatorFactory.globalOrdsValues(context, ordinalsValuesSource); 
+                SortedSetDocValues values = TermsAggregatorFactory.globalOrdsValues(context, ordinalsValuesSource);
                 return new GlobalOrdinalsStringTermsAggregator(
                     name,
                     factories,

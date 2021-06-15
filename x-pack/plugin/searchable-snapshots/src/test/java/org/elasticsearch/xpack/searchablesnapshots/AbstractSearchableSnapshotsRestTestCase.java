@@ -26,6 +26,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
 
@@ -157,6 +159,9 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
+        logger.info("deleting mounted index [{}]", indexName);
+        deleteIndex(restoredIndexName);
+
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
     }
@@ -174,9 +179,20 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
             assertOK(client().performRequest(freezeRequest));
             ensureGreen(restoredIndexName);
-            for (int i = 0; i < 10; i++) {
-                assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
-            }
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> frozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.frozen")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.search.throttled")), equalTo(true));
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
+
+            final Request unfreezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_unfreeze");
+            assertOK(client().performRequest(unfreezeRequest));
+            ensureGreen(restoredIndexName);
+            assertSearchResults(restoredIndexName, numDocs, Boolean.FALSE);
+            final Map<String, Object> unfrozenIndexSettings = indexSettings(restoredIndexName);
+            assertThat(extractValue(unfrozenIndexSettings, "index.frozen"), nullValue());
+            assertThat(extractValue(unfrozenIndexSettings, "index.search.throttled"), nullValue());
+            assertThat(Boolean.valueOf(extractValue(frozenIndexSettings, "index.blocks.write")), equalTo(true));
         });
     }
 
@@ -500,7 +516,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     @SuppressWarnings("unchecked")
     protected static void waitForIdlingSearchableSnapshotsThreadPools() throws Exception {
-        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.common.collect.Set.of(
+        final Set<String> searchableSnapshotsThreadPools = org.elasticsearch.core.Set.of(
             SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME,
             SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME
         );

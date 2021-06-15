@@ -212,7 +212,7 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
         );
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> agg.reduce(org.elasticsearch.common.collect.List.of(agg), reduceContext)
+            () -> agg.reduce(org.elasticsearch.core.List.of(agg), reduceContext)
         );
         assertThat(e.getMessage(), equalTo("too big!"));
     }

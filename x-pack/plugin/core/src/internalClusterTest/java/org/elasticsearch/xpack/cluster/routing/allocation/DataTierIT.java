@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -298,7 +299,7 @@ public class DataTierIT extends ESIntegTestCase {
 
     private void updatePreference(String tier) {
         client().admin().indices().updateSettings(new UpdateSettingsRequest(index)
-            .settings(org.elasticsearch.common.collect.Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))).actionGet();
+            .settings(Map.of(DataTierAllocationDecider.INDEX_ROUTING_PREFER, tier))).actionGet();
     }
 
     private DataTiersFeatureSetUsage getUsage() {

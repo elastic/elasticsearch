@@ -23,7 +23,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_features"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_features"));
     }
 
     @Override

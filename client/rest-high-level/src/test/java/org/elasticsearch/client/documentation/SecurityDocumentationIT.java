@@ -88,11 +88,11 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.hamcrest.Matchers;
@@ -118,7 +118,6 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -2041,7 +2040,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(apiKeyInfo.getCreation(), greaterThanOrEqualTo(start));
             assertThat(apiKeyInfo.getCreation(), lessThanOrEqualTo(Instant.now()));
             if (metadata == null) {
-                assertThat(apiKeyInfo.getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of()));
+                assertThat(apiKeyInfo.getMetadata(), equalTo(org.elasticsearch.core.Map.of()));
             } else {
                 assertThat(apiKeyInfo.getMetadata(), equalTo(metadata));
             }
@@ -2266,7 +2265,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         assertThat(actual.isInvalidated(), is(expected.isInvalidated()));
         assertThat(actual.getExpiration(), is(greaterThan(Instant.now())));
         if (expected.getMetadata() == null) {
-            assertThat(actual.getMetadata(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(actual.getMetadata(), equalTo(org.elasticsearch.core.Map.of()));
         } else {
             assertThat(actual.getMetadata(), equalTo(expected.getMetadata()));
         }

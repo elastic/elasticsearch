@@ -112,7 +112,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
                 }
             }, () -> boxToGeo(randomBBox())));
 
-            GeoBoundingBox geoBoundingBox = randomBBox();
+            GeoBoundingBox geoBoundingBox = randomValueOtherThanMany(b -> b.right() == -180 && b.left() == 180,() -> randomBBox());
             GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
             GeoShapeCellValues cellValues =
                 new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(geoBoundingBox, precision), NOOP_BREAKER);
@@ -255,7 +255,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     private static Geometry boxToGeo(GeoBoundingBox geoBox) {
         // turn into polygon
         if (geoBox.right() < geoBox.left() && geoBox.right() != -180) {
-            return new MultiPolygon(org.elasticsearch.common.collect.List.of(
+            return new MultiPolygon(org.elasticsearch.core.List.of(
                 new Polygon(new LinearRing(
                     new double[] { -180, geoBox.right(), geoBox.right(), -180, -180 },
                     new double[] { geoBox.bottom(), geoBox.bottom(), geoBox.top(), geoBox.top(), geoBox.bottom() })),

@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -15,3 +15,9 @@ dependencies {
   testImplementation project(":test:framework")
 }
 
+tasks.named('splitPackagesAudit').configure {
+  // Lucene classes should be owned by Lucene!
+  ignoreClasses  'org.apache.lucene.search.CappedScoreQuery',
+    'org.apache.lucene.search.CappedScoreWeight',
+    'org.apache.lucene.search.CappedScorer'
+}

@@ -320,3 +320,14 @@ tasks.named("thirdPartyAudit").configure {
           'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
   )
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // snapshots package is owned by server, these should be moved to snapshots.tool
+  ignoreClasses 'org.elasticsearch.snapshots.AbstractCleanupCommand',
+    'org.elasticsearch.snapshots.AbstractRepository',
+    'org.elasticsearch.snapshots.CleanupGCSRepositoryCommand',
+    'org.elasticsearch.snapshots.CleanupS3RepositoryCommand',
+    'org.elasticsearch.snapshots.GCSRepository',
+    'org.elasticsearch.snapshots.S3Repository',
+    'org.elasticsearch.snapshots.SnapshotToolCli'
+}

@@ -16,14 +16,14 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.XCombinedFieldQuery;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -395,7 +395,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
         @Override
         protected Query newSynonymQuery(TermAndBoost[] terms) {
-            XCombinedFieldQuery.Builder query = new XCombinedFieldQuery.Builder();
+            CombinedFieldQuery.Builder query = new CombinedFieldQuery.Builder();
             for (TermAndBoost termAndBoost : terms) {
                 assert termAndBoost.boost == BoostAttribute.DEFAULT_BOOST;
                 BytesRef bytes = termAndBoost.term.bytes();

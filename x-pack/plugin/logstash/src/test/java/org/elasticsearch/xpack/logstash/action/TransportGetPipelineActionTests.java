@@ -69,7 +69,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
         );
 
-        GetPipelineRequest request = new GetPipelineRequest(org.elasticsearch.common.collect.List.of("1", "2"));
+        GetPipelineRequest request = new GetPipelineRequest(org.elasticsearch.core.List.of("1", "2"));
 
         // Set up an ActionListener for the actual test conditions
         ActionListener<GetPipelineResponse> testActionListener = new ActionListener<GetPipelineResponse>() {

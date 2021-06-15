@@ -34,7 +34,7 @@ public class BindingsTests extends ScriptTestCase {
     }
 
     public static List<Object> fancyConstant(String thing1, String thing2) {
-        return org.elasticsearch.common.collect.List.of(thing1, thing2);
+        return org.elasticsearch.core.List.of(thing1, thing2);
     }
 
     public static class BindingTestClass {
@@ -121,8 +121,8 @@ public class BindingsTests extends ScriptTestCase {
             instanceBindingTestClass,
             "instanceMul",
             "int",
-            org.elasticsearch.common.collect.List.of("int", "int"),
-            org.elasticsearch.common.collect.List.of(CompileTimeOnlyAnnotation.INSTANCE)
+            org.elasticsearch.core.List.of("int", "int"),
+            org.elasticsearch.core.List.of(CompileTimeOnlyAnnotation.INSTANCE)
         );
         List<WhitelistInstanceBinding> instanceBindingsList = new ArrayList<>();
         instanceBindingsList.add(getter);

@@ -29,12 +29,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccount
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenResponse;
 import org.elasticsearch.xpack.core.security.action.service.DeleteServiceAccountTokenRequest;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -90,7 +92,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     @Override
-    void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         final GetRequest getRequest = client
             .prepareGet(SECURITY_MAIN_ALIAS, SINGLE_MAPPING_NAME, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
@@ -100,11 +102,17 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 if (response.isExists()) {
                     final String tokenHash = (String) response.getSource().get("password");
                     assert tokenHash != null : "service account token hash cannot be null";
-                    listener.onResponse(Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()));
+                    listener.onResponse(new StoreAuthenticationResult(
+                        Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()), getTokenSource()));
                 } else {
                     logger.trace("service account token [{}] not found in index", token.getQualifiedName());
-                    listener.onResponse(false);
+                    listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
                 }}, listener::onFailure)));
+    }
+
+    @Override
+    public TokenSource getTokenSource() {
+        return TokenSource.INDEX;
     }
 
     public void createToken(Authentication authentication, CreateServiceAccountTokenRequest request,
@@ -143,7 +151,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
         if (false == frozenSecurityIndex.indexExists()) {
-            listener.onResponse(org.elasticsearch.common.collect.List.of());
+            listener.onResponse(List.of());
         } else if (false == frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {

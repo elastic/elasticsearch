@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.sql.proto;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.time.ZoneId;
 

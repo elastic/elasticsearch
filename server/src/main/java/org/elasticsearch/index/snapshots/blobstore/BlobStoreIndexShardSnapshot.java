@@ -11,7 +11,7 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -23,8 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.store.StoreFileMetadata;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -64,7 +62,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 numberOfParts = 1;
             } else {
                 long longNumberOfParts = 1L + (metadata.length() - 1L) / partBytes; // ceil(len/partBytes), but beware of long overflow
-                numberOfParts = (int)longNumberOfParts;
+                numberOfParts = (int) longNumberOfParts;
                 if (numberOfParts != longNumberOfParts) { // also beware of int overflow, although 2^32 parts is already ludicrous
                     throw new IllegalArgumentException("part size [" + partSize + "] too small for file [" + metadata + "]");
                 }
@@ -273,38 +271,37 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             Version writtenBy = null;
             String writtenByStr = null;
             BytesRef metaHash = new BytesRef();
-            if (token == XContentParser.Token.START_OBJECT) {
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        String currentFieldName = parser.currentName();
-                        token = parser.nextToken();
-                        if (token.isValue()) {
-                            if (NAME.equals(currentFieldName)) {
-                                name = parser.text();
-                            } else if (PHYSICAL_NAME.equals(currentFieldName)) {
-                                physicalName = parser.text();
-                            } else if (LENGTH.equals(currentFieldName)) {
-                                length = parser.longValue();
-                            } else if (CHECKSUM.equals(currentFieldName)) {
-                                checksum = parser.text();
-                            } else if (PART_SIZE.equals(currentFieldName)) {
-                                partSize = new ByteSizeValue(parser.longValue());
-                            } else if (WRITTEN_BY.equals(currentFieldName)) {
-                                writtenByStr = parser.text();
-                                writtenBy = Lucene.parseVersionLenient(writtenByStr, null);
-                            } else if (META_HASH.equals(currentFieldName)) {
-                                metaHash.bytes = parser.binaryValue();
-                                metaHash.offset = 0;
-                                metaHash.length = metaHash.bytes.length;
-                            } else {
-                                throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
-                            }
+            XContentParserUtils.ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser);
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    String currentFieldName = parser.currentName();
+                    token = parser.nextToken();
+                    if (token.isValue()) {
+                        if (NAME.equals(currentFieldName)) {
+                            name = parser.text();
+                        } else if (PHYSICAL_NAME.equals(currentFieldName)) {
+                            physicalName = parser.text();
+                        } else if (LENGTH.equals(currentFieldName)) {
+                            length = parser.longValue();
+                        } else if (CHECKSUM.equals(currentFieldName)) {
+                            checksum = parser.text();
+                        } else if (PART_SIZE.equals(currentFieldName)) {
+                            partSize = new ByteSizeValue(parser.longValue());
+                        } else if (WRITTEN_BY.equals(currentFieldName)) {
+                            writtenByStr = parser.text();
+                            writtenBy = Lucene.parseVersionLenient(writtenByStr, null);
+                        } else if (META_HASH.equals(currentFieldName)) {
+                            metaHash.bytes = parser.binaryValue();
+                            metaHash.offset = 0;
+                            metaHash.length = metaHash.bytes.length;
                         } else {
-                            throw new ElasticsearchParseException("unexpected token  [{}]", token);
+                            XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                         }
                     } else {
-                        throw new ElasticsearchParseException("unexpected token [{}]",token);
+                        XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                     }
+                } else {
+                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
                 }
             }
 
@@ -325,11 +322,17 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
 
         @Override
         public String toString() {
-            return "[name: " + name +
-                       ", numberOfParts: " + numberOfParts +
-                       ", partSize: " + partSize +
-                       ", partBytes: " + partBytes +
-                       ", metadata: " + metadata + "]";
+            return "[name: "
+                + name
+                + ", numberOfParts: "
+                + numberOfParts
+                + ", partSize: "
+                + partSize
+                + ", partBytes: "
+                + partBytes
+                + ", metadata: "
+                + metadata
+                + "]";
         }
     }
 
@@ -361,16 +364,20 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
      * @param incrementalFileCount  incremental of files that were snapshotted
      * @param incrementalSize       incremental size of snapshot
      */
-    public BlobStoreIndexShardSnapshot(String snapshot, long indexVersion, List<FileInfo> indexFiles,
-                                       long startTime, long time,
-                                       int incrementalFileCount,
-                                       long incrementalSize
+    public BlobStoreIndexShardSnapshot(
+        String snapshot,
+        long indexVersion,
+        List<FileInfo> indexFiles,
+        long startTime,
+        long time,
+        int incrementalFileCount,
+        long incrementalSize
     ) {
         assert snapshot != null;
         assert indexVersion >= 0;
         this.snapshot = snapshot;
         this.indexVersion = indexVersion;
-        this.indexFiles = Collections.unmodifiableList(new ArrayList<>(indexFiles));
+        this.indexFiles = org.elasticsearch.core.List.copyOf(indexFiles);
         this.startTime = startTime;
         this.time = time;
         this.incrementalFileCount = incrementalFileCount;
@@ -463,7 +470,6 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     private static final String INCREMENTAL_FILE_COUNT = "number_of_files";
     private static final String INCREMENTAL_SIZE = "total_size";
 
-
     private static final ParseField PARSE_NAME = new ParseField(NAME);
     private static final ParseField PARSE_INDEX_VERSION = new ParseField(INDEX_VERSION, "index-version");
     private static final ParseField PARSE_START_TIME = new ParseField(START_TIME);
@@ -508,48 +514,52 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
         int incrementalFileCount = 0;
         long incrementalSize = 0;
 
-        List<FileInfo> indexFiles = new ArrayList<>();
+        List<FileInfo> indexFiles = null;
         if (parser.currentToken() == null) { // fresh parser? move to the first token
             parser.nextToken();
         }
         XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.START_OBJECT) {
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-                final String currentFieldName = parser.currentName();
-                token = parser.nextToken();
-                if (token.isValue()) {
-                    if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
-                        snapshot = parser.text();
-                    } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        // The index-version is needed for backward compatibility with v 1.0
-                        indexVersion = parser.longValue();
-                    } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                        startTime = parser.longValue();
-                    } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
-                        time = parser.longValue();
-                    } else if (PARSE_INCREMENTAL_FILE_COUNT.match(currentFieldName, parser.getDeprecationHandler())) {
-                        incrementalFileCount = parser.intValue();
-                    } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
-                        incrementalSize = parser.longValue();
-                    } else {
-                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
-                        while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            indexFiles.add(FileInfo.fromXContent(parser));
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("unknown parameter [{}]", currentFieldName);
-                    }
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+            final String currentFieldName = parser.currentName();
+            token = parser.nextToken();
+            if (token.isValue()) {
+                if (PARSE_NAME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    snapshot = parser.text();
+                } else if (PARSE_INDEX_VERSION.match(currentFieldName, parser.getDeprecationHandler())) {
+                    // The index-version is needed for backward compatibility with v 1.0
+                    indexVersion = parser.longValue();
+                } else if (PARSE_START_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    startTime = parser.longValue();
+                } else if (PARSE_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    time = parser.longValue();
+                } else if (PARSE_INCREMENTAL_FILE_COUNT.match(currentFieldName, parser.getDeprecationHandler())) {
+                    incrementalFileCount = parser.intValue();
+                } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    incrementalSize = parser.longValue();
                 } else {
-                    throw new ElasticsearchParseException("unexpected token [{}]", token);
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
+                    indexFiles = XContentParserUtils.parseList(parser, FileInfo::fromXContent);
+                } else {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                }
+            } else {
+                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
             }
         }
 
-        return new BlobStoreIndexShardSnapshot(snapshot, indexVersion, Collections.unmodifiableList(indexFiles),
-                                               startTime, time, incrementalFileCount, incrementalSize);
+        return new BlobStoreIndexShardSnapshot(
+            snapshot,
+            indexVersion,
+            indexFiles == null ? org.elasticsearch.core.List.of() : indexFiles,
+            startTime,
+            time,
+            incrementalFileCount,
+            incrementalSize
+        );
     }
 }

@@ -25,7 +25,7 @@ import java.util.stream.Stream;
 
 public class OperatorOnlyRegistry {
 
-    public static final Set<String> SIMPLE_ACTIONS = org.elasticsearch.common.collect.Set.of(
+    public static final Set<String> SIMPLE_ACTIONS = org.elasticsearch.core.Set.of(
         AddVotingConfigExclusionsAction.NAME,
         ClearVotingConfigExclusionsAction.NAME,
         PutLicenseAction.NAME,

@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.license.XPackLicenseState;
@@ -47,7 +47,7 @@ public class RestChangePasswordAction extends SecurityBaseRestHandler implements
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(PUT, "/_security/user/{username}/_password")
                 .replaces(PUT, "/_xpack/security/user/{username}/_password", RestApiVersion.V_7).build(),
             Route.builder(POST, "/_security/user/{username}/_password")

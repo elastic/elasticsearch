@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
+import org.elasticsearch.core.List;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -29,7 +30,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(
+            List.of(
                 CoreValuesSourceType.NUMERIC,
                 CoreValuesSourceType.DATE,
                 CoreValuesSourceType.BOOLEAN),

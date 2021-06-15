@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -63,8 +63,8 @@ import static org.hamcrest.Matchers.startsWith;
 public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(Tuple.tuple("test", between(1, 10))),
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(Tuple.tuple("test", between(1, 10))),
+            org.elasticsearch.core.List.of(),
             0
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
@@ -112,7 +112,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
             @Override
             public Set<DiscoveryNodeRole> roles() {
-                return org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_ROLE);
+                return org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_ROLE);
             }
 
             @Override
@@ -156,8 +156,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public void testForecastNoDates() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(Tuple.tuple("test", between(1, 10))),
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(Tuple.tuple("test", between(1, 10))),
+            org.elasticsearch.core.List.of(),
             between(0, 4)
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
@@ -170,8 +170,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             null,
-            org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of()
         );
 
         assertThat(allocationState.forecast(Long.MAX_VALUE, System.currentTimeMillis()), Matchers.sameInstance(allocationState));
@@ -179,8 +179,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     public void testForecastZero() {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(Tuple.tuple("test", between(1, 10))),
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(Tuple.tuple("test", between(1, 10))),
+            org.elasticsearch.core.List.of(),
             between(0, 4)
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
@@ -204,7 +204,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of()
         );
 
         assertThat(allocationState.forecast(0, lastCreated + between(-3, 1)), Matchers.sameInstance(allocationState));
@@ -215,8 +215,8 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         int indices = between(1, 10);
         int shardCopies = between(1, 2);
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
-            org.elasticsearch.common.collect.List.of(Tuple.tuple("test", indices)),
-            org.elasticsearch.common.collect.List.of(),
+            org.elasticsearch.core.List.of(Tuple.tuple("test", indices)),
+            org.elasticsearch.core.List.of(),
             shardCopies - 1
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
@@ -246,7 +246,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             info,
             null,
             Sets.newHashSet(state.nodes()),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of()
         );
 
         for (int window = 0; window < between(1, 20); ++window) {
@@ -292,7 +292,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     private ClusterState randomAllocate(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(org.elasticsearch.common.collect.List.of()),
+            new AllocationDeciders(org.elasticsearch.core.List.of()),
             new RoutingNodes(state, false),
             state,
             null,
@@ -323,7 +323,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
     private ClusterState startAll(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(org.elasticsearch.common.collect.List.of()),
+            new AllocationDeciders(org.elasticsearch.core.List.of()),
             new RoutingNodes(state, false),
             state,
             null,

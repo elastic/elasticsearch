@@ -22,7 +22,7 @@ public class RestEvaluateDataFrameAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, BASE_PATH + "data_frame/_evaluate"));
+        return org.elasticsearch.core.List.of(new Route(POST, BASE_PATH + "data_frame/_evaluate"));
     }
 
     @Override

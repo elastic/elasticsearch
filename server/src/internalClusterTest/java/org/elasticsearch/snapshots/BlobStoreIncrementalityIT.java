@@ -38,10 +38,14 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String primaryNode = internalCluster().startDataOnlyNode();
         final String indexName = "test-index";
-        createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
-            .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0).build());
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
+                .build()
+        );
         ensureYellow(indexName);
         final String newPrimary = internalCluster().startDataOnlyNode();
         final Collection<String> toDelete = new ArrayList<>();
@@ -145,8 +149,12 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot1).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> force merging down to a single segment");
-        final ForceMergeResponse forceMergeResponse =
-            client().admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).setFlush(true).get();
+        final ForceMergeResponse forceMergeResponse = client().admin()
+            .indices()
+            .prepareForceMerge(indexName)
+            .setMaxNumSegments(1)
+            .setFlush(true)
+            .get();
         assertThat(forceMergeResponse.getFailedShards(), is(0));
 
         final String snapshot2 = "snap-2";
@@ -154,8 +162,7 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         client().admin().cluster().prepareCreateSnapshot(repo, snapshot2).setIndices(indexName).setWaitForCompletion(true).get();
 
         logger.info("--> asserting that the two snapshots refer to different files in the repository");
-        final SnapshotStats secondSnapshotShardStatus =
-            getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
+        final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }
 
@@ -167,13 +174,11 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void assertTwoIdenticalShardSnapshots(String repo, String indexName, String snapshot1, String snapshot2) {
-        logger.info(
-            "--> asserting that snapshots [{}] and [{}] are referring to the same files in the repository", snapshot1, snapshot2);
+        logger.info("--> asserting that snapshots [{}] and [{}] are referring to the same files in the repository", snapshot1, snapshot2);
         final SnapshotStats firstSnapshotShardStatus = getStats(repo, snapshot1).getIndices().get(indexName).getShards().get(0).getStats();
         final int totalFilesInShard = firstSnapshotShardStatus.getTotalFileCount();
         assertThat(totalFilesInShard, greaterThan(0));
-        final SnapshotStats secondSnapshotShardStatus =
-            getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
+        final SnapshotStats secondSnapshotShardStatus = getStats(repo, snapshot2).getIndices().get(indexName).getShards().get(0).getStats();
         assertThat(secondSnapshotShardStatus.getTotalFileCount(), is(totalFilesInShard));
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), is(0));
     }
@@ -184,8 +189,14 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
     private void ensureRestoreSingleShardSuccessfully(String repo, String indexName, String snapshot, String indexSuffix) {
         logger.info("--> restoring [{}]", snapshot);
-        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin().cluster().prepareRestoreSnapshot(repo, snapshot)
-            .setIndices(indexName).setRenamePattern("(.+)").setRenameReplacement("$1" + indexSuffix).setWaitForCompletion(true).get();
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().admin()
+            .cluster()
+            .prepareRestoreSnapshot(repo, snapshot)
+            .setIndices(indexName)
+            .setRenamePattern("(.+)")
+            .setRenameReplacement("$1" + indexSuffix)
+            .setWaitForCompletion(true)
+            .get();
         final RestoreInfo restoreInfo = restoreSnapshotResponse.getRestoreInfo();
         assertThat(restoreInfo.totalShards(), is(1));
         assertThat(restoreInfo.failedShards(), is(0));

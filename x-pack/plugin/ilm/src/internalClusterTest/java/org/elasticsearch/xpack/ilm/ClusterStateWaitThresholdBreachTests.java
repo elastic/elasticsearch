@@ -12,7 +12,8 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
@@ -104,11 +105,11 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
 
         int numShards = 2;
         {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map
                 .of(MigrateAction.NAME, new MigrateAction(false), ShrinkAction.NAME,
                     new ShrinkAction(numShards + randomIntBetween(1, numShards), null))
             );
-            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, org.elasticsearch.common.collect.Map.of("warm", warmPhase));
+            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
             PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
             assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         }
@@ -200,10 +201,10 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // shards than the source index has. we'll update the policy to shrink to 1 shard and this should unblock the policy and it
         // should successfully shrink the managed index to the second cycle shrink index name
         {
-            Phase warmPhase = new Phase("warm", TimeValue.ZERO, org.elasticsearch.common.collect.Map.of(MigrateAction.NAME,
+            Phase warmPhase = new Phase("warm", TimeValue.ZERO, Map.of(MigrateAction.NAME,
                 new MigrateAction(false), ShrinkAction.NAME, new ShrinkAction(1, null))
             );
-            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, org.elasticsearch.common.collect.Map.of("warm", warmPhase));
+            LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
             PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
             assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
         }

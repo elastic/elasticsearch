@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
@@ -41,6 +41,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -134,9 +135,12 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testPreflightCheckAvoidsMaster() throws InterruptedException {
-        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        // can't use INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING as a check here, as that is already checked at parse time,
+        // see testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_DEPTH_LIMIT_SETTING.getKey(), 2).build());
         ensureGreen("index");
-        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1")
+            .setSource("field1", Collections.singletonMap("field2", "value1")).get();
 
         final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
         final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
@@ -157,12 +161,51 @@ public class DynamicMappingIT extends ESIntegTestCase {
         });
 
         masterBlockedLatch.await();
-        final IndexRequestBuilder indexRequestBuilder
-            = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("field2", "value2");
+        final IndexRequestBuilder indexRequestBuilder =
+            client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("2").setSource("field1",
+            Collections.singletonMap("field3", Collections.singletonMap("field4", "value2")));
         try {
             assertThat(
                 expectThrows(IllegalArgumentException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10))).getMessage(),
-                Matchers.containsString("Limit of total fields [2] has been exceeded"));
+                Matchers.containsString("Limit of mapping depth [2] has been exceeded due to object field [field1.field3]"));
+        } finally {
+            indexingCompletedLatch.countDown();
+        }
+    }
+
+    public void testTotalFieldsLimitForDynamicMappingsUpdateCheckedAtDocumentParseTime() throws InterruptedException {
+        createIndex("index", Settings.builder().put(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING.getKey(), 2).build());
+        ensureGreen("index");
+        client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME).setId("1").setSource("field1", "value1").get();
+
+        final CountDownLatch masterBlockedLatch = new CountDownLatch(1);
+        final CountDownLatch indexingCompletedLatch = new CountDownLatch(1);
+
+        internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName()).submitStateUpdateTask("block-state-updates",
+            new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    masterBlockedLatch.countDown();
+                    indexingCompletedLatch.await();
+                    return currentState;
+                }
+
+                @Override
+                public void onFailure(String source, Exception e) {
+                    throw new AssertionError("unexpected", e);
+                }
+            });
+
+        masterBlockedLatch.await();
+        final IndexRequestBuilder indexRequestBuilder = client().prepareIndex("index", MapperService.SINGLE_MAPPING_NAME)
+            .setId("2").setSource("field2", "value2");
+        try {
+            Exception e = expectThrows(MapperParsingException.class, () -> indexRequestBuilder.get(TimeValue.timeValueSeconds(10)));
+            assertThat(e.getMessage(),
+                Matchers.containsString("failed to parse"));
+            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+            assertThat(e.getCause().getMessage(),
+                Matchers.containsString("Limit of total fields [2] has been exceeded while adding new fields [1]"));
         } finally {
             indexingCompletedLatch.countDown();
         }

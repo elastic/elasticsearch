@@ -11,8 +11,9 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.List;
 import org.elasticsearch.plugins.Plugin;
 import org.hamcrest.Matchers;
 
@@ -37,7 +38,7 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new MapperExtrasPlugin());
+        return List.of(new MapperExtrasPlugin());
     }
 
     @Override

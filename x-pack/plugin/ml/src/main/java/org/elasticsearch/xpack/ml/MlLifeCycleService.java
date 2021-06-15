@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
@@ -22,17 +22,17 @@ public class MlLifeCycleService {
 
     private final Environment environment;
     private final ClusterService clusterService;
-    private final DatafeedManager datafeedManager;
+    private final DatafeedRunner datafeedRunner;
     private final AutodetectProcessManager autodetectProcessManager;
     private final DataFrameAnalyticsManager analyticsManager;
     private final MlMemoryTracker memoryTracker;
 
-    public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedManager datafeedManager,
+    public MlLifeCycleService(Environment environment, ClusterService clusterService, DatafeedRunner datafeedRunner,
                               AutodetectProcessManager autodetectProcessManager, DataFrameAnalyticsManager analyticsManager,
                               MlMemoryTracker memoryTracker) {
         this.environment = environment;
         this.clusterService = clusterService;
-        this.datafeedManager = datafeedManager;
+        this.datafeedRunner = datafeedRunner;
         this.autodetectProcessManager = autodetectProcessManager;
         this.analyticsManager = analyticsManager;
         this.memoryTracker = memoryTracker;
@@ -53,8 +53,8 @@ public class MlLifeCycleService {
                 // This prevents datafeeds from sending data to autodetect processes WITHOUT stopping the
                 // datafeeds, so they get reallocated.  We have to do this first, otherwise the datafeeds
                 // could fail if they send data to a dead autodetect process.
-                if (datafeedManager != null) {
-                    datafeedManager.isolateAllDatafeedsOnThisNodeBeforeShutdown();
+                if (datafeedRunner != null) {
+                    datafeedRunner.isolateAllDatafeedsOnThisNodeBeforeShutdown();
                 }
                 NativeController nativeController = NativeControllerHolder.getNativeController(clusterService.getNodeName(), environment);
                 if (nativeController != null) {

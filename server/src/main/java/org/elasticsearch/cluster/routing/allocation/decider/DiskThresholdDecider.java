@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -35,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING;
@@ -66,11 +69,28 @@ import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings
 public class DiskThresholdDecider extends AllocationDecider {
 
     private static final Logger logger = LogManager.getLogger(DiskThresholdDecider.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DiskThresholdDecider.class);
 
     public static final String NAME = "disk_threshold";
 
     public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE =
-        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false, Setting.Property.NodeScope);
+        Setting.boolSetting("cluster.routing.allocation.disk.watermark.enable_for_single_data_node", false,
+            new Setting.Validator<Boolean>() {
+                @Override
+                public void validate(Boolean value) {
+                    // empty
+                }
+
+                @Override
+                public void validate(Boolean value, Map<Setting<?>, Object> settings, boolean isPresent) {
+                    if (value == Boolean.FALSE && isPresent) {
+                        deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "watermark_enable_for_single_data_node",
+                            "setting [{}=false] is deprecated and will not be available in a future version",
+                            ENABLE_FOR_SINGLE_DATA_NODE.getKey());
+                    }
+                }
+            },
+            Setting.Property.NodeScope);
 
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS =
         Setting.boolSetting("index.routing.allocation.disk.watermark.ignore", false,

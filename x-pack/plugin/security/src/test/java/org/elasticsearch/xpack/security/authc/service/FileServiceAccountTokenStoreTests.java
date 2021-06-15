@@ -48,7 +48,7 @@ import static org.mockito.Mockito.mock;
 
 public class FileServiceAccountTokenStoreTests extends ESTestCase {
 
-    private static Map<String, String> TOKENS = org.elasticsearch.common.collect.Map.of(
+    private static Map<String, String> TOKENS = org.elasticsearch.core.Map.of(
         "bcrypt", "46ToAwIHZWxhc3RpYwVmbGVldAZiY3J5cHQWWEU5MGVBYW9UMWlXMVctdkpmMzRxdwAAAAAAAAA",
         "bcrypt10", "46ToAwIHZWxhc3RpYwVmbGVldAhiY3J5cHQxMBY1MmVqWGxhelJCYWZMdXpHTTVoRmNnAAAAAAAAAAAAAAAAAA",
         "pbkdf2", "46ToAwIHZWxhc3RpYwVmbGVldAZwYmtkZjIWNURqUkNfWFJTQXFsNUhsYW1weXY3UQAAAAAAAAA",

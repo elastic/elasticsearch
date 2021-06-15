@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -32,7 +32,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.collect.Tuple.tuple;
+import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -145,16 +145,16 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamsAndWriteAliases() {
         String[] dataStreamNames = {"foo", "bar", "baz"};
-        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.core.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
-            org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
-            tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.elasticsearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            org.elasticsearch.core.List.of("index1", "index2", "index3"));
+        cs = addAliases(cs, org.elasticsearch.core.List.of(
+            tuple("alias1", org.elasticsearch.core.List.of(tuple("index1", false), tuple("index2", true))),
+            tuple("alias2", org.elasticsearch.core.List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2").writeIndexOnly(true);
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
@@ -166,62 +166,62 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testResolveIndicesWithoutWriteIndexOnlyAndDataStreamsAndWriteAliases() {
         String[] dataStreamNames = {"foo", "bar", "baz"};
-        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.core.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
-            org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
-            tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.elasticsearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            org.elasticsearch.core.List.of("index1", "index2", "index3"));
+        cs = addAliases(cs, org.elasticsearch.core.List.of(
+            tuple("alias1", org.elasticsearch.core.List.of(tuple("index1", false), tuple("index2", true))),
+            tuple("alias2", org.elasticsearch.core.List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "alias1", "alias2");
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
-        expectedIndices.addAll(org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
+        expectedIndices.addAll(org.elasticsearch.core.List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedIndices.toArray()));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndDataStreamAndIndex() {
         String[] dataStreamNames = {"foo", "bar", "baz"};
-        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.core.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
-            org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
-        cs = addAliases(cs, org.elasticsearch.common.collect.List.of(
-            tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.elasticsearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            org.elasticsearch.core.List.of("index1", "index2", "index3"));
+        cs = addAliases(cs, org.elasticsearch.core.List.of(
+            tuple("alias1", org.elasticsearch.core.List.of(tuple("index1", false), tuple("index2", true))),
+            tuple("alias2", org.elasticsearch.core.List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("foo", "index3").writeIndexOnly(true);
         Index[] indices = TransportPutMappingAction.resolveIndices(cs, request, TestIndexNameExpressionResolver.newInstance());
         List<String> indexNames = Arrays.stream(indices).map(Index::getName).collect(Collectors.toList());
         IndexAbstraction expectedDs = cs.metadata().getIndicesLookup().get("foo");
         List<String> expectedIndices = expectedDs.getIndices().stream().map(im -> im.getIndex().getName()).collect(Collectors.toList());
-        expectedIndices.addAll(org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
+        expectedIndices.addAll(org.elasticsearch.core.List.of("index1", "index2", "index3"));
         // should resolve the data stream and each alias to _all_ their respective indices
         assertThat(indexNames, containsInAnyOrder(expectedDs.getWriteIndex().getIndex().getName(), "index3"));
     }
 
     public void testResolveIndicesWithWriteIndexOnlyAndNoSingleWriteIndex() {
         String[] dataStreamNames = {"foo", "bar", "baz"};
-        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.core.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
-            org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(cs, org.elasticsearch.common.collect.List.of(
-            tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", true))),
-            tuple("alias2", org.elasticsearch.common.collect.List.of(tuple("index2", false), tuple("index3", true)))
+            org.elasticsearch.core.List.of("index1", "index2", "index3"));
+        final ClusterState cs2 = addAliases(cs, org.elasticsearch.core.List.of(
+            tuple("alias1", org.elasticsearch.core.List.of(tuple("index1", false), tuple("index2", true))),
+            tuple("alias2", org.elasticsearch.core.List.of(tuple("index2", false), tuple("index3", true)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("*").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
@@ -231,16 +231,16 @@ public class PutMappingRequestTests extends ESTestCase {
 
     public void testResolveIndicesWithWriteIndexOnlyAndAliasWithoutWriteIndex() {
         String[] dataStreamNames = {"foo", "bar", "baz"};
-        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.common.collect.List.of(
+        List<Tuple<String, Integer>> dsMetadata = org.elasticsearch.core.List.of(
             tuple(dataStreamNames[0], randomIntBetween(1, 3)),
             tuple(dataStreamNames[1], randomIntBetween(1, 3)),
             tuple(dataStreamNames[2], randomIntBetween(1, 3)));
 
         ClusterState cs = DataStreamTestHelper.getClusterStateWithDataStreams(dsMetadata,
-            org.elasticsearch.common.collect.List.of("index1", "index2", "index3"));
-        final ClusterState cs2 = addAliases(cs, org.elasticsearch.common.collect.List.of(
-            tuple("alias1", org.elasticsearch.common.collect.List.of(tuple("index1", false), tuple("index2", false))),
-            tuple("alias2", org.elasticsearch.common.collect.List.of(tuple("index2", false), tuple("index3", false)))
+            org.elasticsearch.core.List.of("index1", "index2", "index3"));
+        final ClusterState cs2 = addAliases(cs, org.elasticsearch.core.List.of(
+            tuple("alias1", org.elasticsearch.core.List.of(tuple("index1", false), tuple("index2", false))),
+            tuple("alias2", org.elasticsearch.core.List.of(tuple("index2", false), tuple("index3", false)))
         ));
         PutMappingRequest request = new PutMappingRequest().indices("alias2").writeIndexOnly(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

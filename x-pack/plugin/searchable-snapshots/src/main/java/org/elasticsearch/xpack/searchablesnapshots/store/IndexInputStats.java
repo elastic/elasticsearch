@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.searchablesnapshots.store.input.CachedBlobContainerIndexInput;

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -74,9 +75,9 @@ public class DiscoveryNodeRoleSettingTests extends ESTestCase {
         assertTrue(DiscoveryNode.isDedicatedFrozenNode(onlyRole(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE)));
         assertFalse(DiscoveryNode.isDedicatedFrozenNode(removeRoles(Collections.singleton(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
         assertTrue(DiscoveryNode.isDedicatedFrozenNode(addRoles(nonDataNode(),
-            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
+            Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE))));
         assertFalse(DiscoveryNode.isDedicatedFrozenNode(
-            addRoles(org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
+            addRoles(Set.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE,
                 DiscoveryNodeRole.DATA_HOT_NODE_ROLE))));
     }
 }

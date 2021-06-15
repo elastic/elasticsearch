@@ -10,6 +10,7 @@ package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -126,7 +127,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
                 // Disable the real memory checking because it causes other tests to interfere with this one.
                 .put(USE_REAL_MEMORY_USAGE_SETTING.getKey(), false)
                 .build(),
-            org.elasticsearch.common.collect.List.of(),
+            List.of(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
     }

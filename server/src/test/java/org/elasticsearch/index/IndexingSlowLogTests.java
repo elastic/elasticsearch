@@ -22,7 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexingSlowLog.IndexingSlowLogMessage;
@@ -39,6 +39,7 @@ import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.EnumSet;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -72,7 +73,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexMetadata metadata = createIndexMetadata(SlowLogLevel.WARN, "index-precedence", uuid);
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         IndexingSlowLog log = new IndexingSlowLog(settings);
-
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
@@ -94,6 +97,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         {
             // level set INFO, should log when INFO level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.INFO, "index", uuid));
+            assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             Mockito.when(result.getTook()).thenReturn(30L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -106,6 +112,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         {
             // level set DEBUG, should log when DEBUG level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.DEBUG, "index", uuid));
+            assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             Mockito.when(result.getTook()).thenReturn(20L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -118,6 +127,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         {
             // level set TRACE, should log when TRACE level is breached
             settings.updateIndexMetadata(createIndexMetadata(SlowLogLevel.TRACE, "index", uuid));
+            assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+                "and will be removed in a future release!" +
+                " See the breaking changes documentation for the next major version.");
             Mockito.when(result.getTook()).thenReturn(10L);
             log.postIndex(ShardId.fromString("[index][123]"), index, result);
             assertNull(appender.getLastEventAndReset());
@@ -132,11 +144,16 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()),
             Settings.EMPTY);
         IndexingSlowLog log1 = new IndexingSlowLog(index1Settings);
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index2", UUIDs.randomBase64UUID()),
             Settings.EMPTY);
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings);
-
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId("doc_id")), randomNonNegativeLong(), doc);
@@ -161,6 +178,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings index1Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.WARN, "index1", UUIDs.randomBase64UUID()),
             Settings.EMPTY);
         IndexingSlowLog log1 = new IndexingSlowLog(index1Settings);
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         int numberOfLoggersBefore = context.getLoggers().size();
 
@@ -168,6 +188,9 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings index2Settings = new IndexSettings(createIndexMetadata(SlowLogLevel.TRACE, "index2", UUIDs.randomBase64UUID()),
             Settings.EMPTY);
         IndexingSlowLog log2 = new IndexingSlowLog(index2Settings);
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch " +
+            "and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
         context = (LoggerContext) LogManager.getContext(false);
 
         int numberOfLoggersAfter = context.getLoggers().size();
@@ -301,15 +324,16 @@ public class IndexingSlowLogTests extends ESTestCase {
         IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
         IndexingSlowLog log = new IndexingSlowLog(settings);
         assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
+        level = randomFrom(EnumSet.complementOf(EnumSet.of(level)));
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level).build()));
         assertEquals(level, log.getLevel());
-        level = randomFrom(SlowLogLevel.values());
+        level = randomFrom(EnumSet.complementOf(EnumSet.of(level)));
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level).build()));
         assertEquals(level, log.getLevel());
-
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         settings.updateIndexMetadata(newIndexMeta("index",
             Settings.builder().put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), level).build()));
@@ -337,6 +361,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             assertThat(cause, hasToString(containsString("No enum constant org.elasticsearch.index.SlowLogLevel.NOT A LEVEL")));
         }
         assertEquals(SlowLogLevel.TRACE, log.getLevel());
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         metadata = newIndexMeta("index", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -345,6 +371,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             .build());
         settings = new IndexSettings(metadata, Settings.EMPTY);
         IndexingSlowLog debugLog = new IndexingSlowLog(settings);
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
 
         metadata = newIndexMeta("index", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -356,6 +384,8 @@ public class IndexingSlowLogTests extends ESTestCase {
 
         assertEquals(SlowLogLevel.DEBUG, debugLog.getLevel());
         assertEquals(SlowLogLevel.INFO, infoLog.getLevel());
+        assertWarnings("[index.indexing.slowlog.level] setting was deprecated in Elasticsearch and will be removed in a future release!" +
+            " See the breaking changes documentation for the next major version.");
     }
 
     public void testSetLevels() {

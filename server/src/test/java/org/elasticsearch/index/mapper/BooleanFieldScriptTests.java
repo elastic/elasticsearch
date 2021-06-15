@@ -13,6 +13,8 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.script.AbstractFieldScript;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.ScriptContext;
@@ -45,11 +47,11 @@ public class BooleanFieldScriptTests extends FieldScriptTestCase<BooleanFieldScr
 
     public void testTooManyValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new StoredField("_source", new BytesRef("{}"))));
+            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 BooleanFieldScript script = new BooleanFieldScript(
                     "test",
-                    org.elasticsearch.common.collect.Map.of(),
+                    Map.of(),
                     new SearchLookup(field -> null, (ft, lookup) -> null),
                     reader.leaves().get(0)
                 ) {

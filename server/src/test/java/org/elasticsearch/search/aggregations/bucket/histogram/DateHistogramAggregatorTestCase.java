@@ -16,6 +16,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -40,7 +41,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
     protected final <R extends InternalAggregation> void asSubAggTestCase(AggregationBuilder builder, Consumer<R> verify)
             throws IOException {
         CheckedBiConsumer<RandomIndexWriter, DateFieldMapper.DateFieldType, IOException> buildIndex = (iw, dft) -> {
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
@@ -48,7 +49,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                 new SortedNumericDocValuesField("n", 1)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-03-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
@@ -56,7 +57,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                 new SortedNumericDocValuesField("n", 2)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
@@ -64,7 +65,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 new Field("k2", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                 new SortedNumericDocValuesField("n", 3)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2021-03-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("a")),
                 new Field("k1", new BytesRef("a"), KeywordFieldMapper.Defaults.FIELD_TYPE),
@@ -72,7 +73,7 @@ public abstract class DateHistogramAggregatorTestCase extends AggregatorTestCase
                 new Field("k2", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),
                 new SortedNumericDocValuesField("n", 4)
             ));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(List.of(
                 new SortedNumericDocValuesField(AGGREGABLE_DATE, dft.parse("2020-02-01T00:00:00Z")),
                 new SortedSetDocValuesField("k1", new BytesRef("b")),
                 new Field("k1", new BytesRef("b"), KeywordFieldMapper.Defaults.FIELD_TYPE),

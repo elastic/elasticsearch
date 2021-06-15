@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.filter;
 
+import io.github.nik9000.mapmatcher.MapMatcher;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
@@ -26,7 +28,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -78,11 +80,13 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.IntFunction;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
@@ -149,7 +153,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testNoFilters() throws IOException {
         testCase(new FiltersAggregationBuilder("test", new KeyedFilter[0]), new MatchAllDocsQuery(), iw -> {
-            iw.addDocument(org.elasticsearch.common.collect.List.of());
+            iw.addDocument(org.elasticsearch.core.List.of());
         }, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(0));
         });
@@ -159,7 +163,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         testCase(
             new FiltersAggregationBuilder("test", new KeyedFilter[0]).subAggregation(new MaxAggregationBuilder("m").field("i")),
             new MatchAllDocsQuery(),
-            iw -> { iw.addDocument(org.elasticsearch.common.collect.List.of(new SortedNumericDocValuesField("i", 1))); },
+            iw -> { iw.addDocument(org.elasticsearch.core.List.of(new SortedNumericDocValuesField("i", 1))); },
             (InternalFilters result) -> { assertThat(result.getBuckets(), hasSize(0)); },
             new NumberFieldMapper.NumberFieldType("m", NumberFieldMapper.NumberType.INTEGER)
         );
@@ -312,19 +316,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
              */
             long time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02");
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
+                org.elasticsearch.core.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
             );
             time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02");
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
+                org.elasticsearch.core.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
             );
             time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01");
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
+                org.elasticsearch.core.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
             );
             time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-02-01");
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
+                org.elasticsearch.core.List.of(new LongPoint("test", time), new SortedNumericDocValuesField("test", time))
             );
         }, (searcher, aggregator) -> {
             /*
@@ -338,7 +342,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             assertThat(filter.query(), equalTo(((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery()));
             Map<String, Object> debug = new HashMap<>();
             filter.collectDebugInfo(debug::put);
-            assertThat(debug, hasEntry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
+            assertMap(debug, matchesMap().extraOk().entry("query", ((IndexOrDocValuesQuery) topLevelQuery).getIndexQuery().toString()));
         }, ft);
     }
 
@@ -355,12 +359,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
         testCase(builder, query, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))
                 )
             );
@@ -392,12 +396,12 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02"))
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02"))
                     )
                 );
@@ -409,15 +413,20 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filterByFilter.estimateCost(maxDoc), equalTo(1L));
                 Map<String, Object> debug = new HashMap<>();
                 filterByFilter.collectDebugInfo(debug::put);
-                assertThat(debug, hasEntry("segments_with_deleted_docs", 0));
-                assertThat(debug, hasEntry("estimated_cost", 1L));
-                assertThat(debug, hasEntry("max_cost", (long) maxDoc));
-                assertThat(debug, hasEntry("estimate_cost_time", 0L));
-                List<?> filtersDebug = (List<?>) debug.get("filters");
-                for (int i = 0; i < filterByFilter.filters().size(); i++) {
-                    Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(i);
-                    assertThat((int) filterDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-                }
+                assertMap(
+                    debug,
+                    matchesMap().entry("segments_with_deleted_docs", 0)
+                        .entry("estimated_cost", 1L)
+                        .entry("max_cost", (long) maxDoc)
+                        .entry("estimate_cost_time", 0L)
+                        .entry("segments_with_doc_count_field", 0)
+                        .entry("segments_counted", 0)
+                        .entry("segments_collected", 0)
+                        .entry(
+                            "filters",
+                            matchesList().item(matchesMap().extraOk().entry("scorers_prepared_while_estimating_cost", greaterThan(0)))
+                        )
+                );
             },
             ft
         );
@@ -460,7 +469,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of());
+                iw.addDocument(org.elasticsearch.core.List.of());
             }
         };
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
@@ -468,8 +477,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_all"));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", greaterThan(0)));
         });
         testCase(
             builder,
@@ -487,7 +495,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)
                     )
                 );
@@ -498,8 +506,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(10L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_all"));
-            assertThat(debug, hasEntry("results_from_metadata", 0));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", 0));
         });
         testCase(
             builder,
@@ -522,7 +529,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         try (Directory directory = newDirectory()) {
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);
             for (int i = 0; i < 10; i++) {
-                indexWriter.addDocument(org.elasticsearch.common.collect.List.of(new LongPoint("t", i)));
+                indexWriter.addDocument(org.elasticsearch.core.List.of(new LongPoint("t", i)));
             }
             indexWriter.close();
 
@@ -549,7 +556,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 aggregator.postCollection();
                 InternalAggregation result = aggregator.buildTopLevel();
                 result = result.reduce(
-                    org.elasticsearch.common.collect.List.of(result),
+                    org.elasticsearch.core.List.of(result),
                     InternalAggregation.ReduceContext.forFinalReduction(
                         context.bigArrays(),
                         getMockScriptService(),
@@ -562,8 +569,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(5L));
                 Map<String, Object> debug = new HashMap<>();
                 ((FiltersAggregator.FilterByFilter) aggregator).filters().get(0).collectDebugInfo(debug::put);
-                assertThat(debug, hasEntry("specialized_for", "match_all"));
-                assertThat(debug, hasEntry("results_from_metadata", 0));
+                assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_all").entry("results_from_metadata", 0));
             }
         }
     }
@@ -572,7 +578,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new RangeQueryBuilder("missing").gte(0)));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of(new LongPoint("t", i)));
+                iw.addDocument(org.elasticsearch.core.List.of(new LongPoint("t", i)));
             }
         };
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
@@ -580,7 +586,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "match_none"));
+            assertMap(debug, matchesMap().extraOk().entry("specialized_for", "match_none"));
         });
         testCase(
             builder,
@@ -599,7 +605,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
                 BytesRef bytes = new BytesRef(Integer.toString(i % 3));
-                iw.addDocument(org.elasticsearch.common.collect.List.of(new Field("f", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE)));
+                iw.addDocument(org.elasticsearch.core.List.of(new Field("f", bytes, KeywordFieldMapper.Defaults.FIELD_TYPE)));
             }
         };
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
@@ -607,9 +613,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             // The estimated cost is 0 because we're going to read from metadata
             assertThat(((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE), equalTo(0L));
             Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "term"));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
-            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+            assertMap(
+                debug,
+                matchesMap().entry("specialized_for", "term")
+                    .entry("query", "f:0")
+                    .entry("results_from_metadata", greaterThan(0))
+                    .entry("scorers_prepared_while_estimating_cost", equalTo(0))
+            );
         }, ft);
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));
@@ -637,19 +647,19 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         ).subAggregation(new MaxAggregationBuilder("m").field("int")).subAggregation(new SumAggregationBuilder("s").field("int"));
         List<List<IndexableField>> docs = new ArrayList<>();
         docs.add(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2010-01-02")),
                 new SortedNumericDocValuesField("int", 100)
             )
         );
         docs.add(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-02")),
                 new SortedNumericDocValuesField("int", 5)
             )
         );
         docs.add(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new LongPoint("test", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-03")),
                 new SortedNumericDocValuesField("int", 10)
             )
@@ -718,7 +728,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         };
         for (int i = 0; i < 10000; i++) {
             docs.add(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i))
+                org.elasticsearch.core.List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i))
             );
         }
          /*
@@ -793,7 +803,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             formatter.parseMillis("2020-01-03"), };
         for (int i = 0; i < 10000; i++) {
             docs.add(
-                org.elasticsearch.common.collect.List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i))
+                org.elasticsearch.core.List.of(new LongPoint("test", times[i % 3]), new SortedNumericDocValuesField("int", i))
             );
         }
          /*
@@ -845,7 +855,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
         docValuesFieldExistsTestCase(exists, ft, true, i -> {
             long date = start + TimeUnit.HOURS.toMillis(i);
-            return org.elasticsearch.common.collect.List.of(new LongPoint("f", date), new NumericDocValuesField("f", date));
+            return org.elasticsearch.core.List.of(new LongPoint("f", date), new NumericDocValuesField("f", date));
         });
     }
 
@@ -854,7 +864,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             long date = start + TimeUnit.HOURS.toMillis(i);
-            return org.elasticsearch.common.collect.List.of(
+            return org.elasticsearch.core.List.of(
                 new LongPoint("f", date),
                 new LongPoint("f", date + 10),
                 new SortedNumericDocValuesField("f", date),
@@ -877,7 +887,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             true,
             true,
             null,
-            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.core.Map.of(),
             null
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
@@ -894,7 +904,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             true,
             true,
             null,
-            org.elasticsearch.common.collect.Map.of(),
+            org.elasticsearch.core.Map.of(),
             null
         ));
     }
@@ -904,11 +914,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             "f",
             true,
             true,
-            org.elasticsearch.common.collect.Map.of()
+            org.elasticsearch.core.Map.of()
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, false, i -> {
             BytesRef text = new BytesRef(randomAlphaOfLength(5));
-            return org.elasticsearch.common.collect.List.of(
+            return org.elasticsearch.core.List.of(
                 new Field("f", text, KeywordFieldMapper.Defaults.FIELD_TYPE),
                 new SortedSetDocValuesField("f", text)
             );
@@ -917,7 +927,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
     public void testDocValuesFieldExistsForKeywordWithoutData() throws IOException {
         docValuesFieldExistsNoDataTestCase(
-            new KeywordFieldMapper.KeywordFieldType("f", true, true, org.elasticsearch.common.collect.Map.of())
+            new KeywordFieldMapper.KeywordFieldType("f", true, true, org.elasticsearch.core.Map.of())
         );
     }
 
@@ -928,35 +938,40 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         IntFunction<List<? extends IndexableField>> buildDocWithField
     ) throws IOException {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
-            for (int i = 0; i < 10; i++) {
-                iw.addDocument(buildDocWithField.apply(i));
-            }
-            for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of());
-            }
-        };
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
         debugTestCase(
             builder,
             new MatchAllDocsQuery(),
-            buildIndex,
+            iw -> {
+                for (int i = 0; i < 10; i++) {
+                    iw.addDocument(buildDocWithField.apply(i));
+                }
+            },
             (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
                 assertThat(result.getBuckets(), hasSize(1));
                 assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));
 
                 assertThat(impl, equalTo(FiltersAggregator.FilterByFilter.class));
-                Map<?, ?> filterAggDebug = debug.get("test");
-                List<?> filtersDebug = (List<?>) filterAggDebug.get("filters");
-                Map<?, ?> filterDebug = (Map<?, ?>) filtersDebug.get(0);
-                assertThat(filterDebug, hasEntry("specialized_for", "docvalues_field_exists"));
-                assertThat((int) filterDebug.get("results_from_metadata"), canUseMetadata ? greaterThan(0) : equalTo(0));
+                MapMatcher expectedFilterDebug = matchesMap().extraOk()
+                    .entry("specialized_for", "docvalues_field_exists")
+                    .entry("results_from_metadata", canUseMetadata ? greaterThan(0) : equalTo(0));
+                assertMap(
+                    debug,
+                    matchesMap().entry("test", matchesMap().extraOk().entry("filters", matchesList().item(expectedFilterDebug)))
+                );
             },
             fieldType,
             fnft
         );
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
+        withAggregator(builder, new MatchAllDocsQuery(), iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(buildDocWithField.apply(i));
+            }
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(org.elasticsearch.core.List.of());
+            }
+        }, (searcher, aggregator) -> {
             long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
             Map<String, Object> debug = new HashMap<>();
             aggregator.collectDebugInfo(debug::put);
@@ -974,7 +989,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", exists));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of());
+                iw.addDocument(org.elasticsearch.core.List.of());
             }
         };
         // Exists queries convert to MatchNone if this isn't defined
@@ -982,11 +997,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
             assertThat(aggregator, instanceOf(FiltersAggregator.FilterByFilter.class));
             long estimatedCost = ((FiltersAggregator.FilterByFilter) aggregator).estimateCost(Long.MAX_VALUE);
-            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
-            assertThat(debug, hasEntry("specialized_for", "docvalues_field_exists"));
             assertThat(estimatedCost, equalTo(0L));
-            assertThat((int) debug.get("results_from_metadata"), greaterThan(0));
-            assertThat((int) debug.get("scorers_prepared_while_estimating_cost"), equalTo(0));
+
+            Map<String, Object> debug = collectAndGetFilterDebugInfo(searcher, aggregator);
+            assertMap(debug, matchesMap().extraOk()
+                .entry("specialized_for", "docvalues_field_exists")
+                .entry("results_from_metadata", greaterThan(0))
+                .entry("scorers_prepared_while_estimating_cost", equalTo(0)));
         }, fieldType, fnft);
         testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalFilters result) -> {
             assertThat(result.getBuckets(), hasSize(1));
@@ -1010,7 +1027,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         return debug;
     }
 
-    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = org.elasticsearch.common.collect.List.of(
+    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = org.elasticsearch.core.List.of(
         NestedAggregatorTests.nestedObject("nested_chapters")
     );
 }

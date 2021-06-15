@@ -67,7 +67,7 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<No
     @Override
     protected NodesDeprecationCheckAction.NodeResponse nodeOperation(NodesDeprecationCheckAction.NodeRequest request) {
         List<DeprecationIssue> issues = DeprecationInfoAction.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
-            (c) -> c.apply(settings, pluginsService.info()));
+            (c) -> c.apply(settings, pluginsService.info(), clusterService.state()));
 
         return new NodesDeprecationCheckAction.NodeResponse(transportService.getLocalNode(), issues);
     }

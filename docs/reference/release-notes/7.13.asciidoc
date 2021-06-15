@@ -1,3 +1,69 @@
+[[release-notes-7.13.2]]
+== {es} version 7.13.2
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[bug-7.13.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Add setting to disable aggs optimization {es-pull}73620[#73620] (issue: {es-issue}73426[#73426])
+
+Cluster Coordination::
+* Write next cluster state fully on all failures {es-pull}73631[#73631]
+
+Features/ILM+SLM::
+* Always handle non-complete `AsyncActionStep` execution {es-pull}73796[#73796] (issue: {es-issue}73794[#73794])
+* Copy all execution state in `CopyExecutionStateStep` {es-pull}73792[#73792] (issues: {es-issue}64883[#64883], {es-issue}73791[#73791])
+
+Features/Ingest::
+* Preserve field mappings from user agent processor when ECS is disabled {es-pull}73783[#73783] (issue: {es-issue}73780[#73780])
+
+Infra/Core::
+* Resolve concrete associated indices when resetting features {es-pull}73017[#73017] (issue: {es-issue}72363[#72363])
+
+Search::
+* Fix error when fetching values for parent ID join field {es-pull}73639[#73639]
+
+Snapshot/Restore::
+* Fix repo name at allocation time {es-pull}73669[#73669]
+
+Monitoring::
+* Add ability for `monitoring_user` role to read from metricbeat-* {es-pull}71233[#71233]
+
+[[release-notes-7.13.1]]
+== {es} version 7.13.1
+
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[bug-7.13.1]]
+[discrete]
+=== Bug fixes
+
+Engine::
+* Fix illegal access on PIT creation for frozen index {es-pull}73517[#73517] (issue: {es-issue}73514[#73514])
+
+Geo::
+* Fix typo in Rectangle() error message {es-pull}73124[#73124]
+
+Infra/Core::
+* Validate that system indices aren't also hidden indices {es-pull}72768[#72768] (issue: {es-issue}72631[#72631])
+
+Infra/Scripting::
+* Add `LinkageError` to the errors we catch as part of the Painless sandbox {es-pull}73116[#73116]
+
+Machine Learning::
+* Reduce warning logging from get categories Grok pattern creation {es-pull}73373[#73373]
+
+Search::
+* Search analyzer should default to configured index analyzer over default {es-pull}73359[#73359] (issue: {es-issue}73333[#73333])
+
+Snapshot/Restore::
+* Do not remove write block when unfreezing cold/frozen indices {es-pull}73368[#73368]
+* Fix bug with concurrent snapshot and index delete {es-pull}73456[#73456]
+* Fix location of repository analyzer API spec {es-pull}73378[#73378]
+
 [[release-notes-7.13.0]]
 == {es} version 7.13.0
 
@@ -12,6 +78,16 @@ cluster should increase the cluster setting `xpack.ml.max_open_jobs` to the
 maximum value of `512`. This allows autoscaling to run reliably as it relies on
 assigning jobs only via memory. Having `xpack.ml.max_open_jobs` as a small
 number may cause autoscaling to behave unexpectedly.
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[deprecation-7.13.0]]
 [float]
@@ -243,6 +319,9 @@ Transform::
 Aggregations::
 * Significant text aggregation - return empty results rather than error if field unmapped {es-pull}70778[#70778] (issue: {es-issue}69809[#69809])
 * Stop terms aggregation from losing buckets {es-pull}70493[#70493] (issues: {es-issue}68871[#68871], {es-issue}70449[#70449])
+
+Analysis::
+* Ukrainian language plugin can fill up heap {es-pull}71998[#71998]
 
 Authentication::
 * Fix inconsistency of internal user checking {es-pull}70123[#70123]

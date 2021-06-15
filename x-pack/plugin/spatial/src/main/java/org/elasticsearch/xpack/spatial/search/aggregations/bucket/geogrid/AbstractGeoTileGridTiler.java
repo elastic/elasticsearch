@@ -157,21 +157,5 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         return (int) numTilesAtPrecision;
     }
 
-    protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
-        zTile++;
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 2; j++) {
-                int nextX = 2 * xTile + i;
-                int nextY = 2 * yTile + j;
-                if (validTile(nextX, nextY, zTile)) {
-                    if (zTile == precision) {
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
-                    } else {
-                        valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex);
-                    }
-                }
-            }
-        }
-        return valuesIndex;
-    }
+    protected abstract int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex);
 }

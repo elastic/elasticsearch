@@ -11,7 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.env.Environment;
@@ -20,6 +20,7 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.support.NoOpLogger;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -64,17 +65,22 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         } catch (IOException e) {
             throw new IllegalStateException("Failed to load service_tokens file [" + file + "]", e);
         }
-        refreshListeners = new CopyOnWriteArrayList<>(org.elasticsearch.common.collect.List.of(this::invalidateAll));
+        refreshListeners = new CopyOnWriteArrayList<>(org.elasticsearch.core.List.of(this::invalidateAll));
         cacheInvalidatorRegistry.registerCacheInvalidator("file_service_account_token", this);
     }
 
     @Override
-    public void doAuthenticate(ServiceAccountToken token, ActionListener<Boolean> listener) {
+    public void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
         // This is done on the current thread instead of using a dedicated thread pool like API key does
         // because it is not expected to have a large number of service tokens.
         listener.onResponse(Optional.ofNullable(tokenHashes.get(token.getQualifiedName()))
-            .map(hash -> Hasher.verifyHash(token.getSecret(), hash))
-            .orElse(false));
+            .map(hash -> new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), hash), getTokenSource()))
+            .orElse(new StoreAuthenticationResult(false, getTokenSource())));
+    }
+
+    @Override
+    public TokenSource getTokenSource() {
+        return TokenSource.FILE;
     }
 
     @Override
@@ -85,7 +91,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
             .filter(k -> k.startsWith(principal + "/"))
             .map(k -> TokenInfo.fileToken(Strings.substring(k, principal.length() + 1, k.length())))
             .collect(Collectors.toList());
-        listener.onResponse(org.elasticsearch.common.collect.List.copyOf(tokenInfos));
+        listener.onResponse(org.elasticsearch.core.List.copyOf(tokenInfos));
     }
 
     public void addListener(Runnable listener) {
@@ -125,7 +131,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         } catch (Exception e) {
             logger.error("failed to parse service tokens file [{}]. skipping/removing all tokens...",
                 path.toAbsolutePath());
-            return org.elasticsearch.common.collect.Map.of();
+            return org.elasticsearch.core.Map.of();
         }
     }
 
@@ -134,7 +140,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
         thisLogger.trace("reading service_tokens file [{}]...", path.toAbsolutePath());
         if (Files.exists(path) == false) {
             thisLogger.trace("file [{}] does not exist", path.toAbsolutePath());
-            return org.elasticsearch.common.collect.Map.of();
+            return org.elasticsearch.core.Map.of();
         }
         final Map<String, char[]> parsedTokenHashes = new HashMap<>();
         FileLineParser.parse(path, (lineNumber, line) -> {
@@ -159,7 +165,7 @@ public class FileServiceAccountTokenStore extends CachingServiceAccountTokenStor
             }
         });
         thisLogger.debug("parsed [{}] tokens from file [{}]", parsedTokenHashes.size(), path.toAbsolutePath());
-        return org.elasticsearch.common.collect.Map.copyOf(parsedTokenHashes);
+        return org.elasticsearch.core.Map.copyOf(parsedTokenHashes);
     }
 
     static void writeFile(Path path, Map<String, char[]> tokenHashes) {

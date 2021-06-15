@@ -47,6 +47,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.ingest.Processor;
@@ -526,7 +527,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
         final CacheInvalidatorRegistry cacheInvalidatorRegistry = new CacheInvalidatorRegistry();
         cacheInvalidatorRegistry.registerAlias("service",
-            org.elasticsearch.common.collect.Set.of("file_service_account_token", "index_service_account_token"));
+            org.elasticsearch.core.Set.of("file_service_account_token", "index_service_account_token"));
         components.add(cacheInvalidatorRegistry);
         securityIndex.get().addIndexStateListener(cacheInvalidatorRegistry::onSecurityIndexStateChange);
 
@@ -560,7 +561,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
             new FileServiceAccountTokenStore(environment, resourceWatcherService, threadPool, cacheInvalidatorRegistry);
 
         final ServiceAccountService serviceAccountService = new ServiceAccountService(new CompositeServiceAccountTokenStore(
-            org.elasticsearch.common.collect.List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
+            org.elasticsearch.core.List.of(fileServiceAccountTokenStore, indexServiceAccountTokenStore),
             threadPool.getThreadContext()), httpTlsRuntimeCheck);
         components.add(serviceAccountService);
 
@@ -1155,7 +1156,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     public List<ExecutorBuilder<?>> getExecutorBuilders(final Settings settings) {
         if (enabled && transportClientMode == false) {
             final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
-            return org.elasticsearch.common.collect.List.of(
+            return org.elasticsearch.core.List.of(
                 new FixedExecutorBuilder(settings, TokenService.THREAD_POOL_NAME, 1, 1000,
                     "xpack.security.authc.token.thread_pool", false),
                 new FixedExecutorBuilder(settings, SECURITY_CRYPTO_THREAD_POOL_NAME,
@@ -1300,7 +1301,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
              .setVersionMetaKey("security-version")
              .setOrigin(SECURITY_ORIGIN)
-             .setPriorSystemIndexDescriptors(org.elasticsearch.common.collect.List.of(
+             .setPriorSystemIndexDescriptors(org.elasticsearch.core.List.of(
                  SystemIndexDescriptor.builder()
                      .setIndexPattern(".security-[0-9]+")
                      .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
@@ -1313,6 +1314,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                      .setOrigin(SECURITY_ORIGIN)
                      .build()
              ))
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 
@@ -1327,6 +1329,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
              .setIndexFormat(INTERNAL_TOKENS_INDEX_FORMAT)
              .setVersionMetaKey(SECURITY_VERSION_STRING)
              .setOrigin(SECURITY_ORIGIN)
+             .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
              .build();
      }
 

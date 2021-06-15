@@ -24,7 +24,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -550,7 +550,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertEquals("token has already been refreshed more than 30 seconds in the past", e.getHeader("error_description").get(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/68664")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         Client client = client().filterWithHeader(Collections.singletonMap("Authorization",
@@ -621,11 +620,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         completedLatch.await();
         assertThat(failed.get(), equalTo(false));
         // Assert that we only ever got one token/refresh_token pair
-        assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+        synchronized (tokens) {
+            assertThat((int) tokens.stream().distinct().count(), equalTo(1));
+        }
         // Assert that all requests from all threads could authenticate at the time they received the access token
         // see: https://github.com/elastic/elasticsearch/issues/54289
-        assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
-        assertThat(authStatuses, hasItem(RestStatus.OK));
+        synchronized (authStatuses) {
+            assertThat((int) authStatuses.stream().distinct().count(), equalTo(1));
+            assertThat(authStatuses, hasItem(RestStatus.OK));
+        }
     }
 
     public void testRefreshAsDifferentUser() {

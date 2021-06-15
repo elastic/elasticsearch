@@ -4,7 +4,7 @@
 
 Phases allowed: hot.
 
-Rolls over a target to a new index when the existing index meets one of the rollover conditions.
+Rolls over a target to a new index when the existing index meets one or more of the rollover conditions.
 
 IMPORTANT: If the rollover action is used on a <<ccr-put-follow,follower index>>,
 policy execution waits until the leader index rolls over (or is
@@ -12,12 +12,12 @@ policy execution waits until the leader index rolls over (or is
 then converts the follower index into a regular index with the
 <<ilm-unfollow, Unfollow action>>.
 
-A rollover target can be a <<data-streams, data stream>> or an <<indices-aliases, index alias>>.
-When targeting a data stream, the new index becomes the data stream's
-<<data-stream-write-index,write index>> and its generation is incremented.
+A rollover target can be a <<data-streams, data stream>> or an <<alias,index
+alias>>. When targeting a data stream, the new index becomes the data stream's
+write index and its generation is incremented.
 
-To roll over an <<indices-aliases, index alias>>, the alias and its write index
-must meet the following conditions:
+To roll over an index alias, the alias and its write index must meet the
+following conditions:
 
 * The index name must match the pattern '^.*-\\d+$', for example (`my-index-000001`).
 * The `index.lifecycle.rollover_alias` must be configured as the alias to roll over.

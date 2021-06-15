@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
@@ -1150,7 +1149,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            LeafPlan relation = plan.collectFirstDown(LeafPlan.class).get();
+            LogicalPlan relation = plan
+                .collectFirstDown(p -> p.children().isEmpty() ? Optional.of(p) : Optional.empty())
+                .get();
 
             // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
             boolean isNonSkippedLocalRelation = relation instanceof LocalRelation &&

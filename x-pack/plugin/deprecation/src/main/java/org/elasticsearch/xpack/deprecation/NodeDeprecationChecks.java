@@ -32,8 +32,10 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -502,5 +504,32 @@ class NodeDeprecationChecks {
 
 
         return null;
+    }
+
+    static DeprecationIssue checkMonitoringExporterPassword(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        ClusterState cs
+    ) {
+        List<Setting<?>> passwords = HttpExporter.AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (passwords.isEmpty()) {
+            return null;
+        }
+
+        final String passwordSettings = passwords.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "non-secure passwords for monitoring exporters [%s] are deprecated and will be removed in the next major version",
+            passwordSettings
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+            passwordSettings
+        );
+        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 }

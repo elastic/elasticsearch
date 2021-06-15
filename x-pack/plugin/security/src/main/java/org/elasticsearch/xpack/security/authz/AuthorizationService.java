@@ -620,7 +620,6 @@ public class AuthorizationService {
                 return authcFailureHandler.authenticationRequired(action, threadContext);
             }
         }
-
         String userText = "user [" + authUser.principal() + "]";
         // check for run as
         if (authentication.getUser().isRunAs()) {
@@ -637,7 +636,9 @@ public class AuthorizationService {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
+        String requestIndex = extractRequestIndex(request);
         String message = "action [" + action + "] is unauthorized for " + userText;
+        String debugMessage = message.replaceFirst("]", "]" + requestIndex);
         if (context != null) {
             message = message + " " + context;
         }
@@ -656,8 +657,28 @@ public class AuthorizationService {
             }
         }
 
-        logger.debug(message);
+        logger.debug(debugMessage);
         return authorizationError(message, cause);
+    }
+
+    private String extractRequestIndex(TransportRequest request) {
+        String description = request.getDescription();
+        if (description == null) {
+            return "";
+        }
+
+        String index = null;
+        if (description.contains("indices")) {
+            index = description
+                .replaceFirst("^.+indices[ ]?\\[", "")
+                .replaceFirst("].*$", "");
+        } else if (description.contains("index {[")) {
+            index = description
+                .replaceFirst("^index \\{\\[", "")
+                .split("]", 2)[0];
+        }
+
+        return index == null ? "" : String.format("(%s)", index);
     }
 
     private class AuthorizationResultListener<T extends AuthorizationResult> implements ActionListener<T> {

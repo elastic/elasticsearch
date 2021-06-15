@@ -201,31 +201,6 @@ fully-formatted. You can see a list of project that **are not**
 automatically formatted in
 [build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle](build-tools-internal/src/main/groovy/elasticsearch.formatting.gradle).
 
-#### Imports
-
-It is also important that you configure the correct import ordering in
-IntelliJ.  We configure Spotless (above) to sort the imports in Java files,
-and while the [Eclipse Code Formatter] plugin supports an option for
-ordering imports, in practice this option appears unreliable, so instead
-you must configure IntelliJ's import ordering to match Spotless.
-
-   1. Open **Preferences > Editor > Code Style > Java**
-   2. Click the **Imports** tab
-   3. Set "Class count to use import with '*'" to 9999.
-   4. Set "Names count to use static import with '*'" to 9999.
-   5. Under "Import Layout", configure the following:
-      - Import all other imports
-      - _&lt;blank line&gt;_
-      - `com.*`
-      - _&lt;blank line&gt;_
-      - `org.*`
-      - _&lt;blank line&gt;_
-      - `java.*`
-      - _&lt;blank line&gt;_
-      - `javax.*`
-      - _&lt;blank line&gt;_
-      - import static all other imports
-
 ### Importing the project into Eclipse
 
 Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you

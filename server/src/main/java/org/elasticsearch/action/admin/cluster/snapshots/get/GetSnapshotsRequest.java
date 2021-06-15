@@ -136,7 +136,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (repositories == null || repositories.length == 0) {
             validationException = addValidationError("repositories are missing", validationException);
         }
-        if (size == 0) {
+        if (size == 0 || size < NO_LIMIT) {
             validationException = addValidationError("size must be -1 or greater than 0", validationException);
         }
         if (verbose == false) {
@@ -148,6 +148,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
             if (after != null) {
                 validationException = addValidationError("can't use after with verbose=false", validationException);
+            }
+            if (order != SortOrder.ASC) {
+                validationException = addValidationError("can't use non-default sort order with verbose=false", validationException);
             }
         }
         return validationException;

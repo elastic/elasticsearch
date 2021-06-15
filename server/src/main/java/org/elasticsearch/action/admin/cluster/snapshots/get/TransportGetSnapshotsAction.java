@@ -54,7 +54,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Predicate;
+import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Transport Action for get snapshots operation
@@ -446,16 +449,15 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return sortSnapshots(snapshotInfos, sortBy, after, size, order);
     }
 
-    private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparing(SnapshotInfo::startTime)
+    private static final Comparator<SnapshotInfo> BY_START_TIME = Comparator.comparingLong(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
 
-    private static final Comparator<SnapshotInfo> BY_DURATION = Comparator.<SnapshotInfo, Long>comparing(
+    private static final Comparator<SnapshotInfo> BY_DURATION = Comparator.<SnapshotInfo>comparingLong(
         sni -> sni.endTime() - sni.startTime()
     ).thenComparing(SnapshotInfo::snapshotId);
 
-    private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo, Integer>comparing(
-        sni -> sni.indices().size()
-    ).thenComparing(SnapshotInfo::snapshotId);
+    private static final Comparator<SnapshotInfo> BY_INDICES_COUNT = Comparator.<SnapshotInfo>comparingInt(sni -> sni.indices().size())
+        .thenComparing(SnapshotInfo::snapshotId);
 
     private static final Comparator<SnapshotInfo> BY_NAME = Comparator.comparing(sni -> sni.snapshotId().getName());
 
@@ -483,108 +485,53 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             default:
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
-        CollectionUtil.timSort(snapshotInfos, order == SortOrder.DESC ? comparator.reversed() : comparator);
-        int startIndex = 0;
+
+        Stream<SnapshotInfo> infos = snapshotInfos.stream();
+
         if (after != null) {
+            final Predicate<SnapshotInfo> isAfter;
             final String name = after.snapshotName();
             switch (sortBy) {
                 case START_TIME:
-                    final long start = Long.parseLong(after.value());
-                    if (order == SortOrder.ASC) {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            if (start < info.startTime() || (start == info.startTime() && nameIsAfter(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    } else {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            if (start > info.startTime() || (start == info.startTime() && nameIsBefore(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    }
+                    isAfter = filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after.value()), name, order);
                     break;
                 case NAME:
-                    if (order == SortOrder.ASC) {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            if (nameIsAfter(name, snapshotInfos.get(i))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    } else {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            if (nameIsBefore(name, snapshotInfos.get(i))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    }
+                    isAfter = order == SortOrder.ASC ? (info -> compareName(name, info) < 0) : (info -> compareName(name, info) > 0);
                     break;
                 case DURATION:
-                    final long duration = Long.parseLong(after.value());
-                    if (order == SortOrder.ASC) {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            final long snapshotDuration = info.endTime() - info.startTime();
-                            if (duration < snapshotDuration || (duration == snapshotDuration && nameIsAfter(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    } else {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            final long snapshotDuration = info.endTime() - info.startTime();
-                            if (duration > snapshotDuration || (duration == snapshotDuration && nameIsBefore(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    }
+                    isAfter = filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(after.value()), name, order);
                     break;
                 case INDICES:
-                    final int indices = Integer.parseInt(after.value());
-                    if (order == SortOrder.ASC) {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            final int indexCount = info.indices().size();
-                            if (indices < indexCount || (indices == indexCount && nameIsAfter(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    } else {
-                        for (int i = 0; i < snapshotInfos.size(); i++) {
-                            final SnapshotInfo info = snapshotInfos.get(i);
-                            final int indexCount = info.indices().size();
-                            if (indices > indexCount || (indices == indexCount && nameIsBefore(name, info))) {
-                                startIndex = i;
-                                break;
-                            }
-                        }
-                    }
+                    isAfter = filterByLongOffset(info -> info.indices().size(), Integer.parseInt(after.value()), name, order);
                     break;
+                default:
+                    throw new AssertionError("unexpected sort column [" + sortBy + "]");
             }
+            infos = infos.filter(isAfter);
         }
-        final List<SnapshotInfo> afterStart;
-        if (startIndex == 0) {
-            afterStart = snapshotInfos;
-        } else {
-            afterStart = snapshotInfos.subList(startIndex, snapshotInfos.size());
+        infos = infos.sorted(order == SortOrder.DESC ? comparator.reversed() : comparator);
+        if (size != GetSnapshotsRequest.NO_LIMIT) {
+            infos = infos.limit(size);
         }
-        return List.copyOf(size > 0 && size < afterStart.size() ? afterStart.subList(0, size) : afterStart);
+        return infos.collect(Collectors.toUnmodifiableList());
     }
 
-    private static boolean nameIsAfter(String afterName, SnapshotInfo info) {
-        return afterName.compareTo(info.snapshotId().getName()) < 0;
+    private static Predicate<SnapshotInfo> filterByLongOffset(
+        ToLongFunction<SnapshotInfo> extractor,
+        long after,
+        String name,
+        SortOrder order
+    ) {
+        return order == SortOrder.ASC ? info -> {
+            final long val = extractor.applyAsLong(info);
+            return after < val || (after == val && compareName(name, info) < 0);
+        } : info -> {
+            final long val = extractor.applyAsLong(info);
+            return after > val || (after == val && compareName(name, info) > 0);
+        };
     }
 
-    private static boolean nameIsBefore(String beforeName, SnapshotInfo info) {
-        return beforeName.compareTo(info.snapshotId().getName()) > 0;
+    private static int compareName(String name, SnapshotInfo info) {
+        return name.compareTo(info.snapshotId().getName());
     }
 }

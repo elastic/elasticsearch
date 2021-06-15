@@ -26,7 +26,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
@@ -140,7 +140,7 @@ public class TransportFieldCapabilitiesIndexAction
                         if (searchExecutionContext.getFieldType(parentField) == null) {
                             // no field type, it must be an object field
                             ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
-                            String type = mapper.isNested() ? "nested" : "object";
+                            String type = mapper.nested().isNested() ? "nested" : "object";
                             IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                 false, false, false, Collections.emptyMap());
                             responseMap.put(parentField, fieldCap);

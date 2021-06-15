@@ -21,17 +21,19 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -45,11 +47,11 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -136,6 +138,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
+    private final BigArrays bigArrays;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -143,13 +146,15 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Client client,
                                  String origin,
                                  Writeable.Reader<R> reader,
-                                 NamedWriteableRegistry registry) {
+                                 NamedWriteableRegistry registry,
+                                 BigArrays bigArrays) {
         this.index = index;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
         this.client = client;
         this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
+        this.bigArrays = bigArrays;
     }
 
     /**
@@ -181,35 +186,55 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                Map<String, String> headers,
                                R response,
                                ActionListener<IndexResponse> listener) throws IOException {
-        Map<String, Object> source = new HashMap<>();
-        source.put(HEADERS_FIELD, headers);
-        source.put(EXPIRATION_TIME_FIELD, response.getExpirationTime());
-        source.put(RESULT_FIELD, encodeResponse(response));
-        IndexRequest indexRequest = new IndexRequest(index)
-            .create(true)
-            .id(docId)
-            .source(source, XContentType.JSON);
-        clientWithOrigin.index(indexRequest, listener);
+        try {
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
+                .startObject()
+                .field(HEADERS_FIELD, headers)
+                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
+                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                .endObject();
+            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+            source.flush();
+            final IndexRequest indexRequest = new IndexRequest(index)
+                .create(true)
+                .id(docId)
+                .source(buffer.bytes(), source.contentType());
+            clientWithOrigin.index(indexRequest, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
     }
 
     /**
      * Stores the final response if the place-holder document is still present (update).
      */
     public void updateResponse(String docId,
-                            Map<String, List<String>> responseHeaders,
-                            R response,
-                            ActionListener<UpdateResponse> listener) {
+                               Map<String, List<String>> responseHeaders,
+                               R response,
+                               ActionListener<UpdateResponse> listener) {
         try {
-            Map<String, Object> source = new HashMap<>();
-            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-            source.put(RESULT_FIELD, encodeResponse(response));
-            UpdateRequest request = new UpdateRequest()
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, source::close);
+            source
+                .startObject()
+                .field(RESPONSE_HEADERS_FIELD, responseHeaders)
+                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                .endObject();
+            // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+            source.flush();
+            final UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
-                .doc(source, XContentType.JSON)
+                .doc(buffer.bytes(), source.contentType())
                 .retryOnConflict(5);
             clientWithOrigin.update(request, listener);
-        } catch(Exception e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }
@@ -452,21 +477,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return origin.canAccessResourcesOf(current);
     }
 
-    /**
-     * Encode the provided response in a binary form using base64 encoding.
-     */
-    String encodeResponse(R response) throws IOException {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, out);
-            response.writeTo(out);
-            return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
-        }
+    private void writeResponse(R response, OutputStream os) throws IOException {
+        final OutputStreamStreamOutput out = new OutputStreamStreamOutput(os);
+        Version.writeVersion(Version.CURRENT, out);
+        response.writeTo(out);
     }
 
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
     R decodeResponse(String value) throws IOException {
+        // TODO: Integrate with the circuit breaker
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
                 in.setVersion(Version.readVersion(in));

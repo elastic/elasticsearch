@@ -9,7 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -44,11 +44,6 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                                                Parser<T> parser, String onScriptError) {
         super(simpleName, mappedFieldType, multiFields, copyTo, parser, onScriptError);
         this.nullValue = null;
-    }
-
-    @Override
-    public final boolean parsesArrayValue() {
-        return true;
     }
 
     public T getNullValue() {

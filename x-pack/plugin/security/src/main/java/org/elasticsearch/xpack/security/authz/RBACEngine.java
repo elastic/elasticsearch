@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivile
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -629,6 +630,7 @@ public class RBACEngine implements AuthorizationEngine {
         return action.equals(SubmitAsyncSearchAction.NAME) ||
             action.equals(GetAsyncSearchAction.NAME) ||
             action.equals(DeleteAsyncResultAction.NAME) ||
-            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME);
+            action.equals(EqlAsyncActionNames.EQL_ASYNC_GET_RESULT_ACTION_NAME) ||
+            action.equals(SqlAsyncActionNames.SQL_ASYNC_GET_RESULT_ACTION_NAME);
     }
 }

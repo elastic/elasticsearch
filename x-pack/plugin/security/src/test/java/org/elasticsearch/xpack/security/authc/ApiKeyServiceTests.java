@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -89,11 +91,15 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_METADATA_KEY;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -422,11 +428,14 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         apiKeyDoc = buildApiKeyDoc(hash, -1, true);
         creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
+        service.getApiKeyAuthCache().put(creds.getId(), new ListenableFuture<>());
+        assertNotNull(service.getApiKeyAuthCache().get(creds.getId()));
         future = new PlainActionFuture<>();
         service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
+        assertNull(service.getApiKeyAuthCache().get(creds.getId()));
     }
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {
@@ -845,6 +854,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AuthenticationResult authResult5 = future5.get();
         assertSame(AuthenticationResult.Status.SUCCESS, authResult5.getStatus());
         checkAuthApiKeyMetadata(metadata4, authResult5);
+    }
+
+    public void testWillInvalidateAuthCacheWhenDocNotFound() {
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String docId = randomAlphaOfLength(16);
+        final String apiKey = randomAlphaOfLength(16);
+        ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
+        service.getApiKeyAuthCache().put(docId, new ListenableFuture<>());
+        assertNotNull(service.getApiKeyAuthCache().get(docId));
+        SecurityMocks.mockGetRequest(client, SECURITY_MAIN_ALIAS, docId,
+            new GetResult(INTERNAL_SECURITY_MAIN_INDEX_7, docId, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM,
+                randomLongBetween(0, 9), false, null, null, null));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
+        assertNull(service.getApiKeyAuthCache().get(docId));
     }
 
     public void testWillGetLookedUpByRealmNameIfExists() {

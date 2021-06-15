@@ -160,8 +160,12 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetadata metadata
-                = new StoreFileMetadata("foo", randomIntBetween(0, 1000), "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
+            StoreFileMetadata metadata = new StoreFileMetadata(
+                "foo",
+                randomIntBetween(0, 1000),
+                "666",
+                MIN_SUPPORTED_LUCENE_VERSION.toString()
+            );
             info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {

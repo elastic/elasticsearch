@@ -11,7 +11,6 @@ package org.elasticsearch.index.store;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;

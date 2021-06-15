@@ -42,11 +42,11 @@ public class URLFixture extends AbstractHttpFixture {
             throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
         String workingDirectory = args[1];
-        if(Files.exists(dir(workingDirectory)) == false) {
+        if (Files.exists(dir(workingDirectory)) == false) {
             throw new IllegalArgumentException("Configured working directory " + workingDirectory + " does not exist");
         }
         String repositoryDirectory = args[2];
-        if(Files.exists(dir(repositoryDirectory)) == false) {
+        if (Files.exists(dir(repositoryDirectory)) == false) {
             throw new IllegalArgumentException("Configured repository directory " + repositoryDirectory + " does not exist");
         }
         final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), workingDirectory, repositoryDirectory);

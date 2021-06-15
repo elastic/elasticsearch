@@ -100,7 +100,9 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search.aggregation/20_terms/Deprecated _term order',
+    'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
+    'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
     'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
     'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
     'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',

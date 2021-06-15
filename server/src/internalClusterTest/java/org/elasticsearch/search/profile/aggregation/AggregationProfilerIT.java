@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matcher;
 import org.joda.time.Instant;
 
 import java.io.IOException;
@@ -32,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
 import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -44,10 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -623,30 +622,23 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(breakdown.get(COLLECT), equalTo(0L));
             assertThat(breakdown.get(BUILD_AGGREGATION).longValue(), greaterThan(0L));
             assertThat(breakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> debug = histoAggResult.getDebugInfo();
-            assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(Set.of("delegate", "delegate_debug")));
-            assertThat(debug.get("delegate"), equalTo("RangeAggregator.FromFilters"));
-            Map<?, ?> delegate = (Map<?, ?>) debug.get("delegate_debug");
-            assertThat(delegate.keySet(), equalTo(Set.of("average_docs_per_range", "ranges", "delegate", "delegate_debug")));
-            assertThat(
-                ((Number) delegate.get("average_docs_per_range")).doubleValue(),
-                equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
+
+            Matcher<?> filterDebug = matchesMap().entry("query", "DocValuesFieldExistsQuery [field=date]")
+                .entry("specialized_for", "docvalues_field_exists")
+                .entry("results_from_metadata", 0);
+            Matcher<?> filterByFilterDebug = matchesMap().entry("segments_counted", 0)
+                .entry("segments_collected", greaterThan(0))
+                .entry("segments_with_deleted_docs", 0)
+                .entry("segments_with_doc_count_field", 0)
+                .entry("filters", matchesList().item(filterDebug));
+            Matcher<?> fromFiltersDebug = matchesMap().entry("ranges", 1)
+                .entry("average_docs_per_range", equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2))
+                .entry("delegate", "FilterByFilterAggregator")
+                .entry("delegate_debug", filterByFilterDebug);
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry("delegate", "RangeAggregator.FromFilters").entry("delegate_debug", fromFiltersDebug)
             );
-            assertThat(((Number) delegate.get("ranges")).longValue(), equalTo(1L));
-            assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
-            Map<?, ?> delegateDebug = (Map<?, ?>) delegate.get("delegate_debug");
-            assertThat(delegateDebug, hasEntry("segments_with_deleted_docs", 0));
-            assertThat(delegateDebug, hasEntry("segments_with_doc_count_field", 0));
-            assertThat(delegateDebug, hasEntry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
-            assertThat(delegateDebug, hasEntry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
-            assertThat((long) delegateDebug.get("estimate_cost_time"), greaterThanOrEqualTo(0L));  // ~1,276,734 nanos is normal
-            List<?> filtersDebug = (List<?>) delegateDebug.get("filters");
-            assertThat(filtersDebug, hasSize(1));
-            Map<?, ?> queryDebug = (Map<?, ?>) filtersDebug.get(0);
-            assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
-            assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-            assertThat(queryDebug, hasEntry("query", "DocValuesFieldExistsQuery [field=date]"));
         }
     }
 

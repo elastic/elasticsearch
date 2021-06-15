@@ -1895,6 +1895,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
     }
 
+    public void testParseWithFlattenedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flattened")));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field("first", "first");
+            b.field("second", "second");
+            b.endObject();
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNull(doc.rootDoc().getField("field.first"));
+        assertNull(doc.rootDoc().getField("field.second"));
+    }
+
     /**
      * Mapper plugin providing a mock metadata field mapper implementation that supports setting its value
      * as well as a mock runtime field parser.

@@ -132,7 +132,7 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
             throw new AssertionError("invalid status: expected [" + Status.PROCESSING + "] actual [" + status + "]", failure);
         }
         status = failure == null ? Status.SUCCESS : Status.FAILED;
-        assert assertOnSuccess();
+        assert status != Status.SUCCESS || assertOnSuccess();
         try {
             IOUtils.close(failure, this);
         } catch (Exception e) {

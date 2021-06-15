@@ -8,14 +8,15 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.google.common.annotations.VisibleForTesting;
 import groovy.text.SimpleTemplateEngine;
-
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
 import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
@@ -30,16 +31,26 @@ import java.util.stream.Collectors;
 public class ReleaseNotesIndexUpdater {
 
     public static void update(File indexTemplate, File indexFile) throws IOException {
-        final Version version = VersionProperties.getElasticsearchVersion();
-        final List<String> indexLines = Files.readAllLines(indexFile.toPath());
+        final List<String> existingIndexLines = Files.readAllLines(indexFile.toPath());
+        FileWriter indexFileWriter = new FileWriter(indexFile);
+        generateFile(
+            VersionProperties.getElasticsearchVersion(),
+            existingIndexLines,
+            Files.readString(indexTemplate.toPath()),
+            indexFileWriter
+        );
+    }
 
-        final List<String> existingVersions = indexLines.stream()
+    @VisibleForTesting
+    static void generateFile(Version version, List<String> existingIndexLines, String indexTemplate, Writer outputWriter)
+        throws IOException {
+        final List<String> existingVersions = existingIndexLines.stream()
             .filter(line -> line.startsWith("* <<release-notes-"))
             .map(line -> line.replace("* <<release-notes-", "").replace(">>", ""))
             .distinct()
             .collect(Collectors.toList());
 
-        final List<String> existingIncludes = indexLines.stream()
+        final List<String> existingIncludes = existingIndexLines.stream()
             .filter(line -> line.startsWith("include::"))
             .map(line -> line.replace("include::release-notes/", "").replace(".asciidoc[]", ""))
             .distinct()
@@ -71,7 +82,7 @@ public class ReleaseNotesIndexUpdater {
 
         try {
             final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(indexTemplate).make(bindings).writeTo(new FileWriter(indexFile));
+            engine.createTemplate(indexTemplate).make(bindings).writeTo(outputWriter);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }

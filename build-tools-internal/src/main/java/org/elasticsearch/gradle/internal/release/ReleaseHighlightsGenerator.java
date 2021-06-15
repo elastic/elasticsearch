@@ -10,12 +10,15 @@ package org.elasticsearch.gradle.internal.release;
 
 import groovy.text.SimpleTemplateEngine;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -27,10 +30,19 @@ import java.util.stream.Collectors;
  * Generates the release highlights notes, for changelog files that contain the <code>highlight</code> field.
  */
 public class ReleaseHighlightsGenerator {
-
     public static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+        generateFile(
+            VersionProperties.getElasticsearchVersion(),
+            Files.readString(templateFile.toPath()),
+            entries,
+            new FileWriter(outputFile)
+        );
+    }
+
+    @VisibleForTesting
+    static void generateFile(Version version, String templateFile, List<ChangelogEntry> entries, FileWriter outputWriter)
+        throws IOException {
         final List<String> priorVersions = new ArrayList<>();
-        final Version version = VersionProperties.getElasticsearchVersion();
 
         if (version.getMinor() > 0) {
             final int major = version.getMajor();
@@ -59,7 +71,7 @@ public class ReleaseHighlightsGenerator {
 
         try {
             final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(templateFile).make(bindings).writeTo(new FileWriter(outputFile));
+            engine.createTemplate(templateFile).make(bindings).writeTo(outputWriter);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }

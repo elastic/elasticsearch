@@ -8,13 +8,17 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.google.common.annotations.VisibleForTesting;
 import groovy.text.SimpleTemplateEngine;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
+import org.gradle.api.GradleException;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.Writer;
+import java.nio.file.Files;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
@@ -45,25 +49,33 @@ public class ReleaseNotesGenerator {
     }
 
     public static void update(File templateFile, File outputFile, List<ChangelogEntry> changelogs) throws IOException {
-        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(changelogs);
-
         final FileWriter fileWriter = new FileWriter(outputFile);
-        final SimpleTemplateEngine engine = new SimpleTemplateEngine();
+
+        final String templateString = Files.readString(templateFile.toPath());
+
+        generateFile(VersionProperties.getElasticsearchVersion(), templateString, changelogs, fileWriter);
+    }
+
+    @VisibleForTesting
+    static void generateFile(Version version, String template, List<ChangelogEntry> changelogs, Writer outputWriter) throws IOException {
+        final var changelogsByVersionByTypeByArea = buildChangelogBreakdown(version, changelogs);
 
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("changelogsByVersionByTypeByArea", changelogsByVersionByTypeByArea);
         bindings.put("TYPE_LABELS", TYPE_LABELS);
 
         try {
-            engine.createTemplate(templateFile).make(bindings).writeTo(fileWriter);
+            final SimpleTemplateEngine engine = new SimpleTemplateEngine();
+            engine.createTemplate(template).make(bindings).writeTo(outputWriter);
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
+            throw new GradleException("Failed to generate file from template", e);
         }
     }
 
-    private static Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(List<ChangelogEntry> changelogs) {
-        final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
-
+    private static Map<Version, Map<String, Map<String, List<ChangelogEntry>>>> buildChangelogBreakdown(
+        Version elasticsearchVersion,
+        List<ChangelogEntry> changelogs
+    ) {
         final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
             && v.getMinor() == elasticsearchVersion.getMinor();
 

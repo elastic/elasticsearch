@@ -61,7 +61,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * - remove the given V1 index template if it exists.
      *
      * - loop through the existing ILM policies and look at the configured {@link AllocateAction}s. If they define *any* routing rules
-     * based on the provided node attribute name (we look at include, exclude and require rules) *ALL* the rules in the allocate action
+     * based on the provided node attribute name (we look at include, exclude, and require rules) *ALL* the rules in the allocate action
      * will be removed. All the rules are removed in order to allow for ILM to inject the {@link MigrateAction}.
      * So for eg. this action:
      *      allocate {

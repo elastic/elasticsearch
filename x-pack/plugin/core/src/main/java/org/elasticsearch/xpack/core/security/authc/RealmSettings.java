@@ -29,6 +29,7 @@ import java.util.stream.Collectors;
  */
 public class RealmSettings {
 
+    public static final String RESERVED_REALM_NAME_PREFIX = "_";
     public static final String PREFIX = "xpack.security.authc.realms.";
 
     public static final Function<String, Setting.AffixSetting<Boolean>> ENABLED_SETTING = affixSetting("enabled",

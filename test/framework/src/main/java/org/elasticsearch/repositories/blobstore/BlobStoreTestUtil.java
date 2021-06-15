@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.util.SameThreadExecutorService;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
@@ -44,6 +46,7 @@ import java.io.DataInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -110,9 +113,32 @@ public final class BlobStoreTestUtil {
                     repositoryData = RepositoryData.snapshotsFromXContent(parser, latestGen, false);
                 }
                 assertIndexUUIDs(repository, repositoryData);
-                assertSnapshotUUIDs(repository, repositoryData);
-                assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
-                listener.onResponse(null);
+                assertSnapshotUUIDs(repository, repositoryData, new ActionListener<>() {
+                    @Override
+                    public void onResponse(AssertionError assertionError) {
+                        if (assertionError == null) {
+                            try {
+                                try {
+                                    assertShardIndexGenerations(blobContainer, repositoryData.shardGenerations());
+                                } catch (AssertionError e) {
+                                    listener.onResponse(e);
+                                    return;
+                                }
+                            } catch (Exception e) {
+                                onFailure(e);
+                                return;
+                            }
+                            listener.onResponse(null);
+                        } else {
+                            listener.onResponse(assertionError);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        listener.onResponse(new AssertionError(e));
+                    }
+                });
             } catch (AssertionError e) {
                 listener.onResponse(e);
             }
@@ -179,7 +205,8 @@ public final class BlobStoreTestUtil {
         }
     }
 
-    private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData) throws IOException {
+    private static void assertSnapshotUUIDs(BlobStoreRepository repository, RepositoryData repositoryData,
+                                            ActionListener<AssertionError> listener) throws IOException {
         final BlobContainer repoRoot = repository.blobContainer();
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         final List<String> expectedSnapshotUUIDs = snapshotIds.stream().map(SnapshotId::getUUID).collect(Collectors.toList());
@@ -197,11 +224,50 @@ public final class BlobStoreTestUtil {
         } else {
             indices = indicesContainer.children();
         }
+        if (snapshotIds.isEmpty()) {
+            listener.onResponse(null);
+            return;
+        }
+        // Assert that for each snapshot, the relevant metadata was written to index and shard folders
+        final List<SnapshotInfo> snapshotInfos = Collections.synchronizedList(new ArrayList<>());
+        repository.getSnapshotInfo(
+                new GetSnapshotInfoContext(
+                        List.copyOf(snapshotIds),
+                        true,
+                        () -> false,
+                        (ctx, sni) -> snapshotInfos.add(sni),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void unused) {
+                                try {
+                                    assertSnapshotInfosConsistency(repository, repositoryData, indices, snapshotInfos);
+                                } catch (Exception e) {
+                                    listener.onResponse(new AssertionError(e));
+                                    return;
+                                } catch (AssertionError e) {
+                                    listener.onResponse(e);
+                                    return;
+                                }
+                                listener.onResponse(null);
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                listener.onResponse(new AssertionError(e));
+                            }
+                        }
+                )
+        );
+    }
+
+    private static void assertSnapshotInfosConsistency(BlobStoreRepository repository,
+                                                       RepositoryData repositoryData,
+                                                       Map<String, BlobContainer> indices,
+                                                       List<SnapshotInfo> snapshotInfos) throws IOException {
         final Map<IndexId, Integer> maxShardCountsExpected = new HashMap<>();
         final Map<IndexId, Integer> maxShardCountsSeen = new HashMap<>();
-        // Assert that for each snapshot, the relevant metadata was written to index and shard folders
-        for (SnapshotId snapshotId: snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+        for (SnapshotInfo snapshotInfo: snapshotInfos) {
+            final SnapshotId snapshotId = snapshotInfo.snapshotId();
             for (String index : snapshotInfo.indices()) {
                 final IndexId indexId = repositoryData.resolveIndexId(index);
                 assertThat(indices, hasKey(indexId.getId()));

@@ -348,11 +348,18 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
         assertEquals(0, snapshotInfo.failedShards());
+    }
+
+    private SnapshotInfo getSnapshotInfo(Repository repository, SnapshotId snapshotId) {
+        final StepListener<SnapshotInfo> listener = new StepListener<>();
+        repository.getSnapshotInfo(snapshotId, listener);
+        deterministicTaskQueue.runAllRunnableTasks();
+        return listener.result();
     }
 
     public void testSnapshotWithNodeDisconnects() {
@@ -546,7 +553,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
@@ -620,7 +627,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(2));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());
@@ -770,7 +777,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, contains(createOtherSnapshotResponseStepListener.result().getSnapshotInfo().snapshotId()));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());
@@ -865,7 +872,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         if (partialSnapshot) {
             assertThat(snapshotInfo.state(), either(is(SnapshotState.SUCCESS)).or(is(SnapshotState.PARTIAL)));
             // Single shard for each index so we either get all indices or all except for the deleted index
@@ -1143,7 +1150,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         Collection<SnapshotId> snapshotIds = getRepositoryData(repository).getSnapshotIds();
         assertThat(snapshotIds, hasSize(1));
 
-        final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotIds.iterator().next());
+        final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotIds.iterator().next());
         assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
         assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
         assertEquals(shards, snapshotInfo.successfulShards());
@@ -1211,7 +1218,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         assertThat(snapshotIds, hasSize(snapshotNames.size()));
 
         for (SnapshotId snapshotId : snapshotIds) {
-            final SnapshotInfo snapshotInfo = repository.getSnapshotInfo(snapshotId);
+            final SnapshotInfo snapshotInfo = getSnapshotInfo(repository, snapshotId);
             assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
             assertThat(snapshotInfo.indices(), containsInAnyOrder(index));
             assertEquals(shards, snapshotInfo.successfulShards());

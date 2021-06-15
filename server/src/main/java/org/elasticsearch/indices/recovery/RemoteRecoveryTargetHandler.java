@@ -202,7 +202,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, listener.map(r -> null), reader);
+        executeRetryableAction(
+            action,
+            request,
+            fileChunkRequestOptions,
+            ActionListener.runBefore(listener.map(r -> null), request::decRef),
+            reader);
     }
 
     @Override

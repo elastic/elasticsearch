@@ -91,6 +91,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
@@ -873,7 +874,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         service.getApiKeyAuthCache().put(docId, new ListenableFuture<>());
         assertNotNull(service.getApiKeyAuthCache().get(docId));
         SecurityMocks.mockGetRequest(client, SECURITY_MAIN_ALIAS, docId,
-            new GetResult(INTERNAL_SECURITY_MAIN_INDEX_7, docId, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM,
+            new GetResult(INTERNAL_SECURITY_MAIN_INDEX_7, SINGLE_MAPPING_NAME, docId, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM,
                 randomLongBetween(0, 9), false, null, null, null));
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);

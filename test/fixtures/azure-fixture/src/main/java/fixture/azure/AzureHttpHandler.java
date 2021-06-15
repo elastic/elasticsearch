@@ -98,7 +98,7 @@ public class AzureHttpHandler implements HttpHandler {
                 } else {
                     blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
                 }
-                exchange.getResponseHeaders().add("x-ms-request-server-encrypted",  "false");
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
@@ -222,8 +222,11 @@ public class AzureHttpHandler implements HttpHandler {
         if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>" + errorCode + "</Code><Message>"
-                + status + "</Message></Error>").getBytes(StandardCharsets.UTF_8);
+            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>"
+                + errorCode
+                + "</Code><Message>"
+                + status
+                + "</Message></Error>").getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.getStatus(), response.length);
             exchange.getResponseBody().write(response);
         }

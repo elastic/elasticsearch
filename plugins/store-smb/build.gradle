@@ -17,8 +17,3 @@ restResources {
     include '_common', 'cluster', 'nodes', 'index', 'indices', 'get'
   }
 }
-
-tasks.named('splitPackagesAudit').configure {
-    // TODO: rename this package to be smb specific
-  ignoreClasses 'org.elasticsearch.index.store.SmbDirectoryWrapper'
-}

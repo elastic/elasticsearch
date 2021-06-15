@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
@@ -47,7 +48,8 @@ public class SourceIntervalsSourceTests extends ESTestCase {
         ft.setIndexOptions(IndexOptions.DOCS);
         ft.freeze();
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER)
-                .setMergePolicy(NoMergePolicy.INSTANCE))) {
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setMaxBufferedDocs(IndexWriterConfig.DISABLE_AUTO_FLUSH))) {
 
             Document doc = new Document();
             doc.add(new Field("body", "a b", ft));

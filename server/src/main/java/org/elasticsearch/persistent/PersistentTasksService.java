@@ -105,6 +105,20 @@ public class PersistentTasksService {
     }
 
     /**
+     * Notifies the master node to unassign a persistent task from its current node
+     * <p>
+     * Persistent task implementers shouldn't call this method directly and use
+     * {@link AllocatedPersistentTask#unassign} instead
+     */
+    void sendUnassignRequest(final String taskId,
+                             final long taskAllocationID,
+                             final String reason,
+                             final ActionListener<PersistentTask<?>> listener) {
+        UnassignPersistentTaskAction.Request request = new UnassignPersistentTaskAction.Request(taskId, taskAllocationID, reason);
+        execute(request, UnassignPersistentTaskAction.INSTANCE, listener);
+    }
+
+    /**
      * Notifies the master node to remove a persistent task from the cluster state
      */
     public void sendRemoveRequest(final String taskId, final ActionListener<PersistentTask<?>> listener) {

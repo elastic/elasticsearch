@@ -337,6 +337,24 @@ public class TestPersistentTasksPlugin extends Plugin implements ActionPlugin, P
                     if ("finish".equals(testTask.getOperation())) {
                         task.markAsCompleted();
                         return;
+                    } else if ("unassign".equals(testTask.getOperation())) {
+                        testTask.setOperation(null);
+                        CountDownLatch latch = new CountDownLatch(1);
+                        task.unassign("deliberately unassigned", new ActionListener<>() {
+                            @Override
+                            public void onResponse(PersistentTask<?> persistentTask) {
+                                logger.info("unassignment was successful");
+                                latch.countDown();
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.info("unassignment failed", e);
+                                latch.countDown();
+                                fail(e.toString());
+                            }
+                        });
+                        assertTrue(latch.await(10, TimeUnit.SECONDS));
                     } else if ("fail".equals(testTask.getOperation())) {
                         task.markAsFailed(new RuntimeException("Simulating failure"));
                         return;

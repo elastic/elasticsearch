@@ -698,7 +698,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authResult1.isAuthenticated(), is(true));
         checkAuthApiKeyMetadata(metadata, authResult1);
 
-        final AuthenticationResult authResult2 = future2.actionGet(TimeValue.timeValueMillis(100));
+        final AuthenticationResult authResult2 = future2.actionGet(TimeValue.timeValueMillis(200));
         assertThat(authResult2.isAuthenticated(), is(true));
         checkAuthApiKeyMetadata(metadata, authResult2);
 

@@ -22,12 +22,8 @@ setup:
           - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
 ---
 "Histogram requires values in increasing order":
-  - skip:
-      features: headers
   - do:
       catch: / error parsing field \[latency\], \[values\] values must be in increasing order, got \[0.2\] but previous value was \[1.0\]/
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       index:
         index: test
         body: {"latency": {"values" : [1.0, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}

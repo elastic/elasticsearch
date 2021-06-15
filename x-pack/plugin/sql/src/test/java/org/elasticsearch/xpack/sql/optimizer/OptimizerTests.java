@@ -1154,7 +1154,7 @@ public class OptimizerTests extends ESTestCase {
         assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
     }
 
-    public void testSkipQueryOnEsAggregationWithOnlyConstants() {
+    public void testSkipQueryOnAggregationOnEsRelationWithOnlyConstants() {
         Aggregate plan = new Aggregate(EMPTY,
             new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
             emptyList(),

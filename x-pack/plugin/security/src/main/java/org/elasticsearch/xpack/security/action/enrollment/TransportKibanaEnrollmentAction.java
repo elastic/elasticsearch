@@ -45,6 +45,7 @@ import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -72,8 +73,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         this.sslService = sslService;
     }
 
-    @Override protected void doExecute(
-        Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
+    @Override protected void doExecute(Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
 
         final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {

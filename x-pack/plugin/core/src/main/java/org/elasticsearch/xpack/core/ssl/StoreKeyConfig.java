@@ -33,8 +33,10 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
@@ -127,9 +129,13 @@ public class StoreKeyConfig extends KeyConfig {
         return certificates;
     }
 
+    /**
+     * Returns all certificates that can be found in the keystore, either as part of a PrivateKeyEntry or a TrustedCertificateEntry.
+     * Duplicates are removed.
+     */
     public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
         final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
-        final List<X509Certificate> certificates = new ArrayList<>();
+        final Set<X509Certificate> certificates = new HashSet<>();
         final Enumeration<String> aliases = trustStore.aliases();
         while (aliases.hasMoreElements()) {
             String alias = aliases.nextElement();

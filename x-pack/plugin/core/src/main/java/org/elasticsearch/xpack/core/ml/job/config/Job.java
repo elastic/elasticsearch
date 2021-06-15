@@ -245,11 +245,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         resultsIndexName = in.readString();
         deleting = in.readBoolean();
         allowLazyOpen = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            blocked = new Blocked(in);
-        } else {
-            blocked = deleting ? new Blocked(Blocked.Reason.DELETE, null) : Blocked.none();
-        }
+        blocked = new Blocked(in);
     }
 
     /**
@@ -526,9 +522,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeString(resultsIndexName);
         out.writeBoolean(deleting);
         out.writeBoolean(allowLazyOpen);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            blocked.writeTo(out);
-        }
+        blocked.writeTo(out);
     }
 
     @Override
@@ -972,9 +966,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalString(resultsIndexName);
             out.writeBoolean(deleting);
             out.writeBoolean(allowLazyOpen);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                blocked.writeTo(out);
-            }
+            blocked.writeTo(out);
         }
 
         public boolean equals(Object o) {

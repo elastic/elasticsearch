@@ -23,7 +23,7 @@ setup:
 ---
 "Histogram requires values in increasing order":
   - do:
-      catch: / error parsing field \[latency\], \[values\] values must be in increasing order, got \[0.2\] but previous value was \[1.0\]/
+      catch: /error parsing field \[latency\], \[values\] values must be in increasing order/
       index:
         index: test
         body: {"latency": {"values" : [1.0, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}

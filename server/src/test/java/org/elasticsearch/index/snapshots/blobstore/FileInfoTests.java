@@ -43,7 +43,7 @@ public class FileInfoTests extends ESTestCase {
                 "foobar",
                 Math.abs(randomLong()),
                 randomAlphaOfLengthBetween(1, 10),
-                Version.LATEST,
+                Version.LATEST.toString(),
                 hash
             );
             ByteSizeValue size = new ByteSizeValue(Math.abs(randomLong()));
@@ -139,7 +139,7 @@ public class FileInfoTests extends ESTestCase {
     public void testGetPartSize() {
         BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo(
             "foo",
-            new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION),
+            new StoreFileMetadata("foo", 36, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             new ByteSizeValue(6)
         );
         int numBytes = 0;
@@ -150,7 +150,7 @@ public class FileInfoTests extends ESTestCase {
 
         info = new BlobStoreIndexShardSnapshot.FileInfo(
             "foo",
-            new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION),
+            new StoreFileMetadata("foo", 35, "666", MIN_SUPPORTED_LUCENE_VERSION.toString()),
             new ByteSizeValue(6)
         );
         numBytes = 0;
@@ -160,7 +160,8 @@ public class FileInfoTests extends ESTestCase {
         assertEquals(numBytes, 35);
         final int numIters = randomIntBetween(10, 100);
         for (int j = 0; j < numIters; j++) {
-            StoreFileMetadata metadata = new StoreFileMetadata("foo", randomIntBetween(0, 1000), "666", MIN_SUPPORTED_LUCENE_VERSION);
+            StoreFileMetadata metadata
+                = new StoreFileMetadata("foo", randomIntBetween(0, 1000), "666", MIN_SUPPORTED_LUCENE_VERSION.toString());
             info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metadata, new ByteSizeValue(randomIntBetween(1, 1000)));
             numBytes = 0;
             for (int i = 0; i < info.numberOfParts(); i++) {

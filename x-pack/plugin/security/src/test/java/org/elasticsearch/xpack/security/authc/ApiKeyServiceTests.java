@@ -392,7 +392,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()),"test", authentication,
+        XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT, metadata);
         if (invalidated) {

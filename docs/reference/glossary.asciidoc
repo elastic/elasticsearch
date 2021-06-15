@@ -279,8 +279,8 @@ automatically.
 
 [[glossary-multi-field]] multi-field::
 // tag::multi-field-def[]
-A single <<glossary-field,field>> that's <<glossary-mapping,mapped>> multiple
-ways. See the {ref}/multi-fields.html[`fields` mapping parameter].
+A <<glossary-field,field>> that's <<glossary-mapping,mapped>> in multiple ways.
+See the {ref}/multi-fields.html[`fields` mapping parameter].
 // end::multi-field-def[]
 
 [[glossary-node]] node::

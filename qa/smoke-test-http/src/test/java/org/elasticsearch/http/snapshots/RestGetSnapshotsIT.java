@@ -62,25 +62,26 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         allSnapshotNames.addAll(snapshotNamesWithoutIndex);
 
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).get().getSnapshots(repoName);
-        assertSnapshotListSorted(defaultSorting, null, SortOrder.DESC);
+        assertSnapshotListSorted(defaultSorting, null, SortOrder.ASC);
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME),
             GetSnapshotsRequest.SortBy.NAME,
-            SortOrder.DESC
+            SortOrder.ASC
         );
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION),
             GetSnapshotsRequest.SortBy.DURATION,
-            SortOrder.DESC
+            SortOrder.ASC
         );
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES),
             GetSnapshotsRequest.SortBy.INDICES,
-            SortOrder.DESC);
+            SortOrder.ASC
+        );
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME),
             GetSnapshotsRequest.SortBy.START_TIME,
-            SortOrder.DESC
+            SortOrder.ASC
         );
     }
 

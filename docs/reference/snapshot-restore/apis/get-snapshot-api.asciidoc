@@ -124,7 +124,7 @@ Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorti
 
 `order`::
 (Optional, string)
-Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `desc`, meaning descending order.
+Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `asc`, meaning ascending order.
 
 NOTE: The pagination parameters `size`, `order`, and `sort` are not supported when using `verbose=false` and the sort order for
 requests with `verbose=false` is undefined.

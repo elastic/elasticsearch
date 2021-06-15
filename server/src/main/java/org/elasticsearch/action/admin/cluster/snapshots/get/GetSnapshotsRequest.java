@@ -52,7 +52,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private SortBy sort = SortBy.START_TIME;
 
-    private SortOrder order = SortOrder.DESC;
+    private SortOrder order = SortOrder.ASC;
 
     private String[] repositories;
 
@@ -125,7 +125,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
-        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.DESC) {
+        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
     }

@@ -486,7 +486,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 throw new AssertionError("unexpected sort column [" + sortBy + "]");
         }
         CollectionUtil.timSort(snapshotInfos, order == SortOrder.DESC ? comparator.reversed() : comparator);
-        // TODO: support asc order + make use of it below as well
         int startIndex = 0;
         if (after != null) {
             switch (sortBy) {
@@ -529,23 +528,45 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     break;
                 case DURATION:
                     final long duration = Long.parseLong(after.value());
-                    for (int i = 0; i < snapshotInfos.size(); i++) {
-                        final SnapshotInfo info = snapshotInfos.get(i);
-                        final long snapshotDuration = info.endTime() - info.startTime();
-                        if (duration < snapshotDuration || (duration == snapshotDuration && nameIsAfter(after.snapshotName(), info))) {
-                            startIndex = i;
-                            break;
+                    if (order == SortOrder.ASC) {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            final long snapshotDuration = info.endTime() - info.startTime();
+                            if (duration < snapshotDuration || (duration == snapshotDuration && nameIsAfter(after.snapshotName(), info))) {
+                                startIndex = i;
+                                break;
+                            }
+                        }
+                    } else {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            final long snapshotDuration = info.endTime() - info.startTime();
+                            if (duration > snapshotDuration || (duration == snapshotDuration && nameIsBefore(after.snapshotName(), info))) {
+                                startIndex = i;
+                                break;
+                            }
                         }
                     }
                     break;
                 case INDICES:
                     final int indices = Integer.parseInt(after.value());
-                    for (int i = 0; i < snapshotInfos.size(); i++) {
-                        final SnapshotInfo info = snapshotInfos.get(i);
-                        final int indexCount = info.indices().size();
-                        if (indices < indexCount || (indices == indexCount && nameIsAfter(after.snapshotName(), info))) {
-                            startIndex = i;
-                            break;
+                    if (order == SortOrder.ASC) {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            final int indexCount = info.indices().size();
+                            if (indices < indexCount || (indices == indexCount && nameIsAfter(after.snapshotName(), info))) {
+                                startIndex = i;
+                                break;
+                            }
+                        }
+                    } else {
+                        for (int i = 0; i < snapshotInfos.size(); i++) {
+                            final SnapshotInfo info = snapshotInfos.get(i);
+                            final int indexCount = info.indices().size();
+                            if (indices > indexCount || (indices == indexCount && nameIsBefore(after.snapshotName(), info))) {
+                                startIndex = i;
+                                break;
+                            }
                         }
                     }
                     break;

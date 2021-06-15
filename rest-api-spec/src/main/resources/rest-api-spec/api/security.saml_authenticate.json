@@ -2,12 +2,13 @@
   "security.saml_authenticate":{
     "documentation":{
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-saml-authenticate.html",
-      "description":"Exchanges a SAML Response message for an elasticsearch access token and refresh token pair"
+      "description":"Exchanges a SAML Response message for an Elasticsearch access token and refresh token pair"
     },
     "stability":"stable",
     "visibility":"public",
     "headers":{
-      "accept": [ "application/json"]
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
     },
     "url":{
       "paths":[

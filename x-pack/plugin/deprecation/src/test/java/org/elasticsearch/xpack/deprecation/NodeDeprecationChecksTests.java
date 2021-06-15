@@ -651,6 +651,45 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             )));
     }
 
+    public void testMonitoringExporterPassword() {
+        // test for presence of deprecated exporter passwords
+        final int numExporterPasswords = randomIntBetween(1, 3);
+        final String[] exporterNames = new String[numExporterPasswords];
+        final Settings.Builder b = Settings.builder();
+        for (int k = 0; k < numExporterPasswords; k++) {
+            exporterNames[k] = randomAlphaOfLength(5);
+            b.put("xpack.monitoring.exporters." + exporterNames[k] + ".auth.password", "_pass");
+        }
+        final Settings settings = b.build();
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
+        final String joinedNames = Arrays
+            .stream(exporterNames)
+            .map(s -> "xpack.monitoring.exporters." + s + ".auth.password")
+            .sorted()
+            .collect(Collectors.joining(","));
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "non-secure passwords for monitoring exporters [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+                joinedNames
+            ))));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null);
+        assertThat(issue, nullValue());
+    }  
+
     public void testSingleDataNodeWatermarkSettingExplicit() {
         Settings settings = Settings.builder()
             .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)

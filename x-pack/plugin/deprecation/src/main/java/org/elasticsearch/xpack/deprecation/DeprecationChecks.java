@@ -89,6 +89,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkDataPathsList,
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
                     NodeDeprecationChecks::checkSharedDataPathSetting,
+                    NodeDeprecationChecks::checkMonitoringExporterPassword,
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
                 )
             ).collect(Collectors.toList());

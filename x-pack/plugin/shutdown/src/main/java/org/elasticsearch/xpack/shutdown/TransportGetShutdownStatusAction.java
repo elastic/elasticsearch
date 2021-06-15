@@ -170,16 +170,26 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         }
 
         // First, check if there are any shards currently on this node, and if there are any relocating shards
-        int currentShardsOnNode = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
-        int currentlyRelocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
-        int totalRemainingShards = currentlyRelocatingShards + currentShardsOnNode;
+        int startedShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
+        int relocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
+        int initializingShards = currentState.getRoutingNodes()
+            .node(nodeId)
+            .numberOfShardsWithState(ShardRoutingState.INITIALIZING);
+        int totalRemainingShards = relocatingShards + startedShards + initializingShards;
 
         // If there's relocating shards, or no shards on this node, we'll just use the number of shards left to move
-        if (currentlyRelocatingShards > 0 || (currentlyRelocatingShards == 0 && currentShardsOnNode == 0)) {
+        if (relocatingShards > 0 || totalRemainingShards == 0) {
             SingleNodeShutdownMetadata.Status shardStatus = totalRemainingShards == 0
                 ? SingleNodeShutdownMetadata.Status.COMPLETE
                 : SingleNodeShutdownMetadata.Status.IN_PROGRESS;
             return new ShutdownShardMigrationStatus(shardStatus, totalRemainingShards);
+        } else if (initializingShards > 0 && relocatingShards == 0 && startedShards == 0) {
+            // If there's only initializing shards left, return now with a note that only initializing shards are left
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+                totalRemainingShards,
+                "all remaining shards are currently INITIALIZING and must finish before they can be moved off this node"
+            );
         }
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
@@ -226,7 +236,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 ).getFormattedMessage()
             );
         } else {
-            // We couldn't find any shards that can't be moved, so we're just waiting for other recoveries to complete
+            // We couldn't find any shards that can't be moved, so we're just waiting for other recoveries or initializing shards
             return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.IN_PROGRESS, totalRemainingShards);
         }
     }

@@ -219,7 +219,14 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
                     ShardRoutingState.RELOCATING
                 )
             )
-            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(
+                TestShardRouting.newShardRouting(
+                    new ShardId(index, 2),
+                    SHUTTING_DOWN_NODE_ID,
+                    true,
+                    randomFrom(ShardRoutingState.STARTED, ShardRoutingState.INITIALIZING) // Should have 2 shards remaining either way
+                )
+            )
             .build();
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -327,6 +334,37 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
             SingleNodeShutdownMetadata.Status.STALLED,
             1,
             allOf(containsString(index.getName()), containsString("[2] [primary]"))
+        );
+    }
+
+    public void testOnlyInitializingShardsRemaining() {
+        Index index = new Index(randomAlphaOfLength(5), randomAlphaOfLengthBetween(1, 20));
+        IndexMetadata imd = generateIndexMetadata(index, 3, 0);
+        IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), LIVE_NODE_ID, true, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 2), SHUTTING_DOWN_NODE_ID, true, ShardRoutingState.INITIALIZING))
+            .build();
+
+        RoutingTable.Builder routingTable = RoutingTable.builder();
+        routingTable.add(indexRoutingTable);
+        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+
+        ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
+            state,
+            SHUTTING_DOWN_NODE_ID,
+            SingleNodeShutdownMetadata.Type.REMOVE,
+            allocationDeciders,
+            clusterInfoService,
+            snapshotsInfoService,
+            allocationService
+        );
+
+        assertShardMigration(
+            status,
+            SingleNodeShutdownMetadata.Status.IN_PROGRESS,
+            2,
+            equalTo("all remaining shards are currently INITIALIZING and must finish before they can be moved off this node")
         );
     }
 

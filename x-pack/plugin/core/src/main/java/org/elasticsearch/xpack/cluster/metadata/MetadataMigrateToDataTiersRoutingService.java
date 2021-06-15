@@ -100,11 +100,14 @@ public final class MetadataMigrateToDataTiersRoutingService {
 
         Metadata.Builder mb = Metadata.builder(currentState.metadata());
         String removedIndexTemplateName = null;
-        if (Strings.hasText(indexTemplateToDelete) &&
-            currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {
-            mb.removeTemplate(indexTemplateToDelete);
-            logger.debug("removing template [{}]", indexTemplateToDelete);
-            removedIndexTemplateName = indexTemplateToDelete;
+        if (Strings.hasText(indexTemplateToDelete)) {
+            if (currentState.metadata().getTemplates().containsKey(indexTemplateToDelete)) {
+                mb.removeTemplate(indexTemplateToDelete);
+                logger.debug("removing legacy template [{}]", indexTemplateToDelete);
+                removedIndexTemplateName = indexTemplateToDelete;
+            } else {
+                logger.debug("legacy template [{}] does not exist", indexTemplateToDelete);
+            }
         }
 
         String attribute = nodeAttrName;

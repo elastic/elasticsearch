@@ -1,4 +1,0 @@
-This directory contains templates that work around gradle-ospackage-plugin
-trying to be helpful and adding templates for your os packaging scripts. We
-have relatively nice scripts already so we just override the templates to be
-mostly noops.

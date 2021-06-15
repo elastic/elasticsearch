@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClosePointInTimeAction;

@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -28,13 +27,12 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.repositories.GetSnapshotInfoContext;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
@@ -53,8 +51,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableList;
@@ -327,25 +323,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         } else {
             snapshotInfos = Collections.synchronizedList(new ArrayList<>());
         }
-        final ActionListener<Collection<Void>> allDoneListener = listener.delegateFailure((l, v) -> {
+        final ActionListener<Void> allDoneListener = listener.delegateFailure((l, v) -> {
             final ArrayList<SnapshotInfo> snapshotList = new ArrayList<>(snapshotInfos);
             snapshotList.addAll(snapshotSet);
             CollectionUtil.timSort(snapshotList);
             listener.onResponse(unmodifiableList(snapshotList));
         });
         if (snapshotIdsToIterate.isEmpty()) {
-            allDoneListener.onResponse(Collections.emptyList());
+            allDoneListener.onResponse(null);
             return;
         }
-        // put snapshot info downloads into a task queue instead of pushing them all into the queue to not completely monopolize the
-        // snapshot meta pool for a single request
-        final int workers = Math.min(threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(), snapshotIdsToIterate.size());
-        final BlockingQueue<SnapshotId> queue = new LinkedBlockingQueue<>(snapshotIdsToIterate);
-        final ActionListener<Void> workerDoneListener = new GroupedActionListener<>(allDoneListener, workers).delegateResponse((l, e) -> {
-            queue.clear(); // Stop fetching the remaining snapshots once we've failed fetching one since the response is an error response
-                           // anyway in this case
-            l.onFailure(e);
-        });
         final Repository repository;
         try {
             repository = repositoriesService.repository(repositoryName);
@@ -353,50 +340,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             listener.onFailure(e);
             return;
         }
-        for (int i = 0; i < workers; i++) {
-            getOneSnapshotInfo(ignoreUnavailable, repository, queue, snapshotInfos, task, workerDoneListener);
-        }
-    }
+        repository.getSnapshotInfo(
+            new GetSnapshotInfoContext(
+                snapshotIdsToIterate,
+                ignoreUnavailable == false,
+                task::isCancelled,
+                (context, snapshotInfo) -> snapshotInfos.add(snapshotInfo),
+                ignoreUnavailable ? ActionListener.runAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        logger.trace("done fetching snapshot infos [{}]", snapshotIdsToIterate);
+                    }
 
-    /**
-     * Tries to poll a {@link SnapshotId} to load {@link SnapshotInfo} for from the given {@code queue}. If it finds one in the queue,
-     * loads the snapshot info from the repository and adds it to the given {@code snapshotInfos} collection, then invokes itself again to
-     * try and poll another task from the queue.
-     * If the queue is empty resolves {@code} listener.
-     */
-    private void getOneSnapshotInfo(
-        boolean ignoreUnavailable,
-        Repository repository,
-        BlockingQueue<SnapshotId> queue,
-        Collection<SnapshotInfo> snapshotInfos,
-        CancellableTask task,
-        ActionListener<Void> listener
-    ) {
-        final SnapshotId snapshotId = queue.poll();
-        if (snapshotId == null) {
-            listener.onResponse(null);
-            return;
-        }
-        threadPool.executor(ThreadPool.Names.SNAPSHOT_META).execute(() -> {
-            if (task.isCancelled()) {
-                listener.onFailure(new TaskCancelledException("task cancelled"));
-                return;
-            }
-            try {
-                snapshotInfos.add(repository.getSnapshotInfo(snapshotId));
-            } catch (Exception ex) {
-                if (ignoreUnavailable) {
-                    logger.warn(() -> new ParameterizedMessage("failed to get snapshot [{}]", snapshotId), ex);
-                } else {
-                    listener.onFailure(
-                        ex instanceof SnapshotException
-                            ? ex
-                            : new SnapshotException(repository.getMetadata().name(), snapshotId, "Snapshot could not be read", ex)
-                    );
-                }
-            }
-            getOneSnapshotInfo(ignoreUnavailable, repository, queue, snapshotInfos, task, listener);
-        });
+                    @Override
+                    public void onFailure(Exception e) {
+                        assert false : new AssertionError("listener should always complete successfully for ignoreUnavailable=true", e);
+                        logger.warn("failed to fetch snapshot info for some snapshots", e);
+                    }
+                }, () -> allDoneListener.onResponse(null)) : allDoneListener
+            )
+        );
     }
 
     private boolean isAllSnapshots(String[] snapshots) {

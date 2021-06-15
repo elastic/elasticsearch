@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.allocateActionDefinesRoutingRules;
@@ -58,6 +59,7 @@ import static org.mockito.Mockito.mock;
 public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     private static final String DATA_ROUTING_REQUIRE_SETTING = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data";
+    private static final String DATA_ROUTING_EXCLUDE_SETTING = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "data";
     private static final String DATA_ROUTING_INCLUDE_SETTING = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "data";
     private static final String BOX_ROUTING_REQUIRE_SETTING = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "box";
     private static final NamedXContentRegistry REGISTRY;
@@ -234,10 +236,11 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             // since the index has a _tier_preference configuration the migrated index should still contain it and have the `data`
-            // attribute routing removed
+            // attributes routing removed
             IndexMetadata.Builder indexWithTierPreferenceAndDataAttribute =
                 IndexMetadata.builder("indexWithTierPreferenceAndDataAttribute").settings(getBaseIndexSettings()
                     .put(DATA_ROUTING_REQUIRE_SETTING, "cold")
+                    .put(DATA_ROUTING_INCLUDE_SETTING, "hot")
                     .put(INDEX_ROUTING_PREFER, "data_warm,data_hot")
                 );
             ClusterState state =
@@ -252,6 +255,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
             IndexMetadata migratedIndex = migratedState.metadata().index("indexWithTierPreferenceAndDataAttribute");
             assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+            assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
             assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
         }
 
@@ -356,26 +360,27 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testRequireAttributeIndexSettingTakesPriorityOverInclude() {
-        IndexMetadata.Builder indexWithRequireAndInclude =
-            IndexMetadata.builder("indexWithRequireAndInclude")
+        IndexMetadata.Builder indexWithAllRoutingSettings =
+            IndexMetadata.builder("indexWithAllRoutingSettings")
                 .settings(getBaseIndexSettings()
                     .put(DATA_ROUTING_REQUIRE_SETTING, "warm")
                     .put(DATA_ROUTING_INCLUDE_SETTING, "cold")
+                    .put(DATA_ROUTING_EXCLUDE_SETTING, "hot")
                 );
         ClusterState state =
-            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithRequireAndInclude)).build();
+            ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder().put(indexWithAllRoutingSettings)).build();
 
         Metadata.Builder mb = Metadata.builder(state.metadata());
 
         List<String> migratedIndices = migrateIndices(mb, state, "data");
         assertThat(migratedIndices.size(), is(1));
-        assertThat(migratedIndices.get(0), is("indexWithRequireAndInclude"));
+        assertThat(migratedIndices.get(0), is("indexWithAllRoutingSettings"));
 
         ClusterState migratedState = ClusterState.builder(ClusterName.DEFAULT).metadata(mb).build();
-        IndexMetadata migratedIndex = migratedState.metadata().index("indexWithRequireAndInclude");
-        assertThat("index migration ONLY clears the setting it migrates, in this case the require.data setting",
-            migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), is("cold"));
+        IndexMetadata migratedIndex = migratedState.metadata().index("indexWithAllRoutingSettings");
+        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_INCLUDE_SETTING), nullValue());
         assertThat(migratedIndex.getSettings().get(DATA_ROUTING_REQUIRE_SETTING), nullValue());
+        assertThat(migratedIndex.getSettings().get(DATA_ROUTING_EXCLUDE_SETTING), nullValue());
         assertThat(migratedIndex.getSettings().get(INDEX_ROUTING_PREFER), is("data_warm,data_hot"));
     }
 

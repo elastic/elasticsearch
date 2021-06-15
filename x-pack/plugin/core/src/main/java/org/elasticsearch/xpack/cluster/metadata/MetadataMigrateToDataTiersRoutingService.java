@@ -38,6 +38,7 @@ import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
@@ -81,6 +82,23 @@ public final class MetadataMigrateToDataTiersRoutingService {
      *  index.routing.allocation.include.{nodeAttrName} setting (if present) to the corresponding data tier `_tier_preference` routing.
      *  We are only able to convert the `frozen`, `cold`, `warm`, or `hot` setting values to the `_tier_preference`. If other
      *  configuration values are present eg ("the_warm_nodes") the index will not be migrated.
+     *  If the require or include setting is successfully migrated to _tier_preference, the **other** routing settings for the
+     *  provided attribute are also removed (if present).
+     *  Eg. if we manage to migrate the `index.routing.allocation.require.data` setting, but the index also has configured
+     *  `index.routing.allocation.include.data` and `index.routing.allocation.exclude.data`, the
+     *  migrated settings will contain `index.routing.allocation.include._tier_preference` configured to the corresponding
+     *  `index.routing.allocation.require.data` value, with `index.routing.allocation.include.data` and
+     *  `index.routing.allocation.exclude.data` being removed.
+     *  Settings:
+     *    {
+     *      index.routing.allocation.require.data: "warm",
+     *      index.routing.allocation.include.data: "rack1",
+     *      index.routing.allocation.exclude.data: "rack2,rack3"
+     *    }
+     *  will be migrated to:
+     *    {
+     *        index.routing.allocation.include._tier_preference: "data_warm,data_hot"
+     *    }
      *
      * If no @param nodeAttrName is provided "data" will be used.
      * If no @param indexTemplateToDelete is provided, no index templates will be deleted.
@@ -120,6 +138,13 @@ public final class MetadataMigrateToDataTiersRoutingService {
             new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies));
     }
 
+    /**
+     * Iterate through the existing ILM policies and look at the configured {@link AllocateAction}s. If they define *any* routing rules
+     * based on the provided node attribute name (we look at include, exclude, and require rules) *ALL* the rules in the allocate
+     * action will be removed. All the rules are removed in order to allow for ILM to inject the {@link MigrateAction}.
+     * This also iterates through all the indices that are executing a given *migrated* policy and refreshes the cached phase definition
+     * for each of these managed indices.
+     */
     static List<String> migrateIlmPolicies(Metadata.Builder mb, ClusterState currentState, String nodeAttrName,
                                            NamedXContentRegistry xContentRegistry, Client client) {
         IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
@@ -151,6 +176,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
         return migratedPolicies;
     }
 
+    /**
+     * Migrates a single ILM policy from defining {@link AllocateAction}s in order to configure shard allocation routing based on the
+     * provided node attribute name towards allowing ILM to inject the {@link MigrateAction}.
+     *
+     * Returns the migrated ILM policy.
+     */
     @Nullable
     private static LifecyclePolicy migrateSingleILMPolicy(String nodeAttrName, LifecyclePolicy lifecyclePolicy) {
         LifecyclePolicy newLifecyclePolicy = null;
@@ -185,29 +216,45 @@ public final class MetadataMigrateToDataTiersRoutingService {
         return newLifecyclePolicy;
     }
 
+    /**
+     * Returns true of the provided {@link AllocateAction} defines any index allocation rules.
+     */
     static boolean allocateActionDefinesRoutingRules(String nodeAttrName, @Nullable AllocateAction allocateAction) {
         return allocateAction != null && (allocateAction.getRequire().get(nodeAttrName) != null ||
             allocateAction.getInclude().get(nodeAttrName) != null ||
             allocateAction.getExclude().get(nodeAttrName) != null);
     }
 
+    /**
+     * Iterates through the existing indices and migrates them away from using attribute based routing using the provided node
+     * attribute name towards the tier preference routing.
+     * Returns a list of the migrated indices.
+     */
     static List<String> migrateIndices(Metadata.Builder mb, ClusterState currentState, String nodeAttrName) {
         List<String> migratedIndices = new ArrayList<>();
         String nodeAttrIndexRequireRoutingSetting = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + nodeAttrName;
         String nodeAttrIndexIncludeRoutingSetting = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
+        String nodeAttrIndexExcludeRoutingSetting = INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + nodeAttrName;
         for (ObjectObjectCursor<String, IndexMetadata> index : currentState.metadata().indices()) {
             IndexMetadata indexMetadata = index.value;
             Settings currentSettings = indexMetadata.getSettings();
-            Settings newSettings = migrateIndexSettings(nodeAttrIndexRequireRoutingSetting, indexMetadata);
+            Settings newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexRequireRoutingSetting, indexMetadata);
             if (newSettings.equals(currentSettings)) {
                 // migrating based on the `require` setting was not successful so let's check if the index used the `include` routing
                 // setting to configure the allocations and try to migrate it
-                newSettings = migrateIndexSettings(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
+                newSettings = maybeMigrateRoutingSettingToTierPreference(nodeAttrIndexIncludeRoutingSetting, indexMetadata);
             }
 
             if (newSettings.equals(currentSettings) == false) {
+                // we converted either the require or the include routing setting to tier preference
+                // so let's clear all the routing settings for the given attribute
+                Settings.Builder finalSettings = Settings.builder().put(newSettings);
+                finalSettings.remove(nodeAttrIndexExcludeRoutingSetting);
+                finalSettings.remove(nodeAttrIndexRequireRoutingSetting);
+                finalSettings.remove(nodeAttrIndexIncludeRoutingSetting);
+
                 mb.put(IndexMetadata.builder(indexMetadata)
-                    .settings(newSettings)
+                    .settings(finalSettings)
                     .settingsVersion(indexMetadata.getSettingsVersion() + 1));
                 migratedIndices.add(indexMetadata.getIndex().getName());
             }
@@ -215,7 +262,15 @@ public final class MetadataMigrateToDataTiersRoutingService {
         return migratedIndices;
     }
 
-    private static Settings migrateIndexSettings(String attributeBasedRoutingSettingName, IndexMetadata indexMetadata) {
+    /**
+     * Attempts to migrate the value of the given attribute routing setting to the _tier_preference equivalent. The provided setting
+     * needs to be configured and have one of the supported values (hot, warm, cold, or frozen) in order for the migration to be preformed.
+     * If the migration is successful the provided setting will be removed.
+     *
+     * If the migration is **not** executed the current index settings is returned, otherwise the updated settings are returned
+     */
+    private static Settings maybeMigrateRoutingSettingToTierPreference(String attributeBasedRoutingSettingName,
+                                                                       IndexMetadata indexMetadata) {
         Settings currentIndexSettings = indexMetadata.getSettings();
         if (currentIndexSettings.keySet().contains(attributeBasedRoutingSettingName) == false) {
             return currentIndexSettings;

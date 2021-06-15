@@ -68,3 +68,5 @@ Some important points:
 `field_1` to `field_2` and `copy_to` on `field_2` to `field_3` expecting 
 indexing into `field_1` will eventuate in `field_3`, instead use copy_to 
 directly to multiple fields from the originating field. 
+
+NOTE: `copy-to` is _not_ supported for field types where values take the form of objects, e.g. `date_range`

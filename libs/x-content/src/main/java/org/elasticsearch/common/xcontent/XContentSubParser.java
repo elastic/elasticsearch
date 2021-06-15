@@ -8,8 +8,8 @@
 
 package org.elasticsearch.common.xcontent;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
 import java.nio.CharBuffer;

@@ -341,6 +341,12 @@
             }
           }
   - match: { job_id: "jobs-crud-update-job" }
+  - length: { analysis_config.categorization_analyzer.filter: 1 }
+  - match: { analysis_config.categorization_analyzer.tokenizer: "ml_standard" }
+  - length: { analysis_config.categorization_analyzer.char_filter: 3 }
+  - match: { analysis_config.categorization_analyzer.char_filter.0: "first_non_blank_line" }
+  - match: { analysis_config.categorization_analyzer.char_filter.1.pattern: "cat1.*" }
+  - match: { analysis_config.categorization_analyzer.char_filter.2.pattern: "cat2.*" }
 
   - do:
       ml.open_job:
@@ -381,7 +387,6 @@
             "background_persist_interval": "3h",
             "model_snapshot_retention_days": 30,
             "results_retention_days": 40,
-            "categorization_filters" : ["cat3.*"],
             "custom_settings": {
               "setting3": "custom3"
             }
@@ -392,7 +397,6 @@
   - match: { model_plot_config.enabled: false }
   - match: { model_plot_config.terms: "foobar" }
   - match: { model_plot_config.annotations_enabled: false }
-  - match: { analysis_config.categorization_filters: ["cat3.*"] }
   - match: { analysis_config.detectors.0.custom_rules.0.actions: ["skip_result"] }
   - length: { analysis_config.detectors.0.custom_rules.0.conditions: 1 }
   - match: { analysis_config.detectors.0.detector_index: 0 }

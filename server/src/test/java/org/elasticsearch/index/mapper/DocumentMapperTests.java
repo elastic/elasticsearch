@@ -285,6 +285,6 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
         assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
-        assertEquals(10, documentMapper.mappers().fieldTypes().size());
+        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
     }
 }

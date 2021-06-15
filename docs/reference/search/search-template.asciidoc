@@ -33,7 +33,7 @@ GET _search/template
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[search-template-api-desc]]
 ==== {api-description-title}
@@ -671,7 +671,7 @@ Allows to execute several search template requests.
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for the target data stream, index,
-or index alias. For cross-cluster search, see <<cross-cluster-configuring>>.
+or alias. For cross-cluster search, see <<cross-cluster-configuring>>.
 
 [[multi-search-template-api-desc]]
 ==== {api-description-title}

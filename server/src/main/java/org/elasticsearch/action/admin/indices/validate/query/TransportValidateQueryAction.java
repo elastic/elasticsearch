@@ -26,7 +26,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;

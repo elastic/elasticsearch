@@ -9,6 +9,7 @@ apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
   testImplementation project(':x-pack:plugin:core')
+  testImplementation project(':modules:transport-netty4')
   testImplementation project(':client:rest-high-level')
 }
 

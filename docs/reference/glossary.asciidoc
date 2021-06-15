@@ -11,6 +11,13 @@ https://github.com/elastic/stack-docs/tree/master/docs/en/glossary
 = Glossary
 
 [glossary]
+[[glossary-alias]] alias::
+// tag::alias-def[]
+An alias is a secondary name for a group of <<glossary-data-stream,data
+streams>> or <<glossary-index,indices>>. Most {es} APIs accept an alias in place
+of a data stream or index name. See {ref}/alias.html[Aliases].
+// end::alias-def[]
+
 [[glossary-analysis]] analysis::
 // tag::analysis-def[]
 Process of converting unstructured <<glossary-text,text>> into a format
@@ -58,8 +65,8 @@ time series data that is accessed occasionally and not normally updated. See
 // tag::component-template-def[]
 Building block for creating <<glossary-index-template,index templates>>. A
 component template can specify <<glossary-mapping,mappings>>,
-{ref}/index-modules.html[index settings], and <<glossary-index-alias,index
-aliases>>. See {ref}/index-templates.html[index templates].
+{ref}/index-modules.html[index settings], and <<glossary-alias,aliases>>. See
+{ref}/index-templates.html[index templates].
 // end::component-template-def[]
 
 [[glossary-content-tier]] content tier::
@@ -155,21 +162,6 @@ Manually triggers a <<glossary-merge,merge>> to reduce the number of
 See the {ref}/indices-forcemerge.html[force merge API].
 // end::force-merge-def[]
 
-[[glossary-freeze]] freeze::
-// tag::freeze-def[]
-// tag::freeze-def-short[]
-Makes an index read-only and minimizes its memory footprint.
-// end::freeze-def-short[]
-See the {ref}/freeze-index-api.html[freeze API].
-// end::freeze-def[]
-
-[[glossary-frozen-index]] frozen index::
-// tag::frozen-index-def[]
-An <<glossary-index,index>> reduced to a low overhead state that still enables
-occasional searches.
-See the {ref}/freeze-index-api.html[freeze API].
-// end::frozen-index-def[]
-
 [[glossary-frozen-phase]] frozen phase::
 // tag::frozen-phase-def[]
 Fourth possible phase in the <<glossary-index-lifecycle,index lifecycle>>. In
@@ -190,7 +182,7 @@ hold time series data that is accessed rarely and not normally updated. See
 // tag::hidden-index-def[]
 <<glossary-data-stream,Data stream>> or <<glossary-index,index>> excluded from
 most <<glossary-index-pattern,index patterns>> by default. See
-{ref}/multi-index.html#hidden-indices[Hidden data streams and indices].
+{ref}/multi-index.html#hidden[Hidden data streams and indices].
 // end::hidden-index-def[]
 
 [[glossary-hot-phase]] hot phase::
@@ -223,13 +215,6 @@ field].
 . To add one or more JSON documents to {es}. This process is called indexing.
 // end::index-def[]
 
-[[glossary-index-alias]] index alias::
-// tag::index-alias-def[]
-Secondary name for one or more <<glossary-index,indices>>. Most {es} APIs accept
-an index alias in place of an index name. See the
-{ref}/indices-add-alias.html[Create or update index alias API].
-// end::index-alias-def[]
-
 [[glossary-index-lifecycle]] index lifecycle::
 // tag::index-lifecycle-def[]
 Five phases an <<glossary-index,index>> can transition through:
@@ -250,14 +235,13 @@ each phase. See {ref}/ilm-policy-definition.html[Index lifecycle].
 // tag::index-pattern-def[]
 String containing a wildcard (`*`) pattern that can match multiple
 <<glossary-data-stream,data streams>>, <<glossary-index,indices>>, or
-<<glossary-index-alias,index aliases>>. See {ref}/multi-index.html[Multi-target
-syntax].
+<<glossary-alias,aliases>>. See {ref}/multi-index.html[Multi-target syntax].
 // end::index-pattern-def[]
 
 [[glossary-index-template]] index template::
 // tag::index-template-def[]
 Automatically configures the <<glossary-mapping,mappings>>,
-{ref}/index-modules.html[index settings], and <<glossary-index-alias,aliases>>
+{ref}/index-modules.html[index settings], and <<glossary-alias,aliases>>
 of new <<glossary-index,indices>> that match its <<glossary-index-pattern,index
 pattern>>. You can also use index templates to create
 <<glossary-data-stream,data streams>>. See {ref}/index-templates.html[Index
@@ -325,8 +309,7 @@ available for searches. See the {ref}/indices-recovery.html[index recovery API].
 // tag::reindex-def[]
 Copies documents from a source to a destination. The source and destination can
 be a <<glossary-data-stream,data stream>>, <<glossary-index,index>>, or
-<<glossary-index-alias,index alias>>. See the {ref}/docs-reindex.html[Reindex
-API].
+<<glossary-alias,alias>>. See the {ref}/docs-reindex.html[Reindex API].
 // end::reindex-def[]
 
 [[glossary-remote-cluster]] remote cluster::
@@ -353,7 +336,7 @@ Creates a new write index when the current one reaches a certain size, number of
 docs, or age.
 // end::rollover-def-short[]
 A rollover can target a <<glossary-data-stream,data stream>> or an
-<<glossary-index-alias,index alias>> with a write index.
+<<glossary-alias,alias>> with a write index.
 // end::rollover-def[]
 
 [[glossary-rollup]] rollup::

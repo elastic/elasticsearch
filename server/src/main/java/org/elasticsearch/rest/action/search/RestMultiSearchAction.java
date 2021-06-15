@@ -14,10 +14,12 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,6 +41,9 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestSearchAction.class);
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]"
+        + " Specifying types in multi search template requests is deprecated.";
 
     private static final Set<String> RESPONSE_PARAMS;
 
@@ -61,7 +66,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
             new Route(GET, "/_msearch"),
             new Route(POST, "/_msearch"),
             new Route(GET, "/{index}/_msearch"),
-            new Route(POST, "/{index}/_msearch"));
+            new Route(POST, "/{index}/_msearch"),
+            Route.builder(GET, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(POST, "/{index}/{type}/_msearch")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build()
+        );
     }
 
     @Override
@@ -84,6 +96,10 @@ public class RestMultiSearchAction extends BaseRestHandler {
     public static MultiSearchRequest parseRequest(RestRequest restRequest,
                                                   NamedWriteableRegistry namedWriteableRegistry,
                                                   boolean allowExplicitIndex) throws IOException {
+        if(restRequest.getRestApiVersion() == RestApiVersion.V_7 && restRequest.hasParam("type")) {
+            restRequest.param("type");
+        }
+
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -145,7 +161,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         final XContent xContent = sourceTuple.v1().xContent();
         final BytesReference data = sourceTuple.v2();
         MultiSearchRequest.readMultiLineFormat(data, xContent, consumer, indices, indicesOptions, routing,
-                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex);
+                searchType, ccsMinimizeRoundtrips, request.getXContentRegistry(), allowExplicitIndex, request.getRestApiVersion());
     }
 
     @Override

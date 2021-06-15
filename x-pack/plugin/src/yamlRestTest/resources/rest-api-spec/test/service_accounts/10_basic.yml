@@ -11,6 +11,7 @@ teardown:
         namespace: elastic
         service: fleet-server
         name: api-token-1
+        ignore: 404
 
 ---
 "Test get service accounts":

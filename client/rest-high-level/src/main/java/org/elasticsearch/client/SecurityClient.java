@@ -59,6 +59,8 @@ import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.client.security.InvalidateTokenResponse;
+import org.elasticsearch.client.security.NodeEnrollmentRequest;
+import org.elasticsearch.client.security.NodeEnrollmentResponse;
 import org.elasticsearch.client.security.PutPrivilegesRequest;
 import org.elasticsearch.client.security.PutPrivilegesResponse;
 import org.elasticsearch.client.security.PutRoleMappingRequest;
@@ -1129,5 +1131,28 @@ public final class SecurityClient {
             ActionListener<DelegatePkiAuthenticationResponse> listener) {
         return restHighLevelClient.performRequestAsyncAndParseEntity(request, SecurityRequestConverters::delegatePkiAuthentication, options,
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
+    }
+
+
+    /**
+     * Allows a node to join to a cluster with security features enabled using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public NodeEnrollmentResponse enrollNode(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, emptySet());
+    }
+
+    /**
+     * Asynchronously allows a node to join to a cluster with security features enabled using the Enroll Node API.
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion. The listener will be called with the value {@code true}
+     */
+    public Cancellable enrollNodeAsync(RequestOptions options, ActionListener<NodeEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
+            options, NodeEnrollmentResponse::fromXContent, listener, emptySet());
     }
 }

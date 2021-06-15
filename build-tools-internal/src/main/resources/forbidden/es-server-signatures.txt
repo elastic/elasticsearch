@@ -1,0 +1,141 @@
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+
+# For third-party dependencies, please put signatures in third-party.txt instead of here.
+
+@defaultMessage spawns threads with vague names; use a custom thread factory and name threads so that you can tell (by its name) which executor it is associated with
+
+java.util.concurrent.Executors#newFixedThreadPool(int)
+java.util.concurrent.Executors#newSingleThreadExecutor()
+java.util.concurrent.Executors#newCachedThreadPool()
+java.util.concurrent.Executors#newSingleThreadScheduledExecutor()
+java.util.concurrent.Executors#newScheduledThreadPool(int)
+java.util.concurrent.Executors#defaultThreadFactory()
+java.util.concurrent.Executors#privilegedThreadFactory()
+
+java.lang.Character#codePointBefore(char[],int) @ Implicit start offset is error-prone when the char[] is a buffer and the first chars are random chars
+java.lang.Character#codePointAt(char[],int) @ Implicit end offset is error-prone when the char[] is a buffer and the last chars are random chars
+
+@defaultMessage Reference management is tricky, leave it to SearcherManager
+org.apache.lucene.index.IndexReader#decRef()
+org.apache.lucene.index.IndexReader#incRef()
+org.apache.lucene.index.IndexReader#tryIncRef()
+
+@defaultMessage Only use wait / notify when really needed try to use concurrency primitives, latches or callbacks instead.
+java.lang.Object#wait()
+java.lang.Object#wait(long)
+java.lang.Object#wait(long,int)
+java.lang.Object#notify()
+java.lang.Object#notifyAll()
+
+@defaultMessage Beware of the behavior of this method on MIN_VALUE
+java.lang.Math#abs(int)
+java.lang.Math#abs(long)
+
+@defaultMessage Please do not try to stop the world
+java.lang.System#gc()
+
+@defaultMessage Use Channels.* methods to write to channels. Do not write directly.
+java.nio.channels.WritableByteChannel#write(java.nio.ByteBuffer)
+java.nio.channels.FileChannel#write(java.nio.ByteBuffer, long)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[], int, int)
+java.nio.channels.GatheringByteChannel#write(java.nio.ByteBuffer[])
+java.nio.channels.ReadableByteChannel#read(java.nio.ByteBuffer)
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[])
+java.nio.channels.ScatteringByteChannel#read(java.nio.ByteBuffer[], int, int)
+java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
+
+@defaultMessage Use Lucene.parseLenient instead it strips off minor version
+org.apache.lucene.util.Version#parseLeniently(java.lang.String)
+
+org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy risks forgetting to configure NoMergeScheduler; use org.elasticsearch.common.lucene.Lucene#indexWriterConfigWithNoMerging() instead.
+
+@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
+org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
+org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
+
+@defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
+java.util.concurrent.Future#cancel(boolean)
+
+@defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
+org.elasticsearch.core.PathUtils#get(java.lang.String, java.lang.String[])
+org.elasticsearch.core.PathUtils#get(java.net.URI)
+
+@defaultMessage Constructing a DateTime without a time zone is dangerous
+org.joda.time.DateTime#<init>()
+org.joda.time.DateTime#<init>(long)
+org.joda.time.DateTime#<init>(int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int)
+org.joda.time.DateTime#<init>(int, int, int, int, int, int, int)
+org.joda.time.DateTime#now()
+org.joda.time.DateTimeZone#getDefault()
+
+@defaultMessage Local times may be ambiguous or nonexistent in a specific time zones. Use ZoneRules#getValidOffsets() instead.
+java.time.LocalDateTime#atZone(java.time.ZoneId)
+java.time.ZonedDateTime#of(int, int, int, int, int, int, int, java.time.ZoneId)
+java.time.ZonedDateTime#of(java.time.LocalDate, java.time.LocalTime, java.time.ZoneId)
+java.time.ZonedDateTime#of(java.time.LocalDateTime, java.time.ZoneId)
+java.time.ZonedDateTime#truncatedTo(java.time.temporal.TemporalUnit)
+java.time.ZonedDateTime#of(int, int, int, int, int, int, int, java.time.ZoneId)
+java.time.ZonedDateTime#of(java.time.LocalDate, java.time.LocalTime, java.time.ZoneId)
+java.time.ZonedDateTime#of(java.time.LocalDateTime, java.time.ZoneId)
+java.time.ZonedDateTime#ofLocal(java.time.LocalDateTime, java.time.ZoneId, java.time.ZoneOffset)
+java.time.OffsetDateTime#atZoneSimilarLocal(java.time.ZoneId)
+java.time.zone.ZoneRules#getOffset(java.time.LocalDateTime)
+
+@defaultMessage Manipulation of an OffsetDateTime may yield a time that is not valid in the desired time zone. Use ZonedDateTime instead.
+java.time.OffsetDateTime#minus(long, java.time.temporal.TemporalUnit)
+java.time.OffsetDateTime#minus(long, java.time.temporal.TemporalUnit)
+java.time.OffsetDateTime#minus(java.time.temporal.TemporalAmount)
+java.time.OffsetDateTime#minusDays(long)
+java.time.OffsetDateTime#minusHours(long)
+java.time.OffsetDateTime#minusMinutes(long)
+java.time.OffsetDateTime#minusMonths(long)
+java.time.OffsetDateTime#minusNanos(long)
+java.time.OffsetDateTime#minusSeconds(long)
+java.time.OffsetDateTime#minusWeeks(long)
+java.time.OffsetDateTime#minusYears(long)
+java.time.OffsetDateTime#plus(long, java.time.temporal.TemporalUnit)
+java.time.OffsetDateTime#plus(java.time.temporal.TemporalAmount)
+java.time.OffsetDateTime#plusDays(long)
+java.time.OffsetDateTime#plusHours(long)
+java.time.OffsetDateTime#plusMinutes(long)
+java.time.OffsetDateTime#plusMonths(long)
+java.time.OffsetDateTime#plusNanos(long)
+java.time.OffsetDateTime#plusSeconds(long)
+java.time.OffsetDateTime#plusWeeks(long)
+java.time.OffsetDateTime#plusYears(long)
+java.time.OffsetDateTime#with(java.time.temporal.TemporalAdjuster)
+java.time.OffsetDateTime#with(java.time.temporal.TemporalField, long)
+java.time.OffsetDateTime#withDayOfMonth(int)
+java.time.OffsetDateTime#withDayOfYear(int)
+java.time.OffsetDateTime#withHour(int)
+java.time.OffsetDateTime#withMinute(int)
+java.time.OffsetDateTime#withMonth(int)
+java.time.OffsetDateTime#withNano(int)
+java.time.OffsetDateTime#withOffsetSameInstant(java.time.ZoneOffset)
+java.time.OffsetDateTime#withOffsetSameLocal(java.time.ZoneOffset)
+java.time.OffsetDateTime#withSecond(int)
+java.time.OffsetDateTime#withYear(int)
+
+@defaultMessage Daylight saving is not the only reason for a change in timezone offset.
+java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
+java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
+java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
+
+@defaultMessage Use logger methods with non-Object parameter
+org.apache.logging.log4j.Logger#trace(java.lang.Object)
+org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#debug(java.lang.Object)
+org.apache.logging.log4j.Logger#debug(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#info(java.lang.Object)
+org.apache.logging.log4j.Logger#info(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#warn(java.lang.Object)
+org.apache.logging.log4j.Logger#warn(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#error(java.lang.Object)
+org.apache.logging.log4j.Logger#error(java.lang.Object, java.lang.Throwable)
+org.apache.logging.log4j.Logger#fatal(java.lang.Object)
+org.apache.logging.log4j.Logger#fatal(java.lang.Object, java.lang.Throwable)

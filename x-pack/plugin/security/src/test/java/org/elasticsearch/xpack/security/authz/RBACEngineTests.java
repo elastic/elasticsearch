@@ -1071,7 +1071,7 @@ public class RBACEngineTests extends ESTestCase {
         }
 
         SearchRequest request = new SearchRequest("*");
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, SearchAction.NAME), lookup);
         assertThat(authorizedIndices, hasItem(dataStreamName));
         assertThat(authorizedIndices, hasItems(backingIndices.stream()
@@ -1107,7 +1107,7 @@ public class RBACEngineTests extends ESTestCase {
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }",
                 XContentType.JSON
         );
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
                 RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(request, PutMappingAction.NAME), lookup);
         assertThat(authorizedIndices.isEmpty(), is(true));
     }

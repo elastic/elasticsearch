@@ -10,7 +10,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
 import org.elasticsearch.common.NamedRegistry;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;

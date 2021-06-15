@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -58,7 +58,7 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
+import org.elasticsearch.snapshots.sourceonly.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -87,7 +87,7 @@ import org.elasticsearch.xpack.core.termsenum.action.TermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.action.TransportTermsEnumAction;
 import org.elasticsearch.xpack.core.termsenum.rest.RestTermsEnumAction;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -247,12 +247,11 @@ public class XPackPlugin extends XPackClientPlugin
             clusterState.custom(TokenMetadata.TYPE) != null ||
             metadata.custom(TransformMetadata.TYPE) != null;
     }
-    
+
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
         return Map.of(DataTierFieldMapper.NAME, DataTierFieldMapper.PARSER);
     }
-    
 
     @Override
     public Settings additionalSettings() {
@@ -336,7 +335,7 @@ public class XPackPlugin extends XPackClientPlugin
         handlers.add(new RestReloadAnalyzersAction());
         handlers.add(new RestTermsEnumAction());
         handlers.addAll(licensing.getRestHandlers(settings, restController, clusterSettings, indexScopedSettings, settingsFilter,
-                indexNameExpressionResolver, nodesInCluster));
+            indexNameExpressionResolver, nodesInCluster));
         return handlers;
     }
 
@@ -385,19 +384,13 @@ public class XPackPlugin extends XPackClientPlugin
     public List<Setting<?>> getSettings() {
         List<Setting<?>> settings = super.getSettings();
         settings.add(SourceOnlySnapshotRepository.SOURCE_ONLY);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_REQUIRE_SETTING);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_INCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING);
-        settings.add(DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING);
         settings.add(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING);
         return settings;
     }
 
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
-        return Collections.singleton(new DataTierAllocationDecider(settings, clusterSettings));
+        return Collections.singleton(new DataTierAllocationDecider());
     }
 
     @Override

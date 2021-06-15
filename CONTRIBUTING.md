@@ -110,11 +110,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 15 is required to build Elasticsearch. You must have a JDK 15 installation
+JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 15 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 15 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -151,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 15. When importing into IntelliJ you will need
+Elasticsearch builds using Java 16. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"15"** so that the project import will detect it automatically. For more details
+"16"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -174,27 +174,9 @@ file is generated automatically after IntelliJ finishes syncing. You can
 manually generate the file with `./gradlew configureIdeCheckstyle` in case
 it is removed due to a `./gradlew clean` or other action.
 
-   1. Open **Preferences > Tools > Checkstyle**
-   2. We have some custom Checkstyle rules, and the Checkstyle plugin needs
-      to know where to find them. Under the "Third-Party Checks" section,
-      click the "+" button.
-   3. Select `buildSrc/build-bootstrap/libs/buildSrc-$VERSION.jar` where
-      `$VERSION` is something like `7.0.0-SNAPSHOT`. This jar file will
-      always exist if you imported the project into IntelliJ before
-      configuring Checkstyle.
-   4. Make sure that "Checkstyle version" is set to the highest available version
-   5. Change the "Scan Scope" to "Only Java sources (including tests)"
-   6. Click the "+" under "Configuration file"
-   7. Set "Description" to "Elasticsearch"
-   8. Select "Use a local Checkstyle file"
-   9. For the "File", enter `checkstyle_ide.xml`
-   10. Tick "Store relative to project location"
-   11. Click "Next", then "Finish".
-   12. Click the box next to the new configuration to make it "Active".
-       Without doing this, you'll have to explicitly choose the
-       "Elasticsearch" configuration in the Checkstyle tool window and run
-       the check manually.
-   13. Click "OK" to apply the new preferences
+IntelliJ should be automatically configured to use the generated rules after
+import via the `.idea/checkstyle-idea.xml` configuration file. No further
+action is required.
 
 #### Formatting
 
@@ -206,7 +188,7 @@ Code Formatter] installed, you can apply formatting directly in IntelliJ.
    2. Click "Use the Eclipse Code Formatter"
    3. Under "Eclipse formatter config", select "Eclipse workspace/project
       folder or config file"
-   4. Click "Browse", and navigate to the file `buildSrc/formatterConfig.xml`
+   4. Click "Browse", and navigate to the file `build-tools-internal/formatterConfig.xml`
    5. **IMPORTANT** - make sure "Optimize Imports" is **NOT** selected.
    6. Click "OK"
 
@@ -216,7 +198,7 @@ automatically formatted in [gradle/formatting.gradle](gradle/formatting.gradle).
 
 ### Importing the project into Eclipse
 
-Elasticsearch builds using Gradle and Java 15. When importing into Eclipse you
+Elasticsearch builds using Gradle and Java 16. When importing into Eclipse you
 will either need to use an appropriate JDK to run Eclipse itself (e.g. by
 specifying the VM in [eclipse.ini](https://wiki.eclipse.org/Eclipse.ini) or by
 defining the JDK Gradle uses by setting **Preferences** > **Gradle** >
@@ -246,7 +228,7 @@ Next you'll want to import our auto-formatter:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Formatter**
  - Click **Import**
- - Import the file at **buildSrc/formatterConfig.xml**
+ - Import the file at **build-tools-internal/formatterConfig.xml**
  - Make sure it is the **Active profile**
 
 Finally, set up import order:
@@ -254,7 +236,7 @@ Finally, set up import order:
  - Select **Window > Preferences**
  - Select **Java > Code Style > Organize Imports**
  - Click **Import...**
- - Import the file at **buildSrc/elastic.importorder**
+ - Import the file at **build-tools-internal/elastic.importorder**
  - Set the **Number of imports needed for `.*`** to ***9999***
  - Set the **Number of static imports needed for `.*`** to ***9999*** as well
  - Apply that

@@ -95,6 +95,9 @@ operating costs while still letting you search frozen data. Because {es} must
 sometimes fetch frozen data from the snapshot repository, searches on the frozen
 tier are typically slower than on the cold tier.
 
+NOTE: We recommend you use <<data-frozen-node,dedicated nodes>> in the frozen
+tier.
+
 [discrete]
 [[data-tier-allocation]]
 === Data tier index allocation

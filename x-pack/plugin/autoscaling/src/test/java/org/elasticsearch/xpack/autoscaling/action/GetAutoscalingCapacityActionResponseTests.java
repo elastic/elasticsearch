@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;

@@ -63,7 +63,8 @@ public class RestNoopBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType());
+            null, defaultPipeline, defaultRequireAlias, true, request.getXContentType(),
+            request.getRestApiVersion());
 
         // short circuit the call to the transport layer
         return channel -> {

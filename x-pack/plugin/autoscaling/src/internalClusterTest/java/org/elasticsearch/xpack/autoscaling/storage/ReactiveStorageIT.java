@@ -24,7 +24,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
-import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
@@ -197,7 +196,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startMasterOnlyNode();
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             null
         );
         assertThat(

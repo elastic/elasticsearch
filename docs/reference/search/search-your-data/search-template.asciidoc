@@ -1,15 +1,14 @@
 [[search-template]]
 == Search templates
 
-A search template is a stored search you can reuse with different input
-variables.
+A search template is a stored search you can run with different variables.
+
+If you use {es} as a search backend, you can pass user input from a search bar
+as parameters for a search template. This lets you run searches without exposing
+{es}'s query syntax to your users.
 
 If you use {es} for a custom application, search templates let you change
 your searches without modifying your app's code.
-
-If you use {es} as a search backend, you can use search templates to pass user
-input from a search bar to search requests. This lets you run searches without
-exposing query syntax to your users.
 
 [discrete]
 [[create-search-template]]
@@ -49,7 +48,7 @@ PUT _scripts/my-search-template
 ----
 
 {es} stores search templates as Mustache <<modules-scripting,scripts>> in the
-cluster state. {es} compiles templates in the `template` script context.
+cluster state. {es} compiles search templates in the `template` script context.
 Settings that limit or disable scripts also affect search templates.
 
 [discrete]

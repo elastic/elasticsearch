@@ -380,8 +380,7 @@ differently. See {ref}/runtime.html[Runtime fields].
 
 [[glossary-search-template]] search template::
 // tag::search-template-def[]
-A stored search you can reuse with different input variables. {es} stores search
-templates as Mustache scripts in the cluster state. See
+A stored search you can run with different variables. See
 {ref}/search-template.html[Search templates].
 // end::search-template-def[]
 

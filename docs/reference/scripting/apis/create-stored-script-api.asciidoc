@@ -86,7 +86,8 @@ For scripts, a string containing the script.
 +
 For search templates, an object containing the search template. The object
 supports the same parameters as the <<search-search,search API>>'s request body.
-Also supports https://mustache.github.io/[Mustache] variables.
+Also supports https://mustache.github.io/[Mustache] variables. See
+<<search-template>>.
 
 `params`::
 (Optional, object)

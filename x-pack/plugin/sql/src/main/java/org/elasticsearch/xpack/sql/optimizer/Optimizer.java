@@ -1150,10 +1150,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             Holder<LocalRelation> optimizedPlan = new Holder<>();
-            var leafRelation = leafRelation(plan);
+            LeafPlan leafRelation = leafRelation(plan);
 
             // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-            var isNonSkippedLocalRelation = leafRelation instanceof LocalRelation &&
+            boolean isNonSkippedLocalRelation = leafRelation instanceof LocalRelation &&
                 ((LocalRelation) leafRelation).executable() instanceof EmptyExecutable == false;
 
             if (isNonSkippedLocalRelation) {
@@ -1180,7 +1180,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
                 // aggregations on only constant values like "SELECT 'foo' FROM test GROUP BY 1"
                 // can also be executed locally
-                var onlyConstantAggregations = leafRelation instanceof EsRelation &&
+                boolean onlyConstantAggregations = leafRelation instanceof EsRelation &&
                     a.groupings().isEmpty() &&
                     values.size() == a.aggregates().size();
 
@@ -1204,7 +1204,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         private LeafPlan leafRelation(LogicalPlan plan) {
-            var result = new Holder<LeafPlan>();
+            Holder<LeafPlan> result = new Holder<LeafPlan>();
             plan.forEachDown(LeafPlan.class, result::set);
             return result.get();
         }

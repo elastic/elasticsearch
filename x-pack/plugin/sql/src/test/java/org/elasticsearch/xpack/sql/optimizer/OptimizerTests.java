@@ -1144,24 +1144,24 @@ public class OptimizerTests extends ESTestCase {
 
     public void testSkipQueryOnLocalRelation() {
         // SELECT TRUE as a
-        final var plan = new Project(EMPTY,
+        Project plan = new Project(EMPTY,
             new LocalRelation(EMPTY, new SingletonExecutable(List.of())),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
-        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
 
         assertEquals(LocalRelation.class, optimized.getClass());
         assertEquals(plan.output(), ((LocalRelation) optimized).executable().output());
     }
 
     public void testSkipQueryOnEsAggregationWithOnlyConstants() {
-        final var plan = new Aggregate(EMPTY,
+        Aggregate plan = new Aggregate(EMPTY,
             new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
             List.of(),
             List.of(new Alias(EMPTY, "a", TRUE))
         );
 
-        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(LocalRelation.class, l.getClass());
@@ -1171,13 +1171,13 @@ public class OptimizerTests extends ESTestCase {
 
     public void testDoNotSkipQueryOnEsRelationWithFilter() {
         // SELECT TRUE as a FROM table WHERE col IS NULL
-        final var plan = new Project(EMPTY,
+        Project plan = new Project(EMPTY,
             new Filter(EMPTY,
                 new EsRelation(EMPTY, new EsIndex("table", emptyMap()), false),
                 new IsNull(EMPTY, getFieldAttribute("col"))),
             singletonList(new Alias(EMPTY, "a", TRUE)));
 
-        final var optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
+        LogicalPlan optimized = new Optimizer.SkipQueryIfFoldingProjection().apply(plan);
 
         optimized.forEachDown(LeafPlan.class, l -> {
             assertEquals(EsRelation.class, l.getClass());

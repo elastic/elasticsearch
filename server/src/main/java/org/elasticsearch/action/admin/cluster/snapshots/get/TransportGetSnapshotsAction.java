@@ -486,13 +486,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         CollectionUtil.timSort(snapshotInfos, order == SortOrder.DESC ? comparator.reversed() : comparator);
         int startIndex = 0;
         if (after != null) {
+            final String name = after.snapshotName();
             switch (sortBy) {
                 case START_TIME:
                     final long start = Long.parseLong(after.value());
                     if (order == SortOrder.ASC) {
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
-                            if (startIsAfter(after, start, info)) {
+                            if (start < info.startTime() || (start == info.startTime() && nameIsAfter(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -500,7 +501,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     } else {
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
-                            if (startIsBefore(after, start, info)) {
+                            if (start > info.startTime() || (start == info.startTime() && nameIsBefore(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -510,14 +511,14 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 case NAME:
                     if (order == SortOrder.ASC) {
                         for (int i = 0; i < snapshotInfos.size(); i++) {
-                            if (nameIsAfter(after.snapshotName(), snapshotInfos.get(i))) {
+                            if (nameIsAfter(name, snapshotInfos.get(i))) {
                                 startIndex = i;
                                 break;
                             }
                         }
                     } else {
                         for (int i = 0; i < snapshotInfos.size(); i++) {
-                            if (nameIsBefore(after.snapshotName(), snapshotInfos.get(i))) {
+                            if (nameIsBefore(name, snapshotInfos.get(i))) {
                                 startIndex = i;
                                 break;
                             }
@@ -530,7 +531,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
                             final long snapshotDuration = info.endTime() - info.startTime();
-                            if (duration < snapshotDuration || (duration == snapshotDuration && nameIsAfter(after.snapshotName(), info))) {
+                            if (duration < snapshotDuration || (duration == snapshotDuration && nameIsAfter(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -539,7 +540,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
                             final long snapshotDuration = info.endTime() - info.startTime();
-                            if (duration > snapshotDuration || (duration == snapshotDuration && nameIsBefore(after.snapshotName(), info))) {
+                            if (duration > snapshotDuration || (duration == snapshotDuration && nameIsBefore(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -552,7 +553,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
                             final int indexCount = info.indices().size();
-                            if (indices < indexCount || (indices == indexCount && nameIsAfter(after.snapshotName(), info))) {
+                            if (indices < indexCount || (indices == indexCount && nameIsAfter(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -561,7 +562,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                         for (int i = 0; i < snapshotInfos.size(); i++) {
                             final SnapshotInfo info = snapshotInfos.get(i);
                             final int indexCount = info.indices().size();
-                            if (indices > indexCount || (indices == indexCount && nameIsBefore(after.snapshotName(), info))) {
+                            if (indices > indexCount || (indices == indexCount && nameIsBefore(name, info))) {
                                 startIndex = i;
                                 break;
                             }
@@ -577,14 +578,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             afterStart = snapshotInfos.subList(startIndex, snapshotInfos.size());
         }
         return List.copyOf(size > 0 && size < afterStart.size() ? afterStart.subList(0, size) : afterStart);
-    }
-
-    private static boolean startIsAfter(@Nullable GetSnapshotsRequest.After after, long start, SnapshotInfo info) {
-        return start < info.startTime() || (start == info.startTime() && nameIsAfter(after.snapshotName(), info));
-    }
-
-    private static boolean startIsBefore(@Nullable GetSnapshotsRequest.After after, long start, SnapshotInfo info) {
-        return start > info.startTime() || (start == info.startTime() && nameIsBefore(after.snapshotName(), info));
     }
 
     private static boolean nameIsAfter(String afterName, SnapshotInfo info) {

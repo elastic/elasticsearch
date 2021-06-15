@@ -200,13 +200,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testCustomRestWrapperDeprecationMessage() {
-        ActionPlugin secPlugin = new ActionPlugin() {
-            @Override
-            public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
-                return handler -> new FakeHandler();
-            }
-        };
-
+        ActionPlugin secPlugin = new SecPlugin();
         SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
 
         ThreadPool threadPool = new TestThreadPool("testCustomRestWrapperDeprecationMessage");
@@ -216,7 +210,7 @@ public class ActionModuleTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(),
                 moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
                 threadPool, singletonList(secPlugin), null, null, usageService, null);
-            assertWarnings("The org.elasticsearch.action.ActionModuleTests$7 plugin installs a custom REST wrapper. " +
+            assertWarnings("The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin installs a custom REST wrapper. " +
                 "This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this plugin is intended to provide " +
                 "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
         } finally {
@@ -234,4 +228,11 @@ public class ActionModuleTests extends ESTestCase {
         public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         }
     }
+
+    class SecPlugin implements ActionPlugin {
+        @Override
+        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+            return UnaryOperator.identity();
+        }
+    };
 }

@@ -24,7 +24,8 @@ public class FakeOAuth2HttpHandler implements HttpHandler {
     @Override
     public void handle(final HttpExchange exchange) throws IOException {
         try {
-            while (exchange.getRequestBody().read(BUFFER) >= 0) ;
+            while (exchange.getRequestBody().read(BUFFER) >= 0) {
+            }
             byte[] response = ("{\"access_token\":\"foo\",\"token_type\":\"Bearer\",\"expires_in\":3600}").getBytes(UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.getResponseHeaders().add("Metadata-Flavor", "Google");

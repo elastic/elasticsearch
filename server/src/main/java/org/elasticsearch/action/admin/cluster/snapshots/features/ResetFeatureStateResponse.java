@@ -87,9 +87,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
     @Override
     public String toString() {
-        return "ResetFeatureStateResponse{" +
-            "resetFeatureStateStatusList=" + resetFeatureStateStatusList +
-            '}';
+        return "ResetFeatureStateResponse{" + "resetFeatureStateStatusList=" + resetFeatureStateStatusList + '}';
     }
 
     /**
@@ -126,10 +124,7 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
          * @return Failure status for a feature
          */
         public static ResetFeatureStateStatus failure(String featureName, Exception exception) {
-            return new ResetFeatureStateStatus(
-                featureName,
-                Status.FAILURE,
-                exception);
+            return new ResetFeatureStateStatus(featureName, Status.FAILURE, exception);
         }
 
         private ResetFeatureStateStatus(String featureName, Status status, @Nullable Exception exception) {
@@ -218,11 +213,16 @@ public class ResetFeatureStateResponse extends ActionResponse implements ToXCont
 
         @Override
         public String toString() {
-            return "ResetFeatureStateStatus{" +
-                "featureName='" + featureName + '\'' +
-                ", status=" + status +
-                ", exception='" + exception + '\'' +
-                '}';
+            return "ResetFeatureStateStatus{"
+                + "featureName='"
+                + featureName
+                + '\''
+                + ", status="
+                + status
+                + ", exception='"
+                + exception
+                + '\''
+                + '}';
         }
     }
 }

@@ -56,6 +56,8 @@ sameConstantsWithLimitV3
 SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
 constantWithWhere
 SELECT 1 FROM "test_emp" WHERE gender = 'F';
+constantWithWhereOrderAndLimit
+SELECT 1 FROM "test_emp" WHERE gender = 'F' ORDER BY emp_no LIMIT 5;
 constantAndColumnWithLimit
 SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 constantComparisonWithLimit
@@ -159,3 +161,5 @@ selectGroupByOrderByOrderByLimitNulls
 SELECT * FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) ORDER BY max DESC NULLS FIRST LIMIT 4;
 selectGroupByWithAliasedSubQuery
 SELECT max, languages FROM (SELECT max(salary) AS max, languages FROM test_emp GROUP BY languages ORDER BY max ASC NULLS LAST) AS subquery;
+selectConstantFromSubQuery
+SELECT * FROM (SELECT * FROM (SELECT 1));

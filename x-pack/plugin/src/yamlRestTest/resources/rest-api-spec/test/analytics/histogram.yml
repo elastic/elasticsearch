@@ -81,3 +81,30 @@ setup:
   - match: { aggregations.histo.buckets.0.doc_count: 20 }
   - match: { aggregations.histo.buckets.1.key: 0.3 }
   - match: { aggregations.histo.buckets.1.doc_count: 60 }
+---
+"Ranges over histogram":
+  - do:
+      search:
+        index: "test"
+        body:
+          size: 0
+          aggs:
+            ranges:
+              range:
+                field: "latency"
+                ranges:
+                  - {to: 0}
+                  - {from: 0, to: 0.3}
+                  - {from: 0.3, to: 0.5}
+                  - {from: 0.5}
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.ranges.buckets: 4 }
+  - match: { aggregations.ranges.buckets.0.key: "*-0.0" }
+  - match: { aggregations.ranges.buckets.0.doc_count: 0 }
+  - match: { aggregations.ranges.buckets.1.key: "0.0-0.3" }
+  - match: { aggregations.ranges.buckets.1.doc_count: 20 }
+  - match: { aggregations.ranges.buckets.2.key: "0.3-0.5" }
+  - match: { aggregations.ranges.buckets.2.doc_count: 46 }
+  - match: { aggregations.ranges.buckets.3.key: "0.5-*" }
+  - match: { aggregations.ranges.buckets.3.doc_count: 14 }

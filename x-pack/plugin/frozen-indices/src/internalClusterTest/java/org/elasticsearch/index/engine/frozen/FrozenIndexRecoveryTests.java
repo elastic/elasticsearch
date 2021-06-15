@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.index.engine;
+package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;

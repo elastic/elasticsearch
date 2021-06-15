@@ -1,7 +1,36 @@
 [[release-notes-7.13.2]]
 == {es} version 7.13.2
 
-coming::[7.13.2]
+Also see <<breaking-changes-7.13,Breaking changes in 7.13>>.
+
+[[bug-7.13.2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Add setting to disable aggs optimization {es-pull}73620[#73620] (issue: {es-issue}73426[#73426])
+
+Cluster Coordination::
+* Write next cluster state fully on all failures {es-pull}73631[#73631]
+
+Features/ILM+SLM::
+* Always handle non-complete `AsyncActionStep` execution {es-pull}73796[#73796] (issue: {es-issue}73794[#73794])
+* Copy all execution state in `CopyExecutionStateStep` {es-pull}73792[#73792] (issues: {es-issue}64883[#64883], {es-issue}73791[#73791])
+
+Features/Ingest::
+* Preserve field mappings from user agent processor when ECS is disabled {es-pull}73783[#73783] (issue: {es-issue}73780[#73780])
+
+Infra/Core::
+* Resolve concrete associated indices when resetting features {es-pull}73017[#73017] (issue: {es-issue}72363[#72363])
+
+Search::
+* Fix error when fetching values for parent ID join field {es-pull}73639[#73639]
+
+Snapshot/Restore::
+* Fix repo name at allocation time {es-pull}73669[#73669]
+
+Monitoring::
+* Add ability for `monitoring_user` role to read from metricbeat-* {es-pull}71233[#71233]
 
 [[release-notes-7.13.1]]
 == {es} version 7.13.1

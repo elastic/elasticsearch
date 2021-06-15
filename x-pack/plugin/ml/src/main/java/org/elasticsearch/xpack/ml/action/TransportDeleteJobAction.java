@@ -11,6 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -21,10 +23,10 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -34,6 +36,10 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.KillProcessAction;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
+import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -149,7 +155,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                 }
         );
 
-        ActionListener<Boolean> markAsDeletingListener = ActionListener.wrap(
+        ActionListener<PutJobAction.Response> markAsDeletingListener = ActionListener.wrap(
                 response -> {
                     if (request.isForce()) {
                         forceDeleteJob(parentTaskClient, request, finalListener);
@@ -162,7 +168,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         ActionListener<Boolean> jobExistsListener = ActionListener.wrap(
             response -> {
                 auditor.info(request.getJobId(), Messages.getMessage(Messages.JOB_AUDIT_DELETING, taskId));
-                markJobAsDeletingIfNotUsed(request.getJobId(), markAsDeletingListener);
+                markJobAsDeletingIfNotUsed(request.getJobId(), taskId, markAsDeletingListener);
             },
             e -> {
                 if (request.isForce()
@@ -234,7 +240,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         // Step 1. Delete the physical storage
         new JobDataDeleter(parentTaskClient, jobId).deleteJobDocuments(
-            jobId, jobConfigProvider, indexNameExpressionResolver, clusterService.state(), removeFromCalendarsHandler, listener::onFailure);
+            jobConfigProvider, indexNameExpressionResolver, clusterService.state(), removeFromCalendarsHandler, listener::onFailure);
     }
 
     private void forceDeleteJob(ParentTaskAssigningClient parentTaskClient, DeleteJobAction.Request request,
@@ -309,7 +315,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
         }
     }
 
-    private void markJobAsDeletingIfNotUsed(String jobId, ActionListener<Boolean> listener) {
+    private void markJobAsDeletingIfNotUsed(String jobId, TaskId taskId, ActionListener<PutJobAction.Response> listener) {
 
         datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
@@ -318,9 +324,42 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
                                 + datafeedIds.iterator().next() + "] refers to it"));
                         return;
                     }
-                    jobConfigProvider.markJobAsDeleting(jobId, listener);
+                    cancelResetTaskIfExists(jobId, ActionListener.wrap(
+                        response -> jobConfigProvider.updateJobBlockReason(jobId, new Blocked(Blocked.Reason.DELETE, taskId), listener),
+                        listener::onFailure
+                    ));
                 },
                 listener::onFailure
         ));
+    }
+
+    private void cancelResetTaskIfExists(String jobId, ActionListener<Boolean> listener) {
+        ActionListener<Job.Builder> jobListener = ActionListener.wrap(
+            jobBuilder -> {
+                Job job = jobBuilder.build();
+                if (job.getBlocked().getReason() == Blocked.Reason.RESET) {
+                    logger.info("[{}] Cancelling reset task [{}] because delete was requested", jobId, job.getBlocked().getTaskId());
+                    CancelTasksRequest cancelTasksRequest = new CancelTasksRequest();
+                    cancelTasksRequest.setReason("deleting job");
+                    cancelTasksRequest.setActions(ResetJobAction.NAME);
+                    cancelTasksRequest.setTaskId(job.getBlocked().getTaskId());
+                    executeAsyncWithOrigin(client, ML_ORIGIN, CancelTasksAction.INSTANCE, cancelTasksRequest, ActionListener.wrap(
+                        cancelTasksResponse -> listener.onResponse(true),
+                        e -> {
+                            if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                                listener.onResponse(true);
+                            } else {
+                                listener.onFailure(e);
+                            }
+                        }
+                    ));
+                } else {
+                    listener.onResponse(false);
+                }
+            },
+            listener::onFailure
+        );
+
+        jobConfigProvider.getJob(jobId, jobListener);
     }
 }

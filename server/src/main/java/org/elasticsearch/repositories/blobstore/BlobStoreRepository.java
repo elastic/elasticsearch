@@ -121,9 +121,11 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
@@ -249,9 +251,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     private final boolean cacheRepositoryData;
 
-    private final RateLimiter snapshotRateLimiter;
+    private volatile RateLimiter snapshotRateLimiter;
 
-    private final RateLimiter restoreRateLimiter;
+    private volatile RateLimiter restoreRateLimiter;
 
     private final CounterMetric snapshotRateLimitingTimeInNanos = new CounterMetric();
 
@@ -287,6 +289,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         "snapshots",
         SNAPSHOT_INDEX_NAME_FORMAT,
         BlobStoreIndexShardSnapshots::fromXContent
+    );
+
+    public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
+        "max_snapshot_bytes_per_sec",
+        new ByteSizeValue(40, ByteSizeUnit.MB),
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> MAX_RESTORE_BYTES_PER_SEC = Setting.byteSizeSetting(
+        "max_restore_bytes_per_sec",
+        ByteSizeValue.ZERO,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Repository settings that can be updated dynamically without having to create a new repository.
+     */
+    private static final Set<String> DYNAMIC_SETTING_NAMES = org.elasticsearch.core.Set.of(
+        MAX_SNAPSHOT_BYTES_PER_SEC.getKey(),
+        MAX_RESTORE_BYTES_PER_SEC.getKey()
     );
 
     private final boolean readOnly;
@@ -364,8 +388,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         this.bigArrays = bigArrays;
         this.recoverySettings = recoverySettings;
         this.supportURLRepo = SUPPORT_URL_REPO.get(metadata.settings());
-        snapshotRateLimiter = getRateLimiter(metadata.settings(), "max_snapshot_bytes_per_sec", new ByteSizeValue(40, ByteSizeUnit.MB));
-        restoreRateLimiter = getRateLimiter(metadata.settings(), "max_restore_bytes_per_sec", ByteSizeValue.ZERO);
+        snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
+        restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
         readOnly = metadata.settings().getAsBoolean(READONLY_SETTING_KEY, false);
         cacheRepositoryData = CACHE_REPOSITORY_DATA.get(metadata.settings());
         bufferSize = Math.toIntExact(BUFFER_SIZE_SETTING.get(metadata.settings()).getBytes());
@@ -555,11 +579,32 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         return Math.toIntExact(Math.min(Integer.MAX_VALUE, indexFiles.stream().filter(fi -> fi.physicalName().endsWith(".si")).count()));
     }
 
+    @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        final Settings current = metadata.settings();
+        if (current.equals(updatedSettings)) {
+            return true;
+        }
+        final Set<String> changedSettingNames = new HashSet<>(current.keySet());
+        changedSettingNames.addAll(updatedSettings.keySet());
+        changedSettingNames.removeAll(ignoredSettings);
+        changedSettingNames.removeIf(setting -> Objects.equals(current.get(setting), updatedSettings.get(setting)));
+        changedSettingNames.removeAll(DYNAMIC_SETTING_NAMES);
+        return changedSettingNames.isEmpty();
+    }
+
     // Inspects all cluster state elements that contain a hint about what the current repository generation is and updates
     // #latestKnownRepoGen if a newer than currently known generation is found
     @Override
     public void updateState(ClusterState state) {
+        final Settings previousSettings = metadata.settings();
         metadata = getRepoMetadata(state);
+        final Settings updatedSettings = metadata.settings();
+        if (updatedSettings.equals(previousSettings) == false) {
+            snapshotRateLimiter = getRateLimiter(metadata.settings(), MAX_SNAPSHOT_BYTES_PER_SEC);
+            restoreRateLimiter = getRateLimiter(metadata.settings(), MAX_RESTORE_BYTES_PER_SEC);
+        }
+
         uncleanStart = uncleanStart && metadata.generation() != metadata.pendingGeneration();
         final boolean wasBestEffortConsistency = bestEffortConsistency;
         bestEffortConsistency = uncleanStart
@@ -977,8 +1022,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (String indexMetaGeneration : indexMetaGenerations) {
                 executor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
                     try {
-                        return INDEX_METADATA_FORMAT.read(indexContainer, indexMetaGeneration, namedXContentRegistry, bigArrays)
-                            .getNumberOfShards();
+                        return INDEX_METADATA_FORMAT.read(indexContainer, indexMetaGeneration, namedXContentRegistry).getNumberOfShards();
                     } catch (Exception ex) {
                         logger.warn(
                             () -> new ParameterizedMessage(
@@ -1435,7 +1479,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public SnapshotInfo getSnapshotInfo(final SnapshotId snapshotId) {
         try {
-            return SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry, bigArrays);
+            return SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException | NotXContentException ex) {
@@ -1446,7 +1490,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public Metadata getSnapshotGlobalMetadata(final SnapshotId snapshotId) {
         try {
-            return GLOBAL_METADATA_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry, bigArrays);
+            return GLOBAL_METADATA_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -1460,8 +1504,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return INDEX_METADATA_FORMAT.read(
                 indexContainer(index),
                 repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
-                namedXContentRegistry,
-                bigArrays
+                namedXContentRegistry
             );
         } catch (NoSuchFileException e) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, e);
@@ -1511,11 +1554,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *
      * @param repositorySettings repository settings
      * @param setting            setting to use to configure rate limiter
-     * @param defaultRate        default limiting rate
      * @return rate limiter or null of no throttling is needed
      */
-    private RateLimiter getRateLimiter(Settings repositorySettings, String setting, ByteSizeValue defaultRate) {
-        ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.getAsBytesSize(setting, defaultRate);
+    private static RateLimiter getRateLimiter(Settings repositorySettings, Setting<ByteSizeValue> setting) {
+        ByteSizeValue maxSnapshotBytesPerSec = setting.get(repositorySettings);
         if (maxSnapshotBytesPerSec.getBytes() <= 0) {
             return null;
         } else {
@@ -3156,7 +3198,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
-            return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry, bigArrays);
+            return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -3188,7 +3230,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
             }
-            return new Tuple<>(INDEX_SHARD_SNAPSHOTS_FORMAT.read(shardContainer, generation, namedXContentRegistry, bigArrays), generation);
+            return new Tuple<>(INDEX_SHARD_SNAPSHOTS_FORMAT.read(shardContainer, generation, namedXContentRegistry), generation);
         }
         final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         return new Tuple<>(legacyIndex.v1(), String.valueOf(legacyIndex.v2()));
@@ -3207,8 +3249,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             final BlobStoreIndexShardSnapshots shardSnapshots = INDEX_SHARD_SNAPSHOTS_FORMAT.read(
                 shardContainer,
                 Long.toString(latest),
-                namedXContentRegistry,
-                bigArrays
+                namedXContentRegistry
             );
             return new Tuple<>(shardSnapshots, latest);
         } else if (blobs.stream()

@@ -83,3 +83,38 @@ has no effect and you should discontinue its use.
 ====
 
 // end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-7.14]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.14
+and will be removed in 8.0.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.14.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_714_security_changes]]
+==== Security deprecations
+
+[[reserved-prefixed-realm-names]]
+.Configuring a realm name with a leading underscore is deprecated.
+[%collapsible]
+====
+*Details* +
+Elasticsearch creates "synthetic" realm names on the fly for services like API keys.
+These synthetic realm names are prefixed with an underscore.
+Currently, user configured realms can also be given a name with a leading underscore.
+This creates confusion since realm names are meant to be unique for a node.
+
+*Impact* +
+Configuring a realm name with a leading underscore is deprecated. In a future release of {es}
+it will result in an error on startup if any user configured realm has a name
+with a leading underscore.
+====

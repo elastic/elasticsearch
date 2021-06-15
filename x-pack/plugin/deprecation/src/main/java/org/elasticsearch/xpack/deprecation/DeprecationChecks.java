@@ -59,6 +59,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkMissingRealmOrders,
                     NodeDeprecationChecks::checkUniqueRealmOrders,
                     NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
+                    NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                     (settings, pluginsAndModules, cs) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
                     (settings, pluginsAndModules, cs) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,

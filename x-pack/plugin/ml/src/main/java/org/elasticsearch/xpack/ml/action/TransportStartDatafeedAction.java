@@ -57,7 +57,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.MlConfigMigrationEligibilityCheck;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedNodeSelector;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -416,12 +416,12 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     }
 
     public static class StartDatafeedPersistentTasksExecutor extends PersistentTasksExecutor<StartDatafeedAction.DatafeedParams> {
-        private final DatafeedManager datafeedManager;
+        private final DatafeedRunner datafeedRunner;
         private final IndexNameExpressionResolver resolver;
 
-        public StartDatafeedPersistentTasksExecutor(DatafeedManager datafeedManager, IndexNameExpressionResolver resolver) {
+        public StartDatafeedPersistentTasksExecutor(DatafeedRunner datafeedRunner, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATAFEED_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME);
-            this.datafeedManager = datafeedManager;
+            this.datafeedRunner = datafeedRunner;
             this.resolver = resolver;
         }
 
@@ -460,8 +460,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 datafeedTask.markAsCompleted();
                 return;
             }
-            datafeedTask.datafeedManager = datafeedManager;
-            datafeedManager.run(datafeedTask,
+            datafeedTask.datafeedRunner = datafeedRunner;
+            datafeedRunner.run(datafeedTask,
                     (error) -> {
                         if (error != null) {
                             datafeedTask.markAsFailed(error);
@@ -486,7 +486,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         private final long startTime;
         private final Long endTime;
         /* only pck protected for testing */
-        volatile DatafeedManager datafeedManager;
+        volatile DatafeedRunner datafeedRunner;
 
         DatafeedTask(long id, String type, String action, TaskId parentTaskId, StartDatafeedAction.DatafeedParams params,
                      Map<String, String> headers) {
@@ -529,24 +529,24 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         public void stop(String reason, TimeValue timeout) {
-            if (datafeedManager != null) {
-                datafeedManager.stopDatafeed(this, reason, timeout);
+            if (datafeedRunner != null) {
+                datafeedRunner.stopDatafeed(this, reason, timeout);
             }
         }
 
         public void isolate() {
-            if (datafeedManager != null) {
-                datafeedManager.isolateDatafeed(getAllocationId());
+            if (datafeedRunner != null) {
+                datafeedRunner.isolateDatafeed(getAllocationId());
             }
         }
 
         public Optional<GetDatafeedRunningStateAction.Response.RunningState> getRunningState() {
-            if (datafeedManager == null) {
+            if (datafeedRunner == null) {
                 return Optional.empty();
             }
             return Optional.of(new GetDatafeedRunningStateAction.Response.RunningState(
                 this.endTime == null,
-                datafeedManager.finishedLookBack(this)
+                datafeedRunner.finishedLookBack(this)
             ));
         }
     }

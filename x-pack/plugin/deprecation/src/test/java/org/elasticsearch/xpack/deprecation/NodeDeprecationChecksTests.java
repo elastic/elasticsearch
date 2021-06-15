@@ -16,6 +16,7 @@ import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -300,6 +302,56 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testCheckReservedPrefixedRealmNames() {
+        final Settings.Builder builder = Settings.builder();
+        final boolean invalidFileRealmName = randomBoolean();
+        final boolean invalidNativeRealmName = randomBoolean();
+        final boolean invalidOtherRealmName = (false == invalidFileRealmName && false == invalidNativeRealmName) || randomBoolean();
+
+        final List<String> invalidRealmNames = new ArrayList<>();
+
+        final String fileRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidFileRealmName) {
+            builder.put("xpack.security.authc.realms.file." + "_" + fileRealmName + ".order", -20);
+            invalidRealmNames.add("xpack.security.authc.realms.file." + "_" + fileRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", -20);
+        }
+
+        final String nativeRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidNativeRealmName) {
+            builder.put("xpack.security.authc.realms.native." + "_" + nativeRealmName + ".order", -10);
+            invalidRealmNames.add("xpack.security.authc.realms.native." + "_" + nativeRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", -10);
+        }
+
+        final int otherRealmId = randomIntBetween(0, 9);
+        final String otherRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidOtherRealmName) {
+            builder.put("xpack.security.authc.realms.type_" + otherRealmId + "." + "_" + otherRealmName + ".order", 0);
+            invalidRealmNames.add("xpack.security.authc.realms.type_" + otherRealmId + "." + "_" + otherRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.type_" + otherRealmId + "." + otherRealmName + ".order", 0);
+        }
+
+        final Settings settings = builder.build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+
+        assertEquals(1, deprecationIssues.size());
+
+        final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
+        assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
+            "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
+        assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
+                + " with reserved prefix [_]: ["
+                + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
+                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+            deprecationIssue.getDetails());
     }
 
     public void testThreadPoolListenerQueueSize() {

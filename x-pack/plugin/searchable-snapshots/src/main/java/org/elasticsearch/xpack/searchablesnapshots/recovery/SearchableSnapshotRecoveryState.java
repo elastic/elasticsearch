@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.util.HashSet;

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.common.util.concurrent;
 
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 

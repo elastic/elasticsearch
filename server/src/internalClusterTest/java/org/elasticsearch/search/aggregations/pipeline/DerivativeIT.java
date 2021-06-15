@@ -557,7 +557,7 @@ public class DerivativeIT extends ESIntegTestCase {
             checkBucketKeyAndDocCount("InternalBucket " + i, bucket, i, valueCounts_empty_rnd[i]);
             Sum sum = bucket.getAggregations().get("sum");
             double thisSumValue = sum.value();
-            if (bucket.getDocCount() == 0) {
+            if (bucket.getDocCount() == 0 && gapPolicy != GapPolicy.KEEP_VALUES) {
                 thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
             }
             SimpleValue sumDeriv = bucket.getAggregations().get("deriv");

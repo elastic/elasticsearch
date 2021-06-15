@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 
 public class PlainActionFuture<T> extends AdapterActionFuture<T, T> {
 

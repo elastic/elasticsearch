@@ -9,7 +9,7 @@
 package org.elasticsearch.common.joda;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
@@ -19,6 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 
 import java.time.Instant;
@@ -48,6 +49,18 @@ public class JavaJodaTimeDuellingTests extends ESTestCase {
     public void testIncorrectFormat() {
         assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time||epoch_millis");
         assertParseException("2021-01-01T23-35-00Z", "strict_date_optional_time");
+    }
+
+    public void testMinMillis() {
+        String jodaFormatted = Joda.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        String javaFormatted = DateFormatter.forPattern("strict_date_optional_time").formatMillis(Long.MIN_VALUE);
+        Assert.assertEquals(jodaFormatted, javaFormatted);
+    }
+    public void testYearParsing() {
+        //this one is considered a year
+        assertSameDate("1234", "strict_date_optional_time||epoch_millis");
+        //this one is considered a 12345milliseconds since epoch
+        assertSameDate("12345", "strict_date_optional_time||epoch_millis");
     }
 
     public void testTimezoneParsing() {

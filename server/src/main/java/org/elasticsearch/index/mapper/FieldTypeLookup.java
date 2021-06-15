@@ -10,15 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.regex.Regex;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -78,10 +77,9 @@ final class FieldTypeLookup {
             }
         }
 
-        for (RuntimeField runtimeField : runtimeFields) {
-            MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
+        for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
             //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            fullNameToFieldType.put(fieldType.name(), fieldType);
         }
     }
 
@@ -142,50 +140,20 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns all the mapped field types that match a pattern
-     *
-     * Note that if a field is aliased and both its actual name and its alias
-     * match the pattern, the returned collection will contain the field type
-     * twice.
-     */
-    Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.values();
-        }
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            MappedFieldType ft = get(pattern);
-            return ft == null ? Collections.emptySet() : Collections.singleton(ft);
-        }
-        List<MappedFieldType> matchingFields = new ArrayList<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(fullNameToFieldType.get(field));
-            }
-        }
-        return matchingFields;
-    }
-
-    /**
      * Returns a set of field names that match a regex-like pattern
      *
      * All field names in the returned set are guaranteed to resolve to a field
      */
     Set<String> getMatchingFieldNames(String pattern) {
-        if ("*".equals(pattern)) {
-            return fullNameToFieldType.keySet();
+        if (Regex.isMatchAllPattern(pattern)) {
+            return Collections.unmodifiableSet(fullNameToFieldType.keySet());
         }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
-        Set<String> matchingFields = new HashSet<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                matchingFields.add(field);
-            }
-        }
-        return matchingFields;
+        return fullNameToFieldType.keySet().stream().filter(field -> Regex.simpleMatch(pattern, field))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

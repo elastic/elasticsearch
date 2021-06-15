@@ -64,7 +64,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
-            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
+            assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST.toString()));
             assertThat(parsedInfo.isSame(info.metadata()), is(true));
         }
     }
@@ -123,7 +123,7 @@ public class FileInfoTests extends ESTestCase {
                 assertThat(length, equalTo(parsedInfo.length()));
                 assertEquals("666", parsedInfo.checksum());
                 assertEquals("666", parsedInfo.metadata().checksum());
-                assertEquals(Version.LATEST, parsedInfo.metadata().writtenBy());
+                assertEquals(Version.LATEST.toString(), parsedInfo.metadata().writtenBy());
             } else {
                 try (XContentParser parser = createParser(JsonXContent.jsonXContent, xContent)) {
                     parser.nextToken();

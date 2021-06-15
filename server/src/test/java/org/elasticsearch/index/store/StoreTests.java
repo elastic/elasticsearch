@@ -335,7 +335,7 @@ public class StoreTests extends ESTestCase {
             try (IndexInput input = store.directory().openInput(meta.name(), IOContext.DEFAULT)) {
                 String checksum = Store.digestToString(CodecUtil.retrieveChecksum(input));
                 assertThat("File: " + meta.name() + " has a different checksum", meta.checksum(), equalTo(checksum));
-                assertThat(meta.writtenBy(), equalTo(Version.LATEST));
+                assertThat(meta.writtenBy(), equalTo(Version.LATEST.toString()));
                 if (meta.name().endsWith(".si") || meta.name().startsWith("segments_")) {
                     assertThat(meta.hash().length, greaterThan(0));
                 }

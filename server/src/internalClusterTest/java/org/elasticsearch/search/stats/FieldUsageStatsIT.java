@@ -36,7 +36,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
 
     public void testFieldUsageStats() {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
-            .put(SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SETTING_NUMBER_OF_SHARDS, 2)
             .put(SETTING_NUMBER_OF_REPLICAS, 0)));
         IndexShard indexShard = null;
         for (IndexService indexService : getInstanceFromNode(IndicesService.class)) {
@@ -47,10 +47,9 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         }
 
         assertNotNull(indexShard);
-        int docsTest1 = scaledRandomIntBetween(1, 5);
-        for (int i = 0; i < docsTest1; i++) {
+        for (int i = 1; i < 10; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource(
-                "field", "value", "field2", "value2").get();
+                "field", "value", "field2", "value2", "date_field", "2015/09/0" + i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
 
@@ -59,6 +58,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertFalse(stats.getPerFieldStats().containsKey("field"));
         assertFalse(stats.getPerFieldStats().containsKey("field.keyword"));
         assertFalse(stats.getPerFieldStats().containsKey("field2"));
+        assertFalse(stats.getPerFieldStats().containsKey("date_field"));
 
         SearchResponse searchResponse = client().prepareSearch()
             .setQuery(QueryBuilders.termQuery("field", "value"))
@@ -66,7 +66,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
             .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
             .setSize(100)
             .get();
-        assertHitCount(searchResponse, docsTest1);
+        assertHitCount(searchResponse, 9);
         assertAllSuccessful(searchResponse);
 
         logger.info("Stats after first query: {}", stats.getPerFieldStats());
@@ -103,5 +103,23 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertEquals(2L, stats.getPerFieldStats().get("field").get(UsageContext.TERMS));
         assertEquals(1L, stats.getPerFieldStats().get("field2").get(UsageContext.TERMS));
         assertEquals(2L, stats.getPerFieldStats().get("field.keyword").get(UsageContext.DOC_VALUES));
+
+        assertFalse(stats.getPerFieldStats().containsKey("date_field"));
+
+        // show that we also track stats in can_match
+        assertEquals(4, client().admin().indices().prepareStats("test").clear().setSearch(true).get()
+            .getIndex("test").getTotal().getSearch().getTotal().getQueryCount());
+        client().prepareSearch()
+            .setPreFilterShardSize(1)
+            .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
+            .setSize(100)
+            .get();
+        assertTrue(stats.getPerFieldStats().containsKey("date_field"));
+        assertEquals(Set.of(UsageContext.POINTS), stats.getPerFieldStats().get("date_field").keySet());
+        // can_match does not enter search stats
+        // there is a special case though where we have no hit but we need to get at least one search response in order
+        // to produce a valid search result with all the aggs etc., so we hit one of the two shards
+        assertEquals(5, client().admin().indices().prepareStats("test").clear().setSearch(true).get()
+            .getIndex("test").getTotal().getSearch().getTotal().getQueryCount());
     }
 }

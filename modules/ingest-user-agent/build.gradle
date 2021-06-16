@@ -25,8 +25,7 @@ testClusters.all {
 
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-//    'ingest-useragent/30_custom_regex/Test user agent processor with custom regex file',
-//    'ingest-useragent/20_useragent_processor/Test user agent processor with defaults',
-//    'ingest-useragent/20_useragent_processor/Test user agent processor with parameters'
+    'ingest-useragent/30_custom_regex/Test user agent processor with custom regex file',
+    'ingest-useragent/20_useragent_processor/Test user agent processor with parameters'
   ].join(',')
 }

@@ -202,7 +202,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             snapshotsInfoService.snapshotShardSizes(),
             System.nanoTime()
         );
-        allocation.debugDecision(true);
+        allocation.setDebugMode(RoutingAllocation.DebugMode.EXCLUDE_YES_DECISIONS);
 
         // Explain shard allocations until we find one that can't move, then stop (as `findFirst` short-circuits)
         final Optional<ShardRouting> unmovableShard = currentState.getRoutingNodes()

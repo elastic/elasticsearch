@@ -218,56 +218,24 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }
     }
 
-    public void testDynamicRuntimeWithBadMapping() throws IOException {
-        {
-            // in 7.x versions this will issue a deprecation warning
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.V_7_0_0);
-            DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
-                b.startArray("dynamic_templates");
+    public void testDynamicRuntimeWithBadMapping() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
                 {
-                    b.startObject();
+                    b.startObject("test");
                     {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("runtime").field("badparam", false).endObject();
-                        }
-                        b.endObject();
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").field("badparam", false).endObject();
                     }
                     b.endObject();
                 }
-                b.endArray();
-            }));
-            assertWarnings(
-                "dynamic template [test] has invalid content [{\"match_mapping_type\":\"string\",\"runtime\":{\"badparam\":false}}], " +
-                "attempted to validate it with the following match_mapping_type: [string], last error: " +
-                "[unknown parameter [badparam] on runtime field [__dynamic__test] of type [null]]");
-
-            mapper.parse(source(b -> b.field("field", "foo")));
-            assertWarnings(
-                "Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. " +
-                "Usage will result in an error in future major versions and should be removed.");
-        }
-        {
-            // in 8.x it will error out
-            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-                b.startArray("dynamic_templates");
-                {
-                    b.startObject();
-                    {
-                        b.startObject("test");
-                        {
-                            b.field("match_mapping_type", "string");
-                            b.startObject("runtime").field("badparam", false).endObject();
-                        }
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-                b.endArray();
-            })));
-            assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
-            assertThat(e.getCause().getMessage(), containsString("badparam"));
-        }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
+        assertThat(e.getCause().getMessage(), containsString("badparam"));
     }
 }

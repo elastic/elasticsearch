@@ -28,7 +28,7 @@
         "@timestamp": {
           "type": "date"
         },
-        "enrollment_ttl": {
+        "ephemeral_ttl": {
           "type": "integer"
         }
       }

@@ -1211,6 +1211,21 @@ public class RestHighLevelClientTests extends ESTestCase {
         assertTrue(highLevelClient.existsSource(apiRequest, RequestOptions.DEFAULT));
     }
 
+    public void testCancellationForwarding() throws Exception {
+
+        mockGetRoot(restClient);
+        Cancellable cancellable = mock(Cancellable.class);
+        when(restClient.performRequestAsync(argThat(new RequestMatcher("HEAD", "/foo/_source/bar")), any())).thenReturn(cancellable);
+
+        Cancellable result = restHighLevelClient.existsSourceAsync(
+            new GetSourceRequest("foo", "bar"),
+            RequestOptions.DEFAULT, ActionListener.wrap(() -> {})
+        );
+
+        result.cancel();
+        verify(cancellable, times(1)).cancel();
+    }
+
     private static void assertSyncMethod(Method method, String apiName, List<String> booleanReturnMethods) {
         //A few methods return a boolean rather than a response object
         if (apiName.equals("ping") || apiName.contains("exist") || booleanReturnMethods.contains(apiName)) {

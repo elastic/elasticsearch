@@ -11,6 +11,7 @@ package org.elasticsearch.client;
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -2018,19 +2019,18 @@ public class RestHighLevelClient implements Closeable {
 
         ListenableFuture<Optional<String>> versionCheck = getVersionValidationFuture();
 
-        // Create a future that tracks cancellation of this method's result and forwards cancellation to the actual LLRC request. This
-        // future is completed successfully if the result is cancelled.
-        CompletableFuture<Void> cancelFlag = new CompletableFuture<Void>();
+        // Create a future that tracks cancellation of this method's result and forwards cancellation to the actual LLRC request.
+        CompletableFuture<Void> cancellationForwarder = new CompletableFuture<Void>();
         Cancellable result = new Cancellable() {
             @Override
             public void cancel() {
                 // Raise the flag by completing the future
-                cancelFlag.complete(null);
+                cancellationForwarder.cancel(false);
             }
 
             @Override
             void runIfNotCancelled(Runnable runnable) {
-                if (cancelFlag.isDone()) {
+                if (cancellationForwarder.isCancelled()) {
                     throw newCancellationException();
                 }
                 runnable.run();
@@ -2045,7 +2045,11 @@ public class RestHighLevelClient implements Closeable {
                 if (validation.isEmpty()) {
                     // Send the request and propagate cancellation
                     Cancellable call = client.performRequestAsync(request, listener);
-                    cancelFlag.whenComplete((r, t) -> call.cancel());
+                    cancellationForwarder.whenComplete((r, t) ->
+                        // Forward cancellation to the actual request (no need to check parameters as the
+                        // only way for cancellationForwarder to be completed is by being cancelled).
+                        call.cancel()
+                    );
                 } else {
                     // Version validation wasn't successful, fail the request with the validation result.
                     listener.onFailure(new ElasticsearchException(validation.get()));
@@ -2084,8 +2088,10 @@ public class RestHighLevelClient implements Closeable {
      * Returns a future that asynchronously validates the Elasticsearch product version. Its result is an optional string: if empty then
      * validation was successful, if present it contains the validation error. API requests should be chained to this future and check
      * the validation result before going further.
-     *
-     * This future is created lazily and kept in {@link #versionValidationFuture} so that further client requests can reuse its result.
+     * <p>
+     * This future is a memoization of the first successful request to the "/" endpoint and the subsequent compatibility check
+     * ({@see #versionValidationFuture}). Further client requests reuse its result.
+     * <p>
      * If the version check request fails (e.g. network error), {@link #versionValidationFuture} is cleared so that a new validation
      * request is sent at the next HLRC request. This allows retries to happen while avoiding a busy retry loop (LLRC retries on the node
      * pool still happen).

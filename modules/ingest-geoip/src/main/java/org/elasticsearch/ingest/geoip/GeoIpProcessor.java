@@ -103,13 +103,13 @@ public final class GeoIpProcessor extends AbstractProcessor {
     public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
         Object ip = ingestDocument.getFieldValue(field, Object.class, ignoreMissing);
 
-        if (ip == null && ignoreMissing) {
+        if (isValid.get() == false) {
+            ingestDocument.appendFieldValue("tags","_geoip_expired_database", false);
+            return ingestDocument;
+        } else if (ip == null && ignoreMissing) {
             return ingestDocument;
         } else if (ip == null) {
             throw new IllegalArgumentException("field [" + field + "] is null, cannot extract geoip information.");
-        } if (isValid.get() == false) {
-            ingestDocument.appendFieldValue("tags","_geoip_expired_database", false);
-            return ingestDocument;
         }
 
         if (ip instanceof String) {

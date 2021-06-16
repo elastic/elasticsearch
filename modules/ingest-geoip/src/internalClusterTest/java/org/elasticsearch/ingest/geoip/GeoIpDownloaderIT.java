@@ -142,13 +142,13 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     public void testUpdatedTimestamp() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         testGeoIpDatabasesDownload();
-        long lastUpdate = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastUpdate();
+        long lastCheck = getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck();
         ClusterUpdateSettingsResponse settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(GeoIpDownloader.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueDays(2)))
             .get();
         assertTrue(settingsResponse.isAcknowledged());
-        assertBusy(() -> assertNotEquals(lastUpdate, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastUpdate()));
+        assertBusy(() -> assertNotEquals(lastCheck, getGeoIpTaskState().getDatabases().get("GeoLite2-ASN.mmdb").getLastCheck()));
         testGeoIpDatabasesDownload();
     }
 
@@ -171,7 +171,6 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     GeoIpTaskState.Metadata metadata = state.get(id);
                     BoolQueryBuilder queryBuilder = new BoolQueryBuilder()
                         .filter(new MatchQueryBuilder("name", id))
-                        .filter(new MatchQueryBuilder("timestamp", metadata.getLastUpdate()))
                         .filter(new RangeQueryBuilder("chunk")
                             .from(metadata.getFirstChunk())
                             .to(metadata.getLastChunk(), true));

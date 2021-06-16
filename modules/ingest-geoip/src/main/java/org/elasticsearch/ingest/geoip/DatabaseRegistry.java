@@ -24,7 +24,6 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -48,6 +47,7 @@ import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -200,10 +200,8 @@ public final class DatabaseRegistry implements Closeable {
 
         PersistentTasksCustomMetadata.PersistentTask<?> task =
             PersistentTasksCustomMetadata.getTaskWithId(state, GeoIpDownloader.GEOIP_DOWNLOADER);
-        boolean isEnabled = GeoIpDownloaderTaskExecutor.ENABLED_SETTING.get(state.metadata().settings());
         // Empty state will purge stale entries in databases map.
-        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY :
-            (GeoIpTaskState) task.getState();
+        GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
 
         taskState.getDatabases().entrySet().stream()
             .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
@@ -351,10 +349,8 @@ public final class DatabaseRegistry implements Closeable {
                 // (the chance that the documents change is rare, given the low frequency of the updates for these databases)
                 for (int chunk = firstChunk; chunk <= lastChunk; chunk++) {
                     SearchRequest searchRequest = new SearchRequest(GeoIpDownloader.DATABASES_INDEX);
-                    searchRequest.source().query(new BoolQueryBuilder()
-                        .filter(new TermQueryBuilder("name", databaseName))
-                        .filter(new TermQueryBuilder("chunk", chunk))
-                        .filter(new TermQueryBuilder("timestamp", metadata.getLastUpdate())));
+                    String id = String.format(Locale.ROOT, "%s_%d_%d", databaseName, chunk, metadata.getLastUpdate());
+                    searchRequest.source().query(new TermQueryBuilder("_id", id));
 
                     // At most once a day a few searches may be executed to fetch the new files,
                     // so it is ok if this happens in a blocking manner on a thread from generic thread pool.
@@ -363,7 +359,7 @@ public final class DatabaseRegistry implements Closeable {
                     SearchHit[] hits = searchResponse.getHits().getHits();
 
                     if (searchResponse.getHits().getHits().length == 0) {
-                        failureHandler.accept(new ResourceNotFoundException("chunk document not found"));
+                        failureHandler.accept(new ResourceNotFoundException("chunk document with id [" + id + "] not found"));
                         return;
                     }
                     byte[] data = (byte[]) hits[0].getSourceAsMap().get("data");

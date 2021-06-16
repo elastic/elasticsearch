@@ -213,9 +213,6 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
                 .startObject("data")
                 .field("type", "binary")
                 .endObject()
-                .startObject("timestamp")
-                .field("type", "long")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();

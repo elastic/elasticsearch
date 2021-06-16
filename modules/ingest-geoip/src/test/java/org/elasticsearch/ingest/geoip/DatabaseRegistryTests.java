@@ -39,7 +39,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
@@ -279,7 +278,7 @@ public class DatabaseRegistryTests extends ESTestCase {
         List<byte[]> data = gzip(databaseName, dummyContent, lastChunk - firstChunk + 1);
         assertThat(gunzip(data), equalTo(dummyContent));
 
-        Map<Map<String, Object>, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
+        Map<String, ActionFuture<SearchResponse>> requestMap = new HashMap<>();
         for (int i = firstChunk; i <= lastChunk; i++) {
             byte[] chunk = data.get(i - firstChunk);
             SearchHit hit = new SearchHit(i);
@@ -298,16 +297,13 @@ public class DatabaseRegistryTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
             when(actionFuture.actionGet()).thenReturn(searchResponse);
-            requestMap.put(Map.of("name", databaseName, "chunk", i), actionFuture);
+            requestMap.put(databaseName + "_" + i, actionFuture);
         }
         when(client.search(any())).thenAnswer(invocationOnMock -> {
             SearchRequest req = (SearchRequest) invocationOnMock.getArguments()[0];
-            BoolQueryBuilder query = (BoolQueryBuilder) req.source().query();
-            Map<String, Object> map = query.filter().stream()
-                .map(TermQueryBuilder.class::cast)
-                .collect(Collectors.toMap(TermQueryBuilder::fieldName, TermQueryBuilder::value));
-            map.remove("timestamp");
-            return requestMap.get(map);
+            TermQueryBuilder term = (TermQueryBuilder) req.source().query();
+            String id = (String) term.value();
+            return requestMap.get(id.substring(0, id.lastIndexOf('_')));
         });
 
         MessageDigest md = MessageDigests.md5();

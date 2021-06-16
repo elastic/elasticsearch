@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.AbstractResponseTestCase;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo;

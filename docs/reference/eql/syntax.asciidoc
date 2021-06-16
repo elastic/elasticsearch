@@ -795,6 +795,15 @@ For a list of supported pipes, see <<eql-pipe-ref>>.
 EQL does not support the following features and syntax.
 
 [discrete]
+[[eql-uses-fields-parameter]]
+==== EQL uses the `fields` parameter
+
+EQL retrieves field values using the search API's <<search-fields-param,`fields`
+parameter>>. Any limitations on the `fields` parameter also apply to EQL
+queries. For example, if `_source` is disabled for any returned fields or at
+index level, the values cannot be retrieved.
+
+[discrete]
 [[eql-compare-fields]]
 ==== Comparing fields
 

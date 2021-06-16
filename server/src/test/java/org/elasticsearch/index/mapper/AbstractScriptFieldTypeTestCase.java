@@ -107,7 +107,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.field("copy_to", "target");
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(exception.getMessage(), containsString("unknown parameter [copy_to] on mapper"));
+        assertThat(exception.getMessage(), containsString("unknown parameter [copy_to] on runtime field"));
     }
 
     public void testMultiFieldsIsNotSupported() throws IOException {
@@ -116,7 +116,7 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
             b.startObject("fields").startObject("test").field("type", "keyword").endObject().endObject();
         });
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertThat(exception.getMessage(), containsString("unknown parameter [fields] on mapper"));
+        assertThat(exception.getMessage(), containsString("unknown parameter [fields] on runtime field"));
     }
 
     public void testStoredScriptsAreNotSupported() throws Exception {

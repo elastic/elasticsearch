@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.BigArrays;
@@ -628,9 +627,11 @@ public class EncryptedRepository extends BlobStoreRepository {
         @Override
         public void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
             throws IOException {
-            final BytesStreamOutput out = new BytesStreamOutput();
-            writer.accept(out);
-            writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
+            try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+                writer.accept(out);
+                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            }
         }
 
         private ChainingInputStream encryptedInput(InputStream inputStream, SingleUseKey singleUseNonceAndDEK, BytesReference dekIdBytes)

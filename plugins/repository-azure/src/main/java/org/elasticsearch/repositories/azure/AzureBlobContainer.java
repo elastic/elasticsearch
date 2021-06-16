@@ -12,7 +12,6 @@ import com.azure.storage.blob.models.BlobStorageException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -106,9 +105,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
-        final BytesStreamOutput out = new BytesStreamOutput();
-        writer.accept(out);
-        writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+        blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }
 
     @Override

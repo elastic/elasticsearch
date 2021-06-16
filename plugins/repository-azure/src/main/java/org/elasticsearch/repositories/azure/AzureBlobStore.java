@@ -33,6 +33,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -53,6 +56,7 @@ import reactor.core.scheduler.Schedulers;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -82,6 +86,8 @@ public class AzureBlobStore implements BlobStore {
 
     private final AzureStorageService service;
 
+    private final BigArrays bigArrays;
+
     private final String clientName;
     private final String container;
     private final LocationMode locationMode;
@@ -90,10 +96,11 @@ public class AzureBlobStore implements BlobStore {
     private final Stats stats = new Stats();
     private final BiConsumer<String, URL> statsConsumer;
 
-    public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service) {
+    public AzureBlobStore(RepositoryMetadata metadata, AzureStorageService service, BigArrays bigArrays) {
         this.container = Repository.CONTAINER_SETTING.get(metadata.settings());
         this.clientName = Repository.CLIENT_NAME.get(metadata.settings());
         this.service = service;
+        this.bigArrays = bigArrays;
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
@@ -381,6 +388,76 @@ public class AzureBlobStore implements BlobStore {
         Flux<ByteBuffer> byteBufferFlux =
             Flux.fromArray(BytesReference.toByteBuffers(bytes));
         executeSingleUpload(blobName, byteBufferFlux, bytes.length(), failIfAlreadyExists);
+    }
+
+    private static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
+
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final BlobServiceAsyncClient asyncClient = asyncClient();
+            final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container)
+                    .getBlobAsyncClient(blobName);
+            final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
+            try (OutputStream out = new OutputStream() {
+
+                private final List<String> parts = new ArrayList<>();
+
+                long written = 0L;
+
+                private ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays);
+
+                @Override
+                public void write(int b) throws IOException {
+                    buffer.write(b);
+                    maybeFlushBuffer();
+                }
+
+                @Override
+                public void write(byte[] b, int off, int len) throws IOException {
+                    buffer.write(b, off, len);
+                    maybeFlushBuffer();
+                }
+
+                private void maybeFlushBuffer() {
+                    if (buffer.size() >= FLUSH_BUFFER_BYTES) {
+                        flushBuffer();
+                    }
+                }
+
+                private void flushBuffer() {
+                    if (buffer.size() == 0) {
+                        return;
+                    }
+                    final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
+                    final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
+                    Flux<ByteBuffer> byteBufferFlux = Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes()));
+                    final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
+                    blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, buffer.size()).block();
+                    written += buffer.size();
+                    parts.add(blockId);
+                    buffer.close();
+                    buffer = new ReleasableBytesStreamOutput(bigArrays);
+                }
+
+                @Override
+                public void close() {
+                    try {
+                        if (written == 0L) {
+                            writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                        } else {
+                            flushBuffer();
+                            blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
+                        }
+                    } finally {
+                        buffer.close();
+                    }
+                }
+            }) {
+                writer.accept(out);
+            }
+        });
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {

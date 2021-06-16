@@ -133,13 +133,13 @@ class S3BlobContainer extends AbstractBlobContainer {
         });
     }
 
-    private static final long MIN_MULTIPART_BYTES = MIN_PART_SIZE_USING_MULTIPART.getBytes();
+    private static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
 
     @Override
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
-        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        final BigArrays bigArrays = blobStore.bigArrays();
         try (AmazonS3Reference clientReference = blobStore.clientReference();
              OutputStream out = new OutputStream() {
 
@@ -164,7 +164,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
 
                  private void maybeFlushBuffer() throws IOException {
-                     if (buffer.size() >= MIN_MULTIPART_BYTES) {
+                     if (buffer.size() >= FLUSH_BUFFER_BYTES) {
                          if (written == 0L) {
                              uploadId.set(SocketAccess.doPrivileged(() ->
                                      clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
@@ -177,6 +177,9 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
 
                  private void flushBuffer(boolean lastPart) throws IOException {
+                     if (buffer.size() == 0) {
+                         return;
+                     }
                      final UploadPartRequest uploadRequest = new UploadPartRequest();
                      uploadRequest.setBucketName(blobStore.bucket());
                      uploadRequest.setKey(blobName);

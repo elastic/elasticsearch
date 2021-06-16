@@ -12,6 +12,7 @@ import com.amazonaws.services.s3.internal.MD5DigestCalculatingInputStream;
 import com.amazonaws.util.Base16;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -126,7 +127,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             bufferSize == null ? S3Repository.BUFFER_SIZE_SETTING.getDefault(Settings.EMPTY) : bufferSize,
             S3Repository.CANNED_ACL_SETTING.getDefault(Settings.EMPTY),
             S3Repository.STORAGE_CLASS_SETTING.getDefault(Settings.EMPTY),
-            repositoryMetadata)) {
+            repositoryMetadata, BigArrays.NON_RECYCLING_INSTANCE)) {
                 @Override
                 public InputStream readBlob(String blobName) throws IOException {
                     return new AssertingInputStream(super.readBlob(blobName), blobName);

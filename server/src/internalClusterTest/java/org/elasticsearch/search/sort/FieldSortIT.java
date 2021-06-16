@@ -12,6 +12,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -64,6 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -1933,6 +1935,52 @@ public class FieldSortIT extends ESIntegTestCase {
             assertThat("sort order is incorrect", currentLong, greaterThanOrEqualTo(previousLong));
             previousLong = currentLong;
         }
+    }
+
+    public void testIssue73146() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index1")
+            .setMapping("date", "type=keyword", "num_field", "type=integer", "str_field", "type=keyword").get());
+        assertAcked(client().admin().indices().prepareCreate("index2")
+            .setMapping("date", "type=date", "num_field", "type=integer", "str_field", "type=keyword").get());
+        ensureGreen();
+
+        indexRandom(true,
+            client().prepareIndex("index1").setId("1").setSource("date", "2021-05-17", "num_field", 42, "str_field", "aaa"),
+            client().prepareIndex("index2").setId("2").setSource("date", "2021-05-18", "num_field", 43, "str_field", "aaa")
+        );
+
+        try {
+            client().prepareSearch("index*")
+                .addSort("date", SortOrder.DESC)
+                .get();
+            fail("should fail because of conflicting sort types");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(
+                ExceptionsHelper.stackTrace(e),
+                e.getCause().toString(),
+                containsString("Can't do sort across indices, as a field has [raw] type")
+            );
+        }
+
+        try {
+            client().prepareSearch("index*")
+                .addSort("str_field", SortOrder.DESC)
+                .addSort("date", SortOrder.DESC)
+                .get();
+            fail("should fail because of conflicting sort types");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(
+                ExceptionsHelper.stackTrace(e),
+                e.getCause().toString(),
+                containsString("Can't do sort across indices, as a field has [raw] type")
+            );
+        }
+
+        final SearchResponse response = client().prepareSearch("index*")
+            .addSort("str_field", SortOrder.DESC)
+            .addSort("num_field", SortOrder.DESC)
+            .get();
+        assertOrderedSearchHits(response, "2", "1");
     }
 
 }

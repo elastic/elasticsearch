@@ -488,23 +488,25 @@ public final class SearchPhaseController {
      * //TODO: instead of throwing error, find a way to sort long and unsigned_long together
      */
     private static void validateMergeSortValueFormats(Collection<? extends SearchPhaseResult> queryResults) {
-        boolean[] ulFormats = null;
+        String[] ulFormats = null;
         boolean firstResult = true;
         for (SearchPhaseResult entry : queryResults) {
             DocValueFormat[] formats = entry.queryResult().sortValueFormats();
             if (formats == null) return;
             if (firstResult) {
                 firstResult = false;
-                ulFormats = new boolean[formats.length];
+                ulFormats = new String[formats.length];
                 for (int i = 0; i < formats.length; i++) {
-                    ulFormats[i] = formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED ? true : false;
+                    ulFormats[i] = formats[i].getWriteableName();
                 }
             } else {
                 for (int i = 0; i < formats.length; i++) {
                     // if the format is unsigned_long in one shard, and something different in another shard
-                    if (ulFormats[i] ^ (formats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                        throw new IllegalArgumentException("Can't do sort across indices, as a field has [unsigned_long] type " +
-                            "in one index, and different type in another index!");
+                    if (ulFormats[i].equals(formats[i].getWriteableName()) == false) {
+                        throw new IllegalArgumentException(String.format(
+                            "Can't do sort across indices, as a field has [%s] type in one index, and different type in another index!",
+                            ulFormats[i]
+                        ));
                     }
                 }
             }

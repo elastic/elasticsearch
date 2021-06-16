@@ -14,6 +14,7 @@ import org.apache.lucene.document.LatLonPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -616,7 +617,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
         }
-        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1]).enabled(true);
+        Mapper.Builder builder = new ObjectMapper.Builder(nameParts[nameParts.length - 1], Version.CURRENT).enabled(true);
         return (ObjectMapper)builder.build(context.path());
     }
 
@@ -1892,6 +1893,20 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
         ParsedDocument doc = mapper.parse(source(b -> b.field("foo", "1234")));
         assertNull(doc.dynamicMappingsUpdate()); // no update since we reused the existing type
+    }
+
+    public void testParseWithFlattenedField() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "flattened")));
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.startObject("field");
+            b.field("first", "first");
+            b.field("second", "second");
+            b.endObject();
+        }));
+        assertNull(doc.dynamicMappingsUpdate());
+        assertNotNull(doc.rootDoc().getField("field"));
+        assertNull(doc.rootDoc().getField("field.first"));
+        assertNull(doc.rootDoc().getField("field.second"));
     }
 
     /**

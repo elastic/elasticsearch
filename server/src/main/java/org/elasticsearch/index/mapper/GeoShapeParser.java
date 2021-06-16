@@ -32,15 +32,15 @@ public class GeoShapeParser extends AbstractGeometryFieldMapper.Parser<Geometry>
         Consumer<Exception> onMalformed
     ) throws IOException {
         try {
-            consumer.accept(geometryParser.parse(parser));
+            if (parser.currentToken() == XContentParser.Token.START_ARRAY) {
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    parse(parser, consumer, onMalformed);
+                }
+            } else {
+                consumer.accept(geometryParser.parse(parser));
+            }
         } catch (ParseException | ElasticsearchParseException | IllegalArgumentException e) {
             onMalformed.accept(e);
         }
     }
-
-    @Override
-    public Object format(Geometry value, String format) {
-        return geometryParser.geometryFormat(format).toXContentAsObject(value);
-    }
-
 }

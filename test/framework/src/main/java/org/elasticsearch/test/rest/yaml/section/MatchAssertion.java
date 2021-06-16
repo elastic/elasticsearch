@@ -88,6 +88,6 @@ public class MatchAssertion extends Assertion {
             assertThat(actualValue, instanceOf(List.class));
             assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
-        assertThat(expectedValue, equalTo(actualValue));
+        assertThat(actualValue, equalTo(expectedValue));
     }
 }

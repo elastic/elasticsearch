@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -30,25 +31,14 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     public static TimeValue DEFAULT_TIMEOUT = new TimeValue(1000);
 
     private String field;
-    private String string;
-    private String searchAfter;
+    private String string = null;
+    private String searchAfter = null;
     private int size = DEFAULT_SIZE;
     private boolean caseInsensitive;
-    long taskStartTimeMillis;
     private QueryBuilder indexFilter;
 
     public TermsEnumRequest() {
         this(Strings.EMPTY_ARRAY);
-    }
-
-    public TermsEnumRequest(StreamInput in) throws IOException {
-        super(in);
-        field = in.readString();
-        string = in.readString();
-        searchAfter = in.readOptionalString();
-        caseInsensitive = in.readBoolean();
-        size = in.readVInt();
-        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
     }
 
     /**
@@ -59,6 +49,40 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
         super(indices);
         indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
         timeout(DEFAULT_TIMEOUT);
+    }
+
+    public TermsEnumRequest(TermsEnumRequest clone) {
+        this.field = clone.field;
+        this.string = clone.string;
+        this.searchAfter = clone.searchAfter;
+        this.caseInsensitive = clone.caseInsensitive;
+        this.size = clone.size;
+        this.indexFilter = clone.indexFilter;
+        indices(clone.indices);
+        indicesOptions(clone.indicesOptions());
+        timeout(clone.timeout());
+        setParentTask(clone.getParentTask());
+    }
+
+    public TermsEnumRequest(StreamInput in) throws IOException {
+        super(in);
+        field = in.readString();
+        string = in.readOptionalString();
+        searchAfter = in.readOptionalString();
+        caseInsensitive = in.readBoolean();
+        size = in.readVInt();
+        indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        super.writeTo(out);
+        out.writeString(field);
+        out.writeOptionalString(string);
+        out.writeOptionalString(searchAfter);
+        out.writeBoolean(caseInsensitive);
+        out.writeVInt(size);
+        out.writeOptionalNamedWriteable(indexFilter);
     }
 
     @Override
@@ -81,8 +105,9 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * The field to look inside for values
      */
-    public void field(String field) {
+    public TermsEnumRequest field(String field) {
         this.field = field;
+        return this;
     }
 
     /**
@@ -95,13 +120,15 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * The string required in matching field values
      */
-    public void string(String string) {
+    public TermsEnumRequest string(String string) {
         this.string = string;
+        return this;
     }
 
     /**
      * The string required in matching field values
      */
+    @Nullable
     public String string() {
         return string;
     }
@@ -109,6 +136,7 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * The string after which to find matching field values (enables pagination of previous request)
      */
+    @Nullable
     public String searchAfter() {
         return searchAfter;
     }
@@ -116,8 +144,9 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * The string after which to find matching field values (enables pagination of previous request)
      */
-    public void searchAfter(String searchAfter) {
+    public TermsEnumRequest searchAfter(String searchAfter) {
         this.searchAfter = searchAfter;
+        return this;
     }
 
     /**
@@ -130,15 +159,17 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * The number of terms to return
      */
-    public void size(int size) {
+    public TermsEnumRequest size(int size) {
         this.size = size;
+        return this;
     }
 
     /**
      * If case insensitive matching is required
      */
-    public void caseInsensitive(boolean caseInsensitive) {
+    public TermsEnumRequest caseInsensitive(boolean caseInsensitive) {
         this.caseInsensitive = caseInsensitive;
+        return this;
     }
 
     /**
@@ -151,23 +182,13 @@ public class TermsEnumRequest extends BroadcastRequest<TermsEnumRequest> impleme
     /**
      * Allows to filter shards if the provided {@link QueryBuilder} rewrites to `match_none`.
      */
-    public void indexFilter(QueryBuilder indexFilter) {
+    public TermsEnumRequest indexFilter(QueryBuilder indexFilter) {
         this.indexFilter = indexFilter;
+        return this;
     }
 
     public QueryBuilder indexFilter() {
         return indexFilter;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(field);
-        out.writeString(string);
-        out.writeOptionalString(searchAfter);
-        out.writeBoolean(caseInsensitive);
-        out.writeVInt(size);
-        out.writeOptionalNamedWriteable(indexFilter);
     }
 
     @Override

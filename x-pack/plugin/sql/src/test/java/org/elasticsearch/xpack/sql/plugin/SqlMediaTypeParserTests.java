@@ -31,57 +31,57 @@ import static org.hamcrest.CoreMatchers.is;
 public class SqlMediaTypeParserTests extends ESTestCase {
 
     public void testPlainTextDetection() {
-        SqlMediaType text = getResponseMediaType(reqWithAccept("text/plain"), createTestInstance(false, Mode.PLAIN, false));
+        SqlMediaType text = getResponseMediaType(reqWithAccept("text/plain"), createTestInstance());
         assertThat(text.textFormat(), is(PLAIN_TEXT));
     }
 
     public void testCsvDetection() {
-        SqlMediaType text = getResponseMediaType(reqWithAccept("text/csv"), createTestInstance(false, Mode.PLAIN, false));
+        SqlMediaType text = getResponseMediaType(reqWithAccept("text/csv"), createTestInstance());
         assertThat(text.textFormat(), is(CSV));
 
-        text = getResponseMediaType(reqWithAccept("text/csv; delimiter=x"), createTestInstance(false, Mode.PLAIN, false));
+        text = getResponseMediaType(reqWithAccept("text/csv; delimiter=x"), createTestInstance());
         assertThat(text.textFormat(), is(CSV));
     }
 
     public void testTsvDetection() {
         SqlMediaType text = getResponseMediaType(reqWithAccept("text/tab-separated-values"),
-            createTestInstance(false, Mode.PLAIN, false));
+            createTestInstance());
         assertThat(text.textFormat(), is(TSV));
     }
 
     public void testMediaTypeDetectionWithParameters() {
         assertThat(getResponseMediaType(reqWithAccept("text/plain; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(PLAIN_TEXT));
+            createTestInstance()).textFormat(), is(PLAIN_TEXT));
         assertThat(getResponseMediaType(reqWithAccept("text/plain; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(PLAIN_TEXT));
+            createTestInstance()).textFormat(), is(PLAIN_TEXT));
         assertThat(getResponseMediaType(reqWithAccept("text/plain; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(PLAIN_TEXT));
+            createTestInstance()).textFormat(), is(PLAIN_TEXT));
 
         assertThat(getResponseMediaType(reqWithAccept("text/csv; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(CSV));
+            createTestInstance()).textFormat(), is(CSV));
         assertThat(getResponseMediaType(reqWithAccept("text/csv; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(CSV));
+            createTestInstance()).textFormat(), is(CSV));
         assertThat(getResponseMediaType(reqWithAccept("text/csv; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(CSV));
+            createTestInstance()).textFormat(), is(CSV));
 
         assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(TSV));
+            createTestInstance()).textFormat(), is(TSV));
         assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(TSV));
+            createTestInstance()).textFormat(), is(TSV));
         assertThat(getResponseMediaType(reqWithAccept("text/tab-separated-values; charset=utf-8; header=present"),
-            createTestInstance(false, Mode.PLAIN, false)).textFormat(), is(TSV));
+            createTestInstance()).textFormat(), is(TSV));
     }
 
     public void testInvalidFormat() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance(false, Mode.PLAIN, false)));
+            () -> getResponseMediaType(reqWithAccept("text/garbage"), createTestInstance()));
         assertEquals(e.getMessage(), "invalid format [text/garbage]");
     }
 
     public void testNoFormat() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () ->  getResponseMediaType(new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build(),
-                createTestInstance(false, Mode.PLAIN, false)));
+                createTestInstance()));
         assertEquals(e.getMessage(), "Invalid request content type: Accept=[null], Content-Type=[null], format=[null]");
     }
 
@@ -94,17 +94,11 @@ public class SqlMediaTypeParserTests extends ESTestCase {
             }}).build();
     }
 
-    protected SqlQueryRequest createTestInstance(boolean binaryCommunication, Mode mode, boolean columnar) {
-        /*
-
-    public SqlQueryRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, Map<String, Object> runtimeMappings,
-                           ZoneId zoneId, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, Boolean columnar,
-                           String cursor, RequestInfo requestInfo, boolean fieldMultiValueLeniency, boolean indexIncludeFrozen) {
-         */
+    protected SqlQueryRequest createTestInstance() {
         return new SqlQueryRequest(randomAlphaOfLength(10), Collections.emptyList(), null, null,
             randomZone(), between(1, Integer.MAX_VALUE), TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"), columnar, randomAlphaOfLength(10),
-            new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
-            randomBoolean(), randomBoolean()).binaryCommunication(binaryCommunication);
+            TimeValue.parseTimeValue(randomTimeValue(), null, "test"), false, randomAlphaOfLength(10),
+            new RequestInfo(Mode.PLAIN, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
+            randomBoolean(), randomBoolean()).binaryCommunication(false);
     }
 }

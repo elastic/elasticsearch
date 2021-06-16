@@ -41,19 +41,19 @@ public class SqlMediaTypeParser {
             return textFormat != null ? new SqlMediaType(null, textFormat) : null;
         }
 
-        public boolean isTextFormat() {
+        boolean isTextFormat() {
             return isTextFormat;
         }
 
-        public XContentType xContentType() {
+        XContentType xContentType() {
             return xContentType;
         }
 
-        public TextFormat textFormat() {
+        TextFormat textFormat() {
             return textFormat;
         }
 
-        public static SqlMediaType fromMediaTypeOrFormat(String mediaType) {
+        private static SqlMediaType fromMediaTypeOrFormat(String mediaType) {
             XContentType xContentType = XContentType.fromMediaTypeOrFormat(mediaType);
             return xContentType != null ? xContentType(xContentType) : textFormat(TextFormat.fromMediaTypeOrFormat(mediaType));
         }

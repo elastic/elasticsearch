@@ -202,3 +202,38 @@ teardown:
         id: 1
   - match: { _source.source_field: "foo%20bar" }
   - match: { _source.target_field: "foo bar" }
+
+---
+"Test invoke uri_parts processor":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "script" : {
+                  "lang": "painless",
+                  "source" : "ctx.target_field = Processors.uriParts(ctx.source_field)"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {source_field: "http://www.example.com/index.html"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.source_field: "http://www.example.com/index.html" }
+  - match: { _source.target_field.scheme: "http" }
+  - match: { _source.target_field.domain: "www.example.com" }
+  - match: { _source.target_field.path: "/index.html" }

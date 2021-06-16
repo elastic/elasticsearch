@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.shutdown.PluginShutdownService;
@@ -48,6 +51,7 @@ import java.util.stream.Collectors;
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
     GetShutdownStatusAction.Response> {
+    private static final Logger logger = LogManager.getLogger(TransportGetShutdownStatusAction.class);
 
     private final AllocationDeciders allocationDeciders;
     private final AllocationService allocationService;
@@ -217,6 +221,19 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.THROTTLED) == false)
             // These shards will move as soon as possible
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            .peek(pair -> {
+                if (logger.isTraceEnabled()) { // don't serialize the decision unless we have to
+                    logger.trace(
+                        "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
+                        nodeId,
+                        shutdownType,
+                        pair.v1().getId(),
+                        pair.v1().primary() ? "primary" : "replica",
+                        pair.v1().shardId().getIndexName(),
+                        Strings.toString(pair.v2())
+                    );
+                }
+            })
             .map(Tuple::v1)
             .findFirst();
 

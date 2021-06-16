@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,6 +46,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -93,12 +95,12 @@ class IndicesAndAliasesResolver {
      * Otherwise, <em>N</em> will be added to the <em>local</em> index list.
      */
 
-    ResolvedIndices resolve(TransportRequest request, Metadata metadata, Set<String> authorizedIndices) {
+    ResolvedIndices resolve(String action, TransportRequest request, Metadata metadata, Set<String> authorizedIndices) {
         if (request instanceof IndicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
             IndicesAliasesRequest indicesAliasesRequest = (IndicesAliasesRequest) request;
             for (IndicesRequest indicesRequest : indicesAliasesRequest.getAliasActions()) {
-                final ResolvedIndices resolved = resolveIndicesAndAliases(indicesRequest, metadata, authorizedIndices);
+                final ResolvedIndices resolved = resolveIndicesAndAliases(action, indicesRequest, metadata, authorizedIndices);
                 resolvedIndicesBuilder.addLocal(resolved.getLocal());
                 resolvedIndicesBuilder.addRemote(resolved.getRemote());
             }
@@ -109,11 +111,12 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases((IndicesRequest) request, metadata, authorizedIndices);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, metadata, authorizedIndices);
     }
 
 
-    ResolvedIndices resolveIndicesAndAliases(IndicesRequest indicesRequest, Metadata metadata, Set<String> authorizedIndices) {
+    ResolvedIndices resolveIndicesAndAliases(String action, IndicesRequest indicesRequest, Metadata metadata,
+                                             Set<String> authorizedIndices) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
         if (indicesRequest instanceof PutMappingRequest && ((PutMappingRequest) indicesRequest).getConcreteIndex() != null) {
@@ -175,16 +178,38 @@ class IndicesAndAliasesResolver {
                 replaceable.indices(resolvedIndicesBuilder.build().toArray());
             }
         } else {
-            if (containsWildcards(indicesRequest)) {
-                throw new IllegalStateException("There are no external requests known to support wildcards that don't support replacing " +
-                        "their indices");
+            final String[] indices = indicesRequest.indices();
+            if (indices == null || indices.length == 0) {
+                throw new IllegalArgumentException("the action " + action + " requires explicit index names, but none were provided");
             }
+            if (IndexNameExpressionResolver.isAllIndices(Arrays.asList(indices))) {
+                throw new IllegalArgumentException(
+                    "the action "
+                        + action
+                        + " does not support accessing all indices;"
+                        + " the provided index expression ["
+                        + Strings.arrayToCommaDelimitedString(indices)
+                        + "] is not allowed"
+                );
+            }
+            final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).collect(Collectors.toList());
+            if (wildcards.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "the action "
+                        + action
+                        + " does not support wildcards;"
+                        + " the provided index expression(s) ["
+                        + Strings.collectionToCommaDelimitedString(wildcards)
+                        + "] are not allowed"
+                );
+            }
+
             //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
             // replacing their indices.
             //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
             //corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
             // shard level requests.
-            for (String name : indicesRequest.indices()) {
+            for (String name : indices) {
                 resolvedIndicesBuilder.addLocal(nameExpressionResolver.resolveDateMathExpression(name));
             }
         }
@@ -327,18 +352,6 @@ class IndicesAndAliasesResolver {
         }
 
         return finalAliases;
-    }
-
-    private boolean containsWildcards(IndicesRequest indicesRequest) {
-        if (IndexNameExpressionResolver.isAllIndices(indicesList(indicesRequest.indices()))) {
-            return true;
-        }
-        for (String index : indicesRequest.indices()) {
-            if (Regex.isSimpleMatchPattern(index)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     private static List<String> indicesList(String[] list) {

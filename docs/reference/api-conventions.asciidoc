@@ -19,17 +19,17 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to run a request on
-multiple resources, such as data streams, indices, or index aliases:
+multiple resources, such as data streams, indices, or aliases:
 `test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
 wildcard (`*`) expressions to target resources that match a pattern: `test*` or
 `*test` or `te*t` or `*test*`.
 
 You can exclude targets using the `-` character: `test*,-test3`.
 
-IMPORTANT: Index aliases are resolved after wildcard expressions. This can
-result in a request that targets an excluded alias. For example, if `test3` is
-an index alias, the pattern `test*,-test3` still targets the indices for
-`test3`. To avoid this, exclude the concrete indices for the alias instead.
+IMPORTANT: Aliases are resolved after wildcard expressions. This can result in a
+request that targets an excluded alias. For example, if `test3` is an index
+alias, the pattern `test*,-test3` still targets the indices for `test3`. To
+avoid this, exclude the concrete indices for the alias instead.
 
 Multi-target APIs that can target indices support the following query
 string parameters:

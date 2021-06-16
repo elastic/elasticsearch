@@ -3,6 +3,11 @@
 
 The following pages have moved or been deleted.
 
+[role="exclude",id="grok-basics"]
+=== Grok basics
+
+See <<grok,Grokking grok>>.
+
 // [START] Security redirects
 
 [role="exclude",id="get-started-users"]

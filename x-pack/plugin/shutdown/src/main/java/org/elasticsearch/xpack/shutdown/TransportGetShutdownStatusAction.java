@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ShutdownShardMigrationStatus;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -35,13 +36,17 @@ import java.util.stream.Collectors;
 public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
     GetShutdownStatusAction.Request,
     GetShutdownStatusAction.Response> {
+
+    private final PluginShutdownService pluginShutdownService;
+
     @Inject
     public TransportGetShutdownStatusAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        PluginShutdownService pluginShutdownService
     ) {
         super(
             GetShutdownStatusAction.NAME,
@@ -54,6 +59,8 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             GetShutdownStatusAction.Response::new,
             ThreadPool.Names.SAME
         );
+
+        this.pluginShutdownService = pluginShutdownService;
     }
 
     @Override
@@ -77,7 +84,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                         ns,
                         new ShutdownShardMigrationStatus(),
                         new ShutdownPersistentTasksStatus(),
-                        new ShutdownPluginsStatus()
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
                 )
                 .collect(Collectors.toList());
@@ -93,7 +100,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                         ns,
                         new ShutdownShardMigrationStatus(),
                         new ShutdownPersistentTasksStatus(),
-                        new ShutdownPluginsStatus()
+                        new ShutdownPluginsStatus(pluginShutdownService.readyToShutdown(ns.getNodeId(), ns.getType()))
                     )
 
                 )

@@ -28,7 +28,7 @@ restResources {
 
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'lang_mustache/60_typed_keys/Multisearch template with typed_keys parameter',
-    'lang_mustache/60_typed_keys/Search template with typed_keys parameter'
+//    'lang_mustache/60_typed_keys/Multisearch template with typed_keys parameter',
+//    'lang_mustache/60_typed_keys/Search template with typed_keys parameter'
   ].join(',')
 }

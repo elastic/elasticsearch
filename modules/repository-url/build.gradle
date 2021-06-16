@@ -65,8 +65,8 @@ testClusters.all {
 
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
-    'repository_url/10_basic/Get a non existing snapshot',
-    'repository_url/10_basic/Restore with repository-url using http://',
-    'repository_url/10_basic/Restore with repository-url using file://'
+//    'repository_url/10_basic/Get a non existing snapshot',
+//    'repository_url/10_basic/Restore with repository-url using http://',
+//    'repository_url/10_basic/Restore with repository-url using file://'
   ].join(',')
 }

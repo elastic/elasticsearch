@@ -144,16 +144,15 @@ public final class Processors {
         Object destinationPort,
         Object icmpType,
         Object icmpCode) {
-        return CommunityIdProcessor.apply(
-            sourceIpAddrString,
+        return CommunityIdProcessor.apply(sourceIpAddrString,
             destIpAddrString,
             ianaNumber,
             transport,
             sourcePort,
             destinationPort,
             icmpType,
-            icmpCode
-        );
+            icmpCode);
+    }
 
     /*
      * Uses {@link UriPartsProcessor} to decompose an URI into its constituent parts.

@@ -69,7 +69,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -223,7 +222,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -242,7 +240,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -262,7 +259,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -282,7 +278,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -300,7 +295,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -321,7 +315,6 @@
                 "categorization_filters" : ["cat1.*", "cat2.*"]
             },
             "data_description" : {
-              "field_delimiter":","
             },
             "model_plot_config": {
               "enabled": true,
@@ -1071,33 +1064,6 @@
           }
   - match: { job_id: "job-model-memory-limit-above-removed-global-max" }
   - match: { analysis_limits.model_memory_limit: "10240mb" }
-
----
-"Test create job with delimited format":
-
-  - skip:
-      features: "warnings"
-      reason: deprecation logging for delimited format was introduced in 5.4.0
-
-  - do:
-      warnings:
-          - Creating jobs with delimited data format is deprecated. Please use xcontent instead.
-      ml.put_job:
-        job_id: delimited-format-job
-        body:  >
-          {
-            "analysis_config" : {
-                "bucket_span": "1h",
-                "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
-            },
-            "data_description" : {
-                "format":"delimited",
-                "field_delimiter":",",
-                "time_field":"time",
-                "time_format":"yyyy-MM-dd HH:mm:ssX"
-            }
-          }
-  - match: { job_id: "delimited-format-job" }
 
 ---
 "Test jobs with named and custom categorization_analyzer":

@@ -22,6 +22,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -37,8 +38,10 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.ByteArrayInputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.Channels;
 import java.nio.channels.WritableByteChannel;
@@ -264,6 +267,72 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private static final Storage.BlobWriteOption[] NO_OVERWRITE_CHECK_MD5 =
             {Storage.BlobWriteOption.doesNotExist(), Storage.BlobWriteOption.md5Match()};
     private static final Storage.BlobWriteOption[] OVERWRITE_CHECK_MD5 = {Storage.BlobWriteOption.md5Match()};
+
+    void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        final BlobInfo blobInfo = BlobInfo.newBuilder(bucketName, blobName).build();
+        final Storage.BlobWriteOption[] writeOptions = failIfAlreadyExists ? NO_OVERWRITE_NO_MD5 : OVERWRITE_NO_MD5;
+
+        StorageException storageException = null;
+
+        for (int retry = 0; retry < 3; ++retry) {
+            try {
+                final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
+                try (OutputStream out = new FilterOutputStream(
+                        Channels.newOutputStream(
+                                new WritableByteChannel() {
+
+                                    @SuppressForbidden(reason = "channel is based on a socket")
+                                    @Override
+                                    public int write(final ByteBuffer src) throws IOException {
+                                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
+                                    }
+
+                                    @Override
+                                    public boolean isOpen() {
+                                        return writeChannel.isOpen();
+                                    }
+
+                                    @Override
+                                    public void close() throws IOException {
+                                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                                    }
+                                }
+                        )
+                ) {
+                    @Override
+                    public void write(byte[] b, int off, int len) throws IOException {
+                        int written = 0;
+                        while (written < len) {
+                            // at most write the default chunk size in one go to prevent allocating huge buffers in the SDK
+                            // see com.google.cloud.BaseWriteChannel#DEFAULT_CHUNK_SIZE
+                            final int toWrite = Math.min(len - written, 60 * 256 * 1024);
+                            out.write(b, off + written, toWrite);
+                            written += toWrite;
+                        }
+                    }
+                }) {
+                    writer.accept(out);
+                }
+                stats.trackPutOperation();
+                return;
+            } catch (final StorageException se) {
+                final int errorCode = se.getCode();
+                if (errorCode == HTTP_GONE) {
+                    logger.warn(() -> new ParameterizedMessage("Retrying broken resumable upload session for blob {}", blobInfo), se);
+                    storageException = ExceptionsHelper.useOrSuppress(storageException, se);
+                    continue;
+                } else if (failIfAlreadyExists && errorCode == HTTP_PRECON_FAILED) {
+                    throw new FileAlreadyExistsException(blobInfo.getBlobId().getName(), null, se.getMessage());
+                }
+                if (storageException != null) {
+                    se.addSuppressed(storageException);
+                }
+                throw se;
+            }
+        }
+        assert storageException != null;
+        throw storageException;
+    }
 
     /**
      * Uploads a blob using the "resumable upload" method (multiple requests, which

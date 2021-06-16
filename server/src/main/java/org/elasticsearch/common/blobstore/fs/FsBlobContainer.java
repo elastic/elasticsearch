@@ -18,6 +18,7 @@ import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.FileNotFoundException;
@@ -245,16 +246,22 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public OutputStream writeBlob(String blobName, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         final Path file = path.resolve(blobName);
         try {
-            return new BlobOutputStream(file);
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
         } catch (FileAlreadyExistsException faee) {
             if (failIfAlreadyExists) {
                 throw faee;
             }
             deleteBlobsIgnoringIfNotExists(Iterators.single(blobName));
-            return new BlobOutputStream(file);
+            try (OutputStream out = new BlobOutputStream(file)) {
+                writer.accept(out);
+            }
         }
     }
 

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.blobstore.url;
 
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
@@ -123,7 +124,9 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public OutputStream writeBlob(String blobName, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 

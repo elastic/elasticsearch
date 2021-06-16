@@ -24,6 +24,7 @@ import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -38,7 +39,10 @@ import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -500,29 +504,20 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public OutputStream writeBlob(String blobName, boolean failIfAlreadyExists) throws IOException {
+            public void writeBlob(String blobName,
+                                  boolean failIfAlreadyExists,
+                                  CheckedConsumer<OutputStream, IOException> writer) throws IOException {
                 maybeIOExceptionOrBlock(blobName);
                 if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
                         && path().equals(basePath()) == false) {
                     blockExecutionAndMaybeWait(blobName);
                 }
-                return new FilterOutputStream(super.writeBlob(blobName, failIfAlreadyExists)) {
-
-                    @Override
-                    public void write(byte[] b, int off, int len) throws IOException {
-                        super.write(b, off, len);
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        super.close();
-                        if (RandomizedContext.current().getRandom().nextBoolean()) {
-                            // for network based repositories, the blob may have been written but we may still
-                            // get an error with the client connection, so an IOException here simulates this
-                            maybeIOExceptionOrBlock(blobName);
-                        }
-                    }
-                };
+                super.writeBlob(blobName, failIfAlreadyExists, writer);
+                if (RandomizedContext.current().getRandom().nextBoolean()) {
+                    // for network based repositories, the blob may have been written but we may still
+                    // get an error with the client connection, so an IOException here simulates this
+                    maybeIOExceptionOrBlock(blobName);
+                }
             }
 
             @Override

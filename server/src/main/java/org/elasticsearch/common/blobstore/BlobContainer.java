@@ -9,6 +9,7 @@
 package org.elasticsearch.common.blobstore;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -117,7 +118,7 @@ public interface BlobContainer {
         writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
 
-    OutputStream writeBlob(String blobName, boolean failIfAlreadyExists) throws IOException;
+    void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,

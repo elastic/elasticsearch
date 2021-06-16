@@ -67,7 +67,7 @@ public class DirectBlobContainerIndexInputTests extends ESIndexInputTestCase {
         final String fileName = randomAlphaOfLength(5) + randomFileExtension();
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(5),
-            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST),
+            new StoreFileMetadata(fileName, input.length, checksum, Version.LATEST.toString()),
             partSize == input.length
                 ? randomFrom(
                     new ByteSizeValue(partSize, ByteSizeUnit.BYTES),

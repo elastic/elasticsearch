@@ -9,13 +9,11 @@
 package org.elasticsearch.index.snapshots.blobstore;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -268,8 +266,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             long length = -1;
             String checksum = null;
             ByteSizeValue partSize = null;
-            Version writtenBy = null;
-            String writtenByStr = null;
+            String writtenBy = null;
             BytesRef metaHash = new BytesRef();
             XContentParserUtils.ensureExpectedToken(token, XContentParser.Token.START_OBJECT, parser);
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -288,8 +285,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                         } else if (PART_SIZE.equals(currentFieldName)) {
                             partSize = new ByteSizeValue(parser.longValue());
                         } else if (WRITTEN_BY.equals(currentFieldName)) {
-                            writtenByStr = parser.text();
-                            writtenBy = Lucene.parseVersionLenient(writtenByStr, null);
+                            writtenBy = parser.text();
                         } else if (META_HASH.equals(currentFieldName)) {
                             metaHash.bytes = parser.binaryValue();
                             metaHash.offset = 0;
@@ -313,7 +309,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             } else if (length < 0) {
                 throw new ElasticsearchParseException("missing or invalid file length");
             } else if (writtenBy == null) {
-                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenByStr + "]");
+                throw new ElasticsearchParseException("missing or invalid written_by [" + writtenBy + "]");
             } else if (checksum == null) {
                 throw new ElasticsearchParseException("missing checksum for name [" + name + "]");
             }

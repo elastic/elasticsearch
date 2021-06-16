@@ -833,7 +833,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             CRC32 digest = new CRC32();
             digest.update(buffer, 0, buffer.length);
             StoreFileMetadata md = new StoreFileMetadata("test-" + i, buffer.length + 8,
-                Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST);
+                Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST.toString());
             try (OutputStream out = new IndexOutputOutputStream(store.createVerifyingOutput(md.name(), md, IOContext.DEFAULT))) {
                 out.write(buffer);
                 out.write(Numbers.longToBytes(digest.getValue()));

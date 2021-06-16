@@ -286,7 +286,8 @@ public class ApiKeyService {
                     Version.V_6_7_0);
         }
 
-        try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication, roleDescriptorSet, created, expiration,
+        try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication,
+            roleDescriptorSet, created, expiration,
             request.getRoleDescriptors(), version, request.getMetadata())) {
 
             final IndexRequest indexRequest =
@@ -299,8 +300,13 @@ public class ApiKeyService {
             securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> listener.onResponse(
-                            new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration)),
+                        indexResponse -> {
+                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                            apiKeyAuthCache.put(indexResponse.getId(), listenableFuture);
+                            listener.onResponse(
+                                new CreateApiKeyResponse(request.getName(), indexResponse.getId(), apiKey, expiration));
+                        },
                         listener::onFailure))));
         } catch (IOException e) {
             listener.onFailure(e);
@@ -311,14 +317,15 @@ public class ApiKeyService {
      * package-private for testing
      */
     XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
-                                        Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
-                                        Version version, @Nullable Map<String, Object> metadata) throws IOException {
+                                Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
+                                Version version, @Nullable Map<String, Object> metadata) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject()
             .field("doc_type", "api_key")
             .field("creation_time", created.toEpochMilli())
             .field("expiration_time", expiration == null ? null : expiration.toEpochMilli())
             .field("api_key_invalidated", false);
+
 
         byte[] utf8Bytes = null;
         final char[] keyHash = hasher.hash(apiKey);
@@ -1186,7 +1193,7 @@ public class ApiKeyService {
             this.hash = cacheHasher.hash(apiKey);
         }
 
-        private boolean verify(SecureString password) {
+        boolean verify(SecureString password) {
             return hash != null && cacheHasher.verify(password, hash);
         }
     }

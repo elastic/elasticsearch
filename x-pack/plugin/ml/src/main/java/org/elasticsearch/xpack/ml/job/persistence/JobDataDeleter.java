@@ -26,9 +26,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -244,9 +244,9 @@ public class JobDataDeleter {
     /**
      * Deletes all documents associated with a job except user annotations and notifications
      */
-    public void deleteJobDocuments(String jobId, JobConfigProvider jobConfigProvider,
-                                   IndexNameExpressionResolver indexNameExpressionResolver, ClusterState clusterState,
-                                   CheckedConsumer<Boolean, Exception> finishedHandler, Consumer<Exception> failureHandler) {
+    public void deleteJobDocuments(JobConfigProvider jobConfigProvider, IndexNameExpressionResolver indexNameExpressionResolver,
+                                   ClusterState clusterState, CheckedConsumer<Boolean, Exception> finishedHandler,
+                                   Consumer<Exception> failureHandler) {
 
         AtomicReference<String[]> indexNames = new AtomicReference<>();
 

@@ -9,7 +9,7 @@
 package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;

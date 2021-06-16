@@ -10,7 +10,7 @@ conditions. If an anomaly meets the conditions, an alert is created and the
 associated action is triggered. For example, you can create a rule to check an 
 {anomaly-job} every fifteen minutes for critical anomalies and to notify you in 
 an email. To learn more about {kib} {alert-features}, refer to 
-{kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting and Actions].
+{kibana-ref}/alerting-getting-started.html#alerting-getting-started[Alerting].
 
 
 [[creating-anomaly-alert-rules]]
@@ -29,7 +29,7 @@ particular {anomaly-job} during the check interval. When there is no anomaly
 found in the next interval, the `Recovered` action group is invoked and the 
 status of the alert changes to `OK`. For more details, refer to the 
 documentation of 
-{kibana-ref}/defining-alerts.html#defining-alerts-general-details[general rule details].
+{kibana-ref}/create-and-manage-rules.html#defining-rules-general-details[general rule details].
   
 [role="screenshot"]
 image::images/ml-anomaly-alert-type.jpg["Creating a rule for an anomaly detection alert"]

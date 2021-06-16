@@ -9,26 +9,14 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
-import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Index-specific deprecation checks
  */
 public class IndexDeprecationChecks {
-
-    private static void fieldLevelMappingIssue(IndexMetadata indexMetadata, BiConsumer<MappingMetadata, Map<String, Object>> checker) {
-        MappingMetadata mmd = indexMetadata.mapping();
-        if (mmd != null) {
-            Map<String, Object> sourceAsMap = mmd.sourceAsMap();
-            checker.accept(mmd, sourceAsMap);
-        }
-    }
 
     static DeprecationIssue oldIndicesCheck(IndexMetadata indexMetadata) {
         Version createdWith = indexMetadata.getCreationVersion();

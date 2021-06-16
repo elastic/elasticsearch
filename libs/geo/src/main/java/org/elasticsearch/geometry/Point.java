@@ -110,7 +110,7 @@ public class Point implements Geometry {
 
     @Override
     public String toString() {
-        return WellKnownText.INSTANCE.toWKT(this);
+        return WellKnownText.toWKT(this);
     }
 
 }

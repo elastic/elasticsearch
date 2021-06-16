@@ -16,6 +16,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexNotFoundException;
 import org.apache.lucene.index.IndexWriter;
@@ -41,18 +42,19 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.RecyclingBytesStreamOutput;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -70,6 +72,8 @@ import org.elasticsearch.index.Index;
 import java.io.Closeable;
 import java.io.IOError;
 import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -290,17 +294,46 @@ public class PersistedClusterStateService {
      * Loads the available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
      */
     public OnDiskState loadOnDiskState() throws IOException {
+        return loadOnDiskState(true);
+    }
+
+    /**
+     * Loads the available on-disk cluster state. Returns {@link OnDiskState#NO_ON_DISK_STATE} if no such state was found.
+     * @param checkClean whether to check the index for corruption before loading, only for tests
+     */
+    OnDiskState loadOnDiskState(boolean checkClean) throws IOException {
         OnDiskState onDiskState = OnDiskState.NO_ON_DISK_STATE;
 
         final Path indexPath = dataPath.resolve(METADATA_DIRECTORY_NAME);
         if (Files.exists(indexPath)) {
-            try (Directory directory = createDirectory(indexPath);
-                 DirectoryReader directoryReader = DirectoryReader.open(directory)) {
-                onDiskState = loadOnDiskState(dataPath, directoryReader);
+            try (Directory directory = createDirectory(indexPath)) {
+                if (checkClean) {
+                    try (BytesStreamOutput outputStream = new BytesStreamOutput()) {
+                        final boolean isClean;
+                        try (PrintStream printStream = new PrintStream(outputStream, true, StandardCharsets.UTF_8);
+                             CheckIndex checkIndex = new CheckIndex(directory)) {
+                            checkIndex.setInfoStream(printStream);
+                            checkIndex.setChecksumsOnly(true);
+                            isClean = checkIndex.checkIndex().clean;
+                        }
 
-                if (nodeId.equals(onDiskState.nodeId) == false) {
-                    throw new IllegalStateException("unexpected node ID in metadata, found [" + onDiskState.nodeId +
-                        "] in [" + dataPath + "] but expected [" + nodeId + "]");
+                        if (isClean == false) {
+                            if (logger.isErrorEnabled()) {
+                                outputStream.bytes().utf8ToString().lines().forEach(l -> logger.error("checkIndex: {}", l));
+                            }
+                            throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                                "] has been changed by an external force after it was last written by Elasticsearch and is now unreadable");
+                        }
+                    }
+                }
+
+                try (DirectoryReader directoryReader = DirectoryReader.open(directory)) {
+                    onDiskState = loadOnDiskState(dataPath, directoryReader);
+
+                    if (nodeId.equals(onDiskState.nodeId) == false) {
+                        throw new IllegalStateException("the index containing the cluster metadata under the data path [" + dataPath +
+                            "] belongs to a node with ID [" + onDiskState.nodeId + "] but this node's ID is [" + nodeId + "]");
+                    }
                 }
             } catch (IndexNotFoundException e) {
                 logger.debug(new ParameterizedMessage("no on-disk state at {}", indexPath), e);

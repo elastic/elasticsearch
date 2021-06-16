@@ -14,7 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -430,8 +430,9 @@ public final class DocumentParser {
                 + "] as object, but found a concrete value");
         }
 
-        if (mapper.isNested()) {
-            context = nestedContext(context, (NestedObjectMapper) mapper);
+        ObjectMapper.Nested nested = mapper.nested();
+        if (nested.isNested()) {
+            context = nestedContext(context, mapper);
         }
 
         // if we are at the end of the previous object, advance
@@ -445,8 +446,8 @@ public final class DocumentParser {
 
         innerParseObject(context, mapper, parser, currentFieldName, token);
         // restore the enable path flag
-        if (mapper.isNested()) {
-            nested(context, (NestedObjectMapper) mapper);
+        if (nested.isNested()) {
+            nested(context, nested);
         }
     }
 
@@ -478,7 +479,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void nested(ParseContext context, NestedObjectMapper nested) {
+    private static void nested(ParseContext context, ObjectMapper.Nested nested) {
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
         Version indexVersion = context.indexSettings().getIndexVersionCreated();
@@ -503,7 +504,7 @@ public final class DocumentParser {
         }
     }
 
-    private static ParseContext nestedContext(ParseContext context, NestedObjectMapper mapper) {
+    private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
         ParseContext.Document nestedDoc = context.doc();
         ParseContext.Document parentDoc = nestedDoc.getParent();
@@ -785,7 +786,7 @@ public final class DocumentParser {
                             context.sourceToParse().dynamicTemplates().get(currentPath) + "]");
                     }
                     mapper = (ObjectMapper) fieldMapper;
-                    if (mapper.isNested()) {
+                    if (mapper.nested() != ObjectMapper.Nested.NO) {
                         throw new MapperParsingException("It is forbidden to create dynamic nested objects (["
                             + currentPath + "]) through `copy_to` or dots in field names");
                     }
@@ -847,7 +848,7 @@ public final class DocumentParser {
                 return null;
             }
             objectMapper = (ObjectMapper)mapper;
-            if (objectMapper.isNested()) {
+            if (objectMapper.nested().isNested()) {
                 throw new MapperParsingException("Cannot add a value for field ["
                         + fieldName + "] since one of the intermediate objects is mapped as a nested object: ["
                         + mapper.name() + "]");
@@ -872,9 +873,11 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
-        if (runtimeField != null) {
-            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
+        if (fieldType != null) {
+            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
         }
         return null;
     }

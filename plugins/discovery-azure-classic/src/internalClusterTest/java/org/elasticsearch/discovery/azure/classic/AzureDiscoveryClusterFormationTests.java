@@ -16,7 +16,7 @@ import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cloud.azure.classic.management.AzureComputeService;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;

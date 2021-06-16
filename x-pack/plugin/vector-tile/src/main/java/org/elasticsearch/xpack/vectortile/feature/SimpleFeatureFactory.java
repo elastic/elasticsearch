@@ -27,7 +27,7 @@ public class SimpleFeatureFactory {
         this.extent = extent;
         rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
         pointXScale = (double) extent / (rectangle.getMaxLon() - rectangle.getMinLon());
-        pointYScale = -1d / ((rectangle.getMaxLat() - rectangle.getMinLat()) / (double) extent);
+        pointYScale = -(double) extent / (rectangle.getMaxLat() - rectangle.getMinLat());
     }
 
     public void point(VectorTile.Tile.Feature.Builder featureBuilder, double lon, double lat) {

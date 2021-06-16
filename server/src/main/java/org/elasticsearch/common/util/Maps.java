@@ -140,6 +140,18 @@ public class Maps {
             .allMatch(e -> right.containsKey(e.getKey()) && Objects.deepEquals(e.getValue(), right.get(e.getKey())));
     }
 
+    /**
+     * Returns an array where all internal maps and optionally arrays are flattened into the root map.
+     *
+     * For example the map {"foo": {"bar": 1, "baz": [2, 3]}} will become {"foo.bar": 1, "foo.baz.0": 2, "foo.baz.1": 3}. Note that if
+     * maps contains keys with "." or numbers it is possible that such keys will be silently overridden. For example the map
+     * {"foo": {"bar": 1}, "foo.bar": 2} will become {"foo.bar": 1} or {"foo.bar": 2}.
+     *
+     * @param map - input to be flattened
+     * @param flattenArrays - if false, arrays will be ignored
+     * @param ordered - if true the resulted map will be sorted
+     * @return
+     */
     public static Map<String, Object> flatten(Map<String, Object> map, boolean flattenArrays, boolean ordered) {
         return flatten(map, flattenArrays, ordered, null);
     }

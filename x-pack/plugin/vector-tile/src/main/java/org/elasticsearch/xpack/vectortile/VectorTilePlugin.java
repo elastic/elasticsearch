@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -41,17 +42,7 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
         if (Build.CURRENT.isSnapshot() && property != null) {
             throw new IllegalArgumentException("es.vector_tile_feature_flag_registered is only supported in non-snapshot builds");
         }
-        if ("true".equals(property)) {
-            VECTOR_TILE_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property)) {
-            VECTOR_TILE_FEATURE_FLAG_REGISTERED = false;
-        } else if (property == null) {
-            VECTOR_TILE_FEATURE_FLAG_REGISTERED = null;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.vector_tile_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
-        }
+        VECTOR_TILE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
     }
 
     public boolean isVectorTileEnabled() {

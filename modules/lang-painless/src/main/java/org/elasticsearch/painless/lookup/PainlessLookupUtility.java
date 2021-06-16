@@ -174,7 +174,7 @@ public final class PainlessLookupUtility {
      * of classes or a mixed list of classes and types to a list of canonical type names as a string as well.
      */
     public static String typesToCanonicalTypeNames(List<Class<?>> types) {
-        StringBuilder typesStringBuilder = new StringBuilder("[");
+        String typesStringBuilder = "[";
 
         int anyTypesSize = types.size();
         int anyTypesIndex = 0;
@@ -182,16 +182,16 @@ public final class PainlessLookupUtility {
         for (Class<?> painlessType : types) {
             String canonicalTypeName = typeToCanonicalTypeName(painlessType);
 
-            typesStringBuilder.append(canonicalTypeName);
+            typesStringBuilder += canonicalTypeName;
 
             if (++anyTypesIndex < anyTypesSize) {
-                typesStringBuilder.append(",");
+                typesStringBuilder += ",";
             }
         }
 
-        typesStringBuilder.append("]");
+        typesStringBuilder += "]";
 
-        return typesStringBuilder.toString();
+        return typesStringBuilder;
     }
 
     /**

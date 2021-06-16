@@ -224,9 +224,6 @@
         "user_provided_metadata": {
           "type": "object",
           "enabled": false
-        },
-        "ephemeral": {
-          "type": "boolean"
         }
       }
     }

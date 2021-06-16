@@ -28,7 +28,7 @@
         "@timestamp": {
           "type": "date"
         },
-        "ephemeral_ttl": {
+        "unenroll_timeout": {
           "type": "integer"
         }
       }

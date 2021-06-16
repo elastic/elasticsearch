@@ -202,7 +202,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
         allocation.debugDecision(true);
 
         // Explain shard allocations until we find one that can't move, then stop (as `findFirst` short-circuits)
-        final Optional<Tuple<ShardRouting, ShardAllocationDecision>> unmovableShard = currentState.getRoutingNodes()
+        final Optional<ShardRouting> unmovableShard = currentState.getRoutingNodes()
             .node(nodeId)
             .shardsWithState(ShardRoutingState.STARTED)
             .stream()
@@ -217,11 +217,12 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.THROTTLED) == false)
             // These shards will move as soon as possible
             .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            .map(Tuple::v1)
             .findFirst();
 
         if (unmovableShard.isPresent()) {
             // We found a shard that can't be moved, so shard relocation is stalled. Blame the unmovable shard.
-            ShardRouting shardRouting = unmovableShard.get().v1();
+            ShardRouting shardRouting = unmovableShard.get();
 
             return new ShutdownShardMigrationStatus(
                 SingleNodeShutdownMetadata.Status.STALLED,

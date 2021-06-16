@@ -720,7 +720,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                 randomFiles.add(
                     new BlobStoreIndexShardSnapshot.FileInfo(
                         blobName,
-                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion),
+                        new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion.toString()),
                         new ByteSizeValue(input.length)
                     )
                 );

@@ -14,9 +14,9 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.integration.MlRestTestStateCleaner;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
@@ -34,6 +34,7 @@ import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -1018,13 +1019,29 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String jobId = "job-realtime-1";
         createJob(jobId, "airline");
         String datafeedId = jobId + "-datafeed";
-        new DatafeedBuilder(datafeedId, jobId, "airline-data").build();
+        new DatafeedBuilder(datafeedId, jobId, "airline-data").setFrequency(TimeValue.timeValueSeconds(5)).build();
         openJob(client(), jobId);
 
         Request startRequest = new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_start");
         startRequest.addParameter("start", "2016-06-01T00:00:00Z");
         Response response = client().performRequest(startRequest);
         assertThat(EntityUtils.toString(response.getEntity()), containsString("\"started\":true"));
+
+        // We should now be running in real time but may or may not have finished look back
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
+                String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, anyOf(
+                    containsString("\"real_time_running\":true"),
+                    containsString("\"real_time_running\":false")
+                ));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
         assertBusy(() -> {
             try {
                 Response getJobResponse = client().performRequest(new Request("GET",
@@ -1056,6 +1073,19 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         assertThat(response.getStatusLine().getStatusCode(), equalTo(409));
         assertThat(EntityUtils.toString(response.getEntity()),
                 containsString("Cannot delete job [" + jobId + "] because the job is opened"));
+
+        // Look back should now be completed and we are still considered a real time datafeed (no endtime set)
+        assertBusy(() -> {
+            try {
+                Response datafeedStatsResponse = client().performRequest(new Request("GET",
+                    MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stats"));
+                String body = EntityUtils.toString(datafeedStatsResponse.getEntity());
+                assertThat(body, containsString("\"real_time_configured\":true"));
+                assertThat(body, containsString("\"real_time_running\":true"));
+            } catch (Exception e1) {
+                throw new RuntimeException(e1);
+            }
+        });
 
         response = client().performRequest(new Request("POST", MachineLearning.BASE_PATH + "datafeeds/" + datafeedId + "/_stop"));
         assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
@@ -1246,6 +1276,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         String secondaryAuthHeader = null;
         String chunkingTimespan;
         String indicesOptions;
+        TimeValue frequency;
 
         DatafeedBuilder(String datafeedId, String jobId, String index) {
             this.datafeedId = datafeedId;
@@ -1253,8 +1284,8 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
             this.index = index;
         }
 
-        DatafeedBuilder setSource(boolean enableSource) {
-            this.source = enableSource;
+        public DatafeedBuilder setFrequency(TimeValue frequency) {
+            this.frequency = frequency;
             return this;
         }
 
@@ -1295,6 +1326,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                     + (source ? ",\"_source\":true" : "")
                     + (scriptedFields == null ? "" : ",\"script_fields\":" + scriptedFields)
                     + (aggregations == null ? "" : ",\"aggs\":" + aggregations)
+                    + (frequency == null ? "" : ",\"frequency\":\"" + frequency + "\"")
                     + (indicesOptions == null ? "" : ",\"indices_options\":" + indicesOptions)
                     + (chunkingTimespan == null ? "" :
                             ",\"chunking_config\":{\"mode\":\"MANUAL\",\"time_span\":\"" + chunkingTimespan + "\"}")

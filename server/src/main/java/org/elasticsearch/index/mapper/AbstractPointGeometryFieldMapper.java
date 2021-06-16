@@ -46,11 +46,6 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
         this.nullValue = null;
     }
 
-    @Override
-    public final boolean parsesArrayValue() {
-        return true;
-    }
-
     public T getNullValue() {
         return nullValue;
     }

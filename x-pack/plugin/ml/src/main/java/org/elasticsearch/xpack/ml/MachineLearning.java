@@ -258,6 +258,7 @@ import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -699,7 +700,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             threadPool,
             client,
             notifier,
-            xContentRegistry);
+            xContentRegistry,
+            indexNameExpressionResolver
+        );
+        DatafeedManager datafeedManager = new DatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            xContentRegistry,
+            clusterService,
+            settings,
+            client
+        );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
@@ -852,7 +863,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
-            datafeedRunner,
+                datafeedRunner,
+                datafeedManager,
                 anomalyDetectionAuditor,
                 dataFrameAnalyticsAuditor,
                 inferenceAuditor,

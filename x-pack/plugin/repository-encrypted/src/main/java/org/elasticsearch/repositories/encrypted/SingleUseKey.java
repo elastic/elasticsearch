@@ -14,8 +14,9 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 
-import javax.crypto.SecretKey;
 import java.util.concurrent.atomic.AtomicReference;
+
+import javax.crypto.SecretKey;
 
 /**
  * Container class for a {@code SecretKey} with a unique identifier, and a 4-byte wide {@code Integer} nonce, that can be used for a

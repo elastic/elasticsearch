@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Locale;
 

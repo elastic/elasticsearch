@@ -16,6 +16,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -202,12 +203,17 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(
-            action,
-            request,
-            fileChunkRequestOptions,
-            ActionListener.runBefore(listener.map(r -> null), request::decRef),
-            reader);
+
+        // Fork the actual sending onto a separate thread so we can send them concurrently even if CPU-bound (e.g. using compression).
+        // The AsyncIOProcessor and MultiFileWriter both concentrate their work onto fewer threads if possible, but once we have
+        // chunks to send we want to increase parallelism again.
+        threadPool.generic().execute(ActionRunnable.wrap(listener, l ->
+            executeRetryableAction(
+                action,
+                request,
+                fileChunkRequestOptions,
+                ActionListener.runBefore(l.map(r -> null), request::decRef),
+                reader)));
     }
 
     @Override

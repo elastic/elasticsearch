@@ -187,7 +187,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
 
         if (systemAliases.isEmpty() == false) {
             deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
-                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct" +
+                "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct " +
                     "access to system indices and their aliases will not be allowed", systemAliases);
         }
         if (netNewSystemAliases.isEmpty() == false) {

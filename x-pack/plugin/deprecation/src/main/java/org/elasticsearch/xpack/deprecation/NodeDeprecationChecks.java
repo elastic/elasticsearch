@@ -75,7 +75,7 @@ public class NodeDeprecationChecks {
                     reservedPrefixedRealmIdentifiers.stream()
                         .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
                         .sorted()
-                        .collect(Collectors.joining("; "))));
+                        .collect(Collectors.joining("; "))), null);
         }
     }
 

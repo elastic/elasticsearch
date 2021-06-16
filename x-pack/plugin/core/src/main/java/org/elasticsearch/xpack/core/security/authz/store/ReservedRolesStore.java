@@ -93,7 +93,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("*").privileges("monitor").allowRestrictedIndices(true).build(),
                             RoleDescriptor.IndicesPrivileges.builder()
-                                .indices(".kibana*").privileges("read").build()
+                                .indices(".kibana*").privileges("read").allowRestrictedIndices(true).build()
                         },
                         null,
                         null,
@@ -139,7 +139,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".kibana*", ".reporting-*").privileges("all").build(),
+                                        .indices(".kibana*", ".reporting-*").privileges("all").allowRestrictedIndices(true).build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -152,10 +152,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                         .privileges("read", "write").build(),
                                 // APM agent configuration
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".apm-agent-configuration").privileges("all").build(),
+                                        .indices(".apm-agent-configuration").privileges("all").allowRestrictedIndices(true).build(),
                                 // APM custom link index creation
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                        .indices(".apm-custom-link").privileges("all").build(),
+                                        .indices(".apm-custom-link").privileges("all").allowRestrictedIndices(true).build(),
                                 // APM telemetry queries APM indices in kibana task runner
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("apm-*")
@@ -163,7 +163,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 // Data telemetry reads mappings, metadata and stats of indices
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("*")
-                                    .privileges("view_index_metadata", "monitor").build(),
+                                    .privileges("view_index_metadata", "monitor").allowRestrictedIndices(true).build(),
                                 // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".logs-endpoint.diagnostic.collection-*")
@@ -172,7 +172,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 // Fleet Server indices. Kibana read and write to this indice to manage Elastic Agents
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet*")
-                                    .privileges("all").build(),
+                                    .privileges("all").allowRestrictedIndices(true).build(),
                                 // Legacy "Alerts as data" index. Kibana user will create this index.
                                 // Kibana user will read / write to these indices
                                 RoleDescriptor.IndicesPrivileges.builder()
@@ -271,6 +271,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                         .indices(".ml-anomalies*", ".ml-notifications*", ".ml-state*", ".ml-meta*", ".ml-stats-*")
+                                        .allowRestrictedIndices(true)
                                         .privileges("view_index_metadata", "read").build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".ml-annotations*")
                                         .privileges("view_index_metadata", "read", "write").build()
@@ -330,12 +331,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("watcher_admin", new RoleDescriptor("watcher_admin", new String[] { "manage_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX, TriggeredWatchStoreField.INDEX_NAME,
-                                        HistoryStoreField.INDEX_PREFIX + "*").privileges("read").build() },
+                                        HistoryStoreField.INDEX_PREFIX + "*").allowRestrictedIndices(true).privileges("read").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("watcher_user", new RoleDescriptor("watcher_user", new String[] { "monitor_watcher" },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(Watch.INDEX)
                                         .privileges("read")
+                                        .allowRestrictedIndices(true)
                                         .build(),
                                 RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStoreField.INDEX_PREFIX + "*")
                                         .privileges("read")
@@ -343,7 +345,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
-                                .privileges("create", "delete", "index", "manage", "read").build() },
+                                .privileges("create", "delete", "index", "manage", "read")
+                                .allowRestrictedIndices(true)
+                                .build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("rollup_user", new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" },
                         null, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
@@ -358,6 +362,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 .put("enrich_user", new RoleDescriptor("enrich_user", new String[]{ "manage_enrich", "manage_ingest_pipelines", "monitor" },
                         new RoleDescriptor.IndicesPrivileges[]{  RoleDescriptor.IndicesPrivileges.builder()
                             .indices(".enrich-*")
+                            .allowRestrictedIndices(true)
                             .privileges("manage", "read", "write")
                             .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("viewer", buildViewerRoleDescriptor())

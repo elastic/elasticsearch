@@ -74,8 +74,10 @@ NOTE: Using `_all` in a request fails if any snapshots are unavailable.
 Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
 [role="child_attributes"]
-[[get-snapshot-api-request-body]]
-==== {api-request-body-title}
+[[get-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::

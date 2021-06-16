@@ -27,6 +27,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -45,6 +48,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -127,6 +131,103 @@ class S3BlobContainer extends AbstractBlobContainer {
             }
             return null;
         });
+    }
+
+    private static final long MIN_MULTIPART_BYTES = MIN_PART_SIZE_USING_MULTIPART.getBytes();
+
+    @Override
+    public void writeBlob(String blobName,
+                          boolean failIfAlreadyExists,
+                          CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        final BigArrays bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
+        try (AmazonS3Reference clientReference = blobStore.clientReference();
+             OutputStream out = new OutputStream() {
+
+                 private final List<PartETag> parts = new ArrayList<>();
+
+                 private final SetOnce<String> uploadId = new SetOnce<>();
+
+                 long written = 0L;
+
+                 private ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays);
+
+                 @Override
+                 public void write(int b) throws IOException {
+                     buffer.write(b);
+                     maybeFlushBuffer();
+                 }
+
+                 @Override
+                 public void write(byte[] b, int off, int len) throws IOException {
+                     buffer.write(b, off, len);
+                     maybeFlushBuffer();
+                 }
+
+                 private void maybeFlushBuffer() throws IOException {
+                     if (buffer.size() >= MIN_MULTIPART_BYTES) {
+                         if (written == 0L) {
+                             uploadId.set(SocketAccess.doPrivileged(() ->
+                                     clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
+                             if (Strings.isEmpty(uploadId.get())) {
+                                 throw new IOException("Failed to initialize multipart upload " + blobName);
+                             }
+                         }
+                         flushBuffer(false);
+                     }
+                 }
+
+                 private void flushBuffer(boolean lastPart) throws IOException {
+                     final UploadPartRequest uploadRequest = new UploadPartRequest();
+                     uploadRequest.setBucketName(blobStore.bucket());
+                     uploadRequest.setKey(blobName);
+                     uploadRequest.setUploadId(uploadId.get());
+                     uploadRequest.setPartNumber(parts.size() + 1);
+                     uploadRequest.setInputStream(buffer.bytes().streamInput());
+                     uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+
+                     uploadRequest.setPartSize(buffer.size());
+                     uploadRequest.setLastPart(lastPart);
+
+                     final UploadPartResult uploadResponse =
+                             SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
+                     written += uploadRequest.getPartSize();
+                     parts.add(uploadResponse.getPartETag());
+                     buffer.close();
+                     buffer = new ReleasableBytesStreamOutput(bigArrays);
+                 }
+
+                 @Override
+                 public void close() throws IOException {
+                     try {
+                         if (written == 0L) {
+                             writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                         } else {
+                             flushBuffer(true);
+                             final CompleteMultipartUploadRequest complRequest =
+                                     new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
+                             complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+                         }
+                     } finally {
+                         buffer.close();
+                     }
+                 }
+             }) {
+            writer.accept(out);
+        }
+    }
+
+    private InitiateMultipartUploadRequest initiateMultiPartUpload(String blobName) {
+        final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(blobStore.bucket(), blobName);
+        initRequest.setStorageClass(blobStore.getStorageClass());
+        initRequest.setCannedACL(blobStore.getCannedACL());
+        initRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+        if (blobStore.serverSideEncryption()) {
+            final ObjectMetadata md = new ObjectMetadata();
+            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+            initRequest.setObjectMetadata(md);
+        }
+        return initRequest;
     }
 
     // package private for testing
@@ -389,19 +490,10 @@ class S3BlobContainer extends AbstractBlobContainer {
         final SetOnce<String> uploadId = new SetOnce<>();
         final String bucketName = blobStore.bucket();
         boolean success = false;
-
-        final InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucketName, blobName);
-        initRequest.setStorageClass(blobStore.getStorageClass());
-        initRequest.setCannedACL(blobStore.getCannedACL());
-        initRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-        if (blobStore.serverSideEncryption()) {
-            final ObjectMetadata md = new ObjectMetadata();
-            md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-            initRequest.setObjectMetadata(md);
-        }
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
 
-            uploadId.set(SocketAccess.doPrivileged(() -> clientReference.client().initiateMultipartUpload(initRequest).getUploadId()));
+            uploadId.set(SocketAccess.doPrivileged(() ->
+                clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
             if (Strings.isEmpty(uploadId.get())) {
                 throw new IOException("Failed to initialize multipart upload " + blobName);
             }

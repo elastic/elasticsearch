@@ -757,11 +757,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             resultsIndexName = in.readOptionalString();
             deleting = in.readBoolean();
             allowLazyOpen = in.readBoolean();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                blocked = new Blocked(in);
-            } else {
-                blocked = Blocked.none();
-            }
+            blocked = new Blocked(in);
         }
 
         public Builder setId(String id) {

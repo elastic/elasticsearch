@@ -70,7 +70,12 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final byte[] input = bytes.v2();
                 final String checksum = bytes.v1();
                 final String blobName = randomUnicodeOfLength(10);
-                final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
+                final StoreFileMetadata metadata = new StoreFileMetadata(
+                    fileName,
+                    input.length,
+                    checksum,
+                    Version.CURRENT.luceneVersion.toString()
+                );
 
                 final int partSize = randomBoolean() ? input.length : randomIntBetween(1, input.length);
 
@@ -185,7 +190,12 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             final byte[] input = bytes.v2();
             final String checksum = bytes.v1();
             final String blobName = randomUnicodeOfLength(10);
-            final StoreFileMetadata metadata = new StoreFileMetadata(fileName, input.length, checksum, Version.CURRENT.luceneVersion);
+            final StoreFileMetadata metadata = new StoreFileMetadata(
+                fileName,
+                input.length,
+                checksum,
+                Version.CURRENT.luceneVersion.toString()
+            );
 
             final BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot(
                 snapshotId.getName(),

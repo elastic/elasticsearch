@@ -383,7 +383,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertWarnings("dynamic template [my_template] has invalid content [" +
             "{\"match_mapping_type\":\"string\",\"runtime\":{\"foo\":\"bar\",\"type\":\"keyword\"}}], " +
             "attempted to validate it with the following match_mapping_type: [string], " +
-            "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]]");
+            "caused by [unknown parameter [foo] on runtime field [__dynamic__my_template] of type [keyword]]");
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -523,7 +523,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         String expected = "dynamic template [my_template] has invalid content [{" + matchError +
             ",\"runtime\":{\"foo\":\"bar\",\"type\":\"{dynamic_type}\"}}], " +
             "attempted to validate it with the following match_mapping_type: [string, long, double, boolean, date], " +
-            "caused by [unknown parameter [foo] on mapper [__dynamic__my_template] of type [date]]";
+            "caused by [unknown parameter [foo] on runtime field [__dynamic__my_template] of type [date]]";
         assertWarnings(expected);
     }
 
@@ -705,7 +705,8 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionRemainingField() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "keyword").field("unsupported", "value"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping [_doc]: unknown parameter [unsupported] on mapper [field] of type [keyword]", e.getMessage());
+        assertEquals("Failed to parse mapping [_doc]: unknown parameter [unsupported] on runtime field [field] of type [keyword]",
+            e.getMessage());
     }
 
     public void testTemplateWithoutMatchPredicates() throws Exception {

@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
@@ -40,12 +41,15 @@ import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.gateway.PersistedClusterStateService.Writer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
 import java.io.IOException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,12 +60,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
+import static org.apache.lucene.index.IndexWriter.WRITE_LOCK_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
@@ -79,7 +87,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
             assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(0L));
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 writer.writeFullStateAndCommit(newTerm, ClusterState.EMPTY_STATE);
-                assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
+                assertThat(persistedClusterStateService.loadBestOnDiskState(false).currentTerm, equalTo(newTerm));
             }
 
             assertThat(persistedClusterStateService.loadBestOnDiskState().currentTerm, equalTo(newTerm));
@@ -218,8 +226,12 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 .toArray(Path[]::new), nodeIds[0], xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L
                 ).loadBestOnDiskState()).getMessage();
-        assertThat(message,
-            allOf(containsString("unexpected node ID in metadata"), containsString(nodeIds[0]), containsString(nodeIds[1])));
+        assertThat(message, allOf(
+            containsString("the index containing the cluster metadata under the data path"),
+            containsString("belongs to a node with ID"),
+            containsString("but this node's ID is"),
+            containsString(nodeIds[0]),
+            containsString(nodeIds[1])));
         assertTrue("[" + message + "] should match " + Arrays.toString(dataPaths2),
             Arrays.stream(dataPaths2).anyMatch(p -> message.contains(p.toString())));
     }
@@ -315,7 +327,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(dataPaths2)) {
             try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService(nodeEnvironment)
-                    .loadBestOnDiskState();
+                    .loadBestOnDiskState(false);
                 final ClusterState clusterState = clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
                 writeState(writer, onDiskState.currentTerm, ClusterState.builder(clusterState)
                     .metadata(Metadata.builder(clusterState.metadata()).version(2)
@@ -851,6 +863,30 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testFailsIfCorrupt() throws IOException {
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
+            final PersistedClusterStateService persistedClusterStateService = newPersistedClusterStateService(nodeEnvironment);
+
+            try (Writer writer = persistedClusterStateService.createWriter()) {
+                writer.writeFullStateAndCommit(1, ClusterState.EMPTY_STATE);
+            }
+
+            try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(nodeEnvironment.nodeDataPaths()[0].resolve("_state"))) {
+                CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport
+                    .stream(directoryStream.spliterator(), false)
+                    .filter(p -> {
+                        final String filename = p.getFileName().toString();
+                        return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
+                    })
+                    .collect(Collectors.toList())));
+            }
+
+            assertThat(expectThrows(IllegalStateException.class, persistedClusterStateService::loadBestOnDiskState).getMessage(), allOf(
+                    startsWith("the index containing the cluster metadata under the data path ["),
+                    endsWith("] has been changed by an external force after it was last written by Elasticsearch and is now unreadable")));
+        }
+    }
+
     private void assertExpectedLogs(long currentTerm, ClusterState previousState, ClusterState clusterState,
                                     PersistedClusterStateService.Writer writer, MockLogAppender.LoggingExpectation expectation)
         throws IllegalAccessException, IOException {
@@ -896,7 +932,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     }
 
     private static ClusterState loadPersistedClusterState(PersistedClusterStateService persistedClusterStateService) throws IOException {
-        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState();
+        final PersistedClusterStateService.OnDiskState onDiskState = persistedClusterStateService.loadBestOnDiskState(false);
         return clusterStateFromMetadata(onDiskState.lastAcceptedVersion, onDiskState.metadata);
     }
 

@@ -16,32 +16,36 @@ import static org.hamcrest.Matchers.containsString;
 public class GetSnapshotsRequestTests extends ESTestCase {
 
     public void testValidateParameters() {
-        final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot");
-        assertNull(request.validate());
-        request.size(0);
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot");
+            assertNull(request.validate());
+            request.size(0);
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("size must be -1 or greater than 0"));
         }
-        request.size(randomIntBetween(1, 500));
-        assertNull(request.validate());
-        request.verbose(false);
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").size(randomIntBetween(1, 500));
+            assertNull(request.validate());
+        }
+        {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).size(randomIntBetween(1, 500));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use size limit with verbose=false"));
         }
-        request.sort(GetSnapshotsRequest.SortBy.INDICES);
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
+                .sort(GetSnapshotsRequest.SortBy.INDICES);
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use non-default sort with verbose=false"));
         }
-        request.order(SortOrder.DESC);
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false).order(SortOrder.DESC);
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use non-default sort order with verbose=false"));
         }
-        request.after(new GetSnapshotsRequest.After("foo", "bar"));
         {
+            final GetSnapshotsRequest request = new GetSnapshotsRequest("repo", "snapshot").verbose(false)
+                .after(new GetSnapshotsRequest.After("foo", "bar"));
             final ActionRequestValidationException e = request.validate();
             assertThat(e.getMessage(), containsString("can't use after with verbose=false"));
         }

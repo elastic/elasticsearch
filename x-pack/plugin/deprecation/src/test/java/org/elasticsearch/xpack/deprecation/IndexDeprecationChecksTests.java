@@ -22,7 +22,6 @@ import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;

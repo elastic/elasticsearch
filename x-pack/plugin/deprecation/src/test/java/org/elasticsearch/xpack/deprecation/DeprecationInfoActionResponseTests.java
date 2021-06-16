@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.deprecation;
+package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
@@ -36,7 +36,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
+import static org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Response.RESERVED_NAMES;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.core.IsEqual.equalTo;
 

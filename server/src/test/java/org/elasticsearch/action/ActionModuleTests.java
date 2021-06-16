@@ -200,7 +200,7 @@ public class ActionModuleTests extends ESTestCase {
     }
 
     public void testCustomRestWrapperDeprecationMessage() {
-        ActionPlugin secPlugin = new SecPlugin();
+        ActionPlugin securityPlugin = new SecurityPlugin();
         SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
 
         ThreadPool threadPool = new TestThreadPool("testCustomRestWrapperDeprecationMessage");
@@ -209,8 +209,8 @@ public class ActionModuleTests extends ESTestCase {
             new ActionModule(false, moduleSettings.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(),
                 moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
-                threadPool, singletonList(secPlugin), null, null, usageService, null);
-            assertWarnings("The org.elasticsearch.action.ActionModuleTests$SecPlugin plugin installs a custom REST wrapper. " +
+                threadPool, singletonList(securityPlugin), null, null, usageService, null);
+            assertWarnings("The org.elasticsearch.action.ActionModuleTests$SecurityPlugin plugin installs a custom REST wrapper. " +
                 "This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this plugin is intended to provide " +
                 "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
         } finally {
@@ -218,18 +218,7 @@ public class ActionModuleTests extends ESTestCase {
         }
     }
 
-    class FakeHandler implements RestHandler {
-        @Override
-        public List<Route> routes() {
-            return singletonList(new Route(GET, "/_dummy"));
-        }
-
-        @Override
-        public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        }
-    }
-
-    class SecPlugin implements ActionPlugin {
+    class SecurityPlugin implements ActionPlugin {
         @Override
         public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
             return UnaryOperator.identity();

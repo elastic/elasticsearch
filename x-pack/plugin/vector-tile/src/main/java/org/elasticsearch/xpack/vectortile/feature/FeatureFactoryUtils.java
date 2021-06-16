@@ -35,7 +35,7 @@ class FeatureFactoryUtils {
     }
 
     private static double getLong(int x, int zoom) {
-        return lonToSphericalMercator(x / Math.pow(2, zoom) * 360 - 180);
+        return lonToSphericalMercator(Math.scalb(x, -zoom) * 360 - 180);
     }
 
     private static double getLat(int y, int zoom) {

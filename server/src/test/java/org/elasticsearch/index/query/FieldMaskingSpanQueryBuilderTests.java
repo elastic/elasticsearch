@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -34,11 +35,18 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
     protected void doAssertLuceneQuery(FieldMaskingSpanQueryBuilder queryBuilder,
                                        Query query,
                                        SearchExecutionContext context) throws IOException {
+        if (query instanceof BoostQuery) {
+            query = ((BoostQuery)query).getQuery();
+        }
         String fieldInQuery = expectedFieldName(queryBuilder.fieldName());
         assertThat(query, instanceOf(FieldMaskingSpanQuery.class));
         FieldMaskingSpanQuery fieldMaskingSpanQuery = (FieldMaskingSpanQuery) query;
         assertThat(fieldMaskingSpanQuery.getField(), equalTo(fieldInQuery));
-        assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(queryBuilder.innerQuery().toQuery(context)));
+        Query subQuery = queryBuilder.innerQuery().toQuery(context);
+        if (subQuery instanceof BoostQuery) {
+            subQuery = ((BoostQuery)subQuery).getQuery();
+        }
+        assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(subQuery));
     }
 
     public void testIllegalArguments() {

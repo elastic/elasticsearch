@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
@@ -139,13 +140,18 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {
             fieldInQuery = fieldType.name();
         }
         Query innerQuery = queryBuilder.toQuery(context);
+        if (innerQuery instanceof BoostQuery) {
+            // boosts on inner queries get thrown away
+            BoostQuery bq = (BoostQuery) innerQuery;
+            innerQuery = bq.getQuery();
+        }
         assert innerQuery instanceof SpanQuery;
         return new FieldMaskingSpanQuery((SpanQuery)innerQuery, fieldInQuery);
     }

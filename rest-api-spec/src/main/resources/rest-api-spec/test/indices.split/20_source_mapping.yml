@@ -1,8 +1,8 @@
 ---
 "Split index ignores target template mapping":
   - skip:
-      version: " - 6.3.99"
-      reason: expects warnings that pre-6.4.0 will not send
+      version: all
+      reason: https://github.com/elastic/elasticsearch/issues/74197 (was 'expects warnings that pre-6.4.0 will not send')
       features: "warnings"
 
   # create index

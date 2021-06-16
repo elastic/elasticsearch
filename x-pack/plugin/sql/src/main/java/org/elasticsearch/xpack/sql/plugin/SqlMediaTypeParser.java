@@ -112,7 +112,7 @@ public class SqlMediaTypeParser {
     private static SqlMediaType checkNonNullMediaType(SqlMediaType mediaType, RestRequest request) {
         if (mediaType == null) {
             String msg = String.format(Locale.ROOT, "Invalid request content type: Accept=[%s], Content-Type=[%s], format=[%s]",
-                request.header("Accept"), request.header("Content-Type"), request.param("format"));
+                request.header("Accept"), request.header("Content-Type"), request.param(URL_PARAM_FORMAT));
             throw new IllegalArgumentException(msg);
         }
 

@@ -104,11 +104,6 @@ if (System.getProperty('idea.active') == 'true') {
         taskTriggers {
           afterSync tasks.named('configureIdeCheckstyle'), tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
         }
-        codeStyle {
-          java {
-            classCountToUseImportOnDemand = 999
-          }
-        }
         encodings {
           encoding = 'UTF-8'
         }

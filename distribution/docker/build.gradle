@@ -295,7 +295,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
         baseImages = [baseImage]
         buildArgs = buildArgsMap
       } else if (base == DockerBase.CENTOS) {
-        baseImages = ['alpine:latest', base.image]
+        baseImages = ['alpine:3.13', base.image]
       } else {
         baseImages = [base.image]
       }

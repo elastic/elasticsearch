@@ -212,8 +212,7 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
                 final String name = Paths.get(blobName).getFileName().toString();
-                if (name.matches(BlobStoreRepository.INDEX_FILE_PREFIX + "\\d+")
-                        || name.equals(BlobStoreRepository.INDEX_LATEST_BLOB)) {
+                if (name.matches(BlobStoreRepository.INDEX_FILE_PREFIX + "\\d+") || name.equals(BlobStoreRepository.INDEX_LATEST_BLOB)) {
                     final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
                     assert parsedBody.get("md5Hash") != null
                         : "file [" + blobName + "] must be written atomically but did not come with a md5 checksum";

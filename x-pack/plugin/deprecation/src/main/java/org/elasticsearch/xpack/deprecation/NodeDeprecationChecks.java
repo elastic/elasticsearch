@@ -27,12 +27,10 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
-import org.elasticsearch.xpack.monitoring.exporter.http.HttpExporter;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -511,7 +509,11 @@ class NodeDeprecationChecks {
         final PluginsAndModules pluginsAndModules,
         ClusterState cs
     ) {
-        List<Setting<?>> passwords = HttpExporter.AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
+        // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a depedency on monitoring module:
+        // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
+        final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password", s -> Setting.simpleString(s));
+        List<Setting<?>> passwords = AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
             .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
 
         if (passwords.isEmpty()) {

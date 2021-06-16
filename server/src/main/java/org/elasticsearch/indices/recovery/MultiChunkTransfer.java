@@ -12,7 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -123,11 +123,16 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
         }
     }
 
+    protected boolean assertOnSuccess() {
+        return true;
+    }
+
     private void onCompleted(Exception failure) {
         if (Assertions.ENABLED && status != Status.PROCESSING) {
             throw new AssertionError("invalid status: expected [" + Status.PROCESSING + "] actual [" + status + "]", failure);
         }
         status = failure == null ? Status.SUCCESS : Status.FAILED;
+        assert status != Status.SUCCESS || assertOnSuccess();
         try {
             IOUtils.close(failure, this);
         } catch (Exception e) {

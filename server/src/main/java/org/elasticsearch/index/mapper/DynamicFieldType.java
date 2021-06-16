@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import java.util.Collections;
-import java.util.Set;
-
 /**
  * Defines a MappedFieldType that exposes dynamic child field types
  *
@@ -33,14 +30,4 @@ public interface DynamicFieldType {
      * Returns a dynamic MappedFieldType for the given path
      */
     MappedFieldType getChildFieldType(String path);
-
-    /**
-     * Returns the subfields that this dynamic field is known to hold. Not all the sub-fields are necessarily known in advance,
-     * but this method makes the ones that are known in advance discoverable, so that for instance they can then be returned by field_caps
-     * when using wildcards to match field names.
-     * @return a set of field names that this dynamic field is known to resolve
-     */
-    default Set<String> getKnownSubfields() {
-        return Collections.emptySet();
-    }
 }

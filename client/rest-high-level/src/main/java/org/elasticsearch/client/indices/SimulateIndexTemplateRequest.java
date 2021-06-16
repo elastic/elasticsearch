@@ -9,7 +9,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 /**

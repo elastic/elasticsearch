@@ -1145,9 +1145,13 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         if (enabled == false || transportClientMode) {
             return null;
         }
-        final boolean ssl = HTTP_SSL_ENABLED.get(settings);
-        final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
-        boolean extractClientCertificate = ssl && getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        boolean extractClientCertificate;
+        if (HTTP_SSL_ENABLED.get(settings)) {
+            final SSLConfiguration httpSSLConfig = getSslService().getHttpTransportSSLConfiguration();
+            extractClientCertificate = getSslService().isSSLClientAuthEnabled(httpSSLConfig);
+        } else {
+            extractClientCertificate = false;
+        }
         return handler -> new SecurityRestFilter(getLicenseState(), threadContext, authcService.get(), secondayAuthc.get(),
             handler, extractClientCertificate);
     }

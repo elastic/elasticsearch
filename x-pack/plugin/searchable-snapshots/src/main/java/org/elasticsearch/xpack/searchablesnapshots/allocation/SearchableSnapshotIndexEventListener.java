@@ -14,8 +14,8 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -33,10 +33,10 @@ import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirec
 
 import java.nio.file.Path;
 
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
-import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 

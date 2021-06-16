@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSet;
 import org.elasticsearch.xpack.core.enrich.action.DeleteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
@@ -352,9 +351,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
     @Override
     public List<ActionType<? extends ActionResponse>> getClientActions() {
         List<ActionType<? extends ActionResponse>> actions = new ArrayList<>(Arrays.asList(
-                // deprecation
-                DeprecationInfoAction.INSTANCE,
-                // graph
+                //  graph
                 GraphExploreAction.INSTANCE,
                 // ML
                 GetJobsAction.INSTANCE,

@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.snapshots.SnapshotsService;
 

@@ -69,7 +69,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -223,7 +222,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -242,7 +240,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -262,7 +259,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -282,7 +278,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -300,7 +295,6 @@
                 "detectors" :[{"function":"metric","field_name":"responsetime","by_field_name":"airline"}]
             },
             "data_description" : {
-                "field_delimiter":",",
                 "time_field":"time",
                 "time_format":"yyyy-MM-dd HH:mm:ssX"
             }
@@ -321,7 +315,6 @@
                 "categorization_filters" : ["cat1.*", "cat2.*"]
             },
             "data_description" : {
-              "field_delimiter":","
             },
             "model_plot_config": {
               "enabled": true,

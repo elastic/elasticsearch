@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
@@ -20,6 +17,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * Manages the definitions and lifecycle of the ingest pipeline used by the reindex operation within the Enrich Policy execution.

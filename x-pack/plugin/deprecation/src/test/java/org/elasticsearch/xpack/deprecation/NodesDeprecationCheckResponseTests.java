@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.deprecation;
+package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.FailedNodeException;

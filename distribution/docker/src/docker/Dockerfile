@@ -99,11 +99,15 @@ RUN gpg --import --always-trust "curl-gpg.pub" && \\
     gpg --verify "\${TARBALL_PATH}.asc" "\${TARBALL_PATH}"
 
 # Unpack and build
-RUN tar xfJ "\${TARBALL_PATH}" && \\
-    cd "curl-\${VERSION}" && \\
-    ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt && \\
-    make curl_LDFLAGS="-all-static" && \\
-    cp src/curl /work/curl && \\
+RUN set -e ; \\
+    tar xfJ "\${TARBALL_PATH}" ; \\
+    cd "curl-\${VERSION}" ; \\
+    if ! ./configure --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
+        [[ -e config.log ]] && cat config.log ; \\
+        exit 1 ; \\
+    fi ; \\
+    make curl_LDFLAGS="-all-static" ; \\
+    cp src/curl /work/curl ; \\
     strip /work/curl
 
 ################################################################################

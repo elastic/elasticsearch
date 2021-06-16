@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestRequest;

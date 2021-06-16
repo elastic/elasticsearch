@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.vectortile.rest;
 
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;

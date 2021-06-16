@@ -102,7 +102,7 @@ RUN gpg --import --always-trust "curl-gpg.pub" && \\
 RUN set -e ; \\
     tar xfJ "\${TARBALL_PATH}" ; \\
     cd "curl-\${VERSION}" ; \\
-    if ! ./configure --with-openssl --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
+    if ! ./configure --disable-dependency-tracking --with-openssl --disable-shared --with-ca-fallback --with-ca-bundle=/etc/pki/tls/certs/ca-bundle.crt ; then \\
         [[ -e config.log ]] && cat config.log ; \\
         exit 1 ; \\
     fi ; \\

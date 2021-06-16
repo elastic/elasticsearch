@@ -30,7 +30,7 @@
       "timeout":{
         "type":"time",
         "required":false,
-        "description":"Controls the time to wait until the model is deployed. Defaults to 20 seconds"
+        "description":"Controls the time to wait until the model is deployed"
       }
     }
   }

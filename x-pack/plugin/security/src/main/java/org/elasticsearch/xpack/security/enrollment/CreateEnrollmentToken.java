@@ -229,7 +229,7 @@ public class CreateEnrollmentToken {
         for (String bound_address : addresses){
             URI uri = new URI("http://" + bound_address);
             InetAddress inet_address = InetAddress.getByName(uri.getHost());
-            if (inet_address.isLoopbackAddress() != true || inet_address.isSiteLocalAddress() == true) {
+            if (inet_address.isLoopbackAddress() != true || inet_address.isSiteLocalAddress()) {
                 filtered_addresses.add(bound_address);
             }
         }

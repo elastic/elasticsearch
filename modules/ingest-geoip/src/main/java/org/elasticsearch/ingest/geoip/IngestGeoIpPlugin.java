@@ -113,7 +113,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
-        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
             return List.of(databaseRegistry.get());
         }
 

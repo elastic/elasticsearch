@@ -12,6 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
 import java.util.Iterator;
@@ -115,6 +116,8 @@ public interface BlobContainer {
     default void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
+
+    OutputStream writeBlob(String blobName, boolean failIfAlreadyExists) throws IOException;
 
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,

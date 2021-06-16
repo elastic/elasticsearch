@@ -553,15 +553,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 sourceMeta.asClone(target.getName(), startTime, threadPool.absoluteTimeInMillis() - startTime),
                 shardContainer,
                 target.getUUID(),
-                compress,
-                bigArrays
+                compress
             );
             INDEX_SHARD_SNAPSHOTS_FORMAT.write(
                 existingSnapshots.withClone(source.getName(), target.getName()),
                 shardContainer,
                 newGen,
-                compress,
-                bigArrays
+                compress
             );
             return new ShardSnapshotResult(
                 newGen,
@@ -1393,7 +1391,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(
                 ActionRunnable.run(
                     allMetaListener,
-                    () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress, bigArrays)
+                    () -> GLOBAL_METADATA_FORMAT.write(clusterMetadata, blobContainer(), snapshotId.getUUID(), compress)
                 )
             );
 
@@ -1407,7 +1405,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         if (metaUUID == null) {
                             // We don't yet have this version of the metadata so we write it
                             metaUUID = UUIDs.base64UUID();
-                            INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress, bigArrays);
+                            INDEX_METADATA_FORMAT.write(indexMetaData, indexContainer(index), metaUUID, compress);
                             indexMetaIdentifiers.put(identifiers, metaUUID);
                         }
                         indexMetas.put(index, identifiers);
@@ -1416,8 +1414,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                             clusterMetadata.index(index.getName()),
                             indexContainer(index),
                             snapshotId.getUUID(),
-                            compress,
-                            bigArrays
+                            compress
                         );
                     }
                 }));
@@ -1425,7 +1422,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             executor.execute(
                 ActionRunnable.run(
                     allMetaListener,
-                    () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress, bigArrays)
+                    () -> SNAPSHOT_FORMAT.write(snapshotInfo, blobContainer(), snapshotId.getUUID(), compress)
                 )
             );
         }, onUpdateFailure);
@@ -2682,13 +2679,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // reference a generation that has not had all its files fully upload.
                 indexGeneration = UUIDs.randomBase64UUID();
                 try {
-                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(
-                        updatedBlobStoreIndexShardSnapshots,
-                        shardContainer,
-                        indexGeneration,
-                        compress,
-                        bigArrays
-                    );
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedBlobStoreIndexShardSnapshots, shardContainer, indexGeneration, compress);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(
                         shardId,
@@ -2765,7 +2756,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 );
                 try {
                     final String snapshotUUID = snapshotId.getUUID();
-                    INDEX_SHARD_SNAPSHOT_FORMAT.write(blobStoreIndexShardSnapshot, shardContainer, snapshotUUID, compress, bigArrays);
+                    INDEX_SHARD_SNAPSHOT_FORMAT.write(blobStoreIndexShardSnapshot, shardContainer, snapshotUUID, compress);
                 } catch (IOException e) {
                     throw new IndexShardSnapshotFailedException(shardId, "Failed to write commit point", e);
                 }
@@ -3138,7 +3129,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final BlobStoreIndexShardSnapshots updatedSnapshots = new BlobStoreIndexShardSnapshots(newSnapshotsList);
                 if (indexGeneration < 0L) {
                     writtenGeneration = UUIDs.randomBase64UUID();
-                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration, compress, bigArrays);
+                    INDEX_SHARD_SNAPSHOTS_FORMAT.write(updatedSnapshots, shardContainer, writtenGeneration, compress);
                 } else {
                     writtenGeneration = String.valueOf(indexGeneration);
                     writeShardIndexBlobAtomic(shardContainer, indexGeneration, updatedSnapshots);
@@ -3178,13 +3169,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             () -> new ParameterizedMessage("[{}] Writing shard index [{}] to [{}]", metadata.name(), indexGeneration, shardContainer.path())
         );
         final String blobName = INDEX_SHARD_SNAPSHOTS_FORMAT.blobName(String.valueOf(indexGeneration));
-        INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(
-            updatedSnapshots,
-            blobName,
-            compress,
-            bigArrays,
-            bytes -> writeAtomic(shardContainer, blobName, bytes, true)
-        );
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
+            INDEX_SHARD_SNAPSHOTS_FORMAT.serialize(updatedSnapshots, blobName, compress, out);
+            writeAtomic(shardContainer, blobName, out.bytes(), true);
+        }
     }
 
     // Unused blobs are all previous index-, data- and meta-blobs and that are not referenced by the new index- as well as all

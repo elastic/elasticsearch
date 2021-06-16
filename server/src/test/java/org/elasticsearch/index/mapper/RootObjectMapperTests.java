@@ -376,7 +376,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertEquals("Failed to parse mapping: dynamic template [my_template] has invalid content [" +
             "{\"match_mapping_type\":\"string\",\"runtime\":{\"foo\":\"bar\",\"type\":\"keyword\"}}], " +
             "attempted to validate it with the following match_mapping_type: [string]", e.getMessage());
-        assertEquals("unknown parameter [foo] on mapper [__dynamic__my_template] of type [keyword]", e.getRootCause().getMessage());
+        assertEquals("unknown parameter [foo] on runtime field [__dynamic__my_template] of type [keyword]", e.getRootCause().getMessage());
     }
 
     public void testIllegalDynamicTemplateInvalidAttribute() throws Exception {
@@ -497,7 +497,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("Failed to parse mapping: dynamic template [my_template] has invalid content ["));
         assertThat(e.getMessage(), containsString("attempted to validate it with the following match_mapping_type: " +
             "[string, long, double, boolean, date]"));
-        assertEquals("unknown parameter [foo] on mapper [__dynamic__my_template] of type [date]", e.getRootCause().getMessage());
+        assertEquals("unknown parameter [foo] on runtime field [__dynamic__my_template] of type [date]", e.getRootCause().getMessage());
     }
 
     public void testIllegalDynamicTemplate7DotXIndex() throws Exception {
@@ -680,7 +680,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
     public void testRuntimeSectionRemainingField() throws IOException {
         XContentBuilder mapping = runtimeFieldMapping(builder -> builder.field("type", "keyword").field("unsupported", "value"));
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
-        assertEquals("Failed to parse mapping: unknown parameter [unsupported] on mapper [field] of type [keyword]", e.getMessage());
+        assertEquals("Failed to parse mapping: unknown parameter [unsupported] on runtime field [field] of type [keyword]", e.getMessage());
     }
 
     public void testTemplateWithoutMatchPredicates() throws Exception {

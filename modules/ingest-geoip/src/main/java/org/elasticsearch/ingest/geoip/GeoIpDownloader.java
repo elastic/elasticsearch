@@ -30,17 +30,13 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.UpdateByQueryAction;
-import org.elasticsearch.index.reindex.UpdateByQueryRequest;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.GeoIpTaskState.Metadata;
 import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStats;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
-import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,8 +63,6 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         TimeValue.timeValueDays(3), TimeValue.timeValueDays(1), Property.Dynamic, Property.NodeScope);
     public static final Setting<String> ENDPOINT_SETTING = Setting.simpleString("ingest.geoip.downloader.endpoint",
         "https://geoip.elastic.co/v1/database", Property.NodeScope);
-    public static final Setting<TimeValue> DATABASE_VALIDITY = Setting.timeSetting("ingest.geoip.database.validity",
-        TimeValue.timeValueDays(3), Property.Dynamic, Property.NodeScope);
 
     public static final String GEOIP_DOWNLOADER = "geoip-downloader";
     static final String DATABASES_INDEX = ".geoip_databases";
@@ -147,7 +141,7 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             int firstChunk = state.contains(name) ? state.get(name).getLastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
-                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5));
+                state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
                 stats = stats.successfulDownload(System.currentTimeMillis() - start).count(state.getDatabases().size());
                 logger.info("updated geoip database [" + name + "]");
@@ -174,17 +168,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
     //visible for testing
     protected void updateTimestamp(String name, Metadata old) {
         logger.info("geoip database [" + name + "] is up to date, updated timestamp");
-        long timestamp = System.currentTimeMillis();
-        UpdateByQueryRequest request = new UpdateByQueryRequest(DATABASES_INDEX).setRefresh(true);
-        request.setScript(new Script("ctx._source.timestamp=" + timestamp + "L"));
-        request.setQuery(new BoolQueryBuilder()
-            .filter(new TermQueryBuilder("name", name))
-            .filter(new TermQueryBuilder("timestamp", old.getLastUpdate()))
-            .filter(new RangeQueryBuilder("chunk")
-                .from(old.getFirstChunk(), true)
-                .to(old.getLastChunk(), true)));
-        client.execute(UpdateByQueryAction.INSTANCE, request).actionGet();
-        state = state.put(name, new Metadata(timestamp, old.getFirstChunk(), old.getLastChunk(), old.getMd5()));
+        state = state.put(name, new Metadata(old.getLastUpdate(), old.getFirstChunk(), old.getLastChunk(), old.getMd5(),
+            System.currentTimeMillis()));
         stats = stats.skippedDownload();
         updateTaskState();
     }
@@ -268,7 +253,8 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
                 String name = e.getKey();
                 Metadata meta = e.getValue();
                 deleteOldChunks(name, meta.getLastChunk() + 1);
-                state = state.put(name, new Metadata(meta.getLastUpdate() - 1, meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5()));
+                state = state.put(name, new Metadata(meta.getLastUpdate(), meta.getFirstChunk(), meta.getLastChunk(), meta.getMd5(),
+                    meta.getLastCheck() - 1));
                 updateTaskState();
             }).count();
         stats = stats.expiredDatabases((int) expiredDatabases);

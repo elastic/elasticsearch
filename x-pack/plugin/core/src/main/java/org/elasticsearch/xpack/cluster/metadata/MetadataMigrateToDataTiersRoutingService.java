@@ -23,10 +23,14 @@ import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleAction;
+import org.elasticsearch.xpack.core.ilm.LifecycleExecutionState;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.MigrateAction;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
+import org.elasticsearch.xpack.core.ilm.Step;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -35,13 +39,19 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.SortedMap;
+import java.util.Spliterators;
 import java.util.TreeMap;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
+import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 
@@ -133,7 +143,12 @@ public final class MetadataMigrateToDataTiersRoutingService {
             attribute = DEFAULT_NODE_ATTRIBUTE_NAME;
         }
         List<String> migratedPolicies = migrateIlmPolicies(mb, currentState, attribute, xContentRegistry, client);
-        List<String> migratedIndices = migrateIndices(mb, currentState, attribute);
+        // Creating an intermediary cluster state view as when migrating policy we also update the cachesd phase definition stored in the
+        // index metadata so the metadata.builder will probably contain an already updated view over the indices metadata which we don't
+        // want to lose when migrating the indices settings
+        ClusterState intermediateState = ClusterState.builder(currentState).metadata(mb).build();
+        mb = Metadata.builder(intermediateState.metadata());
+        List<String> migratedIndices = migrateIndices(mb, intermediateState, attribute);
         return Tuple.tuple(ClusterState.builder(currentState).metadata(mb).build(),
             new MigratedEntities(removedIndexTemplateName, migratedIndices, migratedPolicies));
     }
@@ -166,14 +181,186 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 assert oldPolicyMetadata != null :
                     "we must only update policies, not create new ones, but " + policyMetadataEntry.getKey() + " didn't exist";
 
-                updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata);
+                refreshCachedPhases(mb, currentState, oldPolicyMetadata, newPolicyMetadata, xContentRegistry, client);
                 migratedPolicies.add(policyMetadataEntry.getKey());
             }
         }
 
-        IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
-        mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+        if (migratedPolicies.size() > 0) {
+            IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentLifecycleMetadata.getOperationMode());
+            mb.putCustom(IndexLifecycleMetadata.TYPE, newMetadata);
+        }
         return migratedPolicies;
+    }
+
+    /**
+     * Refreshed the cached ILM phase definition for the indices managed by the migrated policy.
+     */
+    static void refreshCachedPhases(Metadata.Builder mb, ClusterState currentState, LifecyclePolicyMetadata oldPolicyMetadata,
+                                    LifecyclePolicyMetadata newPolicyMetadata, NamedXContentRegistry xContentRegistry,
+                                    Client client) {
+        // this performs a walk through the managed indices and safely updates the cached phase (ie. for the phases we did not
+        // remove the allocate action)
+        updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata);
+
+        LifecyclePolicy newLifecyclePolicy = newPolicyMetadata.getPolicy();
+        List<String> migratedPhasesWithoutAllocateAction =
+            getMigratedPhasesWithoutAllocateAction(oldPolicyMetadata.getPolicy(), newLifecyclePolicy);
+
+        if (migratedPhasesWithoutAllocateAction.size() > 0) {
+            logger.debug("the updated policy [{}] does not contain the allocate action in phases [{}] anymore",
+                newLifecyclePolicy.getName(), migratedPhasesWithoutAllocateAction);
+            // if we removed the allocate action in any phase we won't be able to perform a safe update of the ilm cached phase (as
+            // defined by {@link PhaseCacheManagement#isIndexPhaseDefinitionUpdatable} because the number of steps in the new phase is
+            // not the same as in the cached phase) so let's forcefully (and still safely :) ) refresh the cached phase for the managed
+            // indices in these phases.
+            refreshCachedPhaseForPhasesWithoutAllocateAction(mb, currentState, oldPolicyMetadata.getPolicy(), newPolicyMetadata,
+                migratedPhasesWithoutAllocateAction, client);
+        }
+    }
+
+    /**
+     * Refresh the cached phase definition for those indices currently in one of the phases we migrated by removing the allocate action.
+     * This refresh can be executed in two ways, depending where exactly within such a migrated phase is currently the managed index.
+     * 1) if the index is in the allocate action, we'll move the ILM execution state for this index into the first step of the next
+     * action of the phase (note that even if the allocate action was the only action defined in a phase we have a complete action we
+     * inject at the end of every phase)
+     * 2) if the index is anywhere else in the phase, we simply update the cached phase definition to reflect the migrated phase
+     */
+    private static void refreshCachedPhaseForPhasesWithoutAllocateAction(Metadata.Builder mb, ClusterState currentState,
+                                                                         LifecyclePolicy oldPolicy,
+                                                                         LifecyclePolicyMetadata newPolicyMetadata,
+                                                                         List<String> phasesWithoutAllocateAction, Client client) {
+        String policyName = oldPolicy.getName();
+        final List<IndexMetadata> managedIndices =
+            StreamSupport.stream(Spliterators.spliteratorUnknownSize(currentState.metadata().indices().valuesIt(), 0), false)
+                .filter(meta -> policyName.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(meta.getSettings())))
+                .collect(Collectors.toList());
+
+        for (IndexMetadata indexMetadata : managedIndices) {
+            LifecycleExecutionState currentExState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
+
+            if (currentExState != null) {
+                Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(currentExState);
+                if (currentStepKey != null && phasesWithoutAllocateAction.contains(currentStepKey.getPhase())) {
+                    // the index is in a phase that doesn't contain the allocate action anymore
+                    if (currentStepKey.getAction().equals(AllocateAction.NAME)) {
+                        // this index is in the middle of executing the allocate action - which doesn't exist in the updated policy
+                        // anymore so let's try to move the index to the next action
+
+                        LifecycleExecutionState newLifecycleState = moveStateToNextActionAndUpdateCachedPhase(indexMetadata,
+                            currentExState, System::currentTimeMillis, oldPolicy, newPolicyMetadata, client);
+                        if (currentExState.equals(newLifecycleState) == false) {
+                            mb.put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap()));
+                        }
+                    } else {
+                        // if the index is not in the allocate action, we're going to perform a cached phase update (which is "unsafe" by
+                        // the rules defined in {@link PhaseCacheManagement#isIndexPhaseDefinitionUpdatable} but in our case it is safe
+                        // as the migration would've only removed the allocate action and the current index is not in the middle of
+                        // executing the allocate action, we made sure of that)
+
+                        LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(currentExState);
+                        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(newPolicyMetadata.getPolicy().getName(),
+                            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()), newPolicyMetadata.getVersion(),
+                            newPolicyMetadata.getModifiedDate());
+                        String newPhaseDefinition = Strings.toString(phaseExecutionInfo, false, false);
+                        updatedState.setPhaseDefinition(newPhaseDefinition);
+
+                        logger.debug("updating the cached phase definition for index [{}], current step [{}] in policy " +
+                            "[{}] to [{}]", indexMetadata.getIndex().getName(), currentStepKey, policyName, newPhaseDefinition);
+                        mb.put(IndexMetadata.builder(indexMetadata)
+                            .putCustom(ILM_CUSTOM_METADATA_KEY, updatedState.build().asMap()));
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Transition the managed index to the first step of the next action in the current phase and update the cached phase definition for
+     * the index to reflect the migrated phase definition.
+     *
+     * Returns the same {@link LifecycleExecutionState} if the transition is not possible or the new execution state otherwise.
+     */
+    private static LifecycleExecutionState moveStateToNextActionAndUpdateCachedPhase(IndexMetadata indexMetadata,
+                                                                                     LifecycleExecutionState existingState,
+                                                                                     LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
+                                                                                     LifecyclePolicyMetadata newPolicyMetadata,
+                                                                                     Client client) {
+        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
+        if (currentStepKey == null) {
+            logger.warn("unable to identify what the current step is for index [{}] as part of policy [{}]. the " +
+                "cached phase definition will not be updated for this index", indexMetadata.getIndex().getName(), policyName);
+            return existingState;
+        }
+
+        List<Step> policySteps = oldPolicy.toSteps(client);
+        Optional<Step> currentStep = policySteps.stream()
+            .filter(step -> step.getKey().equals(currentStepKey))
+            .findFirst();
+
+        if (currentStep.isPresent() == false) {
+            logger.warn("unable to find current step [{}] for index [{}] as part of policy [{}]. the cached phase definition will not be " +
+                "updated for this index", currentStepKey, indexMetadata.getIndex().getName(), policyName);
+            return existingState;
+        }
+
+        int indexOfCurrentStep = policySteps.indexOf(currentStep.get());
+        assert indexOfCurrentStep != -1 : "the current step must be part of the old policy";
+
+        Optional<Step> nextStepInActionAfterAllocate = policySteps.stream()
+            .skip(indexOfCurrentStep)
+            .filter(step -> step.getKey().getAction().equals(currentStepKey.getAction()) == false)
+            .findFirst();
+
+        assert nextStepInActionAfterAllocate.isPresent() : "there should always be a complete step at the end of every phase";
+        Step.StepKey nextStep = nextStepInActionAfterAllocate.get().getKey();
+        logger.debug("moving index [{}] in policy [{}] out of step [{}] to new step [{}]",
+            indexMetadata.getIndex().getName(), policyName, currentStepKey, nextStep);
+
+        long nowAsMillis = nowSupplier.getAsLong();
+        LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
+        updatedState.setPhase(nextStep.getPhase());
+        updatedState.setAction(nextStep.getAction());
+        updatedState.setActionTime(nowAsMillis);
+        updatedState.setStep(nextStep.getName());
+        updatedState.setStepTime(nowAsMillis);
+        updatedState.setFailedStep(null);
+        updatedState.setStepInfo(null);
+        updatedState.setIsAutoRetryableError(null);
+        updatedState.setFailedStepRetryCount(null);
+
+        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(newPolicyMetadata.getPolicy().getName(),
+            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()), newPolicyMetadata.getVersion(),
+            newPolicyMetadata.getModifiedDate());
+        updatedState.setPhaseDefinition(Strings.toString(phaseExecutionInfo, false, false));
+        return updatedState.build();
+    }
+
+    /**
+     * Returns a list of phases that had an allocate action defined in the old policy, but don't have it anymore in the new policy
+     * (ie. they were allocate actions that only specified attribute based routing, without any number of replicas configuration and we
+     * removed them as part of the migration of ILM policies to data tiers in order to allow ILM to inject the migrate action)
+     */
+    private static List<String> getMigratedPhasesWithoutAllocateAction(LifecyclePolicy oldPolicy, LifecyclePolicy newLifecyclePolicy) {
+        List<String> oldPhasesWithAllocateAction = new ArrayList<>(oldPolicy.getPhases().size());
+        for (Map.Entry<String, Phase> phaseEntry : oldPolicy.getPhases().entrySet()) {
+            if (phaseEntry.getValue().getActions().containsKey(AllocateAction.NAME)) {
+                oldPhasesWithAllocateAction.add(phaseEntry.getKey());
+            }
+        }
+
+        List<String> migratedPhasesWithoutAllocateAction = new ArrayList<>(oldPhasesWithAllocateAction.size());
+        for (String phaseWithAllocateAction : oldPhasesWithAllocateAction) {
+            Phase phase = newLifecyclePolicy.getPhases().get(phaseWithAllocateAction);
+            assert phase != null : "the migration service should not remove an entire phase altogether";
+            if (phase.getActions().containsKey(AllocateAction.NAME) == false) {
+                // the updated policy doesn't have the allocate action defined in this phase anymore
+                migratedPhasesWithoutAllocateAction.add(phaseWithAllocateAction);
+            }
+        }
+        return migratedPhasesWithoutAllocateAction;
     }
 
     /**

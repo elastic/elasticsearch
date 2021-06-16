@@ -19,6 +19,8 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
@@ -32,9 +34,12 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.junit.Before;
 
+import java.io.ByteArrayInputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -49,7 +54,6 @@ import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTier
 import static org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.migrateToDataTiersRouting;
 import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider.INDEX_ROUTING_PREFER;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -87,7 +91,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
-        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(shrinkAction, warmAllocateAction, coldAllocateAction);
+        SetPriorityAction warmSetPriority = new SetPriorityAction(100);
+        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
+            coldAllocateAction);
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
             .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
@@ -105,8 +111,9 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         LifecyclePolicy lifecyclePolicy = updatedLifecycleMetadata.getPolicies().get(lifecycleName);
         Map<String, LifecycleAction> warmActions = lifecyclePolicy.getPhases().get("warm").getActions();
         assertThat("allocate action in the warm phase didn't specify any number of replicas so it must be removed",
-            warmActions.size(), is(1));
+            warmActions.size(), is(2));
         assertThat(warmActions.get(shrinkAction.getWriteableName()), is(shrinkAction));
+        assertThat(warmActions.get(warmSetPriority.getWriteableName()), is(warmSetPriority));
 
         Map<String, LifecycleAction> coldActions = lifecyclePolicy.getPhases().get("cold").getActions();
         assertThat(coldActions.size(), is(1));
@@ -115,55 +122,175 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedColdAllocateAction.getRequire().size(), is(0));
     }
 
+    @SuppressWarnings("unchecked")
     public void testMigrateIlmPolicyRefreshesCachedPhase() {
         ShrinkAction shrinkAction = new ShrinkAction(2, null);
         AllocateAction warmAllocateAction = new AllocateAction(null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, Map.of("data", "cold"));
-        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(shrinkAction, warmAllocateAction, coldAllocateAction);
+        SetPriorityAction warmSetPriority = new SetPriorityAction(100);
+        LifecyclePolicyMetadata policyMetadata = getWarmColdPolicyMeta(warmSetPriority, shrinkAction, warmAllocateAction,
+            coldAllocateAction);
 
-        LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
-            .setPhase("cold")
-            .setAction("allocate")
-            .setStep("allocate")
-            .setPhaseDefinition("{\n" +
-                "        \"policy\" : \"" + lifecycleName + "\",\n" +
-                "        \"phase_definition\" : {\n" +
-                "          \"min_age\" : \"0m\",\n" +
-                "          \"actions\" : {\n" +
-                "            \"allocate\" : {\n" +
-                "              \"number_of_replicas\" : \"0\",\n" +
-                "              \"require\" : {\n" +
-                "                \"data\": \"cold\"\n" +
-                "              }\n" +
-                "            }\n" +
-                "          }\n" +
-                "        },\n" +
-                "        \"version\" : 1,\n" +
-                "        \"modified_date_in_millis\" : 1578521007076\n" +
-                "      }")
-            .build();
+        {
+            // index is in the cold phase and the migrated allocate action is not removed
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("cold")
+                .setAction("allocate")
+                .setStep("allocate")
+                .setPhaseDefinition(getColdPhaseDefinition())
+                .build();
 
-        IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
-            .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
 
-        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
-            .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
-                Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
-            .put(indexMetadata).build())
-            .build();
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+                .put(indexMetadata).build())
+                .build();
 
-        Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
 
-        assertThat(migratedPolicies.get(0), is(lifecycleName));
-        ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
-        LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
 
-        // expecting the phase definition to be refreshed with the migrated phase representation
-        // ie. allocate action does not contain any allocation rules
-        String expectedRefreshedPhaseDefinition = "\"phase_definition\":{\"min_age\":\"0ms\"," +
-            "\"actions\":{\"allocate\":{\"number_of_replicas\":0,\"include\":{},\"exclude\":{},\"require\":{}}}}";
-        assertThat(newLifecycleState.getPhaseDefinition(), containsString(expectedRefreshedPhaseDefinition));
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the migrated phase representation
+            // ie. allocate action does not contain any allocation rules
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(1));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, notNullValue());
+            assertThat(allocateDef.get("include"), is(Map.of()));
+            assertThat(allocateDef.get("exclude"), is(Map.of()));
+            assertThat(allocateDef.get("require"), is(Map.of()));
+        }
+
+        {
+            // index is in the warm phase executing the allocate action, the migrated allocate action is removed
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("warm")
+                .setAction("allocate")
+                .setStep("allocate")
+                .setPhaseDefinition(getWarmPhaseDef())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+                .put(indexMetadata).build())
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the index being in the shrink action
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(2));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, nullValue());
+            assertThat(newLifecycleState.getAction(), is(ShrinkAction.NAME));
+            assertThat(newLifecycleState.getStep(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
+
+            Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
+            assertThat(shrinkDef.get("number_of_shards"), is(2));
+            Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);
+            assertThat(setPriorityDef.get("priority"), is(100));
+        }
+
+        {
+            // index is in the warm phase executing the set priority action (executes BEFORE allocate), the migrated allocate action is
+            // removed
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("warm")
+                .setAction(SetPriorityAction.NAME)
+                .setStep(SetPriorityAction.NAME)
+                .setPhaseDefinition(getWarmPhaseDef())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+                .put(indexMetadata).build())
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the index being in the set_priority action
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(2));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, nullValue());
+            Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
+            assertThat(shrinkDef.get("number_of_shards"), is(2));
+            Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);
+            assertThat(setPriorityDef.get("priority"), is(100));
+            assertThat(newLifecycleState.getAction(), is(SetPriorityAction.NAME));
+            assertThat(newLifecycleState.getStep(), is(SetPriorityAction.NAME));
+        }
+
+        {
+            // index is in the warm phase executing the shrink action (executes AFTER allocate), the migrated allocate action is
+            // removed
+            LifecycleExecutionState preMigrationExecutionState = LifecycleExecutionState.builder()
+                .setPhase("warm")
+                .setAction(ShrinkAction.NAME)
+                .setStep(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP)
+                .setPhaseDefinition(getWarmPhaseDef())
+                .build();
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(indexName).settings(getBaseIndexSettings())
+                .putCustom(ILM_CUSTOM_METADATA_KEY, preMigrationExecutionState.asMap());
+
+            ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(Metadata.builder()
+                .putCustom(IndexLifecycleMetadata.TYPE, new IndexLifecycleMetadata(
+                    Collections.singletonMap(policyMetadata.getName(), policyMetadata), OperationMode.STOPPED))
+                .put(indexMetadata).build())
+                .build();
+
+            Metadata.Builder newMetadata = Metadata.builder(state.metadata());
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+
+            assertThat(migratedPolicies.get(0), is(lifecycleName));
+            ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
+            LifecycleExecutionState newLifecycleState = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexName));
+
+            Map<String, Object> migratedPhaseDefAsMap = getPhaseDefinitionAsMap(newLifecycleState);
+
+            // expecting the phase definition to be refreshed with the index being in the shrink action
+            Map<String, Object> actions = (Map<String, Object>) migratedPhaseDefAsMap.get("actions");
+            assertThat(actions.size(), is(2));
+            Map<String, Object> allocateDef = (Map<String, Object>) actions.get(AllocateAction.NAME);
+            assertThat(allocateDef, nullValue());
+            assertThat(newLifecycleState.getAction(), is(ShrinkAction.NAME));
+            assertThat(newLifecycleState.getStep(), is(ShrinkAction.CONDITIONAL_SKIP_SHRINK_STEP));
+
+            Map<String, Object> shrinkDef = (Map<String, Object>) actions.get(ShrinkAction.NAME);
+            assertThat(shrinkDef.get("number_of_shards"), is(2));
+            Map<String, Object> setPriorityDef = (Map<String, Object>) actions.get(SetPriorityAction.NAME);
+            assertThat(setPriorityDef.get("priority"), is(100));
+        }
     }
 
     private Settings.Builder getBaseIndexSettings() {
@@ -523,16 +650,71 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
     }
 
-    private LifecyclePolicyMetadata getWarmColdPolicyMeta(ShrinkAction shrinkAction, AllocateAction warmAllocateAction,
-                                                          AllocateAction coldAllocateAction) {
+    private LifecyclePolicyMetadata getWarmColdPolicyMeta(SetPriorityAction setPriorityAction, ShrinkAction shrinkAction,
+                                                          AllocateAction warmAllocateAction, AllocateAction coldAllocateAction) {
         LifecyclePolicy policy = new LifecyclePolicy(lifecycleName,
             Map.of("warm",
                 new Phase("warm", TimeValue.ZERO, Map.of(shrinkAction.getWriteableName(), shrinkAction,
-                    warmAllocateAction.getWriteableName(), warmAllocateAction)),
+                    warmAllocateAction.getWriteableName(), warmAllocateAction, setPriorityAction.getWriteableName(), setPriorityAction)),
                 "cold",
                 new Phase("cold", TimeValue.ZERO, Map.of(coldAllocateAction.getWriteableName(), coldAllocateAction))
             ));
         return new LifecyclePolicyMetadata(policy, Collections.emptyMap(),
             randomNonNegativeLong(), randomNonNegativeLong());
     }
+
+    private String getWarmPhaseDef() {
+        return "{\n" +
+            "        \"policy\" : \"" + lifecycleName + "\",\n" +
+            "        \"phase_definition\" : {\n" +
+            "          \"min_age\" : \"0m\",\n" +
+            "          \"actions\" : {\n" +
+            "            \"allocate\" : {\n" +
+            "              \"number_of_replicas\" : \"0\",\n" +
+            "              \"require\" : {\n" +
+            "                \"data\": \"cold\"\n" +
+            "              }\n" +
+            "            },\n" +
+            "            \"set_priority\": {\n" +
+            "              \"priority\": 100 \n" +
+            "            },\n" +
+            "            \"shrink\": {\n" +
+            "              \"number_of_shards\": 2 \n" +
+            "            }\n" +
+            "          }\n" +
+            "        },\n" +
+            "        \"version\" : 1,\n" +
+            "        \"modified_date_in_millis\" : 1578521007076\n" +
+            "      }";
+    }
+
+    private String getColdPhaseDefinition() {
+        return "{\n" +
+            "        \"policy\" : \"" + lifecycleName + "\",\n" +
+            "        \"phase_definition\" : {\n" +
+            "          \"min_age\" : \"0m\",\n" +
+            "          \"actions\" : {\n" +
+            "            \"allocate\" : {\n" +
+            "              \"number_of_replicas\" : \"0\",\n" +
+            "              \"require\" : {\n" +
+            "                \"data\": \"cold\"\n" +
+            "              }\n" +
+            "            }\n" +
+            "          }\n" +
+            "        },\n" +
+            "        \"version\" : 1,\n" +
+            "        \"modified_date_in_millis\" : 1578521007076\n" +
+            "      }";
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getPhaseDefinitionAsMap(LifecycleExecutionState newLifecycleState) {
+        XContentType entityContentType = XContentType.fromMediaType("application/json");
+        Map<String, Object> migratedPhaseDefAsMap = (Map<String, Object>) XContentHelper.convertToMap(entityContentType.xContent(),
+            new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
+            false)
+            .get("phase_definition");
+        return migratedPhaseDefAsMap;
+    }
+
 }

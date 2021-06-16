@@ -108,7 +108,7 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/20_terms/Deprecated _term order',
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
     'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
-//    'search/40_indices_boost/Indices boost using object', //indices_boost
+    'search/40_indices_boost/Indices boost using object', //indices_boost
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
     'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
     'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change

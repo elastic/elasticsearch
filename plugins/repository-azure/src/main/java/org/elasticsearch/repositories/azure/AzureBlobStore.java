@@ -49,6 +49,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
+import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -400,27 +401,10 @@ public class AzureBlobStore implements BlobStore {
             final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container)
                     .getBlobAsyncClient(blobName);
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
-            try (OutputStream out = new OutputStream() {
-
-                private final List<String> parts = new ArrayList<>();
-
-                long written = 0L;
-
-                private ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays);
+            try (OutputStream out = new ChunkedBlobOutputStream<String>(bigArrays) {
 
                 @Override
-                public void write(int b) throws IOException {
-                    buffer.write(b);
-                    maybeFlushBuffer();
-                }
-
-                @Override
-                public void write(byte[] b, int off, int len) throws IOException {
-                    buffer.write(b, off, len);
-                    maybeFlushBuffer();
-                }
-
-                private void maybeFlushBuffer() {
+                protected void maybeFlushBuffer() {
                     if (buffer.size() >= FLUSH_BUFFER_BYTES) {
                         flushBuffer();
                     }
@@ -435,10 +419,7 @@ public class AzureBlobStore implements BlobStore {
                     Flux<ByteBuffer> byteBufferFlux = Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes()));
                     final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
                     blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, buffer.size()).block();
-                    written += buffer.size();
-                    parts.add(blockId);
-                    buffer.close();
-                    buffer = new ReleasableBytesStreamOutput(bigArrays);
+                    finishPart(blockId);
                 }
 
                 @Override

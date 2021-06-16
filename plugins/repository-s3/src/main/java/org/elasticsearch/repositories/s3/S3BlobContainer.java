@@ -28,7 +28,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,6 +43,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.blobstore.ChunkedBlobOutputStream;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -139,31 +139,13 @@ class S3BlobContainer extends AbstractBlobContainer {
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
-        final BigArrays bigArrays = blobStore.bigArrays();
         try (AmazonS3Reference clientReference = blobStore.clientReference();
-             OutputStream out = new OutputStream() {
-
-                 private final List<PartETag> parts = new ArrayList<>();
+             OutputStream out = new ChunkedBlobOutputStream<PartETag>(blobStore.bigArrays()) {
 
                  private final SetOnce<String> uploadId = new SetOnce<>();
 
-                 long written = 0L;
-
-                 private ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays);
-
                  @Override
-                 public void write(int b) throws IOException {
-                     buffer.write(b);
-                     maybeFlushBuffer();
-                 }
-
-                 @Override
-                 public void write(byte[] b, int off, int len) throws IOException {
-                     buffer.write(b, off, len);
-                     maybeFlushBuffer();
-                 }
-
-                 private void maybeFlushBuffer() throws IOException {
+                 protected void maybeFlushBuffer() throws IOException {
                      if (buffer.size() >= FLUSH_BUFFER_BYTES) {
                          if (written == 0L) {
                              uploadId.set(SocketAccess.doPrivileged(() ->
@@ -193,10 +175,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                      final UploadPartResult uploadResponse =
                              SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
-                     written += uploadRequest.getPartSize();
-                     parts.add(uploadResponse.getPartETag());
-                     buffer.close();
-                     buffer = new ReleasableBytesStreamOutput(bigArrays);
+                     finishPart(uploadResponse.getPartETag());
                  }
 
                  @Override

@@ -482,7 +482,8 @@ public class RestRequest implements ToXContent.Params {
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
         Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
-        return tuple.v1().xContent().createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, tuple.v2().streamInput());
+        return tuple.v1().xContent().createParserForCompatibility(xContentRegistry, LoggingDeprecationHandler.INSTANCE,
+            tuple.v2().streamInput(), restApiVersion);
     }
 
     /**

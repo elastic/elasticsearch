@@ -16,7 +16,7 @@ import java.nio.file.Path;
 import java.util.Properties;
 
 import org.apache.lucene.mockfile.MockFileSystemTestCase;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 public class QuotaAwareFileSystemTests extends MockFileSystemTestCase {
 

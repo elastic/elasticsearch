@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;

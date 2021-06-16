@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.CheckedSupplier;
 import org.junit.rules.ExternalResource;
 

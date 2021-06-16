@@ -17,7 +17,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
-
 public class SnapshotIndexStatusTests extends AbstractXContentTestCase<SnapshotIndexStatus> {
 
     @Override

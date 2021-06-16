@@ -32,7 +32,7 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
 import java.util.ArrayList;

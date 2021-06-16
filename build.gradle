@@ -314,42 +314,8 @@ gradle.projectsEvaluated {
 
 // eclipse configuration
 allprojects {
-  apply plugin: 'eclipse'
-  // Name all the non-root projects after their path so that paths get grouped together when imported into eclipse.
-  if (path != ':') {
-    eclipse.project.name = path
-    if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-      eclipse.project.name = eclipse.project.name.replace(':', '_')
-    }
-  }
+  apply plugin: 'elasticsearch.eclipse'
 
-  plugins.withType(JavaBasePlugin) {
-    java.modularity.inferModulePath.set(false)
-    eclipse.classpath.file.whenMerged { classpath ->
-      /*
-       * give each source folder a unique corresponding output folder
-       * outside of the usual `build` folder. We can't put the build
-       * in the usual build folder because eclipse becomes *very* sad
-       * if we delete it. Which `gradlew clean` does all the time.
-       */
-      int i = 0;
-      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
-        i++;
-        folder.output = 'out/eclipse/' + i
-      }
-
-      // Starting with Gradle 6.7 test dependencies are not exposed by eclipse
-      // projects by default. This breaks project dependencies using the `java-test-fixtures` plugin
-      // or dependencies on other projects manually declared testArtifacts configurations
-      // This issue is tracked in gradle issue tracker.
-      // See https://github.com/gradle/gradle/issues/14932 for further details
-      classpath.entries.findAll {
-        it instanceof ProjectDependency
-      }.each {
-        it.entryAttributes.remove('without_test_code')
-      }
-    }
-  }
   /*
    * Allow accessing com/sun/net/httpserver in projects that have
    * configured forbidden apis to allow it.
@@ -365,34 +331,6 @@ allprojects {
       }
     }
   }
-
-  File licenseHeaderFile
-  String prefix = ':x-pack'
-  if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-    prefix = prefix.replace(':', '_')
-  }
-  if (eclipse.project.name.startsWith(prefix)) {
-    licenseHeaderFile = new File(project.rootDir, 'build-tools-internal/src/main/resources/license-headers/elastic-license-2.0-header.txt')
-  } else {
-    licenseHeaderFile = new File(project.rootDir, 'build-tools-internal/src/main/resources/license-headers/sspl+elastic-license-header.txt')
-  }
-
-  String lineSeparator = Os.isFamily(Os.FAMILY_WINDOWS) ? '\\\\r\\\\n' : '\\\\n'
-  String licenseHeader = licenseHeaderFile.getText('UTF-8').replace(System.lineSeparator(), lineSeparator)
-  tasks.register('copyEclipseSettings', Copy) {
-    mustRunAfter 'wipeEclipseSettings'
-    // TODO: "package this up" for external builds
-    from new File(project.rootDir, 'build-tools-internal/src/main/resources/eclipse.settings')
-    into '.settings'
-    filter { it.replaceAll('@@LICENSE_HEADER_TEXT@@', licenseHeader) }
-  }
-  // otherwise .settings is not nuked entirely
-  tasks.register('wipeEclipseSettings', Delete) {
-    delete '.settings'
-  }
-  tasks.named('cleanEclipse') { dependsOn 'wipeEclipseSettings' }
-  // otherwise the eclipse merging is *super confusing*
-  tasks.named('eclipse') { dependsOn 'cleanEclipse', 'copyEclipseSettings' }
 }
 
 tasks.named("wrapper").configure {
@@ -502,6 +440,18 @@ tasks.named("checkPart1").configure {
 
 tasks.named("assemble").configure {
   dependsOn gradle.includedBuild('build-tools').task(':assemble')
+}
+
+tasks.named("cleanEclipse").configure {
+  dependsOn gradle.includedBuild('build-conventions').task(':cleanEclipse')
+  dependsOn gradle.includedBuild('build-tools').task(':cleanEclipse')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':cleanEclipse')
+}
+
+tasks.named("eclipse").configure {
+  dependsOn gradle.includedBuild('build-conventions').task(':eclipse')
+  dependsOn gradle.includedBuild('build-tools').task(':eclipse')
+  dependsOn gradle.includedBuild('build-tools-internal').task(':eclipse')
 }
 
 subprojects {

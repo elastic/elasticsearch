@@ -36,6 +36,7 @@ a number of clients that have been contributed by the community for various lang
 * <<rust>>
 * <<scala>>
 * <<smalltalk>>
+* <<swift>>
 * <<vertx>>
 
 [[b4j]]
@@ -236,6 +237,11 @@ client].
 
 * https://github.com/newapplesho/elasticsearch-smalltalk[elasticsearch-smalltalk]:
   Pharo Smalltalk client for Elasticsearch.
+  
+[[swift]]
+== Swift
+* https://github.com/brokenhandsio/elasticsearch-nio-client[Elasticsearch NIO Client]: a library for
+  working with Elasticsearch in Swift, built on top of SwiftNIO and Swift Package Manager.
 
 [[vertx]]
 == Vert.x

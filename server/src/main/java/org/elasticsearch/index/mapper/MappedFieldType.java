@@ -29,7 +29,7 @@ import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
 import org.apache.lucene.search.spans.SpanQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -434,7 +434,7 @@ public abstract class MappedFieldType {
     /**
      * This method is used to support auto-complete services and implementations
      * are expected to find terms beginning with the provided string very quickly.
-     * If fields cannot look up matching terms quickly they should return null.  
+     * If fields cannot look up matching terms quickly they should return null.
      * The returned TermEnum should implement next(), term() and doc_freq() methods
      * but postings etc are not required.
      * @param caseInsensitive if matches should be case insensitive

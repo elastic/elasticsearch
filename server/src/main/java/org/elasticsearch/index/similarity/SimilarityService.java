@@ -20,7 +20,7 @@ import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;

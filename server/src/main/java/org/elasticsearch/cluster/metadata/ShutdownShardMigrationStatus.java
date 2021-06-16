@@ -22,11 +22,11 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
     private final SingleNodeShutdownMetadata.Status status;
 
     public ShutdownShardMigrationStatus() {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
     }
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
     }
 
     @Override
@@ -40,6 +40,10 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
     @Override
     public void writeTo(StreamOutput out) throws IOException {
 
+    }
+
+    public SingleNodeShutdownMetadata.Status getStatus() {
+        return status;
     }
 
     @Override

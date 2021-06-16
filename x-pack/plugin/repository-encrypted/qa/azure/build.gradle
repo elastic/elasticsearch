@@ -1,14 +1,7 @@
-import org.elasticsearch.gradle.OS
-
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.java'
 
 dependencies {
     internalClusterTestImplementation testArtifact(project(':plugins:repository-azure'), 'internalClusterTest')
     internalClusterTestImplementation testArtifact(project(':x-pack:plugin:repository-encrypted'), 'test')
-}
-
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-tasks.named("internalClusterTest").configure {
-  onlyIf { OS.current() != OS.WINDOWS }
 }

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 public class TimedRequestTests extends ESTestCase {

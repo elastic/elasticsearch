@@ -6,8 +6,8 @@
  */
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;

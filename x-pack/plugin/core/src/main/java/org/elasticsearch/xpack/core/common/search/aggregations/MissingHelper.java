@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.common.search.aggregations;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 

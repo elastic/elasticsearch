@@ -29,7 +29,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;

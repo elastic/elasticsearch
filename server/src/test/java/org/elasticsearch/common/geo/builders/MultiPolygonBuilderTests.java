@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 

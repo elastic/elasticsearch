@@ -29,6 +29,7 @@ allprojects {
     version = props.getProperty("elasticsearch")
 
     apply plugin: 'java'
+    apply plugin: 'elasticsearch.eclipse'
     targetCompatibility = minRuntimeJava
     sourceCompatibility = minRuntimeJava
 }

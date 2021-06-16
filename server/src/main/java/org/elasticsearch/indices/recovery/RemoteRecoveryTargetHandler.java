@@ -21,7 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -202,7 +202,12 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
         final RecoveryFileChunkRequest request = new RecoveryFileChunkRequest(
             recoveryId, requestSeqNo, shardId, fileMetadata, position, content, lastChunk, totalTranslogOps, throttleTimeInNanos);
         final Writeable.Reader<TransportResponse.Empty> reader = in -> TransportResponse.Empty.INSTANCE;
-        executeRetryableAction(action, request, fileChunkRequestOptions, listener.map(r -> null), reader);
+        executeRetryableAction(
+            action,
+            request,
+            fileChunkRequestOptions,
+            ActionListener.runBefore(listener.map(r -> null), request::decRef),
+            reader);
     }
 
     @Override

@@ -34,15 +34,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.gateway.CorruptStateException;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 import java.util.zip.CRC32;
 
 /**
@@ -50,18 +48,12 @@ import java.util.zip.CRC32;
  */
 public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
-    // Serialization parameters to specify correct context for metadata serialization
-    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
-
-    static {
-        Map<String, String> snapshotOnlyParams = new HashMap<>();
-        // when metadata is serialized certain elements of the metadata shouldn't be included into snapshot
-        // exclusion of these elements is done by setting Metadata.CONTEXT_MODE_PARAM to Metadata.CONTEXT_MODE_SNAPSHOT
-        snapshotOnlyParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_SNAPSHOT);
-        // serialize SnapshotInfo using the SNAPSHOT mode
-        snapshotOnlyParams.put(SnapshotInfo.CONTEXT_MODE_PARAM, SnapshotInfo.CONTEXT_MODE_SNAPSHOT);
-        SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
-    }
+    // Serialization parameters to specify correct context for metadata serialization.
+    // When metadata is serialized certain elements of the metadata shouldn't be included into snapshot
+    // exclusion of these elements is done by setting Metadata.CONTEXT_MODE_PARAM to Metadata.CONTEXT_MODE_SNAPSHOT
+    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_SNAPSHOT)
+    );
 
     // The format version
     public static final int VERSION = 1;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -64,8 +63,6 @@ public interface RuntimeField extends ToXContentFragment {
     abstract class Builder implements ToXContent {
         final String name;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
-
-        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RuntimeField.class);
 
         protected Builder(String name) {
             this.name = name;

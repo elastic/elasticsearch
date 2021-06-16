@@ -356,27 +356,6 @@ public final class MappingLookup {
     }
 
     /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return false;
-        }
-        while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-        }
-        return false;
-    }
-
-    /**
      * Returns all nested object mappers
      */
     public List<ObjectMapper> getNestedMappers() {

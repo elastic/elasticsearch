@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 
 /**

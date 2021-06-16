@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 
 import java.time.Instant;

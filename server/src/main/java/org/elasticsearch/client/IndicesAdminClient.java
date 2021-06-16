@@ -90,7 +90,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * Administrative actions/operations against indices.

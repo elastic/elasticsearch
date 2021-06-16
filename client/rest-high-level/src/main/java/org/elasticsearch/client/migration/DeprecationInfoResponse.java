@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.migration;
 
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -59,7 +59,7 @@ public class DeprecationInfoResponse {
 
     private static List<DeprecationIssue> parseDeprecationIssues(XContentParser parser) throws IOException {
         List<DeprecationIssue> issues = new ArrayList<>();
-        XContentParser.Token token = null;
+        XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
             if (token == XContentParser.Token.START_OBJECT) {
                 issues.add(DeprecationIssue.PARSER.parse(parser, null));
@@ -116,8 +116,7 @@ public class DeprecationInfoResponse {
 
     @Override
     public String toString() {
-        return clusterSettingsIssues.toString() + ":" + nodeSettingsIssues.toString() + ":" + indexSettingsIssues.toString() +
-            ":" + mlSettingsIssues.toString();
+        return clusterSettingsIssues + ":" + nodeSettingsIssues + ":" + indexSettingsIssues + ":" + mlSettingsIssues;
     }
 
     /**
@@ -156,10 +155,10 @@ public class DeprecationInfoResponse {
             }
         }
 
-        private Level level;
-        private String message;
-        private String url;
-        private String details;
+        private final Level level;
+        private final String message;
+        private final String url;
+        private final String details;
 
         public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
             this.level = level;

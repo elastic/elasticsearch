@@ -14,7 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -873,9 +873,11 @@ public final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeField runtimeField = context.root().getRuntimeField(fieldPath);
-        if (runtimeField != null) {
-            return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeField.asMappedFieldType().name());
+        MappedFieldType fieldType = context.mappingLookup().getFieldType(fieldPath);
+        if (fieldType != null) {
+            //we haven't found a mapper with this name above, which means if a field type is found it is for sure a runtime field.
+            assert fieldType.hasDocValues() == false && fieldType.isAggregatable() && fieldType.isSearchable();
+            return new NoOpFieldMapper(subfields[subfields.length - 1], fieldType.name());
         }
         return null;
     }

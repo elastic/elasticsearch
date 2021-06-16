@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.searchablesnapshots.store.input;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
@@ -28,7 +28,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
@@ -54,7 +54,7 @@ public class FrozenIndexInputTests extends AbstractSearchableSnapshotsTestCase {
 
         final FileInfo fileInfo = new FileInfo(
             randomAlphaOfLength(10),
-            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion),
+            new StoreFileMetadata(fileName, fileData.length, checksum, Version.CURRENT.luceneVersion.toString()),
             new ByteSizeValue(fileData.length)
         );
 

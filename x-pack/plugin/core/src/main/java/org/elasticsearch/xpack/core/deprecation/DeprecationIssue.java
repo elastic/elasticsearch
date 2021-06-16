@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.deprecation;
 
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -59,15 +59,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         }
     }
 
-    private Level level;
-    private String message;
-    private String url;
-    private String details;
-
-    // pkg-private for tests
-    DeprecationIssue() {
-
-    }
+    private final Level level;
+    private final String message;
+    private final String url;
+    private final String details;
 
     public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
         this.level = level;

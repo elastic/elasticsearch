@@ -15,7 +15,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -33,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.function.UnaryOperator;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 
 public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
@@ -75,19 +75,9 @@ public class ClusterStateRestCancellationIT extends HttpSmokeTestCase {
             clusterStateRequest.addParameter("local", "true");
         }
 
-        final PlainActionFuture<Void> future = new PlainActionFuture<>();
+        final PlainActionFuture<Response> future = new PlainActionFuture<>();
         logger.info("--> sending cluster state request");
-        final Cancellable cancellable = getRestClient().performRequestAsync(clusterStateRequest, new ResponseListener() {
-            @Override
-            public void onSuccess(Response response) {
-                future.onResponse(null);
-            }
-
-            @Override
-            public void onFailure(Exception exception) {
-                future.onFailure(exception);
-            }
-        });
+        final Cancellable cancellable = getRestClient().performRequestAsync(clusterStateRequest, wrapAsRestResponseListener(future));
 
         awaitTaskWithPrefix(ClusterStateAction.NAME);
 

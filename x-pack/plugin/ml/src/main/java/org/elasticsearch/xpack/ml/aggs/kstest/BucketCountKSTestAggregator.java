@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.ml.aggs.kstest;
 
 import org.apache.commons.math3.stat.inference.KolmogorovSmirnovTest;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;

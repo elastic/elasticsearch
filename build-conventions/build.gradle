@@ -6,9 +6,12 @@
  * Side Public License, v 1.
  */
 
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
 plugins {
     id 'java-gradle-plugin'
     id 'java-test-fixtures'
+    id 'eclipse'
 }
 
 group = "org.elasticsearch"
@@ -25,6 +28,10 @@ gradlePlugin {
         internalLicenseheaders {
             id = 'elasticsearch.internal-licenseheaders'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin'
+        }
+        eclipse {
+            id = 'elasticsearch.eclipse'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.EclipseConventionPlugin'
         }
         publish {
             id = 'elasticsearch.publish'
@@ -50,4 +57,21 @@ dependencies {
     api 'org.apache.maven:maven-model:3.6.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     api 'org.apache.rat:apache-rat:0.11'
+    compileOnly "com.puppycrawl.tools:checkstyle:8.42"
 }
+
+project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
+    java.getModularity().getInferModulePath().set(false);
+    eclipse.getClasspath().getFile().whenMerged { classpath ->
+        /*
+         * give each source folder a unique corresponding output folder
+         * outside of the usual `build` folder. We can't put the build
+         * in the usual build folder because eclipse becomes *very* sad
+         * if we delete it. Which `gradlew clean` does all the time.
+         */
+        int i = 0;
+        classpath.getEntries().stream().filter(e -> e instanceof SourceFolder).forEachOrdered(s ->
+                s.setOutput("out/eclipse"+i++)
+        )
+    }
+})

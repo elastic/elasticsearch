@@ -39,7 +39,9 @@ public class LifecyclePolicyUtils {
 
             try (XContentParser parser = XContentType.JSON.xContent()
                 .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.utf8ToString())) {
-                return LifecyclePolicy.parse(parser, name);
+                LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
+                policy.validate();
+                return policy;
             }
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);

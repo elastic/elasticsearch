@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.math.BigDecimal;

@@ -255,7 +255,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
     private static void assertMinimumCompilerVersion(JavaVersion minimumCompilerVersion) {
         JavaVersion currentVersion = Jvm.current().getJavaVersion();
-        if (minimumCompilerVersion.compareTo(currentVersion) > 0) {
+        if (System.getProperty("idea.active", "false").equals("true") == false && minimumCompilerVersion.compareTo(currentVersion) > 0) {
             throw new GradleException(
                 "Project requires Java version of " + minimumCompilerVersion + " or newer but Gradle JAVA_HOME is " + currentVersion
             );

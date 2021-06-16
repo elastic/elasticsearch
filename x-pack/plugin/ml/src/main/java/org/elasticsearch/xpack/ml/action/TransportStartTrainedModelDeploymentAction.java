@@ -235,7 +235,7 @@ public class TransportStartTrainedModelDeploymentAction
                 case STOPPED:
                     return false;
                 case FAILED:
-                    exception = ExceptionsHelper.serverError("Deployment failed with reason [{}]", reason);
+                    exception = ExceptionsHelper.serverError("Deployment failed with reason: {}", reason);
                     return true;
                 default:
                     exception = ExceptionsHelper.serverError("Unexpected task state [{}] with reason [{}] while waiting to be started",

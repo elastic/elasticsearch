@@ -2,7 +2,8 @@
 The keystores in this directory are supposed to mimic the PKCS12 keystores that the elasticsearch
 startup script will auto-generate for a node. The transport.p12 contain a single PrivateKeyEntry for the
 nodes key and certificate for the transport layer.
-The httpCa.p12 keystore contains
+The httpCa.p12 keystore contains:
+
 - A PrivateKeyEntry for the node's key and certificate for the HTTP layer
 - A PrivateKeyEntry for the CA's key and certificate
 - A TrustedCertificateEntry for the CA's certificate

@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.List;

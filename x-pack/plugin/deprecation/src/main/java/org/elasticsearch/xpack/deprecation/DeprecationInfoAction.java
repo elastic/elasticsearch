@@ -4,23 +4,20 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.deprecation;
+package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
@@ -218,12 +215,8 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
     public static class Request extends MasterNodeReadRequest<Request> implements IndicesRequest.Replaceable {
 
-        private String[] indices = Strings.EMPTY_ARRAY;
-        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true,
-            true, true);
-
-        public Request() {
-        }
+        private static final IndicesOptions INDICES_OPTIONS = IndicesOptions.fromOptions(false, true, true, true);
+        private String[] indices;
 
         public Request(String... indices) {
             this.indices = indices;
@@ -283,18 +276,6 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             return Objects.hash(Arrays.hashCode(indices));
         }
 
-    }
-
-    public static class RequestBuilder extends MasterNodeReadOperationRequestBuilder<Request, Response, RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, DeprecationInfoAction action) {
-            super(client, action, new Request());
-        }
-
-        public RequestBuilder setIndices(String... indices) {
-            request.indices(indices);
-            return this;
-        }
     }
 
 }

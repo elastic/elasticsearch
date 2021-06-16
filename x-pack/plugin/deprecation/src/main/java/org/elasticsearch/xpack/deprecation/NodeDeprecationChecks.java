@@ -12,9 +12,16 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 
 public class NodeDeprecationChecks {
 
@@ -41,6 +48,35 @@ public class NodeDeprecationChecks {
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
         }
         return null;
+    }
+
+    static DeprecationIssue checkReservedPrefixedRealmNames(final Settings settings, final PluginsAndModules pluginsAndModules) {
+        final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
+        if (realmSettings.isEmpty()) {
+            return null;
+        }
+        List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
+        for (RealmConfig.RealmIdentifier realmIdentifier : realmSettings.keySet()) {
+            if (realmIdentifier.getName().startsWith(RESERVED_REALM_NAME_PREFIX)) {
+                reservedPrefixedRealmIdentifiers.add(realmIdentifier);
+            }
+        }
+        if (reservedPrefixedRealmIdentifiers.isEmpty()) {
+            return null;
+        } else {
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "Realm that start with [" + RESERVED_REALM_NAME_PREFIX + "] will not be permitted in a future major release.",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+                String.format(Locale.ROOT,
+                    "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
+                        + " with reserved prefix [%s]: [%s]. "
+                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+                    RESERVED_REALM_NAME_PREFIX,
+                    reservedPrefixedRealmIdentifiers.stream()
+                        .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
+                        .sorted()
+                        .collect(Collectors.joining("; "))));
+        }
     }
 
     static DeprecationIssue checkSingleDataNodeWatermarkSetting(final Settings settings, final PluginsAndModules pluginsAndModules) {

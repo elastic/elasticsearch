@@ -63,7 +63,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         void onStoredFieldsUsed(String field);
         void onNormsUsed(String field);
         void onPayloadsUsed(String field);
-        void onImpactsUsed(String field);
         void onPointsUsed(String field);
         void onTermVectorsUsed(String field);
     }
@@ -238,7 +237,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public ImpactsEnum impacts(int flags) throws IOException {
                 ImpactsEnum impactsEnum = super.impacts(flags);
                 if (impactsEnum != null) {
-                    notifier.onImpactsUsed(field);
                     checkPostingsFlags(flags);
                 }
                 return impactsEnum;

@@ -40,7 +40,6 @@ public class ShardFieldUsageTracker {
             pf.storedFields = ifs.storedFields.get();
             pf.norms = ifs.norms.get();
             pf.payloads = ifs.payloads.get();
-            pf.impacts = ifs.impacts.get();
             pf.termVectors = ifs.termVectors.get();
             pf.points = ifs.points.get();
             stats.put(entry.getKey(), pf);
@@ -57,7 +56,6 @@ public class ShardFieldUsageTracker {
         final AtomicLong storedFields = new AtomicLong();
         final AtomicLong norms = new AtomicLong();
         final AtomicLong payloads = new AtomicLong();
-        final AtomicLong impacts = new AtomicLong();
         final AtomicLong termVectors = new AtomicLong();
         final AtomicLong points = new AtomicLong();
     }
@@ -73,10 +71,8 @@ public class ShardFieldUsageTracker {
             boolean storedFields;
             boolean norms;
             boolean payloads;
-            boolean impacts;
             boolean termVectors;
             boolean points;
-
         }
 
         private final Map<String, PerField> usages = new HashMap<>();
@@ -109,9 +105,6 @@ public class ShardFieldUsageTracker {
                 }
                 if (pf.payloads) {
                     fieldStats.payloads.incrementAndGet();
-                }
-                if (pf.impacts) {
-                    fieldStats.impacts.incrementAndGet();
                 }
                 if (pf.points) {
                     fieldStats.points.incrementAndGet();
@@ -165,11 +158,6 @@ public class ShardFieldUsageTracker {
         @Override
         public void onPayloadsUsed(String field) {
             getOrAdd(field).payloads = true;
-        }
-
-        @Override
-        public void onImpactsUsed(String field) {
-            getOrAdd(field).impacts = true;
         }
 
         @Override

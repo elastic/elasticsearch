@@ -101,7 +101,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         OFFSETS,
         NORMS,
         PAYLOADS,
-        IMPACTS,
         TERM_VECTORS, // possibly refine this one
         POINTS,
     }
@@ -117,7 +116,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         public static final String STORED_FIELDS = "stored_fields";
         public static final String NORMS = "norms";
         public static final String PAYLOADS = "payloads";
-        public static final String IMPACTS = "impacts";
         public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
         public static final String POINTS = "points";
 
@@ -129,7 +127,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         public long storedFields;
         public long norms;
         public long payloads;
-        public long impacts;
         public long termVectors;
         public long points;
 
@@ -146,7 +143,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             storedFields += other.storedFields;
             norms += other.norms;
             payloads += other.payloads;
-            impacts += other.impacts;
             termVectors += other.termVectors;
             points += other.points;
         }
@@ -160,7 +156,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             storedFields = in.readVLong();
             norms = in.readVLong();
             payloads = in.readVLong();
-            impacts = in.readVLong();
             termVectors = in.readVLong();
             points = in.readVLong();
         }
@@ -175,7 +170,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             out.writeVLong(storedFields);
             out.writeVLong(norms);
             out.writeVLong(payloads);
-            out.writeVLong(impacts);
             out.writeVLong(termVectors);
             out.writeVLong(points);
         }
@@ -190,7 +184,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             builder.field(STORED_FIELDS, storedFields);
             builder.field(NORMS, norms);
             builder.field(PAYLOADS, payloads);
-            builder.field(IMPACTS, impacts);
             builder.field(TERM_VECTORS, termVectors);
             builder.field(POINTS, points);
             return builder;
@@ -221,9 +214,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             }
             if (payloads > 0L) {
                 set.add(UsageContext.PAYLOADS);
-            }
-            if (impacts > 0L) {
-                set.add(UsageContext.IMPACTS);
             }
             if (termVectors > 0L) {
                 set.add(UsageContext.TERM_VECTORS);
@@ -264,10 +254,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         public long getPayloads() {
             return payloads;
-        }
-
-        public long getImpacts() {
-            return impacts;
         }
 
         public long getTermVectors() {

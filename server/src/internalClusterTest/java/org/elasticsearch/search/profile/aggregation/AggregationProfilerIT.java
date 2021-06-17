@@ -739,6 +739,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
                 assertMap(
                     debug,
                     matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
+                        .entry("built_buckets", 1)
                         .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
                 );
             }

@@ -31,6 +31,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -85,7 +86,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
-import static org.elasticsearch.xpack.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -612,8 +613,8 @@ public class RBACEngineTests extends ESTestCase {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
         Authentication authentication = mock(Authentication.class);
         when(authentication.getUser()).thenReturn(user);
-        final String patternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0,
-                randomIntBetween(2, RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.length() - 2));
+        final String patternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0,
+                randomIntBetween(2, XPackPlugin.ASYNC_RESULTS_INDEX.length() - 2));
         Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, "role")
                 .add(FieldPermissions.DEFAULT, null, IndexPrivilege.INDEX, false, patternPrefix + "*")
                 .build();
@@ -632,7 +633,7 @@ public class RBACEngineTests extends ESTestCase {
                         .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", false).map()).build()));
 
-        String matchesPatternPrefix = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX.substring(0, patternPrefix.length() + 1);
+        String matchesPatternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0, patternPrefix.length() + 1);
         response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(matchesPatternPrefix + "*")
                 .allowRestrictedIndices(false)
@@ -667,7 +668,7 @@ public class RBACEngineTests extends ESTestCase {
                         .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
                                 .put("index", true).map()).build()));
 
-        final String restrictedIndexMatchingWildcard = RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2);
+        final String restrictedIndexMatchingWildcard = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         response = hasPrivileges(RoleDescriptor.IndicesPrivileges.builder()
                 .indices(restrictedIndexMatchingWildcard + "*")
                 .allowRestrictedIndices(true)

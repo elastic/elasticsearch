@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -45,6 +46,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequest.Empty;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.saml.SamlAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -81,7 +83,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
-import org.elasticsearch.xpack.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
@@ -112,7 +114,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
-import static org.elasticsearch.xpack.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -1366,14 +1368,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonSecurityIndices() {
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
+            if (false == restrictedAutomaton.run(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
+            if (false == restrictedAutomaton.run(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
         }
@@ -1385,7 +1388,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
-            assertThat(predicate.test(mockIndexAbstraction(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 2))),
+            assertThat(predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2))),
                 Matchers.is(false));
         }
     }
@@ -1403,14 +1406,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
+        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
+            if (false == restrictedAutomaton.run(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == RestrictedIndicesNames.isRestricted(index.getName())) {
+            if (false == restrictedAutomaton.run(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
         }
@@ -1422,7 +1426,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
-            assertThat(predicate.test(mockIndexAbstraction(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + randomAlphaOfLengthBetween(0, 3))),
+            assertThat(predicate.test(mockIndexAbstraction(XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 3))),
                 Matchers.is(true));
         }
     }

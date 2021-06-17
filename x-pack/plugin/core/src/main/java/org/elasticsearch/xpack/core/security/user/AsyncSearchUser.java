@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.user;
 
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -19,7 +20,7 @@ public class AsyncSearchUser extends User {
             new String[] { "cancel_task" },
             new RoleDescriptor.IndicesPrivileges[] {
                     RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(RestrictedIndicesNames.ASYNC_SEARCH_PREFIX + "*")
+                            .indices(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
                             .privileges("all")
                             .allowRestrictedIndices(true).build(),
             },

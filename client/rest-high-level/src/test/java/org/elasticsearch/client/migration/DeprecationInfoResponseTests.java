@@ -94,7 +94,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
             list.add(new DeprecationInfoResponse.DeprecationIssue(randomFrom(WARNING, CRITICAL),
                 randomAlphaOfLength(5),
                 randomAlphaOfLength(5),
-                randomBoolean() ? randomAlphaOfLength(5) : null));
+                randomBoolean() ? randomAlphaOfLength(5) : null, randomBoolean()));
         }
         return list;
     }

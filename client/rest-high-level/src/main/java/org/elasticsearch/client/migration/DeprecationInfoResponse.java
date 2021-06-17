@@ -128,16 +128,18 @@ public class DeprecationInfoResponse {
         private static final ParseField MESSAGE = new ParseField("message");
         private static final ParseField URL = new ParseField("url");
         private static final ParseField DETAILS = new ParseField("details");
+        private static final ParseField REQUIRES_RESTART = new ParseField("requires_restart");
 
         static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
             new ConstructingObjectParser<>("deprecation_issue", true,
-                a -> new DeprecationIssue(Level.fromString((String) a[0]), (String) a[1], (String) a[2], (String) a[3]));
+                a -> new DeprecationIssue(Level.fromString((String) a[0]), (String) a[1], (String) a[2], (String) a[3], (boolean) a[4]));
 
         static {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), LEVEL);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), MESSAGE);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), URL);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DETAILS);
+            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), REQUIRES_RESTART);
         }
 
         public enum Level {
@@ -159,12 +161,14 @@ public class DeprecationInfoResponse {
         private final String message;
         private final String url;
         private final String details;
+        private final boolean requiresRestart;
 
-        public DeprecationIssue(Level level, String message, String url, @Nullable String details) {
+        public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean requiresRestart) {
             this.level = level;
             this.message = message;
             this.url = url;
             this.details = details;
+            this.requiresRestart = requiresRestart;
         }
 
         public Level getLevel() {
@@ -183,6 +187,10 @@ public class DeprecationInfoResponse {
             return details;
         }
 
+        public boolean isRequiresRestart() {
+            return requiresRestart;
+        }
+
         @Override
         public boolean equals(Object o) {
             if (this == o) {
@@ -195,12 +203,13 @@ public class DeprecationInfoResponse {
             return Objects.equals(level, that.level) &&
                 Objects.equals(message, that.message) &&
                 Objects.equals(url, that.url) &&
-                Objects.equals(details, that.details);
+                Objects.equals(details, that.details) &&
+                Objects.equals(requiresRestart, that.requiresRestart);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message, url, details);
+            return Objects.hash(level, message, url, details, requiresRestart);
         }
     }
 }

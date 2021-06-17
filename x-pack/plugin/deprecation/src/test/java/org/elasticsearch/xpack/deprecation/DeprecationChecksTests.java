@@ -35,6 +35,6 @@ public class DeprecationChecksTests extends ESTestCase {
     private static DeprecationIssue createRandomDeprecationIssue() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(DeprecationIssue.Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details);
+            randomAlphaOfLength(10), details, randomBoolean());
     }
 }

@@ -28,7 +28,7 @@ public class DeprecationIssueTests extends ESTestCase {
     static DeprecationIssue createTestInstance() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details);
+            randomAlphaOfLength(10), details, randomBoolean());
     }
 
     @Before
@@ -37,7 +37,8 @@ public class DeprecationIssueTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DeprecationIssue other = new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails());
+        DeprecationIssue other =
+            new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(), issue.isRequiresRestart());
         assertThat(issue, equalTo(other));
         assertThat(other, equalTo(issue));
         assertThat(issue.hashCode(), equalTo(other.hashCode()));
@@ -62,7 +63,8 @@ public class DeprecationIssueTests extends ESTestCase {
             assertTrue(toXContentMap.containsKey("details"));
         }
         String details = (String) toXContentMap.get("details");
-        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details);
+        boolean requiresRestart = (boolean) toXContentMap.get("requires_restart");
+        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, requiresRestart);
         assertThat(issue, equalTo(other));
     }
 }

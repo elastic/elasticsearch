@@ -30,7 +30,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
+                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false)),
                 false)),
             components,
             future
@@ -47,7 +47,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
+                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, false)),
                 true)),
             components,
             future

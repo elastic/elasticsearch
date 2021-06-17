@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
+
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;

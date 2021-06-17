@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.vectortile.rest;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;

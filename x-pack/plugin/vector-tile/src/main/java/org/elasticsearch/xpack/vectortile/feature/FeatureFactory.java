@@ -14,6 +14,7 @@ import com.wdtinc.mapbox_vector_tile.adapt.jts.JtsAdapter;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.TileGeomResult;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerParams;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
+
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;

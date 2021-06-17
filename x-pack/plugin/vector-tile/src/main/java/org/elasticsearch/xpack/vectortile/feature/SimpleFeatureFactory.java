@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.vectortile.feature;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmd;
 import com.wdtinc.mapbox_vector_tile.encoding.GeomCmdHdr;
+
 import org.apache.lucene.util.BitUtil;
 import org.elasticsearch.geometry.Rectangle;
 

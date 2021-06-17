@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
+
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;

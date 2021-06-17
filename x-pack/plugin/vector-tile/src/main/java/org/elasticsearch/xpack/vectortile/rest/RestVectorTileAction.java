@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.vectortile.rest;
 import com.wdtinc.mapbox_vector_tile.VectorTile;
 import com.wdtinc.mapbox_vector_tile.adapt.jts.IUserDataConverter;
 import com.wdtinc.mapbox_vector_tile.build.MvtLayerProps;
+
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchResponseSections;

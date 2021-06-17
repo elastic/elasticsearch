@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -38,6 +38,9 @@ import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
+import org.elasticsearch.xpack.cluster.action.TransportMigrateToDataTiersAction;
+import org.elasticsearch.xpack.cluster.action.rest.RestMigrateToDataTiersAction;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -253,8 +256,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             IndexScopedSettings indexScopedSettings, SettingsFilter settingsFilter, IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<DiscoveryNodes> nodesInCluster) {
         List<RestHandler> handlers = new ArrayList<>();
-        handlers.addAll(Arrays.asList(
 
+        handlers.addAll(Arrays.asList(
             // add ILM rest handlers
             new RestPutLifecycleAction(),
             new RestGetLifecycleAction(),
@@ -266,6 +269,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             new RestStopAction(),
             new RestStartILMAction(),
             new RestGetStatusAction(),
+            new RestMigrateToDataTiersAction(),
 
             // add SLM rest headers
             new RestPutSnapshotLifecycleAction(),
@@ -287,11 +291,13 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         var ilmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.INDEX_LIFECYCLE, IndexLifecycleInfoTransportAction.class);
         var slmUsageAction = new ActionHandler<>(XPackUsageFeatureAction.SNAPSHOT_LIFECYCLE, SLMUsageTransportAction.class);
         var slmInfoAction = new ActionHandler<>(XPackInfoFeatureAction.SNAPSHOT_LIFECYCLE, SLMInfoTransportAction.class);
+        var migrateToDataTiersAction = new ActionHandler<>(MigrateToDataTiersAction.INSTANCE, TransportMigrateToDataTiersAction.class);
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(ilmUsageAction);
         actions.add(ilmInfoAction);
         actions.add(slmUsageAction);
         actions.add(slmInfoAction);
+        actions.add(migrateToDataTiersAction);
         actions.addAll(Arrays.asList(
             // add ILM actions
             new ActionHandler<>(PutLifecycleAction.INSTANCE, TransportPutLifecycleAction.class),

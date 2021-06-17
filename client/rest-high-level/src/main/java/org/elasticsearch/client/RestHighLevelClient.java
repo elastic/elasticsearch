@@ -2043,7 +2043,7 @@ public class RestHighLevelClient implements Closeable {
         versionCheck.addListener(new ActionListener<Optional<String>>() {
             @Override
             public void onResponse(Optional<String> validation) {
-                if (validation.isEmpty()) {
+                if (validation.isPresent() == false) {
                     // Send the request and propagate cancellation
                     Cancellable call = client.performRequestAsync(request, listener);
                     cancellationForwarder.whenComplete((r, t) ->
@@ -2078,7 +2078,7 @@ public class RestHighLevelClient implements Closeable {
             throw new ElasticsearchException(e);
         }
 
-        if (versionValidation.isEmpty()) {
+        if (versionValidation.isPresent() == false) {
             return client.performRequest(request);
         } else {
             throw new ElasticsearchException(versionValidation.get());

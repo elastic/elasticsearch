@@ -25,6 +25,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
@@ -113,7 +114,10 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             Terms terms = super.terms(field);
             if (terms != null) {
                 notifier.onTermsUsed(field);
-                terms = new FieldUsageTrackingTerms(field, terms);
+                // we can't wrap CompletionTerms, as CompletionWeight does an instanceof check...
+                if (terms instanceof CompletionTerms == false) {
+                    terms = new FieldUsageTrackingTerms(field, terms);
+                }
             }
             return terms;
         }

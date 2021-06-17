@@ -23,30 +23,30 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
 
     private final SingleNodeShutdownMetadata.Status status;
     private final long shardsRemaining;
-    @Nullable private final String reason;
+    @Nullable private final String explanation;
 
     public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining) {
         this(status, shardsRemaining, null);
     }
 
-    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining, @Nullable String reason) {
+    public ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status status, long shardsRemaining, @Nullable String explanation) {
         this.status = Objects.requireNonNull(status, "status must not be null");
         this.shardsRemaining = shardsRemaining;
-        this.reason = reason;
+        this.explanation = explanation;
     }
 
     public ShutdownShardMigrationStatus(StreamInput in) throws IOException {
         this.status = in.readEnum(SingleNodeShutdownMetadata.Status.class);
         this.shardsRemaining = in.readLong();
-        this.reason = in.readOptionalString();
+        this.explanation = in.readOptionalString();
     }
 
     public long getShardsRemaining() {
         return shardsRemaining;
     }
 
-    public String getReason() {
-        return reason;
+    public String getExplanation() {
+        return explanation;
     }
 
     public SingleNodeShutdownMetadata.Status getStatus() {
@@ -58,8 +58,8 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         builder.startObject();
         builder.field("status", status);
         builder.field("shard_migrations_remaining", shardsRemaining);
-        if (Objects.nonNull(reason)) {
-            builder.field("reason", reason);
+        if (Objects.nonNull(explanation)) {
+            builder.field("explanation", explanation);
         }
         builder.endObject();
         return builder;
@@ -69,7 +69,7 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(status);
         out.writeLong(shardsRemaining);
-        out.writeOptionalString(reason);
+        out.writeOptionalString(explanation);
     }
 
     @Override
@@ -77,12 +77,12 @@ public class ShutdownShardMigrationStatus implements Writeable, ToXContentObject
         if (this == o) return true;
         if ((o instanceof ShutdownShardMigrationStatus) == false) return false;
         ShutdownShardMigrationStatus that = (ShutdownShardMigrationStatus) o;
-        return shardsRemaining == that.shardsRemaining && status == that.status && Objects.equals(reason, that.reason);
+        return shardsRemaining == that.shardsRemaining && status == that.status && Objects.equals(explanation, that.explanation);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(status, shardsRemaining, reason);
+        return Objects.hash(status, shardsRemaining, explanation);
     }
 
     @Override

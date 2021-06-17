@@ -158,7 +158,7 @@ public class NodeShutdownIT extends ESRestTestCase {
         Map<String, Object> status = entityAsMap(statusResponse);
         assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
         assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
-        assertThat(ObjectPath.eval("nodes.0.shard_migration.reason", status), nullValue());
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
@@ -209,7 +209,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("STALLED"));
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
             assertThat(
-                ObjectPath.eval("nodes.0.shard_migration.reason", status),
+                ObjectPath.eval("nodes.0.shard_migration.explanation", status),
                 allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
             );
         }
@@ -225,7 +225,7 @@ public class NodeShutdownIT extends ESRestTestCase {
             Map<String, Object> status = entityAsMap(statusResponse);
             assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
-                        assertThat(ObjectPath.eval("nodes.0.shard_migration.reason", status), nullValue());
+                        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
         });
     }
 

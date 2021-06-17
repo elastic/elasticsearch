@@ -384,11 +384,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         ShutdownShardMigrationStatus status,
         SingleNodeShutdownMetadata.Status expectedStatus,
         long expectedShardsRemaining,
-        Matcher<? super String> reasonMatcher
+        Matcher<? super String> explanationMatcher
     ) {
         assertThat(status.getStatus(), equalTo(expectedStatus));
         assertThat(status.getShardsRemaining(), equalTo(expectedShardsRemaining));
-        assertThat(status.getReason(), reasonMatcher);
+        assertThat(status.getExplanation(), explanationMatcher);
     }
 
     private ClusterState createTestClusterState(

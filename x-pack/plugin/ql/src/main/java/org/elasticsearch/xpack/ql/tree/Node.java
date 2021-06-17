@@ -162,16 +162,6 @@ public abstract class Node<T extends Node<T>> {
         }
     }
 
-    public <R> Optional<R> collectFirstDown(Class<R> typeToken) {
-        return collectFirstDown(n -> {
-            if (typeToken.isInstance(n)) {
-                return Optional.of(typeToken.cast(n));
-            } else {
-                return Optional.empty();
-            }
-        });
-    }
-
     @SuppressWarnings("unchecked")
     public <R> Optional<R> collectFirstDown(Function<T, Optional<R>> fn) {
         Optional<R> result = fn.apply((T) this);

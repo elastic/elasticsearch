@@ -1154,8 +1154,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 .get();
 
             // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-            boolean isNonSkippedLocalRelation = relation instanceof LocalRelation &&
-                ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
+            boolean isNonSkippedLocalRelation = relation instanceof LocalRelation
+                && ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
 
             Optional<LogicalPlan> optimized = plan.collectFirstDown(p -> {
                 Optional<List<Object>> foldedValues = Optional.empty();
@@ -1166,9 +1166,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Aggregate a = (Aggregate) p;
                     List<Object> folded = extractConstants(a.aggregates());
 
-                    boolean onlyConstantAggregations = relation instanceof EsRelation &&
-                        folded.size() == a.aggregates().size() &&
-                        a.groupings().isEmpty();
+                    boolean onlyConstantAggregations = relation instanceof EsRelation
+                        && folded.size() == a.aggregates().size()
+                        && a.groupings().isEmpty();
 
                     if (isNonSkippedLocalRelation || onlyConstantAggregations) {
                         foldedValues = Optional.of(folded);

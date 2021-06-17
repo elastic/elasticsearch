@@ -1148,21 +1148,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            List<LogicalPlan> relations = plan.collect(p ->
-                p instanceof LocalRelation || p instanceof EsRelation);
+            List<LogicalPlan> leaves = plan.collectLeaves();
 
             List<LogicalPlan> projectOrAggregates = plan.collect(p ->
                 p instanceof Project || p instanceof Aggregate);
 
-            if (relations.size() == 1 && projectOrAggregates.size() == 1) {
-                LogicalPlan relation = relations.get(0);
+            if (leaves.size() == 1 && projectOrAggregates.size() == 1) {
+                LogicalPlan leaf = leaves.get(0);
                 LogicalPlan projectOrAggregate = projectOrAggregates.get(0);
 
                 List<Object> foldedValues = null;
 
                 // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-                boolean isNonSkippedLocalRelation = relation instanceof LocalRelation
-                    && ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
+                boolean isNonSkippedLocalRelation = leaf instanceof LocalRelation
+                    && ((LocalRelation) leaf).executable() instanceof EmptyExecutable == false;
 
                 if (projectOrAggregate instanceof Project && isNonSkippedLocalRelation) {
                     foldedValues = extractConstants(((Project) projectOrAggregate).projections());
@@ -1170,7 +1169,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Aggregate a = (Aggregate) projectOrAggregate;
                     List<Object> folded = extractConstants(a.aggregates());
 
-                    boolean onlyConstantAggregations = relation instanceof EsRelation
+                    boolean onlyConstantAggregations = leaf instanceof EsRelation
                         && folded.size() == a.aggregates().size()
                         && a.groupings().isEmpty();
 

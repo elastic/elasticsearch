@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.sql.parser;
 
 import org.antlr.v4.runtime.Token;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.index.IndexResolver;

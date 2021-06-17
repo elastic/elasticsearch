@@ -481,16 +481,17 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .endObject()));
         indexRandom(true, requests);
 
-        Exception e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
-            matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder())).get());
-        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
-            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
-
-        e = expectThrows(Exception.class, () -> client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
+        SearchResponse resp1 = client().prepareSearch("articles").setQuery(nestedQuery("comments.messages",
             matchQuery("comments.messages.message", "fox"), ScoreMode.Avg).innerHit(new InnerHitBuilder()
-            .setFetchSourceContext(new FetchSourceContext(true)))).get());
-        assertEquals("Cannot execute inner hits. One or more parent object fields of nested field [comments.messages] are " +
-            "not nested. All parent fields need to be nested fields too", e.getCause().getCause().getMessage());
+            .setFetchSourceContext(new FetchSourceContext(true)))).get();
+        assertNoFailures(resp1);
+        assertHitCount(resp1, 1);
+        SearchHit parent = resp1.getHits().getAt(0);
+        assertThat(parent.getId(), equalTo("1"));
+        SearchHits inner = parent.getInnerHits().get("comments.messages");
+        assertThat(inner.getTotalHits().value, equalTo(2L));
+        assertThat(inner.getAt(0).getSourceAsString(), equalTo("{\"message\":\"no fox\"}"));
+        assertThat(inner.getAt(1).getSourceAsString(), equalTo("{\"message\":\"fox eat quick\"}"));
 
         SearchResponse response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox"), ScoreMode.Avg)

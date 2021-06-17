@@ -30,9 +30,7 @@ public class AggregationProfileBreakdown extends AbstractProfileBreakdown<Aggreg
      */
     public void addDebugInfo(String key, Object value) {
         Object old = extra.put(key, value);
-        if (old != null) {
-            throw new IllegalArgumentException("debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]");
-        }
+        assert old == null : "debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]";
     }
 
     @Override

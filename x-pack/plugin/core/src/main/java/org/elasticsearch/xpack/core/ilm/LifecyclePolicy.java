@@ -10,8 +10,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -99,7 +99,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         type = in.readNamedWriteable(LifecycleType.class);
         name = in.readString();
         phases = Collections.unmodifiableMap(in.readMap(StreamInput::readString, Phase::new));
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
             this.metadata = in.readMap();
         } else {
             this.metadata = null;
@@ -122,6 +122,9 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         this.phases = phases;
         this.type = type;
         this.metadata = metadata;
+    }
+
+    public void validate() {
         this.type.validate(phases.values());
     }
 
@@ -134,7 +137,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
         out.writeNamedWriteable(type);
         out.writeString(name);
         out.writeMap(phases, StreamOutput::writeString, (o, val) -> val.writeTo(o));
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeMap(this.metadata);
         }
     }

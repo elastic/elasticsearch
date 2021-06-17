@@ -106,6 +106,11 @@ public class UpgradeClusterClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         return true;
     }
 
+    @Override
+    protected boolean preserveSearchableSnapshotsIndicesUponCompletion() {
+        return true;
+    }
+
     public UpgradeClusterClientYamlTestSuiteIT(ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
     }

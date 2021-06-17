@@ -10,6 +10,7 @@ package org.elasticsearch.common;
 
 
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.CharArrays;
 
 import java.util.Arrays;
 import java.util.Base64;

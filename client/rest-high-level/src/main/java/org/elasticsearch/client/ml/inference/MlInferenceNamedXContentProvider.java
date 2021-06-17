@@ -11,9 +11,11 @@ import org.elasticsearch.client.ml.inference.preprocessing.CustomWordEmbedding;
 import org.elasticsearch.client.ml.inference.preprocessing.Multi;
 import org.elasticsearch.client.ml.inference.preprocessing.NGram;
 import org.elasticsearch.client.ml.inference.trainedmodel.ClassificationConfig;
+import org.elasticsearch.client.ml.inference.trainedmodel.IndexLocation;
 import org.elasticsearch.client.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModel;
+import org.elasticsearch.client.ml.inference.trainedmodel.TrainedModelLocation;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Ensemble;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.Exponent;
 import org.elasticsearch.client.ml.inference.trainedmodel.ensemble.LogisticRegression;
@@ -26,7 +28,7 @@ import org.elasticsearch.client.ml.inference.preprocessing.FrequencyEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.client.ml.inference.preprocessing.TargetMeanEncoding;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.spi.NamedXContentProvider;
 
@@ -81,6 +83,11 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedXContent.add(new NamedXContentRegistry.Entry(OutputAggregator.class,
             new ParseField(Exponent.NAME),
             Exponent::fromXContent));
+
+        // location
+        namedXContent.add(new NamedXContentRegistry.Entry(TrainedModelLocation.class,
+            new ParseField(IndexLocation.INDEX),
+            IndexLocation::fromXContent));
 
         return namedXContent;
     }

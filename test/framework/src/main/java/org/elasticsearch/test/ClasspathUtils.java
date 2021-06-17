@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 
 import java.net.URI;
 import java.net.URL;

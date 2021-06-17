@@ -144,8 +144,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return new MultiFieldParserContext(in);
             }
 
-            ParserContext createDynamicTemplateFieldContext(ParserContext in) {
-                return new DynamicTemplateParserContext(in);
+            ParserContext createDynamicTemplateFieldContext() {
+                return new DynamicTemplateParserContext(this);
             }
 
             private static class MultiFieldParserContext extends ParserContext {

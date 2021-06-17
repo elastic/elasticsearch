@@ -10,7 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -193,7 +193,7 @@ final class DynamicFieldsBuilder {
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
         if (dynamicTemplate.isRuntimeMapping()) {
-            Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
+            Mapper.TypeParser.ParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
             RuntimeField.Parser parser = parserContext.runtimeFieldParser(mappingType);
             String fullName = context.path().pathAsText(name);
             if (parser == null) {
@@ -225,8 +225,7 @@ final class DynamicFieldsBuilder {
                                                Map<String, Object> mapping,
                                                DateFormatter dateFormatter,
                                                ParseContext context) {
-        Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
-        parserContext = parserContext.createDynamicTemplateFieldContext(parserContext);
+        Mapper.TypeParser.ParserContext parserContext = context.dynamicTemplateParserContext(dateFormatter);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");

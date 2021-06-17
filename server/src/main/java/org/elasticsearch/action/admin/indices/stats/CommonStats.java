@@ -226,7 +226,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
                         bulk = indexShard.bulkStats();
                         break;
                     case FieldUsage:
-                        fieldUsageStats = indexShard.fieldUsageTracker().stats();
+                        fieldUsageStats = indexShard.fieldUsageStats(flags.fieldUsageFields());
                         break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);

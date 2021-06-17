@@ -202,6 +202,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.fieldDataFields();
     }
 
+    public IndicesStatsRequest fieldUsageFields(String... fieldUsageFields) {
+        flags.fieldUsageFields(fieldUsageFields);
+        return this;
+    }
+
+    public String[] fieldUsageFields() {
+        return flags.fieldUsageFields();
+    }
+
     public IndicesStatsRequest completion(boolean completion) {
         flags.set(Flag.Completion, completion);
         return this;

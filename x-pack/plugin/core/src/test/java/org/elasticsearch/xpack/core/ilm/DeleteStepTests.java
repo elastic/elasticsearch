@@ -22,7 +22,7 @@ import org.mockito.Mockito;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.is;
 
-public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteStep> {
+public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
     @Override
     public DeleteStep createRandomInstance() {
@@ -56,8 +56,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
         return new DeleteStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }

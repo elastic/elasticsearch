@@ -31,7 +31,7 @@ import java.util.Locale;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.mockito.Mockito.verifyZeroInteractions;
 
-public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<RolloverStep> {
+public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
 
     @Override
     public RolloverStep createRandomInstance() {
@@ -71,11 +71,6 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .putAlias(AliasMetadata.builder(alias))
             .settings(settings(Version.CURRENT).put(RolloverAction.LIFECYCLE_ROLLOVER_ALIAS, alias))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
-    }
-
-    @Override
-    protected IndexMetadata getIndexMetadata() {
-        return getIndexMetadata(randomAlphaOfLength(5));
     }
 
     private static void assertRolloverIndexRequest(RolloverRequest request, String rolloverTarget) {

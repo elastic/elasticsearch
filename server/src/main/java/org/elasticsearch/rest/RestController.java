@@ -253,7 +253,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             if (handler.allowsUnsafeBuffers() == false) {
                 request.ensureSafeBuffers();
             }
-
+            //TODO why we are using client.threadPool().getThreadContext() ?
             final ThreadContext threadContext = client.threadPool().getThreadContext();
             if (handler.allowSystemIndexAccessByDefault() == false) {
                 // The ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER indicates that the request is coming from an Elastic product and
@@ -352,6 +352,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    //TODO  not passing thread context?
                     dispatchRequest(request, channel, handler);
                     return;
                 }

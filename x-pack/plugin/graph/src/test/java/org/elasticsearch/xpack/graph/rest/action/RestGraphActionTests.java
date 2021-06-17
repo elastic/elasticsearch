@@ -17,6 +17,7 @@ import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;
+import java.util.Map;
 
 public class RestGraphActionTests extends RestActionTestCase {
 
@@ -26,25 +27,37 @@ public class RestGraphActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withMethod(RestRequest.Method.GET)
-            .withPath("/some_index/some_type/_graph/explore")
-            .withContent(new BytesArray("{}"), XContentType.JSON)
-            .build();
-        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
-        verifyingClient.setExecuteVerifier(
-            (arg1, arg2) -> new GraphExploreResponse(
-                0,
-                false,
-                new ShardOperationFailedException[0],
-                new HashMap<>(),
-                new HashMap<>(),
-                false
-            )
-        );
+        for(Map.Entry<RestRequest.Method,String> methodAndPath :
+            org.elasticsearch.core.Map.of(
+                RestRequest.Method.GET, "/some_index/some_type/_graph/explore",
+                RestRequest.Method.POST, "/some_index/some_type/_graph/explore",
+                RestRequest.Method.GET, "/some_index/some_type/_xpack/graph/_explore",
+                RestRequest.Method.POST, "/some_index/some_type/_xpack/graph/_explore"
+            ).entrySet()) {
 
-        dispatchRequest(request);
-        assertWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
+                .withMethod(methodAndPath.getKey())
+                .withPath(methodAndPath.getValue())
+                .withContent(new BytesArray("{}"), XContentType.JSON)
+                .build();
+            // We're not actually testing anything to do with the client,
+            // but need to set this so it doesn't fail the test for being unset.
+            verifyingClient.setExecuteVerifier(
+                (arg1, arg2) -> new GraphExploreResponse(
+                    0,
+                    false,
+                    new ShardOperationFailedException[0],
+                    new HashMap<>(),
+                    new HashMap<>(),
+                    false
+                )
+            );
+
+            dispatchRequest(request);
+            assertWarnings(RestGraphAction.TYPES_DEPRECATION_MESSAGE);
+
+        }
+
     }
 
 }

@@ -67,6 +67,7 @@ import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
 import org.elasticsearch.client.tasks.TaskSubmissionResponse;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -2025,7 +2026,7 @@ public class RestHighLevelClient implements Closeable {
             @Override
             public void cancel() {
                 // Raise the flag by completing the future
-                cancellationForwarder.cancel(false);
+                FutureUtils.cancel(cancellationForwarder);
             }
 
             @Override

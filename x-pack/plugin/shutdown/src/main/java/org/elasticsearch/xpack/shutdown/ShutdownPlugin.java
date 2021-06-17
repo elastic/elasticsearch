@@ -35,7 +35,7 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
         false,
         enabled -> {
             if (enabled != null && enabled && Build.CURRENT.isSnapshot() == false) {
-                throw new IllegalArgumentException("shutdown plugin may not be enabled on a non-shutdown build");
+                throw new IllegalArgumentException("shutdown plugin may not be enabled on a non-snapshot build");
             }
         },
         Setting.Property.NodeScope

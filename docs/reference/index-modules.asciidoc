@@ -122,7 +122,7 @@ to incomplete history on the leader. Defaults to `12h`.
 ====
 WARNING: Expert users only. This setting enables some very expensive processing
 at shard startup and is only ever useful while diagnosing a problem in your
-cluster. If you do use it you should do so only temporarily and must remove it
+cluster. If you do use it, you should do so only temporarily and remove it
 once it is no longer needed.
 
 {es} automatically performs integrity checks on the contents of shards at

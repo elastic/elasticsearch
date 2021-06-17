@@ -13,8 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 
-import static org.mockito.Mockito.mock;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class LogstashFeatureSetTests extends ESTestCase {

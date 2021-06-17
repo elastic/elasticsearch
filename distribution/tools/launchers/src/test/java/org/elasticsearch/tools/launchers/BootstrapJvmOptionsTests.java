@@ -8,18 +8,18 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.launchers.BootstrapJvmOptions.PluginInfo;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
+
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assert.assertThat;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.Properties;
-
-import org.elasticsearch.tools.launchers.BootstrapJvmOptions.PluginInfo;
 
 public class BootstrapJvmOptionsTests extends LaunchersTestCase {
 

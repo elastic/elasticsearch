@@ -9,7 +9,6 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.client.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.client.transform.transforms.pivot.PivotConfig;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -24,7 +23,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
@@ -88,7 +90,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
             SearchHit searchHit = destIterator.next();
             Map<String, Object> source = searchHit.getSourceAsMap();
 
-            Long transformBucketKey = ((Integer) XContentMapValues.extractValue("metric", source)).longValue();
+            Long transformBucketKey = ((Integer) extractValue("metric", source)).longValue();
 
             // aggs return buckets with 0 doc_count while composite aggs skip over them
             while (bucket.getDocCount() == 0L) {
@@ -105,11 +107,26 @@ public class HistogramGroupByIT extends ContinuousTestCase {
             );
             assertThat(
                 "Doc count did not match, source: " + source + ", expected: " + bucket.getDocCount() + ", iteration: " + iteration,
-                ((Integer) XContentMapValues.extractValue("count", source)).longValue(),
+                ((Integer) extractValue("count", source)).longValue(),
                 equalTo(bucket.getDocCount())
             );
 
-            // TODO: gh#63801 transform is not optimized for histogram it, it should only rewrite documents that require it
+            // test optimization, transform should only rewrite documents that require it
+            // we artificially created a trend, that's why smaller buckets should not get rewritten
+            if (transformBucketKey < iteration * METRIC_TREND) {
+                assertThat(
+                    "Ingest run: "
+                        + extractValue(INGEST_RUN_FIELD, source)
+                        + " did not match max run: "
+                        + extractValue(MAX_RUN_FIELD, source)
+                        + ", iteration: "
+                        + iteration
+                        + " full source: "
+                        + source,
+                    (Integer) extractValue(INGEST_RUN_FIELD, source) - (Integer) extractValue(MAX_RUN_FIELD, source),
+                    is(lessThanOrEqualTo(1))
+                );
+            }
         }
 
         assertFalse(sourceIterator.hasNext());

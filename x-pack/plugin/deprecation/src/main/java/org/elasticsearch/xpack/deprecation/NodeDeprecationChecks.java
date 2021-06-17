@@ -27,12 +27,13 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -41,6 +42,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 
 class NodeDeprecationChecks {
 
@@ -173,6 +176,37 @@ class NodeDeprecationChecks {
             details
         );
 
+    }
+
+    static DeprecationIssue checkReservedPrefixedRealmNames(final Settings settings, final PluginsAndModules pluginsAndModules,
+                                                            final ClusterState clusterState) {
+        final Map<RealmConfig.RealmIdentifier, Settings> realmSettings = RealmSettings.getRealmSettings(settings);
+        if (realmSettings.isEmpty()) {
+            return null;
+        }
+        List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
+        for (RealmConfig.RealmIdentifier realmIdentifier: realmSettings.keySet()) {
+            if (realmIdentifier.getName().startsWith(RESERVED_REALM_NAME_PREFIX)) {
+                reservedPrefixedRealmIdentifiers.add(realmIdentifier);
+            }
+        }
+        if (reservedPrefixedRealmIdentifiers.isEmpty()) {
+            return null;
+        } else {
+            return new DeprecationIssue(
+                DeprecationIssue.Level.CRITICAL,
+                "Realm names cannot start with [" + RESERVED_REALM_NAME_PREFIX + "] in a future major release.",
+                "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/deprecated-7.14.html#reserved-prefixed-realm-names",
+                String.format(Locale.ROOT, "Found realm " + (reservedPrefixedRealmIdentifiers.size() == 1 ? "name" : "names")
+                        + " with reserved prefix [%s]: [%s]. "
+                        + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+                    RESERVED_REALM_NAME_PREFIX,
+                    reservedPrefixedRealmIdentifiers.stream()
+                        .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
+                        .sorted()
+                        .collect(Collectors.joining("; ")))
+            );
+        }
     }
 
     static DeprecationIssue checkThreadPoolListenerQueueSize(final Settings settings) {
@@ -468,5 +502,36 @@ class NodeDeprecationChecks {
 
 
         return null;
+    }
+
+    static DeprecationIssue checkMonitoringExporterPassword(
+        final Settings settings,
+        final PluginsAndModules pluginsAndModules,
+        ClusterState cs
+    ) {
+        // Mimic the HttpExporter#AUTH_PASSWORD_SETTING setting here to avoid a depedency on monitoring module:
+        // (just having the setting prefix and suffic here is sufficient to check on whether this setting is used)
+        final Setting.AffixSetting<String> AUTH_PASSWORD_SETTING =
+            Setting.affixKeySetting("xpack.monitoring.exporters.","auth.password", s -> Setting.simpleString(s));
+        List<Setting<?>> passwords = AUTH_PASSWORD_SETTING.getAllConcreteSettings(settings)
+            .sorted(Comparator.comparing(Setting::getKey)).collect(Collectors.toList());
+
+        if (passwords.isEmpty()) {
+            return null;
+        }
+
+        final String passwordSettings = passwords.stream().map(Setting::getKey).collect(Collectors.joining(","));
+        final String message = String.format(
+            Locale.ROOT,
+            "non-secure passwords for monitoring exporters [%s] are deprecated and will be removed in the next major version",
+            passwordSettings
+        );
+        final String details = String.format(
+            Locale.ROOT,
+            "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+            passwordSettings
+        );
+        final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
+        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
     }
 }

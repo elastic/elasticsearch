@@ -13,8 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -59,6 +57,7 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkMissingRealmOrders,
                     NodeDeprecationChecks::checkUniqueRealmOrders,
                     NodeDeprecationChecks::checkImplicitlyDisabledBasicRealms,
+                    NodeDeprecationChecks::checkReservedPrefixedRealmNames,
                     (settings, pluginsAndModules, cs) -> NodeDeprecationChecks.checkThreadPoolListenerQueueSize(settings),
                     (settings, pluginsAndModules, cs) -> NodeDeprecationChecks.checkThreadPoolListenerSize(settings),
                     NodeDeprecationChecks::checkClusterRemoteConnectSetting,
@@ -88,7 +87,8 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkDataPathsList,
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
                     NodeDeprecationChecks::checkSharedDataPathSetting,
-                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting
+                    NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
+                    NodeDeprecationChecks::checkMonitoringExporterPassword
                 )
             ).collect(Collectors.toList());
         }

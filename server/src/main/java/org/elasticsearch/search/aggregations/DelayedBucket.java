@@ -13,7 +13,7 @@ import java.util.function.BiFunction;
 
 /**
  * A wrapper around reducing buckets with the same key that can delay that reduction
- * as long as possible. Its stateful and not even close to thread safe.
+ * as long as possible. It's stateful and not even close to thread safe.
  */
 public final class DelayedBucket<B extends InternalMultiBucketAggregation.InternalBucket> {
     private final BiFunction<List<B>, InternalAggregation.ReduceContext, B> reduce;

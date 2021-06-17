@@ -149,13 +149,13 @@ public abstract class AbstractInternalTerms<
 
     /**
      * Reduce the buckets of sub-aggregations.
-     * @param sync Handle the reduce buckets. Returns false if we should stop iterating the buckets, true if we should continue.
+     * @param sink Handle the reduced buckets. Returns false if we should stop iterating the buckets, true if we should continue.
      * @return the order we used to reduce the buckets
      */
     private BucketOrder reduceBuckets(
         List<InternalAggregation> aggregations,
         InternalAggregation.ReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sync
+        Function<DelayedBucket<B>, Boolean> sink
     ) {
         /*
          * Buckets returned by a partial reduce or a shard response are sorted by key since {@link Version#V_7_10_0}.
@@ -167,9 +167,9 @@ public abstract class AbstractInternalTerms<
         if (isKeyOrder(thisReduceOrder)) {
             // extract the primary sort in case this is a compound order.
             thisReduceOrder = InternalOrder.key(isKeyAsc(thisReduceOrder));
-            reduceMergeSort(aggregations, thisReduceOrder, reduceContext, sync);
+            reduceMergeSort(aggregations, thisReduceOrder, reduceContext, sink);
         } else {
-            reduceLegacy(aggregations, reduceContext, sync);
+            reduceLegacy(aggregations, reduceContext, sink);
         }
         return thisReduceOrder;
     }
@@ -178,7 +178,7 @@ public abstract class AbstractInternalTerms<
         List<InternalAggregation> aggregations,
         BucketOrder thisReduceOrder,
         InternalAggregation.ReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sync
+        Function<DelayedBucket<B>, Boolean> sink
     ) {
         assert isKeyOrder(thisReduceOrder);
         final Comparator<Bucket> cmp = thisReduceOrder.comparator();
@@ -203,7 +203,7 @@ public abstract class AbstractInternalTerms<
             assert lastBucket == null || cmp.compare(top.current(), lastBucket) >= 0;
             if (lastBucket != null && cmp.compare(top.current(), lastBucket) != 0) {
                 // the key changed so bundle up the last key's worth of buckets
-                boolean shouldContinue = sync.apply(
+                boolean shouldContinue = sink.apply(
                     new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
                 );
                 if (false == shouldContinue) {
@@ -228,14 +228,14 @@ public abstract class AbstractInternalTerms<
         }
 
         if (sameTermBuckets.isEmpty() == false) {
-            sync.apply(new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
+            sink.apply(new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets));
         }
     }
 
     private void reduceLegacy(
         List<InternalAggregation> aggregations,
         InternalAggregation.ReduceContext reduceContext,
-        Function<DelayedBucket<B>, Boolean> sync
+        Function<DelayedBucket<B>, Boolean> sink
     ) {
         Map<Object, List<B>> bucketMap = new HashMap<>();
         for (InternalAggregation aggregation : aggregations) {
@@ -248,7 +248,7 @@ public abstract class AbstractInternalTerms<
             }
         }
         for (List<B> sameTermBuckets : bucketMap.values()) {
-            boolean shouldContinue = sync.apply(
+            boolean shouldContinue = sink.apply(
                 new DelayedBucket<B>(AbstractInternalTerms.this::reduceBucket, reduceContext, sameTermBuckets)
             );
             if (false == shouldContinue) {

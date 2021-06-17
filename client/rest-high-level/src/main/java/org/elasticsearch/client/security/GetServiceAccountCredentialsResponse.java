@@ -35,7 +35,8 @@ public final class GetServiceAccountCredentialsResponse {
         String principal, String nodeName, List<ServiceTokenInfo> serviceTokenInfos) {
         this.principal = Objects.requireNonNull(principal, "principal is required");
         this.nodeName = Objects.requireNonNull(nodeName, "nodeName is required");
-        this.serviceTokenInfos = List.copyOf(Objects.requireNonNull(serviceTokenInfos, "service token infos are required)"));
+        this.serviceTokenInfos = org.elasticsearch.core.List.copyOf(
+            Objects.requireNonNull(serviceTokenInfos, "service token infos are required)"));
     }
 
     public String getPrincipal() {

@@ -72,7 +72,7 @@ public class AuthenticateResponseTests extends ESTestCase {
         final Map<String, Object> tokenInfo;
         if ("service_account".equals(authenticationRealmType)) {
             lookupRealm = authenticationRealm;
-            tokenInfo = Map.of("name", randomAlphaOfLengthBetween(3, 8), "type", randomAlphaOfLengthBetween(3, 8));
+            tokenInfo = org.elasticsearch.core.Map.of("name", randomAlphaOfLengthBetween(3, 8), "type", randomAlphaOfLengthBetween(3, 8));
         } else {
             final String lookupRealmName = randomAlphaOfLength(5);
             final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
@@ -96,7 +96,7 @@ public class AuthenticateResponseTests extends ESTestCase {
         final User copyUser = new User(originalUser.getUsername(), originalUser.getRoles(), originalUser.getMetadata(),
             originalUser.getFullName(), originalUser.getEmail());
         return new AuthenticateResponse(copyUser, response.enabled(), response.getAuthenticationRealm(),
-            response.getLookupRealm(), response.getAuthenticationType(), Map.copyOf(response.getToken()));
+            response.getLookupRealm(), response.getAuthenticationType(), org.elasticsearch.core.Map.copyOf(response.getToken()));
     }
 
     private AuthenticateResponse mutate(AuthenticateResponse response) {
@@ -152,8 +152,8 @@ public class AuthenticateResponseTests extends ESTestCase {
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
                     response.getToken() == null ?
-                        Map.of("foo", "bar") :
-                        randomFrom(Map.of(
+                        org.elasticsearch.core.Map.of("foo", "bar") :
+                        randomFrom(org.elasticsearch.core.Map.of(
                             "name", randomValueOtherThan(response.getToken().get("name"), () -> randomAlphaOfLengthBetween(3, 8)),
                             "type", randomValueOtherThan(response.getToken().get("type"), () -> randomAlphaOfLengthBetween(3, 8))
                         ), null));

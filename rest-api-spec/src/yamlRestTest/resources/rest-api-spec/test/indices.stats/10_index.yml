@@ -111,4 +111,4 @@ setup:
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "request [/_stats/fieldata] contains unrecognized metric: [fieldata] -> did you mean [fielddata]?" }
+  - match: { error.reason: "request [/_stats/fieldata] contains unrecognized metric: [fieldata] -> did you mean any of [fielddata, field_usage]?" }

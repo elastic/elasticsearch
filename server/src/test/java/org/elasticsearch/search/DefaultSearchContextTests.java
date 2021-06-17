@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -76,6 +77,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
         when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
         when(indexShard.getThreadPool()).thenReturn(threadPool);
+        when(indexShard.fieldUsageTracker()).thenReturn(new ShardFieldUsageTracker());
 
         int maxResultWindow = randomIntBetween(50, 100);
         int maxRescoreWindow = randomIntBetween(50, 100);
@@ -235,6 +237,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         QueryCachingPolicy queryCachingPolicy = mock(QueryCachingPolicy.class);
         when(indexShard.getQueryCachingPolicy()).thenReturn(queryCachingPolicy);
         when(indexShard.getThreadPool()).thenReturn(threadPool);
+        when(indexShard.fieldUsageTracker()).thenReturn(new ShardFieldUsageTracker());
 
         IndexService indexService = mock(IndexService.class);
 

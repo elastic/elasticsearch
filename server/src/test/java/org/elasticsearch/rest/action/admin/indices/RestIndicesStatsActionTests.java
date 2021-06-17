@@ -52,7 +52,8 @@ public class RestIndicesStatsActionTests extends ESTestCase {
             e,
             hasToString(
                 containsString(
-                    "request [/_stats] contains unrecognized metrics: [fieldata] -> did you mean [fielddata]?, [unrecognized]")));
+                    "request [/_stats] contains unrecognized metrics: " +
+                        "[fieldata] -> did you mean any of [fielddata, field_usage]?, [unrecognized]")));
     }
 
     public void testAllRequestWithOtherMetrics() throws IOException {

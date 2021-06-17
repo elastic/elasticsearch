@@ -235,8 +235,7 @@ public class RestSqlSecurityIT extends SqlSecurityTestCase {
                         return true;
                     } else {
                         String warning = warnings.get(0);
-                        return warning.startsWith("this request accesses system indices: ") == false &&
-                            warning.startsWith("this request accesses aliases with names reserved for system indices: ") == false;
+                        return warning.startsWith("this request accesses system indices: ") == false;
                     }
                 });
             }

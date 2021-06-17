@@ -8,8 +8,13 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -58,51 +63,69 @@ public interface RuntimeField extends ToXContentFragment {
      */
     Collection<MappedFieldType> asMappedFieldTypes();
 
-    /**
-     *  For runtime fields the {@link RuntimeField.Parser} returns directly the {@link MappedFieldType}.
-     *  Internally we still create a {@link RuntimeField.Builder} so we reuse the {@link FieldMapper.Parameter} infrastructure,
-     *  but {@link RuntimeField.Builder#init(FieldMapper)} and {@link RuntimeField.Builder#build(ContentPath)} are never called as
-     *  {@link RuntimeField.Parser#parse(String, Map, Mapper.TypeParser.ParserContext)} calls
-     *  {@link RuntimeField.Builder#parse(String, Mapper.TypeParser.ParserContext, Map)} and returns the corresponding
-     *  {@link MappedFieldType}.
-     */
-    abstract class Builder extends FieldMapper.Builder {
-        final FieldMapper.Parameter<Map<String, String>> meta = FieldMapper.Parameter.metaParam();
+    abstract class Builder implements ToXContent {
+        final String name;
+        final Parameter<Map<String, String>> meta = Parameter.metaParam();
+
+        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RuntimeField.class);
 
         protected Builder(String name) {
-            super(name);
+            this.name = name;
         }
 
         public Map<String, String> meta() {
             return meta.getValue();
         }
 
-        @Override
-        protected List<FieldMapper.Parameter<?>> getParameters() {
+        protected List<Parameter<?>> getParameters() {
             return Collections.singletonList(meta);
-        }
-
-        @Override
-        public FieldMapper.Builder init(FieldMapper initializer) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public final FieldMapper build(ContentPath context) {
-            throw new UnsupportedOperationException();
         }
 
         protected abstract RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext);
 
-        private void validate() {
-            ContentPath contentPath = parentPath(name());
-            FieldMapper.MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
-            if (multiFields.iterator().hasNext()) {
-                throw new IllegalArgumentException("runtime field [" + name + "] does not support [fields]");
+        @Override
+        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
+            for (Parameter<?> parameter : getParameters()) {
+                parameter.toXContent(builder, includeDefaults);
             }
-            FieldMapper.CopyTo copyTo = this.copyTo.build();
-            if (copyTo.copyToFields().isEmpty() == false) {
-                throw new IllegalArgumentException("runtime field [" + name + "] does not support [copy_to]");
+            return builder;
+        }
+
+        public final void parse(String name, Mapper.TypeParser.ParserContext parserContext, Map<String, Object> fieldNode) {
+            Map<String, Parameter<?>> paramsMap = new HashMap<>();
+            for (Parameter<?> param : getParameters()) {
+                paramsMap.put(param.name, param);
+            }
+            String type = (String) fieldNode.remove("type");
+            for (Iterator<Map.Entry<String, Object>> iterator = fieldNode.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
+                final String propName = entry.getKey();
+                final Object propNode = entry.getValue();
+                Parameter<?> parameter = paramsMap.get(propName);
+                if (parameter == null) {
+                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
+                        // The parameter is unknown, but this mapping is from a dynamic template.
+                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
+                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
+                            "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
+                                + "Usage will result in an error in future major versions and should be removed.",
+                            propName,
+                            type
+                        );
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException(
+                        "unknown parameter [" + propName + "] on runtime field [" + name + "] of type [" + type + "]"
+                    );
+                }
+                if (propNode == null && parameter.canAcceptNull() == false) {
+                    throw new MapperParsingException("[" + propName + "] on runtime field [" + name
+                        + "] of type [" + type + "] must not have a [null] value");
+                }
+                parameter.parse(name, parserContext, propNode);
+                iterator.remove();
             }
         }
     }
@@ -123,7 +146,6 @@ public interface RuntimeField extends ToXContentFragment {
 
             RuntimeField.Builder builder = builderFunction.apply(name);
             builder.parse(name, parserContext, node);
-            builder.validate();
             return builder.createRuntimeField(parserContext);
         }
     }

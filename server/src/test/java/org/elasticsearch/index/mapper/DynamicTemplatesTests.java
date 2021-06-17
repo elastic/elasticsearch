@@ -11,9 +11,14 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.test.VersionUtils;
+
+import java.io.IOException;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -158,5 +163,79 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
+    }
+
+    public void testDynamicMapperWithBadMapping() throws IOException {
+        {
+            // in 7.x versions this will issue a deprecation warning
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.V_7_0_0);
+            DocumentMapper mapper = createDocumentMapper(version, topMapping(b -> {
+                b.startArray("dynamic_templates");
+                {
+                    b.startObject();
+                    {
+                        b.startObject("test");
+                        {
+                            b.field("match_mapping_type", "string");
+                            b.startObject("mapping").field("badparam", false).endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+            }));
+            assertWarnings(
+                "dynamic template [test] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"badparam\":false}}], " +
+                "attempted to validate it with the following match_mapping_type: [string], last error: " +
+                "[unknown parameter [badparam] on mapper [__dynamic__test] of type [null]]");
+
+            mapper.parse(source(b -> b.field("field", "foo")));
+            assertWarnings("Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. " +
+                    "Usage will result in an error in future major versions and should be removed.");
+        }
+
+        {
+            // in 8.x it will error out
+            Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+                b.startArray("dynamic_templates");
+                {
+                    b.startObject();
+                    {
+                        b.startObject("test");
+                        {
+                            b.field("match_mapping_type", "string");
+                            b.startObject("mapping").field("badparam", false).endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+            })));
+            assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
+            assertThat(e.getCause().getMessage(), containsString("badparam"));
+        }
+    }
+
+    public void testDynamicRuntimeWithBadMapping() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").field("badparam", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        })));
+        assertThat(e.getMessage(), containsString("dynamic template [test] has invalid content"));
+        assertThat(e.getCause().getMessage(), containsString("badparam"));
     }
 }

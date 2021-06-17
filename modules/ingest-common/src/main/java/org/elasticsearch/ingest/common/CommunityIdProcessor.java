@@ -142,6 +142,8 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         if (flow == null) {
             if (ignoreMissing) {
                 return ingestDocument;
+            } else {
+                throw new IllegalArgumentException("unable to construct flow from document");
             }
         }
 

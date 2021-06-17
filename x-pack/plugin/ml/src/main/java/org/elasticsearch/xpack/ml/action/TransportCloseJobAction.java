@@ -17,6 +17,7 @@ import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -24,14 +25,17 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
+import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -57,6 +61,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
     private static final Logger logger = LogManager.getLogger(TransportCloseJobAction.class);
 
     private final ThreadPool threadPool;
+    private final Client client;
     private final ClusterService clusterService;
     private final AnomalyDetectionAuditor auditor;
     private final PersistentTasksService persistentTasksService;
@@ -64,7 +69,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
     private final DatafeedConfigProvider datafeedConfigProvider;
 
     @Inject
-    public TransportCloseJobAction(TransportService transportService, ThreadPool threadPool, ActionFilters actionFilters,
+    public TransportCloseJobAction(TransportService transportService, Client client, ThreadPool threadPool, ActionFilters actionFilters,
                                    ClusterService clusterService, AnomalyDetectionAuditor auditor,
                                    PersistentTasksService persistentTasksService, JobConfigProvider jobConfigProvider,
                                    DatafeedConfigProvider datafeedConfigProvider) {
@@ -72,6 +77,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
         super(CloseJobAction.NAME, clusterService, transportService, actionFilters,
             CloseJobAction.Request::new, CloseJobAction.Response::new, CloseJobAction.Response::new, ThreadPool.Names.SAME);
         this.threadPool = threadPool;
+        this.client = client;
         this.clusterService = clusterService;
         this.auditor = auditor;
         this.persistentTasksService = persistentTasksService;
@@ -100,32 +106,37 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
              * criteria (e.g. open datafeed), fail immediately, do not close any
              * job
              *
-             * 2. Internally a task request is created for every open job, so there
+             * 2. If any of the jobs to be closed have running datafeeds, these
+             * are stopped first, using the same level of force as the close request
+             *
+             * 3. Internally a task request is created for every open job, so there
              * are n inner tasks for 1 user request
              *
-             * 3. No task is created for closing jobs but those will be waited on
+             * 4. No task is created for closing jobs but those will be waited on
              *
-             * 4. Collect n inner task results or failures and send 1 outer
+             * 5. Collect n inner task results or failures and send 1 outer
              * result/failure
              */
+            final boolean isForce = request.isForce();
+            final TimeValue timeout = request.getCloseTimeout();
 
             PersistentTasksCustomMetadata tasksMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             jobConfigProvider.expandJobsIds(request.getJobId(),
                 request.allowNoMatch(),
                 true,
                 tasksMetadata,
-                request.isForce(),
+                isForce,
                 ActionListener.wrap(
-                    expandedJobIds -> {
-                        validate(expandedJobIds, request.isForce(), tasksMetadata, ActionListener.wrap(
-                            response -> {
+                    expandedJobIds -> validate(expandedJobIds, isForce, tasksMetadata, ActionListener.wrap(
+                        response -> stopDatafeedsIfNecessary(response, isForce, timeout, tasksMetadata, ActionListener.wrap(
+                            bool -> {
                                 request.setOpenJobIds(response.openJobIds.toArray(new String[0]));
                                 if (response.openJobIds.isEmpty() && response.closingJobIds.isEmpty()) {
                                     listener.onResponse(new CloseJobAction.Response(true));
                                     return;
                                 }
 
-                                if (request.isForce()) {
+                                if (isForce) {
                                     List<String> jobIdsToForceClose = new ArrayList<>(response.openJobIds);
                                     jobIdsToForceClose.addAll(response.closingJobIds);
                                     forceCloseJob(state, request, jobIdsToForceClose, listener);
@@ -172,12 +183,12 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
 
                                     normalCloseJob(state, task, request, response.openJobIds, response.closingJobIds, listener);
                                 }
-                                },
+                            },
                             listener::onFailure
-                    ));
-                    },
-                listener::onFailure
-            ));
+                        )),
+                        listener::onFailure)),
+                    listener::onFailure
+                ));
         }
     }
 
@@ -194,7 +205,6 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
      * Separate the job Ids into open and closing job Ids and validate.
      * If a job is failed it is will not be closed unless the force parameter
      * in request is true.
-     * It is an error if the datafeed the job uses is not stopped
      *
      * @param expandedJobIds The job ids
      * @param forceClose Force close the job(s)
@@ -204,48 +214,51 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
     void validate(Collection<String> expandedJobIds, boolean forceClose, PersistentTasksCustomMetadata tasksMetadata,
                   ActionListener<OpenAndClosingIds> listener) {
 
-        checkDatafeedsHaveStopped(expandedJobIds, tasksMetadata, ActionListener.wrap(
-                response -> {
-                    OpenAndClosingIds ids = new OpenAndClosingIds();
-                    List<String> failedJobs = new ArrayList<>();
+        OpenAndClosingIds ids = new OpenAndClosingIds();
+        List<String> failedJobs = new ArrayList<>();
 
-                    for (String jobId : expandedJobIds) {
-                        addJobAccordingToState(jobId, tasksMetadata, ids.openJobIds, ids.closingJobIds, failedJobs);
-                    }
+        for (String jobId : expandedJobIds) {
+            addJobAccordingToState(jobId, tasksMetadata, ids.openJobIds, ids.closingJobIds, failedJobs);
+        }
 
-                    if (forceClose == false && failedJobs.size() > 0) {
-                        if (expandedJobIds.size() == 1) {
-                            listener.onFailure(
-                                    ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
-                                            expandedJobIds.iterator().next()));
-                            return;
-                        }
-                        listener.onFailure(
-                                ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close"));
-                        return;
-                    }
+        if (forceClose == false && failedJobs.size() > 0) {
+            if (expandedJobIds.size() == 1) {
+                listener.onFailure(
+                    ExceptionsHelper.conflictStatusException("cannot close job [{}] because it failed, use force close",
+                        expandedJobIds.iterator().next()));
+                return;
+            }
+            listener.onFailure(
+                ExceptionsHelper.conflictStatusException("one or more jobs have state failed, use force close"));
+            return;
+        }
 
-                    // If there are failed jobs force close is true
-                    ids.openJobIds.addAll(failedJobs);
-                    listener.onResponse(ids);
-                },
-                listener::onFailure
-        ));
+        // If there are failed jobs force close is true
+        ids.openJobIds.addAll(failedJobs);
+        listener.onResponse(ids);
     }
 
-    void checkDatafeedsHaveStopped(Collection<String> jobIds, PersistentTasksCustomMetadata tasksMetadata,
-                                   ActionListener<Boolean> listener) {
-        datafeedConfigProvider.findDatafeedsForJobIds(jobIds, ActionListener.wrap(
+    void stopDatafeedsIfNecessary(OpenAndClosingIds jobIds, boolean isForce, TimeValue timeout, PersistentTasksCustomMetadata tasksMetadata,
+                                  ActionListener<Boolean> listener) {
+        datafeedConfigProvider.findDatafeedsForJobIds(jobIds.openJobIds, ActionListener.wrap(
                 datafeedIds -> {
-                    for (String datafeedId : datafeedIds) {
-                        DatafeedState datafeedState = MlTasks.getDatafeedState(datafeedId, tasksMetadata);
-                        if (datafeedState != DatafeedState.STOPPED) {
-                            listener.onFailure(ExceptionsHelper.conflictStatusException(
-                                "cannot close job datafeed [{}] hasn't been stopped", datafeedId));
-                            return;
-                        }
+                    List<String> runningDatafeedIds = datafeedIds
+                        .stream()
+                        .filter(datafeedId -> MlTasks.getDatafeedState(datafeedId, tasksMetadata) != DatafeedState.STOPPED)
+                        .collect(Collectors.toList());
+                    if (runningDatafeedIds.isEmpty()) {
+                        listener.onResponse(false);
+                    } else {
+                        StopDatafeedAction.Request request = new StopDatafeedAction.Request(String.join(",", runningDatafeedIds));
+                        request.setForce(isForce);
+                        request.setStopTimeout(timeout);
+                        ClientHelper.executeAsyncWithOrigin(
+                            client,
+                            ClientHelper.ML_ORIGIN,
+                            StopDatafeedAction.INSTANCE,
+                            request,
+                            ActionListener.wrap(r -> listener.onResponse(r.isStopped()), listener::onFailure));
                     }
-                    listener.onResponse(Boolean.TRUE);
                 },
                 listener::onFailure
         ));

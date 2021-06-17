@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.GetDatafeedsStatsAction;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
@@ -451,6 +452,29 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         try {
             StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
             assertTrue(stopJobResponse.isStopped());
+        } catch (Exception e) {
+            NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
+            int i = 0;
+            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
+                logger.info(i++ + ":\n" +nodeHotThreads.getHotThreads());
+            }
+            throw e;
+        }
+        assertBusy(() -> {
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        });
+    }
+
+    public void testCloseJobStopsDatafeed() throws Exception {
+        String jobId = "realtime-close-job";
+        String datafeedId = jobId + "-datafeed";
+        startRealtime(jobId);
+
+        try {
+            CloseJobAction.Response closeJobResponse = closeJob(jobId);
+            assertTrue(closeJobResponse.isClosed());
         } catch (Exception e) {
             NodesHotThreadsResponse nodesHotThreadsResponse = client().admin().cluster().prepareNodesHotThreads().get();
             int i = 0;

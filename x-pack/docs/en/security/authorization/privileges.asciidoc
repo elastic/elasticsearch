@@ -20,9 +20,6 @@ See <<delete-async-search,delete async search>> API for more informations.
 Privileges to create snapshots for existing repositories. Can also list and view
 details on existing repositories and snapshots.
 
-`enroll_node`::
-Privilege to join new nodes to a cluster with security features enabled.
-
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
 

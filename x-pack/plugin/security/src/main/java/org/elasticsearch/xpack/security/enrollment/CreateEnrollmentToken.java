@@ -9,18 +9,21 @@ package org.elasticsearch.xpack.security.enrollment;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.ssl.SslConfigException;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.user.ElasticUser;
+import org.elasticsearch.xpack.core.ssl.KeyConfig;
+import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 
@@ -34,19 +37,11 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.GeneralSecurityException;
-import java.security.Key;
-import java.security.KeyStore;
 import java.security.PrivateKey;
-import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Enumeration;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -55,8 +50,11 @@ public class CreateEnrollmentToken {
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
     private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
+    private static final String elasticUser = ElasticUser.NAME;
     private final Environment environment;
+    private final SSLService sslService;
     private final CommandLineHttpClient client;
+    private final SecureString elasticUserPassword;
 
     public CreateEnrollmentToken(Environment environment) {
         this(environment, new CommandLineHttpClient(environment));
@@ -65,16 +63,20 @@ public class CreateEnrollmentToken {
     // protected for testing
     protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) {
         this.environment = environment;
+        this.sslService = new SSLService(environment);
         this.client = client;
+        this.elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(environment.settings());
     }
 
-    public String create(String user, SecureString password, SecureString keystore_password) throws Exception {
+    public String create() throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
-            throw new IllegalStateException("'xpack.security.enrollment' must be enabled to create an enrollment token");
+            throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
-        String fingerprint = getFingerprint(keystore_password);
-        String apiKey = getApiKey(user, password);
-        Tuple<List<String>, String> httpInfo = getAddressesAndVersion(user, password);
+        final String defaultURL = client.getDefaultURL();
+        final URL url = new URL(defaultURL);
+        final String fingerprint = getCaFingerprint();
+        final String apiKey = getApiKey(url);
+        final Tuple<List<String>, String> httpInfo = getNodeInfo(url);
 
         try {
             final XContentBuilder builder = JsonXContent.contentBuilder();
@@ -93,6 +95,8 @@ public class CreateEnrollmentToken {
         } catch (Exception e) {
             logger.error(("Error generating enrollment token"), e);
             throw new IllegalStateException("Error generating enrollment token: " + e.getMessage());
+        } finally {
+            elasticUserPassword.close();
         }
     }
 
@@ -141,7 +145,7 @@ public class CreateEnrollmentToken {
         return nodeInfo.get("version").toString();
     }
 
-    protected String getApiKey(String user, SecureString password) throws Exception {
+    protected String getApiKey(URL url) throws Exception {
         final CheckedSupplier<String, Exception> createApiKeyRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -149,20 +153,21 @@ public class CreateEnrollmentToken {
                 .field("expiration", ENROLL_API_KEY_EXPIRATION)
                 .startObject("role_descriptors")
                 .startObject("create_enrollment_token")
-                .field("cluster", "[cluster:admin/xpack/security/enrollment/enroll/node]")
+                .field("cluster", "[cluster:admin/xpack/security/enroll/node]")
                 .endObject()
                 .endObject()
                 .endObject();
             return Strings.toString(xContentBuilder);
         };
 
-        final URL url = new URL(client.getDefaultURL());
         final URL Url = createAPIKeyURL(url);
-        final HttpResponse httpResponseApiKey = client.execute("POST", Url, user, password,
+        final HttpResponse httpResponseApiKey = client.execute("POST", Url, elasticUser, elasticUserPassword,
             createApiKeyRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
+            logger.error("Error " + httpCode + "when calling GET " + Url + ". ResponseBody: " +
+                (httpResponseApiKey == null ? "" : httpResponseApiKey.getResponseBody()));
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
                 + Url);
         }
@@ -174,7 +179,7 @@ public class CreateEnrollmentToken {
         return apiKey;
     }
 
-    protected Tuple<List<String>, String> getAddressesAndVersion(String user, SecureString password) throws Exception {
+    protected Tuple<List<String>, String> getNodeInfo(URL url) throws Exception {
         final CheckedSupplier<String, Exception> getHttpInfoRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -182,18 +187,22 @@ public class CreateEnrollmentToken {
             return Strings.toString(xContentBuilder);
         };
 
-        final URL url = new URL(client.getDefaultURL());
-        final HttpResponse httpResponseHttp = client.execute("GET", getHttpInfoURL(url), user, password,
+        final URL Url = getHttpInfoURL(url);
+        final HttpResponse httpResponseHttp = client.execute("GET", Url, elasticUser, elasticUserPassword,
             getHttpInfoRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + getHttpInfoURL(url));
+            logger.error("Error " + httpCode + "when calling GET " + Url + ". ResponseBody: " +
+                (httpResponseHttp == null ? "" : httpResponseHttp.getResponseBody()));
+            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + Url);
         }
 
         final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
         if (addresses == null || addresses.isEmpty()) {
-            throw new IllegalStateException("Could not retrieve the ip address.");
+            logger.error("No bound addresses found in response from calling GET " + Url + ". ResponseBody: " +
+                httpResponseHttp.getResponseBody());
+            throw new IllegalStateException("No bound addresses found in response from calling GET " + Url);
         }
         final List<String> filtered_addresses = getFilteredAddresses(addresses);
 
@@ -204,22 +213,21 @@ public class CreateEnrollmentToken {
         return new Tuple<>(filtered_addresses, stackVersion);
     }
 
-    protected String getFingerprint(SecureString keystore_password) throws Exception {
-        String keyStorePath = environment.settings().get("xpack.security.http.ssl.keystore.path");
-        if(Strings.isNullOrEmpty(keyStorePath)) {
-            throw new IllegalStateException("'xpack.security.http.ssl.keystore.path' is not configured");
+    protected String getCaFingerprint() throws Exception {
+        final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
+        if (keyConfig instanceof StoreKeyConfig == false) {
+            throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration is " +
+                "not configured with a keystore");
         }
-        Path path = environment.configFile().resolve(keyStorePath);
-        KeyStore keyStore = readKeyStore(path, keystore_password);
         final List<Tuple<PrivateKey, X509Certificate>> httpCaKeysAndCertificates =
-        getPrivateKeyEntries(keyStore, keystore_password).stream()
-            .filter(t -> t.v2().getBasicConstraints() != -1).collect(Collectors.toList());
-        if(httpCaKeysAndCertificates.isEmpty()) {
+            ((StoreKeyConfig) keyConfig).getPrivateKeyEntries(environment).stream()
+                .filter(t -> t.v2().getBasicConstraints() != -1).collect(Collectors.toList());
+        if (httpCaKeysAndCertificates.isEmpty()) {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
                 "Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate");
-        } else if(httpCaKeysAndCertificates.size()>1) {
+        } else if (httpCaKeysAndCertificates.size() > 1) {
             throw new IllegalStateException("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL configuration " +
-                "Keystore contain multiple PrivateKey entries where the associated certificate is a CA certificate");
+                "Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate");
         }
         return SslUtil.calculateFingerprint(httpCaKeysAndCertificates.get(0).v2());
     }
@@ -229,56 +237,10 @@ public class CreateEnrollmentToken {
         for (String bound_address : addresses){
             URI uri = new URI("http://" + bound_address);
             InetAddress inet_address = InetAddress.getByName(uri.getHost());
-            if (inet_address.isLoopbackAddress() != true || inet_address.isSiteLocalAddress()) {
+            if (inet_address.isLoopbackAddress() != true) {
                 filtered_addresses.add(bound_address);
             }
         }
         return filtered_addresses.isEmpty() ? addresses : filtered_addresses;
-    }
-
-    static KeyStore readKeyStore(Path path, SecureString password) throws GeneralSecurityException {
-        final String type = inferKeyStoreType(path);
-        if (Files.notExists(path)) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath()
-                + "] because the file does not exist");
-        }
-        try {
-            KeyStore keyStore = KeyStore.getInstance(type);
-            try (InputStream in = Files.newInputStream(path)) {
-                keyStore.load(in, password.getChars());
-            }
-            return keyStore;
-        } catch (IOException e) {
-            throw new SslConfigException("cannot read a [" + type + "] keystore from [" + path.toAbsolutePath() + "] - " + e.getMessage(),
-                e);
-        }
-    }
-
-    static String inferKeyStoreType(Path path) {
-        String name = path == null ? "" : path.toString().toLowerCase(Locale.ROOT);
-        if (name.endsWith(".p12") || name.endsWith(".pfx") || name.endsWith(".pkcs12")) {
-            return "PKCS12";
-        } else {
-            return "jks";
-        }
-    }
-
-    static List<Tuple<PrivateKey, X509Certificate>> getPrivateKeyEntries(KeyStore keyStore, SecureString password) {
-        try {
-            List<Tuple<PrivateKey, X509Certificate>> entries = new ArrayList<>();
-            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
-                final String alias = e.nextElement();
-                if (keyStore.isKeyEntry(alias)) {
-                    Key key = keyStore.getKey(alias, password.getChars());
-                    Certificate certificate = keyStore.getCertificate(alias);
-                    if (key instanceof PrivateKey && certificate instanceof X509Certificate) {
-                        entries.add(Tuple.tuple((PrivateKey) key, (X509Certificate) certificate));
-                    }
-                }
-            }
-            return entries;
-        } catch (Exception e) {
-            throw new ElasticsearchException("failed to list keys and certificates", e);
-        }
     }
 }

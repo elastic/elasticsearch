@@ -17,7 +17,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 
 public class ShardFieldUsageTracker {
 
@@ -32,32 +32,32 @@ public class ShardFieldUsageTracker {
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             PerFieldUsageStats pf = new PerFieldUsageStats();
             InternalFieldStats ifs = entry.getValue();
-            pf.terms = ifs.terms.get();
-            pf.freqs = ifs.freqs.get();
-            pf.positions = ifs.positions.get();
-            pf.offsets = ifs.offsets.get();
-            pf.docValues = ifs.docValues.get();
-            pf.storedFields = ifs.storedFields.get();
-            pf.norms = ifs.norms.get();
-            pf.payloads = ifs.payloads.get();
-            pf.termVectors = ifs.termVectors.get();
-            pf.points = ifs.points.get();
+            pf.terms = ifs.terms.longValue();
+            pf.freqs = ifs.freqs.longValue();
+            pf.positions = ifs.positions.longValue();
+            pf.offsets = ifs.offsets.longValue();
+            pf.docValues = ifs.docValues.longValue();
+            pf.storedFields = ifs.storedFields.longValue();
+            pf.norms = ifs.norms.longValue();
+            pf.payloads = ifs.payloads.longValue();
+            pf.termVectors = ifs.termVectors.longValue();
+            pf.points = ifs.points.longValue();
             stats.put(entry.getKey(), pf);
         }
         return new FieldUsageStats(Collections.unmodifiableMap(stats));
     }
 
     static class InternalFieldStats {
-        final AtomicLong terms = new AtomicLong();
-        final AtomicLong freqs = new AtomicLong();
-        final AtomicLong positions = new AtomicLong();
-        final AtomicLong offsets = new AtomicLong();
-        final AtomicLong docValues = new AtomicLong();
-        final AtomicLong storedFields = new AtomicLong();
-        final AtomicLong norms = new AtomicLong();
-        final AtomicLong payloads = new AtomicLong();
-        final AtomicLong termVectors = new AtomicLong();
-        final AtomicLong points = new AtomicLong();
+        final LongAdder terms = new LongAdder();
+        final LongAdder freqs = new LongAdder();
+        final LongAdder positions = new LongAdder();
+        final LongAdder offsets = new LongAdder();
+        final LongAdder docValues = new LongAdder();
+        final LongAdder storedFields = new LongAdder();
+        final LongAdder norms = new LongAdder();
+        final LongAdder payloads = new LongAdder();
+        final LongAdder termVectors = new LongAdder();
+        final LongAdder points = new LongAdder();
     }
 
     public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
@@ -83,34 +83,34 @@ public class ShardFieldUsageTracker {
                 InternalFieldStats fieldStats = perFieldStats.computeIfAbsent(e.getKey(), f -> new InternalFieldStats());
                 PerField pf = e.getValue();
                 if (pf.terms) {
-                    fieldStats.terms.incrementAndGet();
+                    fieldStats.terms.increment();
                 }
                 if (pf.freqs) {
-                    fieldStats.freqs.incrementAndGet();
+                    fieldStats.freqs.increment();
                 }
                 if (pf.positions) {
-                    fieldStats.positions.incrementAndGet();
+                    fieldStats.positions.increment();
                 }
                 if (pf.offsets) {
-                    fieldStats.offsets.incrementAndGet();
+                    fieldStats.offsets.increment();
                 }
                 if (pf.docValues) {
-                    fieldStats.docValues.incrementAndGet();
+                    fieldStats.docValues.increment();
                 }
                 if (pf.storedFields) {
-                    fieldStats.storedFields.incrementAndGet();
+                    fieldStats.storedFields.increment();
                 }
                 if (pf.norms) {
-                    fieldStats.norms.incrementAndGet();
+                    fieldStats.norms.increment();
                 }
                 if (pf.payloads) {
-                    fieldStats.payloads.incrementAndGet();
+                    fieldStats.payloads.increment();
                 }
                 if (pf.points) {
-                    fieldStats.points.incrementAndGet();
+                    fieldStats.points.increment();
                 }
                 if (pf.termVectors) {
-                    fieldStats.termVectors.incrementAndGet();
+                    fieldStats.termVectors.increment();
                 }
             });
         }

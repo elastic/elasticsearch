@@ -48,14 +48,14 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -709,7 +709,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
         assertThat(
             response.getDataStreamAliases(),
-            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo")))))
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null))))
         );
     }
 
@@ -735,6 +735,84 @@ public class DataStreamIT extends ESIntegTestCase {
                     + "support aliases."
             )
         );
+    }
+
+    public void testDataStreamAliasesMixedExpressionValidation() throws Exception {
+        createIndex("metrics-myindex");
+        putComposableIndexTemplate("id1", List.of("metrics-*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias");
+        IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+        aliasesAddRequest.addAliasAction(addAction);
+        Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        assertThat(e.getMessage(), equalTo("expressions [metrics-*] that match with both data streams and regular indices are disallowed"));
+    }
+
+    public void testDataStreamAliasesUnsupportedParametersValidation() throws Exception {
+        putComposableIndexTemplate("id1", List.of("metrics-*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        {
+            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias").filter("[filter]");
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support filters"));
+        }
+        {
+            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*").aliases("my-alias").routing("[routing]");
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support routing"));
+        }
+        {
+            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
+                .aliases("my-alias")
+                .indexRouting("[index_routing]");
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support index_routing"));
+        }
+        {
+            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
+                .aliases("my-alias")
+                .searchRouting("[search_routing]");
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support search_routing"));
+        }
+        {
+            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
+                .aliases("my-alias")
+                .isHidden(randomBoolean());
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(addAction);
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
+            );
+            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support is_hidden"));
+        }
     }
 
     public void testTimestampFieldCustomAttributes() throws Exception {

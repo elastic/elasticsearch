@@ -1,6 +1,6 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
-apply plugin: 'elasticsearch.testclusters'
+apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-test'
 
 dependencies {

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.license;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.license.DeleteLicenseRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,7 +25,7 @@ public class RestDeleteLicenseAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(DELETE, "/_license")
                 .replaces(DELETE, URI_BASE + "/license", RestApiVersion.V_7).build()
         );

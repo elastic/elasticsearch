@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -24,7 +24,7 @@ public class RestMlInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, BASE_PATH + "info")
                 .replaces(GET, PRE_V7_BASE_PATH + "info", RestApiVersion.V_7).build()
         );

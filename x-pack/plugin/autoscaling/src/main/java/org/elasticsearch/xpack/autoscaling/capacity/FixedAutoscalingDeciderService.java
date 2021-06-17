@@ -69,7 +69,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<Setting<?>> deciderSettings() {
-        return org.elasticsearch.common.collect.List.of(STORAGE, MEMORY, NODES);
+        return org.elasticsearch.core.List.of(STORAGE, MEMORY, NODES);
     }
 
     @Override

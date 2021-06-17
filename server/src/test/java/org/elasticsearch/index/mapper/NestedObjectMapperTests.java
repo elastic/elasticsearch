@@ -593,36 +593,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
         merge(mapperService, MergeReason.MAPPING_RECOVERY, mapping.apply("_doc"));
     }
 
-    public void testParentObjectMapperAreNested() throws Exception {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("comments");
-            {
-                b.field("type", "nested");
-                b.startObject("properties");
-                {
-                    b.startObject("messages").field("type", "nested").endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertFalse(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
-
-        mapperService = createMapperService(mapping(b -> {
-            b.startObject("comments");
-            {
-                b.field("type", "object");
-                b.startObject("properties");
-                {
-                    b.startObject("messages").field("type", "nested").endObject();
-                }
-                b.endObject();
-            }
-            b.endObject();
-        }));
-        assertTrue(mapperService.documentMapper().mappers().hasNonNestedParent("comments.messages"));
-    }
-
     public void testLimitNestedDocsDefaultSettings() throws Exception {
         Settings settings = Settings.builder().build();
         DocumentMapper docMapper
@@ -810,38 +780,6 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 assertThat(doc.docs().get(2).get("field"), equalTo("value"));
             }
         }
-    }
-
-    public void testReorderParent() throws IOException {
-
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-
-        DocumentMapper docMapper
-            = createDocumentMapper(version, mapping(b -> b.startObject("nested1").field("type", "nested").endObject()));
-
-        assertThat(docMapper.mappers().hasNested(), equalTo(true));
-        ObjectMapper nested1Mapper = docMapper.mappers().objectMappers().get("nested1");
-        assertThat(nested1Mapper.nested().isNested(), equalTo(true));
-
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "_doc", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .startArray("nested1")
-                .startObject()
-                .field("field1", "1")
-                .field("field2", "2")
-                .endObject()
-                .startObject()
-                .field("field1", "3")
-                .field("field2", "4")
-                .endObject()
-                .endArray()
-                .endObject()),
-            XContentType.JSON));
-
-        assertThat(doc.docs().size(), equalTo(3));
-        assertThat(doc.docs().get(0).get(TypeFieldMapper.NAME), equalTo(nested1Mapper.nestedTypePathAsString()));
     }
 
     public void testMergeNestedMappings() throws IOException {

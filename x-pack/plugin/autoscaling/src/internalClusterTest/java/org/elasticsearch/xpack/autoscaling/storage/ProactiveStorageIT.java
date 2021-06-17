@@ -15,7 +15,10 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,7 +47,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return org.elasticsearch.common.collect.List.of(LocalStateAutoscaling.class, getTestTransportPlugin());
+        return List.of(LocalStateAutoscaling.class, getTestTransportPlugin());
     }
 
     @Override
@@ -77,10 +80,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     .mapToObj(
                         unused -> client().prepareIndex(dsName, "_doc")
                             .setCreate(true)
-                            .setSource(
-                                "@timestamp",
-                                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(1, Long.MAX_VALUE / 2))
-                            )
+                            .setSource("@timestamp", DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomMillisUpToYear9999()))
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );
@@ -101,7 +101,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         // default 30 minute window includes everything.
         GetAutoscalingCapacityAction.Response response = capacity();
-        assertThat(response.results().keySet(), Matchers.equalTo(org.elasticsearch.common.collect.Set.of(policyName)));
+        assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         // ideally, we would count replicas too, but we leave this for follow-up work
         assertThat(
@@ -117,7 +117,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
             Settings.builder().put(ProactiveStorageDeciderService.FORECAST_WINDOW.getKey(), TimeValue.ZERO).build()
         );
         response = capacity();
-        assertThat(response.results().keySet(), Matchers.equalTo(org.elasticsearch.common.collect.Set.of(policyName)));
+        assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
@@ -126,8 +126,8 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
     private void putAutoscalingPolicy(String policyName, Settings settings) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of("data")),
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of("proactive_storage", settings))
+            new TreeSet<>(Set.of("data")),
+            new TreeMap<>(Map.of("proactive_storage", settings))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }

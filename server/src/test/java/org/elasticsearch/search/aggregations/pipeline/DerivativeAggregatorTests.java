@@ -19,7 +19,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -586,7 +586,15 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                     Sum sum = bucket.getAggregations().get("sum");
                     double thisSumValue = sum.value();
                     if (bucket.getDocCount() == 0) {
-                        thisSumValue = gapPolicy == GapPolicy.INSERT_ZEROS ? 0 : Double.NaN;
+                        switch (gapPolicy) {
+                            case INSERT_ZEROS:
+                                thisSumValue = 0;
+                                break;
+                            case KEEP_VALUES:
+                                break;
+                            default:
+                                thisSumValue = Double.NaN;
+                        }
                     }
                     SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                     if (i == 0) {

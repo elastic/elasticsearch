@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptContext;

@@ -7,9 +7,9 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
@@ -101,7 +101,7 @@ public class XPackLicenseState {
 
     // temporarily non tracked feeatures which need rework in how they are checked
     // so they are not tracked as always used
-    private static final Set<Feature> NON_TRACKED_FEATURES = org.elasticsearch.common.collect.Set.of(
+    private static final Set<Feature> NON_TRACKED_FEATURES = org.elasticsearch.core.Set.of(
         Feature.SECURITY_IP_FILTERING,
         Feature.SECURITY_ALL_REALMS,
         Feature.SECURITY_STANDARD_REALMS

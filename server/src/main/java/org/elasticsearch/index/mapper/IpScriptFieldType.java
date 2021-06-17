@@ -13,7 +13,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateMathParser;

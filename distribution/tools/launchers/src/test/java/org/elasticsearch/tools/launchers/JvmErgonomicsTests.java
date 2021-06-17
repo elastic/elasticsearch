@@ -9,6 +9,7 @@
 package org.elasticsearch.tools.launchers;
 
 import org.elasticsearch.tools.java_version_checker.JavaVersion;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;

@@ -3,6 +3,20 @@
 
 Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 
+[[known-issues-7.11.2]]
+[discrete]
+=== Known issues
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
+
 [[enhancement-7.11.2]]
 [float]
 === Enhancements
@@ -58,6 +72,20 @@ Transform::
 == {es} version 7.11.1
 
 Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
+
+[[known-issues-7.11.1]]
+[discrete]
+=== Known issues
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [[enhancement-7.11.1]]
 [float]
@@ -161,6 +189,16 @@ Also see <<breaking-changes-7.11,Breaking changes in 7.11>>.
 * If autoscaling is enabled and job assignment takes an inordinate amount of time, scaling
   sizes may increase much higher than required. Elasticsearch 7.13.0 contains a fix for this.
   For more details, see {es-issue}72509[#72509]
+
+* Snapshot and restore: If an index is deleted while the cluster is
+concurrently taking more than one snapshot then there is a risk that one of the
+snapshots may never complete and also that some shard data may be lost from the
+repository, causing future restore operations to fail. To mitigate this
+problem, prevent concurrent snapshot operations by setting
+`snapshot.max_concurrent_operations: 1`.
++
+This issue is fixed in {es} versions 7.13.1 and later. For more details, see
+{es-issue}73456[#73456].
 
 [discrete]
 [[fips-140-2-compliance-7.11.0]]

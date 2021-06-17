@@ -107,7 +107,7 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         if (request.deciders() != null) {
             assertThat(metadata.policies().get(request.name()).policy().deciders(), equalTo(request.deciders()));
         } else {
-            assertThat(metadata.policies().get(request.name()).policy().deciders(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertThat(metadata.policies().get(request.name()).policy().deciders(), equalTo(org.elasticsearch.core.Map.of()));
         }
         verify(mockLogger).info("adding autoscaling policy [{}]", request.name());
         verifyNoMoreInteractions(mockLogger);

@@ -16,10 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingSlowLog;
+import org.elasticsearch.index.SearchSlowLog;
+import org.elasticsearch.index.SlowLogLevel;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.collection.IsIterableContainingInOrder.contains;
@@ -455,5 +458,26 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                 expectedUrl,
                 "Found index data path configured. Discontinue use of this setting."
         )));
+    }
+
+    public void testSlowLogLevel() {
+        Settings.Builder settings = settings(Version.CURRENT);
+        settings.put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL.getKey(), SlowLogLevel.DEBUG);
+        settings.put(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING.getKey(), SlowLogLevel.DEBUG);
+        IndexMetadata indexMetadata = IndexMetadata.builder("test").settings(settings).numberOfShards(1).numberOfReplicas(0).build();
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(indexMetadata));
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html#slow-log-level-removal";
+        assertThat(issues, containsInAnyOrder(
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "setting [index.search.slowlog.level] is deprecated and will be removed in a future version",
+                expectedUrl,
+                "Found [index.search.slowlog.level] configured. Discontinue use of this setting. Use thresholds."
+            ),
+            new DeprecationIssue(DeprecationIssue.Level.WARNING,
+                "setting [index.indexing.slowlog.level] is deprecated and will be removed in a future version",
+                expectedUrl,
+                "Found [index.indexing.slowlog.level] configured. Discontinue use of this setting. Use thresholds."
+            )));
     }
 }

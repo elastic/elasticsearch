@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.node;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Set;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;

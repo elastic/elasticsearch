@@ -28,7 +28,7 @@ public class RestMountSearchableSnapshotAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_snapshot/{repository}/{snapshot}/_mount"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_snapshot/{repository}/{snapshot}/_mount"));
     }
 
     @Override

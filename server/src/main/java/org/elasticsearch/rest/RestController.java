@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -57,6 +57,8 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private static final Logger logger = LogManager.getLogger(RestController.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestController.class);
+    static final String ELASTIC_PRODUCT_HTTP_HEADER = "X-elastic-product";
+    static final String ELASTIC_PRODUCT_HTTP_HEADER_VALUE = "Elasticsearch";
     private static final String ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER = "X-elastic-product-origin";
 
     private static final BytesReference FAVICON_RESPONSE;
@@ -188,6 +190,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
@@ -203,6 +206,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     @Override
     public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+        threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
         try {
             final Exception e;
             if (cause == null) {

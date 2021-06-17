@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.security.action;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,7 +52,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         this.invalidated = invalidated;
         this.username = username;
         this.realm = realm;
-        this.metadata = metadata == null ? org.elasticsearch.common.collect.Map.of() : metadata;
+        this.metadata = metadata == null ? org.elasticsearch.core.Map.of() : metadata;
     }
 
     public ApiKey(StreamInput in) throws IOException {
@@ -70,7 +70,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             this.metadata = in.readMap();
         } else {
-            this.metadata = org.elasticsearch.common.collect.Map.of();
+            this.metadata = org.elasticsearch.core.Map.of();
         }
     }
 
@@ -118,7 +118,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         builder.field("invalidated", invalidated)
         .field("username", username)
         .field("realm", realm)
-        .field("metadata", (metadata == null ? org.elasticsearch.common.collect.Map.of() : metadata));
+        .field("metadata", (metadata == null ? org.elasticsearch.core.Map.of() : metadata));
         return builder.endObject();
     }
 

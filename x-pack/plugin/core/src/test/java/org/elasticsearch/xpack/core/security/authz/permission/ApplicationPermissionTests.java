@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.permission;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;

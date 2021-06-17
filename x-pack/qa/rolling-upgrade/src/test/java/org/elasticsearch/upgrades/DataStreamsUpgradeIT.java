@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -66,7 +66,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
             index.addParameter("filter_path", "_index");
             if (Booleans.parseBoolean(System.getProperty("tests.first_round"))) {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
-                List<String> expectedIndices = org.elasticsearch.common.collect.List.of(
+                List<String> expectedIndices = org.elasticsearch.core.List.of(
                     "{\"_index\":\"" + DataStream.getLegacyDefaultBackingIndexName("logs-foobar", 2) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 2, nowMillis + 86400000) + "\"}",
@@ -77,7 +77,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                 assertThat(expectedIndices, Matchers.hasItem(EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8)));
             } else {
                 // include legacy name and date-named indices with today +/-1 in case of clock skew
-                List<String> expectedIndices = org.elasticsearch.common.collect.List.of(
+                List<String> expectedIndices = org.elasticsearch.core.List.of(
                     "{\"_index\":\"" + DataStream.getLegacyDefaultBackingIndexName("logs-foobar", 3) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis) + "\"}",
                     "{\"_index\":\"" + DataStream.getDefaultBackingIndexName("logs-foobar", 3, nowMillis + 86400000) + "\"}",

@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.snapshots;
 
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -33,7 +34,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -134,7 +135,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                     clusterAdmin().prepareDeleteSnapshot(name, OLD_VERSION_SNAPSHOT_PREFIX + "*").get();
                     clusterAdmin().prepareCleanupRepository(name).get();
                 }
-                BlobStoreTestUtil.assertRepoConsistency(internalCluster(), name);
+                BlobStoreTestUtil.assertConsistency(getRepositoryOnMaster(name));
             });
         } else {
             logger.info("--> skipped repo consistency checks because [{}]", skipRepoConsistencyCheckReason);
@@ -190,6 +191,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         internalCluster().stopRandomNode(settings -> settings.get("node.name").equals(node));
     }
 
+    protected static String startDataNodeWithLargeSnapshotPool() {
+        return internalCluster().startDataOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+    }
+
     public void waitForBlock(String node, String repository) throws Exception {
         logger.info("--> waiting for [{}] to be blocked on node [{}]", repository, node);
         MockRepository mockRepository = getRepositoryOnNode(repository, node);
@@ -213,7 +218,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    protected static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
+    public static <T extends Repository> T getRepositoryOnMaster(String repositoryName) {
         return ((T) internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(repositoryName));
     }
 
@@ -277,10 +282,20 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         AbstractSnapshotIntegTestCase.<MockRepository>getRepositoryOnNode(repository, node).unblock();
     }
 
-    protected void createRepository(String repoName, String type, Settings.Builder settings) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
+    protected void createRepository(String repoName, String type, Settings.Builder settings, boolean verify) {
+        createRepository(logger, repoName, type, settings, verify);
+    }
+
+    public static void createRepository(Logger logger, String repoName, String type, Settings.Builder settings, boolean verify) {
+        logger.info("--> creating or updating repository [{}] [{}]", repoName, type);
         assertAcked(clusterAdmin().preparePutRepository(repoName)
-            .setType(type).setSettings(settings));
+            .setVerify(verify)
+            .setType(type)
+            .setSettings(settings));
+    }
+
+    protected void createRepository(String repoName, String type, Settings.Builder settings) {
+        createRepository(repoName, type, settings, true);
     }
 
     protected void createRepository(String repoName, String type, Path location) {
@@ -288,18 +303,18 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected void createRepository(String repoName, String type) {
-        createRepository(repoName, type, randomRepositorySettings());
+        createRepository(logger, repoName, type);
     }
 
     protected void createRepositoryNoVerify(String repoName, String type) {
-        logger.info("--> creating repository [{}] [{}]", repoName, type);
-        assertAcked(clusterAdmin().preparePutRepository(repoName)
-                .setVerify(false)
-                .setType(type)
-                .setSettings(randomRepositorySettings()));
+        createRepository(repoName, type, randomRepositorySettings(), false);
     }
 
-    protected Settings.Builder randomRepositorySettings() {
+    public static void createRepository(Logger logger, String repoName, String type) {
+        createRepository(logger, repoName, type, randomRepositorySettings(), true);
+    }
+
+    public static Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
         if (rarely()) {
@@ -552,7 +567,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return clusterAdmin().prepareDeleteSnapshot(repoName, snapshotName).execute();
     }
 
-    protected void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
+    protected static void updateClusterState(final Function<ClusterState, ClusterState> updater) throws Exception {
         final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
         final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
@@ -595,6 +610,10 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected List<String> createNSnapshots(String repoName, int count) throws Exception {
+        return createNSnapshots(logger, repoName, count);
+    }
+
+    public static List<String> createNSnapshots(Logger logger, String repoName, int count) throws Exception {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);

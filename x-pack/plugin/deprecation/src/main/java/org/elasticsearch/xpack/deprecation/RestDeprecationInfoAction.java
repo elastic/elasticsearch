@@ -10,13 +10,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
-import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction.Request;
+import org.elasticsearch.xpack.deprecation.DeprecationInfoAction.Request;
 
 import java.io.IOException;
 import java.util.List;

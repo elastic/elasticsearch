@@ -11,7 +11,8 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
@@ -25,7 +26,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.SortedMap;
@@ -52,7 +52,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build());
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             "ml_test",
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of("ml")),
+            new TreeSet<>(Set.of("ml")),
             deciders
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());

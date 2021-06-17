@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test.rest.yaml;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.util.Arrays;

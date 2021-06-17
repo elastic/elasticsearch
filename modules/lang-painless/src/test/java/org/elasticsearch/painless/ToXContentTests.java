@@ -28,8 +28,8 @@ public class ToXContentTests extends ScriptTestCase {
         assertTrue((Boolean)func.get("isStatic"));
         assertEquals("SFunction", func.get("node"));
         assertEquals("def", func.get("returns"));
-        assertEquals(org.elasticsearch.common.collect.List.of("int"), func.get("parameterTypes"));
-        assertEquals(org.elasticsearch.common.collect.List.of("i"), func.get("parameters"));
+        assertEquals(org.elasticsearch.core.List.of("int"), func.get("parameterTypes"));
+        assertEquals(org.elasticsearch.core.List.of("i"), func.get("parameters"));
     }
 
     public void testBlock() {

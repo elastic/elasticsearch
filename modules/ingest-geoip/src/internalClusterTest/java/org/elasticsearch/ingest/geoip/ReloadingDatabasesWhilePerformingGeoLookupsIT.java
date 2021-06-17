@@ -8,8 +8,8 @@
 
 package org.elasticsearch.ingest.geoip;
 
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.network.InetAddresses;

@@ -9,8 +9,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;

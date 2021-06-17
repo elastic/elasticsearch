@@ -487,6 +487,7 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-clear-privileges-cache>>
 * <<{upid}-clear-realm-cache>>
 * <<{upid}-clear-api-key-cache>>
+* <<{upid}-clear-service-account-token-cache>>
 * <<{upid}-authenticate>>
 * <<{upid}-has-privileges>>
 * <<{upid}-get-user-privileges>>
@@ -503,6 +504,10 @@ The Java High Level REST Client supports the following Security APIs:
 * <<{upid}-create-api-key>>
 * <<{upid}-get-api-key>>
 * <<{upid}-invalidate-api-key>>
+* <<{upid}-get-service-accounts>>
+* <<{upid}-create-service-account-token>>
+* <<{upid}-delete-service-account-token>>
+* <<{upid}-get-service-account-credentials>>
 
 include::security/put-user.asciidoc[]
 include::security/get-users.asciidoc[]
@@ -520,6 +525,7 @@ include::security/clear-roles-cache.asciidoc[]
 include::security/clear-privileges-cache.asciidoc[]
 include::security/clear-realm-cache.asciidoc[]
 include::security/clear-api-key-cache.asciidoc[]
+include::security/clear-service-account-token-cache.asciidoc[]
 include::security/authenticate.asciidoc[]
 include::security/has-privileges.asciidoc[]
 include::security/get-user-privileges.asciidoc[]
@@ -534,6 +540,10 @@ include::security/create-api-key.asciidoc[]
 include::security/grant-api-key.asciidoc[]
 include::security/get-api-key.asciidoc[]
 include::security/invalidate-api-key.asciidoc[]
+include::security/get-service-accounts.asciidoc[]
+include::security/create-service-account-token.asciidoc[]
+include::security/delete-service-account-token.asciidoc[]
+include::security/get-service-account-credentials.asciidoc[]
 
 [role="xpack"]
 == Text Structure APIs

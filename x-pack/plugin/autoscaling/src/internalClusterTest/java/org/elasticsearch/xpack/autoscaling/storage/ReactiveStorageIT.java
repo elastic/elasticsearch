@@ -17,9 +17,11 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -94,14 +96,14 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         setTotalSpace(dataNodeName, enoughSpace);
         GetAutoscalingCapacityAction.Response response = capacity();
-        assertThat(response.results().keySet(), Matchers.equalTo(org.elasticsearch.common.collect.Set.of(policyName)));
+        assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
 
         setTotalSpace(dataNodeName, enoughSpace - 2);
         response = capacity();
-        assertThat(response.results().keySet(), Matchers.equalTo(org.elasticsearch.common.collect.Set.of(policyName)));
+        assertThat(response.results().keySet(), Matchers.equalTo(Set.of(policyName)));
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace - 2));
         assertThat(
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
@@ -244,8 +246,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
     private void putAutoscalingPolicy(String policyName, String role) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of(role)),
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of("reactive_storage", Settings.EMPTY))
+            new TreeSet<>(Set.of(role)),
+            new TreeMap<>(Map.of("reactive_storage", Settings.EMPTY))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }

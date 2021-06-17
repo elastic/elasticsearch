@@ -18,8 +18,6 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-
 public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
     @Override
@@ -29,7 +27,7 @@ public class RestMigrateToDataStreamAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(POST, "/_data_stream/_migrate/{name}"));
+        return org.elasticsearch.core.List.of(new Route(POST, "/_data_stream/_migrate/{name}"));
     }
 
     @Override

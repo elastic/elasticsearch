@@ -88,7 +88,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
-        Set<String> allActions = org.elasticsearch.common.collect.Set.copyOf((List<String>) response.get("actions"));
+        Set<String> allActions = org.elasticsearch.core.Set.copyOf((List<String>) response.get("actions"));
         final HashSet<String> labelledActions = new HashSet<>(OperatorOnlyRegistry.SIMPLE_ACTIONS);
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 
@@ -120,12 +120,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     public void testUpdateOperatorSettings() throws IOException {
         final Map<String, Object> settings = new HashMap<>(
-            org.elasticsearch.common.collect.Map.of(
-                "xpack.security.http.filter.enabled",
-                "false",
-                "xpack.security.transport.filter.enabled",
-                "false"
-            )
+            org.elasticsearch.core.Map.of("xpack.security.http.filter.enabled", "false", "xpack.security.transport.filter.enabled", "false")
         );
         final boolean extraSettings = randomBoolean();
         if (extraSettings) {
@@ -152,7 +147,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         createSnapshotRepo(repoName);
         // Initial values
         updateSettings(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "xpack.security.http.filter.enabled",
                 "false",
                 "xpack.security.http.filter.allow",
@@ -164,9 +159,9 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         );
         takeSnapshot(repoName, snapshotName);
         // change to different values
-        deleteSettings(org.elasticsearch.common.collect.List.of("xpack.security.http.filter.enabled"), OPERATOR_AUTH_HEADER);
+        deleteSettings(org.elasticsearch.core.List.of("xpack.security.http.filter.enabled"), OPERATOR_AUTH_HEADER);
         updateSettings(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "xpack.security.transport.filter.enabled",
                 "true",
                 "xpack.security.http.filter.allow",

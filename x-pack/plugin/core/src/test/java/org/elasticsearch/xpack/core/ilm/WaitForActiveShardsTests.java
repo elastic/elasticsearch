@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
@@ -169,7 +170,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        org.elasticsearch.common.collect.List.of(originalIndexMeta.getIndex(),
+                        List.of(originalIndexMeta.getIndex(),
                         rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)

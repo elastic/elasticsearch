@@ -134,10 +134,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     break;
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
                 for (TestStep value : TestStep.values()) {
-                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + value, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + value, shards, index);
                 }
             }
         } finally {
@@ -174,10 +174,10 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                     "snapshot-" + TestStep.STEP1_OLD_CLUSTER, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
             }
             if (TEST_STEP == TestStep.STEP3_OLD_CLUSTER) {
-                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
             } else if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
-                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
+                ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards, index);
             }
         }
     }
@@ -210,15 +210,15 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 assertSnapshotStatusSuccessful(client, repoName,
                     snapshots.stream().map(sn -> (String) sn.get("snapshot")).toArray(String[]::new));
                 if (TEST_STEP == TestStep.STEP1_OLD_CLUSTER) {
-                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER, shards, index);
                 } else {
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP1_OLD_CLUSTER);
-                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER, shards, index);
                     createSnapshot(client, repoName, "snapshot-1", index);
-                    ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards, index);
                     deleteSnapshot(client, repoName, "snapshot-" + TestStep.STEP2_NEW_CLUSTER);
                     createSnapshot(client, repoName, "snapshot-2", index);
-                    ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards);
+                    ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards, index);
                 }
             } else {
                 if (SnapshotsService.includesUUIDs(minNodeVersion) == false) {
@@ -230,8 +230,8 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
                 } else {
                     assertThat(listSnapshots(repoName), hasSize(2));
                     if (TEST_STEP == TestStep.STEP4_NEW_CLUSTER) {
-                        ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards);
-                        ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards);
+                        ensureSnapshotRestoreWorks(repoName, "snapshot-1", shards, index);
+                        ensureSnapshotRestoreWorks(repoName, "snapshot-2", shards, index);
                     }
                 }
             }
@@ -270,12 +270,13 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void ensureSnapshotRestoreWorks(String repoName, String name, int shards) throws IOException {
+    private void ensureSnapshotRestoreWorks(String repoName, String name, int shards, String index) throws IOException {
         wipeAllIndices();
-        try (InputStream entity = client().performRequest(
-            new Request("POST", "/_snapshot/" + repoName + "/" + name + "/_restore?wait_for_completion=true")).getEntity().getContent();
-            XContentParser parser = JsonXContent.jsonXContent.createParser(
-            xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
+        final Request request = new Request("POST", "/_snapshot/" + repoName + "/" + name + "/_restore?wait_for_completion=true");
+        request.setJsonEntity("{\"indices\": \"" + index + "\"}");
+        try (InputStream entity = client().performRequest(request).getEntity().getContent();
+             XContentParser parser = JsonXContent.jsonXContent.createParser(
+                     xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, entity)) {
             final Map<String, Object> raw = parser.map();
             final Map<String, Object> snapshot = (Map<String, Object>) raw.get("snapshot");
             final Map<String, Object> shardStats = (Map<String, Object>) snapshot.get("shards");

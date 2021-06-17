@@ -8,8 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.script.ClassPermission;
@@ -57,7 +57,7 @@ import java.util.stream.Collectors;
 public class PolicyUtil {
 
     // this object is checked by reference, so the value in the list does not matter
-    static final List<String> ALLOW_ALL_NAMES = org.elasticsearch.common.collect.List.of("ALLOW ALL NAMES SENTINEL");
+    static final List<String> ALLOW_ALL_NAMES = org.elasticsearch.core.List.of("ALLOW ALL NAMES SENTINEL");
 
     static class PermissionMatcher implements Predicate<Permission> {
 
@@ -90,7 +90,7 @@ public class PolicyUtil {
     private static final PermissionMatcher ALLOWED_PLUGIN_PERMISSIONS;
     private static final PermissionMatcher ALLOWED_MODULE_PERMISSIONS;
     static {
-        List<Permission> namedPermissions = org.elasticsearch.common.collect.List.of(
+        List<Permission> namedPermissions = org.elasticsearch.core.List.of(
             // TODO: remove read permission, see https://github.com/elastic/elasticsearch/issues/69464
             createFilePermission("<<ALL FILES>>", "read"),
 
@@ -145,12 +145,12 @@ public class PolicyUtil {
         // is used to mean names are accepted. We do not use this model for all permissions because many permission
         // classes have their own meaning for some form of wildcard matching of the name, which we want to delegate
         // to those permissions if possible.
-        Map<String, List<String>> classPermissions = org.elasticsearch.common.collect.Map.of(
+        Map<String, List<String>> classPermissions = org.elasticsearch.core.Map.of(
             URLPermission.class, ALLOW_ALL_NAMES,
             DelegationPermission.class, ALLOW_ALL_NAMES,
             ServicePermission.class, ALLOW_ALL_NAMES,
             PrivateCredentialPermission.class, ALLOW_ALL_NAMES,
-            SQLPermission.class, org.elasticsearch.common.collect.List.of("callAbort", "setNetworkTimeout"),
+            SQLPermission.class, org.elasticsearch.core.List.of("callAbort", "setNetworkTimeout"),
             ClassPermission.class, ALLOW_ALL_NAMES
         ).entrySet().stream().collect(Collectors.toMap(e -> e.getKey().getCanonicalName(), Map.Entry::getValue));
         PermissionCollection pluginPermissionCollection = new Permissions();
@@ -161,7 +161,7 @@ public class PolicyUtil {
         // Modules are allowed a few extra permissions. While we should strive to keep this list small, modules
         // are essentially part of core, so these are permissions we need for various reasons in core functionality,
         // but that we do not think plugins in general should need.
-        List<Permission> modulePermissions = org.elasticsearch.common.collect.List.of(
+        List<Permission> modulePermissions = org.elasticsearch.core.List.of(
             createFilePermission("<<ALL FILES>>", "read,write"),
             new RuntimePermission("getFileStoreAttributes"),
             new RuntimePermission("accessUserInformation"),

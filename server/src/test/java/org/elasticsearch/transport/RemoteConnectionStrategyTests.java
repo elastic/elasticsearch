@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.mockito.Mockito.mock;

@@ -38,7 +38,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
@@ -148,11 +148,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
         // ML didn't use composable templates in 7.13 and the legacy template exists, so nothing needs to be done
@@ -171,11 +171,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
         MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
@@ -193,11 +193,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
         MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,
@@ -211,11 +211,11 @@ public class MlIndexAndAliasTests extends ESTestCase {
 
         IndexTemplateConfig legacyNotificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_legacy_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
         IndexTemplateConfig notificationsTemplate = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
             "/org/elasticsearch/xpack/core/ml/notifications_index_template.json", Version.CURRENT.id, "xpack.ml.version",
-            org.elasticsearch.common.collect.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
+            org.elasticsearch.core.Map.of("xpack.ml.version.id", String.valueOf(Version.CURRENT.id),
                 "xpack.ml.notifications.mappings", NotificationsIndex.mapping()));
 
         MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, Version.CURRENT, legacyNotificationsTemplate,

@@ -10,7 +10,7 @@ package org.elasticsearch.benchmark.time;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.joda.time.DateTimeZone;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;

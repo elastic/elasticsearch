@@ -148,7 +148,10 @@ public class FunctionRef {
                                 "not found");
                     }
                 } else if (captured) {
-                    throw new IllegalStateException("internal error");
+                    throw new IllegalArgumentException(
+                            "cannot use a static method as a function reference " +
+                            "[" + typeName + "::" + methodName + "/" + interfaceTypeParametersSize + "] " +
+                            "with a non-static captured variable");
                 }
 
                 delegateClassName = painlessMethod.javaMethod.getDeclaringClass().getName();
@@ -165,6 +168,20 @@ public class FunctionRef {
 
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
+
+                // interfaces that override a method from Object receive the method handle for
+                // Object rather than for the interface; we change the first parameter to match
+                // the interface type so the constant interface method reference is correctly
+                // written to the constant pool
+                if (delegateInvokeType != H_INVOKESTATIC &&
+                        painlessMethod.javaMethod.getDeclaringClass() != painlessMethod.methodType.parameterType(0)) {
+                    if (painlessMethod.methodType.parameterType(0) != Object.class) {
+                        throw new IllegalStateException("internal error");
+                    }
+                    
+                    delegateMethodType = delegateMethodType.changeParameterType(0, painlessMethod.javaMethod.getDeclaringClass());
+                }
+
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
                 delegateMethodReturnType = painlessMethod.returnType;

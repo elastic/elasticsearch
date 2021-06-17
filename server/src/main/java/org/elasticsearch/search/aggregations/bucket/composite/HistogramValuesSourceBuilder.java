@@ -15,6 +15,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -65,7 +66,7 @@ public class HistogramValuesSourceBuilder extends CompositeValuesSourceBuilder<H
     public static void register(ValuesSourceRegistry.Builder builder) {
         builder.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
+            List.of(CoreValuesSourceType.DATE, CoreValuesSourceType.NUMERIC),
             (valuesSourceConfig, interval, name, hasScript, format, missingBucket, order) -> {
                 ValuesSource.Numeric numeric = (ValuesSource.Numeric) valuesSourceConfig.getValuesSource();
                 final HistogramValuesSource vs = new HistogramValuesSource(numeric, interval);

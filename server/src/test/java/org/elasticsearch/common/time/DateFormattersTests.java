@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -90,8 +90,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testPrintersLongMinMaxValue() {
         for (FormatNames format : FormatNames.values()) {
             DateFormatter formatter = DateFormatters.forPattern(format.getSnakeCaseName());
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
-            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(DateUtils.MAX_MILLIS_BEFORE_9999));
         }
         assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
     }

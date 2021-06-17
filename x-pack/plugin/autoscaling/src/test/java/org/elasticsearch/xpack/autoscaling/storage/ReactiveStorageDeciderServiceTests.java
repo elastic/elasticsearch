@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import com.carrotsearch.hppc.IntHashSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -37,12 +38,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Map;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
@@ -135,7 +136,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         IndexShardRoutingTable subjectRoutings = initialClusterState.routingTable()
             .shardRoutingTable(indexMetadata.getIndex().getName(), shardId);
         RoutingAllocation allocation = new RoutingAllocation(
-            new AllocationDeciders(org.elasticsearch.common.collect.List.of()),
+            new AllocationDeciders(org.elasticsearch.core.List.of()),
             new RoutingNodes(initialClusterState, false),
             initialClusterState,
             null,
@@ -187,8 +188,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             info,
             null,
-            org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of()
         );
 
         assertThat(allocationState.sizeOf(subjectShard), equalTo(expected));
@@ -264,8 +265,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             null,
             null,
             shardSizeInfo,
-            org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of()
         );
 
         assertThat(allocationState.sizeOf(primaryShard), equalTo(expected));
@@ -287,7 +288,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                         UUIDs.randomBase64UUID(),
                         buildNewFakeTransportAddress(),
                         Map.of(),
-                        org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_ROLE),
+                        org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_ROLE),
                         Version.CURRENT
                     )
                 )
@@ -352,8 +353,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             thresholdSettings,
             info,
             null,
-            org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of()
+            org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of()
         );
 
         long result = allocationState.unmovableSize(nodeId, shards);
@@ -432,8 +433,8 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             new DiskThresholdSettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             ClusterInfo.EMPTY,
             null,
-            org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
+            org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of(DiscoveryNodeRole.DATA_WARM_NODE_ROLE)
         );
 
         RoutingAllocation allocation = new RoutingAllocation(

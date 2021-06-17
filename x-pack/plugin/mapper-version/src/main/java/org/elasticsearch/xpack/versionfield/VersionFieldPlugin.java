@@ -24,7 +24,7 @@ public class VersionFieldPlugin extends Plugin implements MapperPlugin {
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return org.elasticsearch.common.collect.Map.of(VersionStringFieldMapper.CONTENT_TYPE, VersionStringFieldMapper.PARSER);
+        return org.elasticsearch.core.Map.of(VersionStringFieldMapper.CONTENT_TYPE, VersionStringFieldMapper.PARSER);
     }
 
     @Override

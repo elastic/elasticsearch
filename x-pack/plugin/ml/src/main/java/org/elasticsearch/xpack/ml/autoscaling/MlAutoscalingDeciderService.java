@@ -14,13 +14,13 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
@@ -842,11 +842,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     @Override
     public List<Setting<?>> deciderSettings() {
-        return org.elasticsearch.common.collect.List.of(NUM_ANALYTICS_JOBS_IN_QUEUE, NUM_ANOMALY_JOBS_IN_QUEUE, DOWN_SCALE_DELAY);
+        return org.elasticsearch.core.List.of(NUM_ANALYTICS_JOBS_IN_QUEUE, NUM_ANOMALY_JOBS_IN_QUEUE, DOWN_SCALE_DELAY);
     }
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return org.elasticsearch.common.collect.List.of(MachineLearning.ML_ROLE);
+        return org.elasticsearch.core.List.of(MachineLearning.ML_ROLE);
     }
 }

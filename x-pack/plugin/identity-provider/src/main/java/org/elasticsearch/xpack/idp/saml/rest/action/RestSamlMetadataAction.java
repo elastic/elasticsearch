@@ -36,7 +36,7 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
+        return org.elasticsearch.core.List.of(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
     }
 
     @Override

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AddMissingEqualsToBoolField;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;

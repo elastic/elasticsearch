@@ -84,7 +84,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMappingForName() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("mapping", org.elasticsearch.common.collect.Map.of(
+        templateDef.put("mapping", org.elasticsearch.core.Map.of(
             "field1_{name}", "{dynamic_type}", "test", Collections.singletonList("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
@@ -95,7 +95,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMappingForNameRuntime() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("runtime", org.elasticsearch.common.collect.Map.of(
+        templateDef.put("runtime", org.elasticsearch.core.Map.of(
             "field1_{name}", "{dynamic_type}", "test", Collections.singletonList("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");

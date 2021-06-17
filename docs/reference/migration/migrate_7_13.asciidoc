@@ -60,6 +60,27 @@ geohash strings.
 ====
 
 [discrete]
+[[breaking_713_ssl_changes]]
+==== SSL/TLS changes
+
+[[breaking_713_bundled_jdk_tls_versions]]
+.TLSv1.1 and TLSv1.0 are disabled in the bundled JDK
+[%collapsible]
+====
+*Details* +
+When using the bundled JDK, TLSv1.1 and TLSv1.0 are disabled by default.
+This may affect SSL connections to the Rest API for some older clients.
+It also has the potential to affect outgoing connections such as {watcher} webhooks,
+LDAP authentication or access to snapshot repositories.
+
+Most {es} deployments will not be affected by this change, as these older
+TLS versions have known vulnerabilities and are no longer heavily used.
+
+For instructions on how to enable these older TLS versions in your {es} cluster,
+see <<jdk-enable-tls-protocol>>
+====
+
+[discrete]
 [[breaking_713_frozen_multiple_data_paths_changes]]
 ==== Frozen tier and multiple data paths changes
 
@@ -117,13 +138,92 @@ aggregations are rarely useful and often unintended.
 [%collapsible]
 ====
 *Details* +
-Support for multiple paths in the `path.data` setting is now deprecated. We
-introduced this option as a way to support multi-disk setups. It has since been
-a source of user complaints due to confusing and unintuitive behavior.
+The `path.data` setting accepts a list of data paths, but if you specify
+multiple paths then the behaviour is unintuitive and usually does not give the
+desired outcomes. Support for multiple data paths is now deprecated and will be
+removed in 8.0.0.
 
 *Impact* +
-Specify a single path in `path.data`. To use multiple disks, use a RAID
-hardware configuration or similar hardware solution.
+Specify a single path in `path.data`. If needed, you can create a filesystem
+which spans multiple disks with a hardware virtualisation layer such as RAID,
+or a software virtualisation layer such as Logical Volume Manager (LVM) on
+Linux or Storage Spaces on Windows. If you wish to use multiple data paths on a
+single machine then you must run one node for each data path.
+
+If you currently use multiple data paths in a
+<<high-availability-cluster-design,highly available cluster>> then you can
+migrate to a setup that uses a single path for each node without downtime using
+a process similar to a <<restart-cluster-rolling,rolling restart>>: shut each
+node down in turn and replace it with one or more nodes each configured to use
+a single data path. In more detail, for each node that currently has multiple
+data paths you should follow the following process.
+
+1. Take a snapshot to protect your data in case of disaster.
+
+2. Optionally, migrate the data away from the target node by using an
+<<cluster-shard-allocation-filtering,allocation filter>>:
++
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name": "target-node-name"
+  }
+}
+--------------------------------------------------
++
+You can use the <<cat-allocation,cat allocation API>> to track progress of this
+data migration. If some shards do not migrate then the
+<<cluster-allocation-explain,cluster allocation explain API>> will help you to
+determine why.
+
+3. Follow the steps in the <<restart-cluster-rolling,rolling restart process>>
+up to and including shutting the target node down.
+
+4. Ensure your cluster health is `yellow` or `green`, so that there is a copy
+of every shard assigned to at least one of the other nodes in your cluster.
+
+5. If applicable, remove the allocation filter applied in the earlier step.
++
+[source,console]
+--------------------------------------------------
+PUT _cluster/settings
+{
+  "transient": {
+    "cluster.routing.allocation.exclude._name": null
+  }
+}
+--------------------------------------------------
+
+6. Discard the data held by the stopped node by deleting the contents of its
+data paths.
+
+7. Reconfigure your storage. For instance, combine your disks into a single
+filesystem using LVM or Storage Spaces. Ensure that your reconfigured storage
+has sufficient space for the data that it will hold.
+
+8. Reconfigure your node by adjusting the `path.data` setting in its
+`elasticsearch.yml` file. If needed, install more nodes each with their own
+`path.data` setting pointing at a separate data path.
+
+9. Start the new nodes and follow the rest of the
+<<restart-cluster-rolling,rolling restart process>> for them.
+
+10. Ensure your cluster health is `green`, so that every shard has been
+assigned.
+
+You can alternatively add some number of single-data-path nodes to your
+cluster, migrate all your data over to these new nodes using
+<<cluster-shard-allocation-filtering,allocation filters>>, and then remove the
+old nodes from the cluster. This approach will temporarily double the size of
+your cluster so it will only work if you have the capacity to expand your
+cluster like this.
+
+If you currently use multiple data paths but your cluster is not highly
+available then the you can migrate to a non-deprecated configuration by taking
+a snapshot, creating a new cluster with the desired configuration and restoring
+the snapshot into it.
 ====
 
 [[action-destructive-defaults-to-true]]
@@ -139,6 +239,17 @@ If you use a wildcard (`*`) or `_all` to delete indices or perform other
 destructive actions, use the {ref}/cluster-update-settings.html[update cluster
 settings API] to set `action.destructive_requires_name` to `false` to avoid
 errors in 8.0.0.
+====
+
+[[slow-log-level-removal]]
+.`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed.
+[%collapsible]
+====
+*Details* +
+`index.indexing.slowlog.level` and `index.search.slowlog.level` are removed. These settings can be worked around
+by using appropriate thresholds. If for instance we want to simulate `index.indexing.slowlog.level` = `INFO` then
+all we need to do is to set `index.indexing.slowlog.threshold.index.debug` and
+`index.indexing.slowlog.threshold.index.trace` to `-1` {es-pull}57591[#57591]
 ====
 
 [discrete]

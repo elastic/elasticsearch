@@ -29,7 +29,7 @@ public abstract class FieldScript {
     public static final String[] PARAMETERS = {};
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.core.Map.of(
             "doc", value -> {
                 deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "field-script_doc",
                         "Accessing variable [doc] via [params.doc] from within an field-script "

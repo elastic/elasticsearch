@@ -33,13 +33,13 @@ import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformStats;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -85,7 +85,7 @@ import static org.hamcrest.core.Is.is;
  *       - sync config for continuous mode
  *       - page size 10 to trigger paging
  *       - count field to test how many buckets
- *       - max run field to check what was the hight run field, see below for more details
+ *       - max run field to check what was the highest run field, see below for more details
  *       - a test ingest pipeline
  *    - execute 10 rounds ("run"):
  *      - set run = #round
@@ -152,7 +152,6 @@ public class TransformContinuousIT extends ESRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/66410")
     public void testContinousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
@@ -226,7 +225,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                 Integer metric = metric_bucket.get((numDoc + randomIntBetween(0, 50)) % 50);
                 if (metric != null) {
                     // randomize, but ensure it falls into the same bucket
-                    int randomizedMetric = metric + randomIntBetween(0, 99);
+                    int randomizedMetric = run * ContinuousTestCase.METRIC_TREND + metric + randomIntBetween(0, 99);
                     source.append("\"metric\":").append(randomizedMetric).append(",");
                 }
 
@@ -301,6 +300,8 @@ public class TransformContinuousIT extends ESRestTestCase {
      * index sorting, triggers query optimizations.
      */
     private void putIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
+        List<String> sortedFields = Collections.emptyList();
+
         // create mapping and settings
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -310,9 +311,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (randomBoolean()) {
                     builder.field("codec", "best_compression");
                 }
-                // TODO: crashes with assertions enabled in lucene
-                if (false && randomBoolean()) {
-                    List<String> sortedFields = new ArrayList<>(
+                if (randomBoolean()) {
+                    sortedFields = new ArrayList<>(
                         // note: no index sort for geo_point
                         randomUnique(() -> randomFrom("event", "metric", "run", "timestamp"), randomIntBetween(1, 3))
                     );
@@ -336,11 +336,16 @@ public class TransformContinuousIT extends ESRestTestCase {
                 }
                 builder.endObject();
 
+                // gh#72741 : index sort does not support unsigned_long
+                final String metricType = sortedFields.contains("metric")
+                    ? randomFrom("integer", "long")
+                    : randomFrom("integer", "long", "unsigned_long");
+
                 builder.startObject("event")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
-                    .field("type", randomFrom("integer", "long", "unsigned_long"))
+                    .field("type", metricType)
                     .endObject()
                     .startObject("location")
                     .field("type", "geo_point")
@@ -397,8 +402,8 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .endObject();
 
-                // random overlay of existing field
-                if (randomBoolean()) {
+                // random overlay of existing field, only if its not part of sorted fields
+                if (sortedFields.contains("metric") == false && randomBoolean()) {
                     if (randomBoolean()) {
                         builder.startObject("metric").field("type", "long").endObject();
                     } else {
@@ -475,6 +480,8 @@ public class TransformContinuousIT extends ESRestTestCase {
             putPipeline(new PutPipelineRequest(ContinuousTestCase.INGEST_PIPELINE, BytesReference.bytes(pipeline), XContentType.JSON))
                 .isAcknowledged()
         );
+
+
     }
 
     private GetTransformStatsResponse getTransformStats(String id) throws IOException {
@@ -504,7 +511,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                     stats.getCheckpointingInfo().getLastSearchTime(),
                     greaterThan(waitUntil)
                 );
-            }, 20, TimeUnit.SECONDS);
+            }, 30, TimeUnit.SECONDS);
         }
     }
 
@@ -538,18 +545,23 @@ public class TransformContinuousIT extends ESRestTestCase {
     private AcknowledgedResponse putTransform(TransformConfig config) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().putTransform(new PutTransformRequest(config), RequestOptions.DEFAULT);
+
+
         }
     }
 
     private org.elasticsearch.action.support.master.AcknowledgedResponse putPipeline(PutPipelineRequest pipeline) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.ingest().putPipeline(pipeline, RequestOptions.DEFAULT);
+
         }
     }
 
     private org.elasticsearch.action.support.master.AcknowledgedResponse deletePipeline(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.ingest().deletePipeline(new DeletePipelineRequest(id), RequestOptions.DEFAULT);
+
+
         }
     }
 
@@ -562,6 +574,8 @@ public class TransformContinuousIT extends ESRestTestCase {
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().startTransform(new StartTransformRequest(id), RequestOptions.DEFAULT);
+
+
         }
     }
 
@@ -570,6 +584,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform()
                 .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
+
         }
     }
 
@@ -578,6 +593,7 @@ public class TransformContinuousIT extends ESRestTestCase {
             DeleteTransformRequest deleteRequest = new DeleteTransformRequest(id);
             deleteRequest.setForce(force);
             return restClient.transform().deleteTransform(deleteRequest, RequestOptions.DEFAULT);
+
         }
     }
 

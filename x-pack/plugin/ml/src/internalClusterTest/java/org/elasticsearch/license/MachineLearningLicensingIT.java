@@ -23,7 +23,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.license.License.OperationMode;

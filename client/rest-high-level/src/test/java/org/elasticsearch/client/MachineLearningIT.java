@@ -175,7 +175,7 @@ import org.elasticsearch.client.tasks.GetTaskResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -814,6 +814,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         assertThat(response.datafeedStats(), hasSize(1));
         assertThat(response.datafeedStats().get(0).getDatafeedId(), equalTo(datafeedId1));
         assertThat(response.datafeedStats().get(0).getDatafeedState().toString(), equalTo(DatafeedState.STARTED.toString()));
+        assertThat(response.datafeedStats().get(0).getRunningState(), is(notNullValue()));
+        assertThat(response.datafeedStats().get(0).getRunningState().isRealTimeConfigured(), is(true));
 
         // Test getting all explicitly
         request = GetDatafeedStatsRequest.getAllDatafeedStatsRequest();

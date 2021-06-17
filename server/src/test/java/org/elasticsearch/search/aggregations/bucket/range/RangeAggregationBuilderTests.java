@@ -103,6 +103,6 @@ public class RangeAggregationBuilderTests extends AbstractSerializingTestCase<Ra
             "{\"test\":{\"range\":{\"field\":\"f\",\"ranges\":[{\"key\":1,\"to\":0}]}}}"));
         assertThat(builder.getName(), equalTo("test"));
         assertThat(builder.field(), equalTo("f"));
-        assertThat(builder.ranges, equalTo(org.elasticsearch.common.collect.List.of(new RangeAggregator.Range("1", null, 0d))));
+        assertThat(builder.ranges, equalTo(org.elasticsearch.core.List.of(new RangeAggregator.Range("1", null, 0d))));
     }
 }

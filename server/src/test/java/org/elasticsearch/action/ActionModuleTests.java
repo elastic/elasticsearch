@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
@@ -39,6 +40,7 @@ import org.elasticsearch.usage.UsageService;
 import java.io.IOException;
 import java.util.List;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -196,4 +198,30 @@ public class ActionModuleTests extends ESTestCase {
             threadPool.shutdown();
         }
     }
+
+    public void testCustomRestWrapperDeprecationMessage() {
+        ActionPlugin securityPlugin = new SecurityPlugin();
+        SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
+
+        ThreadPool threadPool = new TestThreadPool("testCustomRestWrapperDeprecationMessage");
+        try {
+            UsageService usageService = new UsageService();
+            new ActionModule(false, moduleSettings.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(),
+                moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
+                threadPool, singletonList(securityPlugin), null, null, usageService, null);
+            assertWarnings("The org.elasticsearch.action.ActionModuleTests$SecurityPlugin plugin installs a custom REST wrapper. " +
+                "This functionality is deprecated and will not be possible in Elasticsearch 8.0. If this plugin is intended to provide " +
+                "security features for Elasticsearch then you should switch to using the built-in Elasticsearch features instead.");
+        } finally {
+            threadPool.shutdown();
+        }
+    }
+
+    class SecurityPlugin implements ActionPlugin {
+        @Override
+        public UnaryOperator<RestHandler> getRestHandlerWrapper(ThreadContext threadContext) {
+            return UnaryOperator.identity();
+        }
+    };
 }

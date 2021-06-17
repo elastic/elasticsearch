@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.ssl.rest;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -30,7 +30,7 @@ public class RestGetCertificateInfoAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, "/_ssl/certificates")
                 .replaces(GET, "/_xpack/ssl/certificates", RestApiVersion.V_7).build()
         );

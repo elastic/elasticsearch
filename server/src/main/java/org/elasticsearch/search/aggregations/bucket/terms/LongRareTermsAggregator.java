@@ -9,7 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.DocValueFormat;

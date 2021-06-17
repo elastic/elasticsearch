@@ -8,7 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -213,7 +213,7 @@ public class PolicyUtilTests extends ESTestCase {
         }
     }
 
-    static final List<String> PLUGIN_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
+    static final List<String> PLUGIN_TEST_PERMISSIONS = org.elasticsearch.core.List.of(
         // TODO: move this back to module test permissions, see https://github.com/elastic/elasticsearch/issues/69464
         "java.io.FilePermission /foo/bar read",
 
@@ -276,7 +276,7 @@ public class PolicyUtilTests extends ESTestCase {
         assertAllowedPermission(clazz, name, "read", createTempDir(), PolicyUtil::getPluginPolicyInfo);
     }
 
-    static final List<String> MODULE_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
+    static final List<String> MODULE_TEST_PERMISSIONS = org.elasticsearch.core.List.of(
         "java.io.FilePermission /foo/bar write",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"
@@ -286,7 +286,7 @@ public class PolicyUtilTests extends ESTestCase {
         assertAllowedPermissions(MODULE_TEST_PERMISSIONS, PolicyUtil::getModulePolicyInfo);
     }
 
-    static final List<String> ILLEGAL_TEST_PERMISSIONS = org.elasticsearch.common.collect.List.of(
+    static final List<String> ILLEGAL_TEST_PERMISSIONS = org.elasticsearch.core.List.of(
         "java.awt.AWTPermission *",
         "java.io.FilePermission /foo/bar execute",
         "java.io.FilePermission /foo/bar delete",

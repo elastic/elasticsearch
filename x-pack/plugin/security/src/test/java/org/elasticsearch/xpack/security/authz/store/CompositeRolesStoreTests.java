@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -1279,7 +1279,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            org.elasticsearch.common.collect.Map.of(API_KEY_ID_KEY,
+            org.elasticsearch.core.Map.of(API_KEY_ID_KEY,
                 "key-id-1",
                 API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
@@ -1301,7 +1301,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            org.elasticsearch.common.collect.Map.of(API_KEY_ID_KEY,
+            org.elasticsearch.core.Map.of(API_KEY_ID_KEY,
                 "key-id-2",
                 API_KEY_ROLE_DESCRIPTORS_KEY,
                 roleBytes,
@@ -1322,7 +1322,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             Version.CURRENT,
             AuthenticationType.API_KEY,
-            org.elasticsearch.common.collect.Map.of(API_KEY_ID_KEY,
+            org.elasticsearch.core.Map.of(API_KEY_ID_KEY,
                 "key-id-3",
                 API_KEY_ROLE_DESCRIPTORS_KEY,
                 anotherRoleBytes,

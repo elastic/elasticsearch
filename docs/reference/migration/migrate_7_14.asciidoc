@@ -1,0 +1,120 @@
+[[migrating-7.14]]
+== Migrating to 7.14
+++++
+<titleabbrev>7.14</titleabbrev>
+++++
+
+This section discusses the changes that you need to be aware of when migrating
+your application to {es} 7.14.
+
+See also <<release-highlights>> and <<es-release-notes>>.
+
+// * <<breaking_714_blah_changes>>
+// * <<breaking_714_blah_changes>>
+
+//NOTE: The notable-breaking-changes tagged regions are re-used in the
+//Installation and Upgrade Guide
+
+[discrete]
+[[breaking-changes-7.14]]
+=== Breaking changes
+
+The following changes in {es} 7.14 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.14, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
+[[breaking_714_cluster_changes]]
+==== Cluster changes
+
+[[breaking_714_version_barrier]]
+.Version barrier applies to all upgrades
+[%collapsible]
+====
+*Details* +
+If a failure occurs during a rolling upgrade then {es} may prematurely conclude
+that the upgrade is complete and enable functionality which is incompatible
+with earlier versions. In versions before 7.14 {es} would accept older nodes
+into the cluster after completing the upgrade despite having enabled
+incompatible functionality, as long as the older nodes were from the same major
+series. From 7.14 onwards {es} will not accept any older nodes into a
+fully-upgraded cluster.
+
+*Impact* +
+If a failure occurs during a rolling upgrade and older nodes cannot rejoin the
+cluster then you must upgrade the affected nodes. Once upgraded, they will join
+the cluster again.
+====
+
+[discrete]
+[[breaking_714_core_deprecations]]
+=== Core deprecations
+
+[discrete]
+[[deprecate-single-data-node-watermark]]
+.Setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false` is deprecated.
+[%collapsible]
+====
+*Details* +
+The setting `cluster.routing.allocation.disk.watermark.enable_for_single_data_node`
+should never be explicitly set to false. In 8.0, the only legal value will be
+true. In a future release, the setting will be removed completely, with same
+behavior as if the setting was `true`.
+
+*Impact* +
+
+If your cluster has a single data node then set
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node: true`
+to opt in to the future behaviour today. If you wish to disable the disk
+watermarks then set `cluster.routing.allocation.disk.threshold_enabled: false`.
+
+If your cluster has multiple data nodes then the
+`cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+has no effect and you should discontinue its use.
+====
+
+// end::notable-breaking-changes[]
+
+[discrete]
+[[deprecated-7.14]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.14
+and will be removed in 8.0.
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.14.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+[discrete]
+[[breaking_714_security_changes]]
+==== Security deprecations
+
+[[reserved-prefixed-realm-names]]
+.Configuring a realm name with a leading underscore is deprecated.
+[%collapsible]
+====
+*Details* +
+Elasticsearch creates "synthetic" realm names on the fly for services like API keys.
+These synthetic realm names are prefixed with an underscore.
+Currently, user configured realms can also be given a name with a leading underscore.
+This creates confusion since realm names are meant to be unique for a node.
+
+*Impact* +
+Configuring a realm name with a leading underscore is deprecated. In a future release of {es}
+it will result in an error on startup if any user configured realm has a name
+with a leading underscore.
+====

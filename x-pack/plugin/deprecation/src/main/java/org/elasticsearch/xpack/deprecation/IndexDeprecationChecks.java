@@ -13,8 +13,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.joda.JodaDeprecationPatterns;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
+import org.elasticsearch.index.IndexingSlowLog;
+import org.elasticsearch.index.SearchSlowLog;
+import org.elasticsearch.index.SlowLogLevel;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -273,6 +276,27 @@ public class IndexDeprecationChecks {
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found index data path configured. Discontinue use of this setting.";
             return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details);
+        }
+        return null;
+    }
+    static DeprecationIssue indexingSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
+        return slowLogSettingCheck(indexMetadata, IndexingSlowLog.INDEX_INDEXING_SLOWLOG_LEVEL_SETTING);
+    }
+
+    static DeprecationIssue searchSlowLogLevelSettingCheck(IndexMetadata indexMetadata) {
+        return slowLogSettingCheck(indexMetadata, SearchSlowLog.INDEX_SEARCH_SLOWLOG_LEVEL);
+    }
+
+    private static DeprecationIssue slowLogSettingCheck(IndexMetadata indexMetadata, Setting<SlowLogLevel> setting) {
+        if (setting.exists(indexMetadata.getSettings())) {
+            final String message = String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in a future version", setting.getKey());
+            final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.13.html" +
+                "#slow-log-level-removal";
+
+            final String details = String.format(Locale.ROOT, "Found [%s] configured. Discontinue use of this setting. Use thresholds.",
+                setting.getKey());
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details);
         }
         return null;
     }

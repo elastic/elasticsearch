@@ -21,7 +21,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -301,6 +300,8 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
         assertThat(issues, hasSize(1));
         assertThat(issues.get(0).getDetails(),
             equalTo("Index templates [multiple-types] define multiple types and so will cause errors when used in index creation"));
+        assertWarnings("Index template multiple-types contains multiple typed mappings;" +
+            " templates in 8x will only support a single mapping");
 
         Metadata goodMetadata = Metadata.builder()
             .templates(ImmutableOpenMap.<String, IndexTemplateMetadata>builder().fPut("single-type", singleType).build())

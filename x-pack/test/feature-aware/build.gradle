@@ -1,7 +1,7 @@
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  api 'org.ow2.asm:asm:8.0.1'
+  api 'org.ow2.asm:asm:9.1'
   api project(':server')
   api project(':x-pack:plugin:core')
   testImplementation project(':test:framework')

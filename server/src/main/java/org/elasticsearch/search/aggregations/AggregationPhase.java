@@ -35,7 +35,7 @@ public class AggregationPhase {
             context.aggregations().aggregators(context.aggregations().factories().createTopLevelAggregators());
             bucketCollector = MultiBucketCollector.wrap(
                 true,
-                org.elasticsearch.common.collect.List.of(context.aggregations().aggregators())
+                org.elasticsearch.core.List.of(context.aggregations().aggregators())
             );
             bucketCollector.preCollection();
         } catch (IOException e) {
@@ -43,7 +43,7 @@ public class AggregationPhase {
         }
         Collector collector = context.getProfilers() == null
             ? bucketCollector
-            : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, org.elasticsearch.common.collect.List.of());
+            : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, org.elasticsearch.core.List.of());
         context.queryCollectors().put(AggregationPhase.class, collector);
     }
 

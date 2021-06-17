@@ -29,9 +29,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.security.AuthenticateResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
@@ -1003,6 +1003,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+        final ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
         final Client client = client().filterWithHeader(
@@ -1016,6 +1017,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(createApiKeyResponse.getId());
         assertNotNull(createApiKeyResponse.getKey());
+        // Clear the auth cache to force recompute the expensive hash which requires the crypto thread pool
+        apiKeyService.getApiKeyAuthCache().invalidateAll();
 
         final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))
@@ -1233,7 +1236,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 HashMap::putAll);
             for (ApiKey apiKey : response.getApiKeyInfos()) {
                 final Map<String, Object> metadata = idToMetadata.get(apiKey.getId());
-                assertThat(apiKey.getMetadata(), equalTo(metadata == null ? org.elasticsearch.common.collect.Map.of() : metadata));
+                assertThat(apiKey.getMetadata(), equalTo(metadata == null ? org.elasticsearch.core.Map.of() : metadata));
             }
         }
     }

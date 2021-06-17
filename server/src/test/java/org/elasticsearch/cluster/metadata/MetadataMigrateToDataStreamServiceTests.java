@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -205,7 +205,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.core.List.of(dataStreamName + "*"), null, null,
                     null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
@@ -250,7 +250,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.core.List.of(dataStreamName + "*"), null, null,
                     null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
@@ -299,7 +299,7 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
             .metadata(Metadata.builder()
                 .put(foo1, false)
                 .put(foo2, false)
-                .put("template", new ComposableIndexTemplate(org.elasticsearch.common.collect.List.of(dataStreamName + "*"), null, null,
+                .put("template", new ComposableIndexTemplate(org.elasticsearch.core.List.of(dataStreamName + "*"), null, null,
                     null, null, null, new ComposableIndexTemplate.DataStreamTemplate())))
             .build();
 
@@ -337,6 +337,6 @@ public class MetadataMigrateToDataStreamServiceTests extends MapperServiceTestCa
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
+        return org.elasticsearch.core.List.of(new MetadataIndexTemplateServiceTests.DummyPlugin());
     }
 }

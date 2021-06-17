@@ -10,10 +10,12 @@ package org.elasticsearch.xpack.autoscaling;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -74,7 +76,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
+        return List.of(LocalStateAutoscalingAndSearchableSnapshots.class);
     }
 
     @Override
@@ -129,8 +131,8 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         final Settings settings = randomBoolean() ? Settings.EMPTY : addDeciderSettings(Settings.builder()).build();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(org.elasticsearch.common.collect.Set.of(DataTier.DATA_FROZEN)),
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of(deciderName(), settings))
+            new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
+            new TreeMap<>(Map.of(deciderName(), settings))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());
     }

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -27,6 +28,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -73,16 +75,33 @@ public class FilterRepository implements Repository {
     }
 
     @Override
-    public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                                 SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                 Function<ClusterState, ClusterState> stateTransformer, ActionListener<RepositoryData> listener) {
-        in.finalizeSnapshot(shardGenerations, repositoryStateId, clusterMetadata, snapshotInfo, repositoryMetaVersion, stateTransformer,
-            listener);
+    public void finalizeSnapshot(
+        ShardGenerations shardGenerations,
+        long repositoryStateId,
+        Metadata clusterMetadata,
+        SnapshotInfo snapshotInfo,
+        Version repositoryMetaVersion,
+        Function<ClusterState, ClusterState> stateTransformer,
+        ActionListener<RepositoryData> listener
+    ) {
+        in.finalizeSnapshot(
+            shardGenerations,
+            repositoryStateId,
+            clusterMetadata,
+            snapshotInfo,
+            repositoryMetaVersion,
+            stateTransformer,
+            listener
+        );
     }
 
     @Override
-    public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                ActionListener<RepositoryData> listener) {
+    public void deleteSnapshots(
+        Collection<SnapshotId> snapshotIds,
+        long repositoryStateId,
+        Version repositoryMetaVersion,
+        ActionListener<RepositoryData> listener
+    ) {
         in.deleteSnapshots(snapshotIds, repositoryStateId, repositoryMetaVersion, listener);
     }
 
@@ -120,9 +139,16 @@ public class FilterRepository implements Repository {
     public void snapshotShard(SnapshotShardContext context) {
         in.snapshotShard(context);
     }
+
     @Override
-    public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId, RecoveryState recoveryState,
-                             ActionListener<Void> listener) {
+    public void restoreShard(
+        Store store,
+        SnapshotId snapshotId,
+        IndexId indexId,
+        ShardId snapshotShardId,
+        RecoveryState recoveryState,
+        ActionListener<Void> listener
+    ) {
         in.restoreShard(store, snapshotId, indexId, snapshotShardId, recoveryState, listener);
     }
 
@@ -132,19 +158,32 @@ public class FilterRepository implements Repository {
     }
 
     @Override
+    public boolean canUpdateInPlace(Settings updatedSettings, Set<String> ignoredSettings) {
+        return in.canUpdateInPlace(updatedSettings, ignoredSettings);
+    }
+
+    @Override
     public void updateState(ClusterState state) {
         in.updateState(state);
     }
 
     @Override
-    public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                             Consumer<Exception> onFailure) {
+    public void executeConsistentStateUpdate(
+        Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+        String source,
+        Consumer<Exception> onFailure
+    ) {
         in.executeConsistentStateUpdate(createUpdateTask, source, onFailure);
     }
 
     @Override
-    public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                   ActionListener<ShardSnapshotResult> listener) {
+    public void cloneShardSnapshot(
+        SnapshotId source,
+        SnapshotId target,
+        RepositoryShardId shardId,
+        String shardGeneration,
+        ActionListener<ShardSnapshotResult> listener
+    ) {
         in.cloneShardSnapshot(source, target, shardId, shardGeneration, listener);
     }
 

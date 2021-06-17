@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.process;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;

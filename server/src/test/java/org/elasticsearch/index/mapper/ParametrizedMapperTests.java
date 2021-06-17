@@ -44,7 +44,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TestPlugin extends Plugin implements MapperPlugin {
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return org.elasticsearch.common.collect.Map.of("test_mapper", new TypeParser());
+            return org.elasticsearch.core.Map.of("test_mapper", new TypeParser());
         }
     }
 
@@ -191,7 +191,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "_standard", Lucene.STANDARD_ANALYZER,
                 "_keyword", Lucene.KEYWORD_ANALYZER,
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
@@ -210,7 +210,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             throw new UnsupportedOperationException();
         });
         if (fromDynamicTemplate) {
-            pc = pc.createDynamicTemplateFieldContext(pc);
+            pc = pc.createDynamicTemplateFieldContext();
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)

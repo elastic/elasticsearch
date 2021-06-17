@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.security;
 
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.xpack.sql.qa.jdbc.LocalH2;
 
 import java.net.URISyntaxException;

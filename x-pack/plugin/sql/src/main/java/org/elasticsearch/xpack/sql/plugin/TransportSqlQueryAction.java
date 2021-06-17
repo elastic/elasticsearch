@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
@@ -149,7 +149,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
          * since SqlQueryResponse creation doesn't have access to GeoShape nor Interval classes to make the decision
          * so, we flatten them as Strings before being serialized.
          * CLI gets a special treatment see {@link org.elasticsearch.xpack.sql.action.SqlQueryResponse#value()}
-         */ 
+         */
         if (r instanceof GeoShape) {
             r = r.toString();
         } else if (r instanceof Interval) {

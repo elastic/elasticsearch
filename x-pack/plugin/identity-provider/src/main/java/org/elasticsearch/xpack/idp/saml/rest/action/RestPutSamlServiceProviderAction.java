@@ -40,7 +40,7 @@ public class RestPutSamlServiceProviderAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new Route(PUT, "/_idp/saml/sp/{sp_entity_id}"),
             new Route(POST, "/_idp/saml/sp/{sp_entity_id}")
         );

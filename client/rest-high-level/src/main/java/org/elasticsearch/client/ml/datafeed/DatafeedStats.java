@@ -8,8 +8,8 @@
 package org.elasticsearch.client.ml.datafeed;
 
 import org.elasticsearch.client.ml.NodeAttributes;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -32,10 +32,13 @@ public class DatafeedStats implements ToXContentObject {
     private final String assignmentExplanation;
     @Nullable
     private final DatafeedTimingStats timingStats;
+    @Nullable
+    private final RunningState runningState;
 
     public static final ParseField ASSIGNMENT_EXPLANATION = new ParseField("assignment_explanation");
     public static final ParseField NODE = new ParseField("node");
     public static final ParseField TIMING_STATS = new ParseField("timing_stats");
+    public static final ParseField RUNNING_STATE = new ParseField("running_state");
 
     public static final ConstructingObjectParser<DatafeedStats, Void> PARSER = new ConstructingObjectParser<>("datafeed_stats",
     true,
@@ -45,7 +48,8 @@ public class DatafeedStats implements ToXContentObject {
         NodeAttributes nodeAttributes = (NodeAttributes)a[2];
         String assignmentExplanation = (String)a[3];
         DatafeedTimingStats timingStats = (DatafeedTimingStats)a[4];
-        return new DatafeedStats(datafeedId, datafeedState, nodeAttributes, assignmentExplanation, timingStats);
+        RunningState runningState = (RunningState) a[5];
+        return new DatafeedStats(datafeedId, datafeedState, nodeAttributes, assignmentExplanation, timingStats, runningState);
     } );
 
     static {
@@ -54,15 +58,21 @@ public class DatafeedStats implements ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), NodeAttributes.PARSER, NODE);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), ASSIGNMENT_EXPLANATION);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), DatafeedTimingStats.PARSER, TIMING_STATS);
+        PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), RunningState.PARSER, RUNNING_STATE);
     }
 
-    public DatafeedStats(String datafeedId, DatafeedState datafeedState, @Nullable NodeAttributes node,
-                         @Nullable String assignmentExplanation, @Nullable DatafeedTimingStats timingStats) {
+    public DatafeedStats(String datafeedId,
+                         DatafeedState datafeedState,
+                         @Nullable NodeAttributes node,
+                         @Nullable String assignmentExplanation,
+                         @Nullable DatafeedTimingStats timingStats,
+                         @Nullable RunningState runningState) {
         this.datafeedId = Objects.requireNonNull(datafeedId);
         this.datafeedState = Objects.requireNonNull(datafeedState);
         this.node = node;
         this.assignmentExplanation = assignmentExplanation;
         this.timingStats = timingStats;
+        this.runningState = runningState;
     }
 
     public String getDatafeedId() {
@@ -83,6 +93,10 @@ public class DatafeedStats implements ToXContentObject {
 
     public DatafeedTimingStats getDatafeedTimingStats() {
         return timingStats;
+    }
+
+    public RunningState getRunningState() {
+        return runningState;
     }
 
     @Override
@@ -112,13 +126,16 @@ public class DatafeedStats implements ToXContentObject {
         if (timingStats != null) {
             builder.field(TIMING_STATS.getPreferredName(), timingStats);
         }
+        if (runningState != null) {
+            builder.field(RUNNING_STATE.getPreferredName(), runningState);
+        }
         builder.endObject();
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(datafeedId, datafeedState.toString(), node, assignmentExplanation, timingStats);
+        return Objects.hash(datafeedId, datafeedState.toString(), node, assignmentExplanation, timingStats, runningState);
     }
 
     @Override
@@ -134,6 +151,7 @@ public class DatafeedStats implements ToXContentObject {
             Objects.equals(this.datafeedState, other.datafeedState) &&
             Objects.equals(this.node, other.node) &&
             Objects.equals(this.assignmentExplanation, other.assignmentExplanation) &&
+            Objects.equals(this.runningState, other.runningState) &&
             Objects.equals(this.timingStats, other.timingStats);
     }
 }

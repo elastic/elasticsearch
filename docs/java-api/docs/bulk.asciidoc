@@ -30,7 +30,7 @@ bulkRequest.add(client.prepareIndex("twitter", "_doc", "2")
                     .endObject()
                   )
         );
-        
+
 BulkResponse bulkResponse = bulkRequest.get();
 if (bulkResponse.hasFailures()) {
     // process failures by iterating through each bulk response item
@@ -51,7 +51,7 @@ import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 BulkProcessor bulkProcessor = BulkProcessor.builder(
         client,  <1>

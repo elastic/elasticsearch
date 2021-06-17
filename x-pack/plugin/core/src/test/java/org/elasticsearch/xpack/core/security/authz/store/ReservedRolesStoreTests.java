@@ -245,7 +245,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertNotNull(roleDescriptor);
         assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
 
-        Role snapshotUserRole = Role.builder(roleDescriptor, null, Automatons.EMPTY).build();
+        Role snapshotUserRole = Role.builder(roleDescriptor, null, RESTRICTED_INDICES_AUTOMATON).build();
         assertThat(snapshotUserRole.cluster().check(GetRepositoriesAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(CreateSnapshotAction.NAME, request, authentication), is(true));
         assertThat(snapshotUserRole.cluster().check(SnapshotsStatusAction.NAME, request, authentication), is(true));

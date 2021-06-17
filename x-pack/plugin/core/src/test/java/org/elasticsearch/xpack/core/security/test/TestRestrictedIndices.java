@@ -51,7 +51,7 @@ public class TestRestrictedIndices {
                     .setSettings(Settings.EMPTY)
                     .setAliasName(SECURITY_MAIN_ALIAS)
                     .setIndexFormat(7)
-                    .setVersionMetaKey("security-version")
+                    .setVersionMetaKey("version")
                     .setOrigin(SECURITY_ORIGIN)
                     .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                     .build(),
@@ -63,7 +63,7 @@ public class TestRestrictedIndices {
                     .setSettings(Settings.EMPTY)
                     .setAliasName(SECURITY_TOKENS_ALIAS)
                     .setIndexFormat(7)
-                    .setVersionMetaKey("security-version")
+                    .setVersionMetaKey("version")
                     .setOrigin(SECURITY_ORIGIN)
                     .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
                     .build()

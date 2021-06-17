@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.List;
@@ -65,7 +66,7 @@ public final class AuthenticateResponse implements ToXContentObject {
         PARSER.declareObject(constructorArg(), realmInfoParser, AUTHENTICATION_REALM);
         PARSER.declareObject(constructorArg(), realmInfoParser, LOOKUP_REALM);
         PARSER.declareString(constructorArg(), AUTHENTICATION_TYPE);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), Map.of(), TOKEN);
+        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.map(), null, TOKEN);
     }
 
     private final User user;
@@ -73,21 +74,22 @@ public final class AuthenticateResponse implements ToXContentObject {
     private final RealmInfo authenticationRealm;
     private final RealmInfo lookupRealm;
     private final String authenticationType;
+    @Nullable
     private final Map<String, Object> token;
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
                                 RealmInfo lookupRealm, String authenticationType) {
-        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, Map.of());
+        this(user, enabled, authenticationRealm, lookupRealm, authenticationType, null);
     }
 
     public AuthenticateResponse(User user, boolean enabled, RealmInfo authenticationRealm,
-                                RealmInfo lookupRealm, String authenticationType, Map<String, Object> token) {
+                                RealmInfo lookupRealm, String authenticationType, @Nullable Map<String, Object> token) {
         this.user = user;
         this.enabled = enabled;
         this.authenticationRealm = authenticationRealm;
         this.lookupRealm = lookupRealm;
         this.authenticationType = authenticationType;
-        this.token = token == null ? Map.of() : Map.copyOf(token);
+        this.token = token;
     }
 
     /**
@@ -150,7 +152,7 @@ public final class AuthenticateResponse implements ToXContentObject {
         builder.field(AuthenticateResponse.REALM_TYPE.getPreferredName(), lookupRealm.getType());
         builder.endObject();
         builder.field(AuthenticateResponse.AUTHENTICATION_TYPE.getPreferredName(), authenticationType);
-        if (false == token.isEmpty()) {
+        if (token != null) {
             builder.field(AuthenticateResponse.TOKEN.getPreferredName(), token);
         }
         return builder.endObject();

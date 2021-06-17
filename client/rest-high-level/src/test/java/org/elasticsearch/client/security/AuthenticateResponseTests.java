@@ -76,7 +76,7 @@ public class AuthenticateResponseTests extends ESTestCase {
             final String lookupRealmName = randomAlphaOfLength(5);
             final String lookupRealmType = randomFrom("file", "native", "ldap", "active_directory", "saml", "kerberos");
             lookupRealm = new AuthenticateResponse.RealmInfo(lookupRealmName, lookupRealmType);
-            tokenInfo = Map.of();
+            tokenInfo = null;
         }
 
         final String authenticationType = randomFrom("realm", "api_key", "token", "anonymous", "internal");
@@ -150,12 +150,12 @@ public class AuthenticateResponseTests extends ESTestCase {
                     originalUser.getFullName(), originalUser.getEmail()), response.enabled(), response.getAuthenticationRealm(),
                     response.getLookupRealm(),
                     response.getAuthenticationType(),
-                    response.getToken().isEmpty() ?
+                    response.getToken() == null ?
                         Map.of("foo", "bar") :
-                        Map.of(
+                        randomFrom(Map.of(
                             "name", randomValueOtherThan(response.getToken().get("name"), () -> randomAlphaOfLengthBetween(3, 8)),
                             "type", randomValueOtherThan(response.getToken().get("type"), () -> randomAlphaOfLengthBetween(3, 8))
-                        ));
+                        ), null));
 
         }
     }

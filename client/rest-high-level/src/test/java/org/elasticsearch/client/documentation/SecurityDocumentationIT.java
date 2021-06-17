@@ -771,7 +771,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(lookupRealmName, is("default_file"));
             assertThat(lookupRealmType, is("file"));
             assertThat(authenticationType, is("realm"));
-            assertThat(tokenInfo, anEmptyMap());
+            assertThat(tokenInfo, nullValue());
         }
 
         {

@@ -138,16 +138,16 @@ public class IndicesAccessControl {
         }
 
         @Override
-        public void writeCacheKey(StreamOutput out) throws IOException {
+        public void buildCacheKey(StreamOutput out) throws IOException {
             if (documentPermissions.hasDocumentLevelPermissions()) {
                 out.writeBoolean(true);
-                documentPermissions.writeCacheKey(out);
+                documentPermissions.buildCacheKey(out);
             } else {
                 out.writeBoolean(false);
             }
             if (fieldPermissions.hasFieldLevelSecurity()) {
                 out.writeBoolean(true);
-                fieldPermissions.writeCacheKey(out);
+                fieldPermissions.buildCacheKey(out);
             } else {
                 out.writeBoolean(false);
             }

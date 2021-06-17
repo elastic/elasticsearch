@@ -430,7 +430,6 @@ public final class IndicesPermission {
 
         private void setAllowAll(boolean allowAll) {
             this.allowAll = allowAll;
-            // TODO: Should we clear queries, i.e. queries = null?
         }
     }
 }

@@ -110,7 +110,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))));
-        fieldPermissions0.writeCacheKey(out0);
+        fieldPermissions0.buildCacheKey(out0);
 
         // Mixed definition
         final BytesStreamOutput out1 = new BytesStreamOutput();
@@ -119,7 +119,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }))))
             .limitFieldPermissions(new FieldPermissions(fieldPermissionDef(new String[] { "z*" }, new String[] { "z2" })));
-        fieldPermissions1.writeCacheKey(out1);
+        fieldPermissions1.buildCacheKey(out1);
 
         // Another mixed definition
         final BytesStreamOutput out2 = new BytesStreamOutput();
@@ -130,7 +130,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))
             )));
-        fieldPermissions2.writeCacheKey(out2);
+        fieldPermissions2.buildCacheKey(out2);
 
         // Just limited by
         final BytesStreamOutput out3 = new BytesStreamOutput();
@@ -140,7 +140,7 @@ public class FieldPermissionsTests extends ESTestCase {
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })))));
-        fieldPermissions3.writeCacheKey(out3);
+        fieldPermissions3.buildCacheKey(out3);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));

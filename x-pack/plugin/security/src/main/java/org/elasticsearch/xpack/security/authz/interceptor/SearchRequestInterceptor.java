@@ -38,6 +38,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                          SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchRequest request = (SearchRequest) indicesRequest;
+        // TODO: The version check can be removed in 8.0 because 7.last will have support for request caching with DLS/FLS
         if (clusterService.state().nodes().getMinNodeVersion().before(VERSION_SHARD_SEARCH_INTERCEPTOR) || hasRemoteIndices(request)) {
             request.requestCache(false);
         }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
 
@@ -40,6 +41,7 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * queries are used as an additional filter.
  */
 public final class DocumentPermissions implements CacheKey {
+    // SortedSet because orders are important when they get serialised for request cache key
     private final SortedSet<BytesReference> queries;
     private final SortedSet<BytesReference> limitedByQueries;
 
@@ -210,7 +212,8 @@ public final class DocumentPermissions implements CacheKey {
         return "DocumentPermissions [queries=" + queries + ", scopedByQueries=" + limitedByQueries + "]";
     }
 
-    public void writeCacheKey(StreamOutput out) throws IOException {
+    @Override
+    public void buildCacheKey(StreamOutput out) throws IOException {
         assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
         if (queries != null) {
             out.writeBoolean(true);

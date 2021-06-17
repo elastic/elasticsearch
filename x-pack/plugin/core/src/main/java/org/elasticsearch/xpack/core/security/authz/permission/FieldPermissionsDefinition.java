@@ -15,6 +15,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.TreeSet;
 
 /**
@@ -24,6 +25,7 @@ import java.util.TreeSet;
  */
 public final class FieldPermissionsDefinition implements CacheKey {
 
+    // SortedSet because orders are important when building the request cacheKey
     private final SortedSet<FieldGrantExcludeGroup> fieldGrantExcludeGroups;
 
     public FieldPermissionsDefinition(String[] grant, String[] exclude) {
@@ -59,8 +61,8 @@ public final class FieldPermissionsDefinition implements CacheKey {
     }
 
     @Override
-    public void writeCacheKey(StreamOutput out) throws IOException {
-        out.writeCollection(fieldGrantExcludeGroups, (o, g) -> g.writeCacheKey(o));
+    public void buildCacheKey(StreamOutput out) throws IOException {
+        out.writeCollection(fieldGrantExcludeGroups, (o, g) -> g.buildCacheKey(o));
     }
 
     public static final class FieldGrantExcludeGroup implements CacheKey, Comparable<FieldGrantExcludeGroup> {
@@ -107,7 +109,7 @@ public final class FieldPermissionsDefinition implements CacheKey {
         }
 
         @Override
-        public void writeCacheKey(StreamOutput out) throws IOException {
+        public void buildCacheKey(StreamOutput out) throws IOException {
             out.writeOptionalStringArray(grantedFields);
             out.writeOptionalStringArray(excludedFields);
         }

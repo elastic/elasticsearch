@@ -220,11 +220,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     @Override
-    public void writeCacheKey(StreamOutput out) throws IOException {
-        fieldPermissionsDefinition.writeCacheKey(out);
+    public void buildCacheKey(StreamOutput out) throws IOException {
+        fieldPermissionsDefinition.buildCacheKey(out);
         if (limitedByFieldPermissionsDefinition != null) {
             out.writeBoolean(true);
-            limitedByFieldPermissionsDefinition.writeCacheKey(out);
+            limitedByFieldPermissionsDefinition.buildCacheKey(out);
         } else {
             out.writeBoolean(false);
         }

@@ -50,7 +50,7 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
                 logger.debug("index [{}] with field level access controls [{}] " +
                         "document level access controls [{}]. Differentiating request cache key",
                     indexName, flsEnabled, dlsEnabled);
-                indexAccessControl.writeCacheKey(out);
+                indexAccessControl.buildCacheKey(out);
             }
         }
     }

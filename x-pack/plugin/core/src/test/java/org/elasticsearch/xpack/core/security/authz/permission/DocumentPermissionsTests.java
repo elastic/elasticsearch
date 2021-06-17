@@ -81,22 +81,22 @@ public class DocumentPermissionsTests extends ESTestCase {
         final BytesStreamOutput out0 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions0 =
             new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")), null);
-        documentPermissions0.writeCacheKey(out0);
+        documentPermissions0.buildCacheKey(out0);
 
         final BytesStreamOutput out1 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions1 =
             new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2")), Set.of(new BytesArray("q3")));
-        documentPermissions1.writeCacheKey(out1);
+        documentPermissions1.buildCacheKey(out1);
 
         final BytesStreamOutput out2 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions2 =
             new DocumentPermissions(Set.of(new BytesArray("q1")), Set.of(new BytesArray("q2"), new BytesArray("q3")));
-        documentPermissions2.writeCacheKey(out2);
+        documentPermissions2.buildCacheKey(out2);
 
         final BytesStreamOutput out3 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions3 =
             new DocumentPermissions(null, Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")));
-        documentPermissions3.writeCacheKey(out3);
+        documentPermissions3.buildCacheKey(out3);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));

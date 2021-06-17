@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
@@ -39,11 +40,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.SortedMap;
 import java.util.Spliterators;
 import java.util.TreeMap;
-import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -54,6 +53,7 @@ import static org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocat
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.core.ilm.OperationMode.STOPPED;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
+import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
 
 /**
  * Exposes the necessary methods to migrate a system's elasticsearch abstractions to use data tiers for index allocation routing.
@@ -274,68 +274,6 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 }
             }
         }
-    }
-
-    /**
-     * Transition the managed index to the first step of the next action in the current phase and update the cached phase definition for
-     * the index to reflect the migrated phase definition.
-     *
-     * Returns the same {@link LifecycleExecutionState} if the transition is not possible or the new execution state otherwise.
-     */
-    private static LifecycleExecutionState moveStateToNextActionAndUpdateCachedPhase(IndexMetadata indexMetadata,
-                                                                                     LifecycleExecutionState existingState,
-                                                                                     LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
-                                                                                     LifecyclePolicyMetadata newPolicyMetadata,
-                                                                                     Client client) {
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
-        Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
-        if (currentStepKey == null) {
-            logger.warn("unable to identify what the current step is for index [{}] as part of policy [{}]. the " +
-                "cached phase definition will not be updated for this index", indexMetadata.getIndex().getName(), policyName);
-            return existingState;
-        }
-
-        List<Step> policySteps = oldPolicy.toSteps(client);
-        Optional<Step> currentStep = policySteps.stream()
-            .filter(step -> step.getKey().equals(currentStepKey))
-            .findFirst();
-
-        if (currentStep.isPresent() == false) {
-            logger.warn("unable to find current step [{}] for index [{}] as part of policy [{}]. the cached phase definition will not be " +
-                "updated for this index", currentStepKey, indexMetadata.getIndex().getName(), policyName);
-            return existingState;
-        }
-
-        int indexOfCurrentStep = policySteps.indexOf(currentStep.get());
-        assert indexOfCurrentStep != -1 : "the current step must be part of the old policy";
-
-        Optional<Step> nextStepInActionAfterAllocate = policySteps.stream()
-            .skip(indexOfCurrentStep)
-            .filter(step -> step.getKey().getAction().equals(currentStepKey.getAction()) == false)
-            .findFirst();
-
-        assert nextStepInActionAfterAllocate.isPresent() : "there should always be a complete step at the end of every phase";
-        Step.StepKey nextStep = nextStepInActionAfterAllocate.get().getKey();
-        logger.debug("moving index [{}] in policy [{}] out of step [{}] to new step [{}]",
-            indexMetadata.getIndex().getName(), policyName, currentStepKey, nextStep);
-
-        long nowAsMillis = nowSupplier.getAsLong();
-        LifecycleExecutionState.Builder updatedState = LifecycleExecutionState.builder(existingState);
-        updatedState.setPhase(nextStep.getPhase());
-        updatedState.setAction(nextStep.getAction());
-        updatedState.setActionTime(nowAsMillis);
-        updatedState.setStep(nextStep.getName());
-        updatedState.setStepTime(nowAsMillis);
-        updatedState.setFailedStep(null);
-        updatedState.setStepInfo(null);
-        updatedState.setIsAutoRetryableError(null);
-        updatedState.setFailedStepRetryCount(null);
-
-        PhaseExecutionInfo phaseExecutionInfo = new PhaseExecutionInfo(newPolicyMetadata.getPolicy().getName(),
-            newPolicyMetadata.getPolicy().getPhases().get(currentStepKey.getPhase()), newPolicyMetadata.getVersion(),
-            newPolicyMetadata.getModifiedDate());
-        updatedState.setPhaseDefinition(Strings.toString(phaseExecutionInfo, false, false));
-        return updatedState.build();
     }
 
     /**

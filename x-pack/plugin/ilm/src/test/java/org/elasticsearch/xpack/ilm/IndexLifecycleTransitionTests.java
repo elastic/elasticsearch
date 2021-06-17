@@ -9,19 +9,21 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.AbstractStepTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -35,6 +37,7 @@ import org.elasticsearch.xpack.core.ilm.MockAction;
 import org.elasticsearch.xpack.core.ilm.MockStep;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.Phase;
+import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.Step;
@@ -52,10 +55,12 @@ import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTO
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.eligibleToCheckForRefresh;
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.refreshPhaseDefinition;
 import static org.elasticsearch.xpack.ilm.IndexLifecycleRunnerTests.createOneStepPolicyStepRegistry;
+import static org.elasticsearch.xpack.ilm.IndexLifecycleTransition.moveStateToNextActionAndUpdateCachedPhase;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexLifecycleTransitionTests extends ESTestCase {
@@ -779,6 +784,89 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             .putCustom(ILM_CUSTOM_METADATA_KEY, state.asMap())
             .build();
         assertTrue(eligibleToCheckForRefresh(meta));
+    }
+
+    public void testMoveStateToNextActionAndUpdateCachedPhase() {
+        LifecycleExecutionState.Builder currentExecutionState = LifecycleExecutionState.builder()
+            .setPhase("hot")
+            .setAction("rollover")
+            .setStep("check-rollover-ready")
+            .setPhaseDefinition("{\n" +
+                "        \"policy\" : \"my-policy\",\n" +
+                "        \"phase_definition\" : {\n" +
+                "          \"min_age\" : \"20m\",\n" +
+                "          \"actions\" : {\n" +
+                "            \"rollover\" : {\n" +
+                "              \"max_age\" : \"5s\"\n" +
+                "            },\n" +
+                "            \"set_priority\" : {\n" +
+                "              \"priority\" : 150\n" +
+                "            }\n" +
+                "          }\n" +
+                "        },\n" +
+                "        \"version\" : 1,\n" +
+                "        \"modified_date_in_millis\" : 1578521007076\n" +
+                "      }");
+
+        IndexMetadata meta = buildIndexMetadata("my-policy", currentExecutionState);
+
+        Map<String, LifecycleAction> actions = new HashMap<>();
+        actions.put("rollover", new RolloverAction(null, null, null, 1L));
+        actions.put("set_priority", new SetPriorityAction(100));
+        Phase hotPhase = new Phase("hot", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("hot", hotPhase);
+        LifecyclePolicy currentPolicy = new LifecyclePolicy("my-policy", phases);
+
+        {
+            // test index is in step for action that was removed in the updated policy
+            // the expected new state is that the index was moved into the next *action* and its cached phase definition updated to reflect
+            // the updated policy
+            Map<String, LifecycleAction> actionsWithoutRollover = new HashMap<>();
+            actionsWithoutRollover.put("set_priority", new SetPriorityAction(100));
+            Phase hotPhaseNoRollover = new Phase("hot", TimeValue.ZERO, actionsWithoutRollover);
+            Map<String, Phase> phasesNoRollover = Collections.singletonMap("hot", hotPhaseNoRollover);
+            LifecyclePolicyMetadata updatedPolicyMetadata = new LifecyclePolicyMetadata(new LifecyclePolicy("my-policy",
+                phasesNoRollover), Collections.emptyMap(), 2L, 2L);
+
+            try (Client client = new NoOpClient(getTestName())) {
+                LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
+                    LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
+                    client);
+
+                Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
+                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat("the cached phase should not contain rollover anymore", newState.getPhaseDefinition(),
+                    not(containsString(RolloverAction.NAME)));
+            }
+        }
+
+        {
+            // test that the index is in an action that still exists in the update policy
+            // the expected new state is that the index is moved into the next action (could be the complete one) and the cached phase
+            // definition is updated
+            Map<String, LifecycleAction> actionsWitoutSetPriority = new HashMap<>();
+            actionsWitoutSetPriority.put("rollover", new RolloverAction(null, null, null, 1L));
+            Phase hotPhaseNoSetPriority = new Phase("hot", TimeValue.ZERO, actionsWitoutSetPriority);
+            Map<String, Phase> phasesWithoutSetPriority = Collections.singletonMap("hot", hotPhaseNoSetPriority);
+            LifecyclePolicyMetadata updatedPolicyMetadata = new LifecyclePolicyMetadata(new LifecyclePolicy("my-policy",
+                phasesWithoutSetPriority), Collections.emptyMap(), 2L, 2L);
+
+            try (Client client = new NoOpClient(getTestName())) {
+                LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
+                    LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
+                    client);
+
+                Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
+                // the state was still moved into the next action, even if the updated policy still contained the action the index was
+                // currently executing
+                assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
+                assertThat(newState.getStep(), is(hotPhaseCompleteStepKey.getName()));
+                assertThat(newState.getPhaseDefinition(), containsString(RolloverAction.NAME));
+                assertThat("the cached phase should not contain set_priority anymore", newState.getPhaseDefinition(),
+                    not(containsString(SetPriorityAction.NAME)));
+            }
+        }
     }
 
     private static LifecyclePolicy createPolicy(String policyName, Step.StepKey safeStep, Step.StepKey unsafeStep) {

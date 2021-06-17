@@ -2184,8 +2184,12 @@ public class RestHighLevelClient implements Closeable {
             return Optional.empty();
         }
 
-        if ("default".equals(Build.CURRENT.flavor()) && "default".equals(mainResponse.getVersion().getBuildFlavor()) == false) {
-            return Optional.of("Invalid or missing build flavor [" + mainResponse.getVersion().getBuildFlavor() + "]");
+        String responseFlavor = mainResponse.getVersion().getBuildFlavor();
+        if ("default".equals(responseFlavor) == false) {
+            // Flavor is unknown when running tests, and non-mocked responses will return an unknown flavor
+            if (Build.CURRENT.flavor() != Build.Flavor.UNKNOWN || "unknown".equals(responseFlavor) == false) {
+                return Optional.of("Invalid or missing build flavor [" + responseFlavor + "]");
+            }
         }
 
         if ("You Know, for Search".equalsIgnoreCase(mainResponse.getTagline()) == false) {

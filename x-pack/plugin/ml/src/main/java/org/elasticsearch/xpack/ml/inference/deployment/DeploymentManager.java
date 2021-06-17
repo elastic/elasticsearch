@@ -234,6 +234,9 @@ public class DeploymentManager {
     }
     private void failTask(TrainedModelDeploymentTask task,
                           String reason) {
+
+        logger.error("[{}] failed with reason [{}]", task.getModelId(), reason);
+
         TrainedModelDeploymentTaskState taskState =
             new TrainedModelDeploymentTaskState(TrainedModelDeploymentState.FAILED, task.getAllocationId(), reason);
 

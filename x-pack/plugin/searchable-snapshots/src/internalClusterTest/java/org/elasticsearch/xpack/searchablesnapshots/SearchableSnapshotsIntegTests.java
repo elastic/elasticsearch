@@ -205,6 +205,13 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         } else {
             expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.FULL_COPY);
         }
+        final String indexCheckOnStartup;
+        if (randomBoolean()) {
+            indexCheckOnStartup = randomFrom("false", "true", "checksum");
+            indexSettingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), indexCheckOnStartup);
+        } else {
+            indexCheckOnStartup = "false";
+        }
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             restoredIndexName,
@@ -246,6 +253,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertThat(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.get(settings).toString(), equalTo("false"));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(settings), equalTo(expectedReplicas));
         assertThat(DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(settings), equalTo(expectedDataTiersPreference));
+        assertThat(IndexSettings.INDEX_CHECK_ON_STARTUP.get(settings), equalTo(indexCheckOnStartup));
 
         checkSoftDeletesNotEagerlyLoaded(restoredIndexName);
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);

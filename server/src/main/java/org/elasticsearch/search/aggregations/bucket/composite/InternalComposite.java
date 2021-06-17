@@ -333,7 +333,7 @@ public class InternalComposite
                 }
                 builder.append(sourceNames.get(i));
                 builder.append('=');
-                builder.append(formatObject(key.get(i), formats.get(i)));
+                builder.append(formatObjectChecked(key.get(i), formats.get(i)));
             }
             builder.append('}');
             return builder.toString();
@@ -390,8 +390,43 @@ public class InternalComposite
      * Format <code>obj</code> using the provided {@link DocValueFormat}.
      * If the format is equals to {@link DocValueFormat#RAW}, the object is returned as is
      * for numbers and a string for {@link BytesRef}s.
+     *
+     * This method will then attempt to parse the formatted value using the specified format,
+     * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
+     * returning an after_key which we can't subsequently parse into the original value.
      */
-    static Object formatObject(Object obj, DocValueFormat format) {
+    static Object formatObjectChecked(Object obj, DocValueFormat format) {
+        Object formatted = formatObjectUnchecked(obj, format);
+        if (formatted != null) {
+            Object parsed;
+            // Type Jank ahead
+            if (obj.getClass() == BytesRef.class) {
+                parsed = format.parseBytesRef(formatted.toString());
+                if (parsed.equals(obj) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
+            } else if (obj.getClass() == Long.class) {
+                parsed = format.parseLong(formatted.toString(), false, () -> {
+                    throw new UnsupportedOperationException("Using now() is not supported in after keys");
+                });
+                if (parsed.equals(((Number) obj).longValue()) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
+            } else if (obj.getClass() == Double.class) {
+                parsed = format.parseDouble(formatted.toString(), false,
+                    () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
+                if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
+                }
+            }
+        }
+        return formatted;
+    }
+
+    private static Object formatObjectUnchecked (Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }
@@ -441,7 +476,7 @@ public class InternalComposite
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formatObject(values[i], formats.get(i));
+                    return formatObjectChecked(values[i], formats.get(i));
                 }
             }
             return null;
@@ -462,7 +497,7 @@ public class InternalComposite
                         @Override
                         public Entry<String, Object> next() {
                             SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
+                                new SimpleEntry<>(keys.get(pos), formatObjectChecked(values[pos], formats.get(pos)));
                             ++ pos;
                             return entry;
                         }

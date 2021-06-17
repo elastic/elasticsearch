@@ -377,6 +377,16 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             containsString("java.lang.String cannot be cast to"));
     }
 
+    public void testFormatObjectChecked() {
+        DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("YYYY-MM-dd"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObjectChecked(epoch, weekYearMonth));
+    }
+
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {
         List<DocValueFormat> formats = IntStream.range(0, fields.size())
             .mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());

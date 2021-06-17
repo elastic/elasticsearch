@@ -108,14 +108,11 @@ change this default behaviour by setting the `size` parameter.
 The `field` can be <<keyword>>, <<number>>, <<ip, `ip`>>, <<boolean, `boolean`>>,
 or <<binary, `binary`>>.
 
-NOTE:: If you try to run it on a text field you will get an error back about
-field data. You have a choice, run `terms` on a `keyword`
-<<multi-fields, sub-field>> instead or enable <<fielddata, fielddata>> on the text
-field. Generally the `keyword` sub-field is better because fielddata consumes a
-ton of memory. But the `fielddata` way of running the terms aggregation will
-return a bucket per <<analysis, *analyzed*>> term in the `text` field while the
-`keyword` way will return a bucket for each value in the keyword.
-
+NOTE: By default, you cannot run a `terms` aggregation on a `text` field. Use a
+`keyword` <<multi-fields,sub-field>> instead. Alternatively, you can enable
+<<fielddata,`fielddata`>> on the `text` field to create buckets for the field's
+<<analysis,analyzed>> terms. Enabling `fielddata` can significantly increase
+memory usage.
 
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size

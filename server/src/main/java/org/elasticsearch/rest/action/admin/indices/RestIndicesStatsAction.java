@@ -35,7 +35,7 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestIndicesStatsAction extends BaseRestHandler {
-    private DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiTermVectorsAction.class);
     private static final String TYPES_DEPRECATION_MESSAGE =
         "[types removal] " + "Specifying types in indices stats requests is deprecated.";
 

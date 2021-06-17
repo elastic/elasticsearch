@@ -261,6 +261,33 @@ public class QueryRescorerBuilderTests extends ESTestCase {
         try (XContentParser parser = createParser(rescoreElement)) {
             RescorerBuilder.parseFromXContent(parser);
         }
+
+        rescoreElement = "{\n" +
+            "    \"window_size\" : 20,\n" +
+            "    \"script\" : {} \n"
+            + "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("must specify either [source] for an inline script or [id] for a stored script", e.getMessage());
+        }
+
+        rescoreElement = "{\n" +
+            "    \"window_size\" : 20,\n" +
+            "    \"script\" : { \"source\" : \"\" }  \n"
+            + "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            RescorerBuilder.parseFromXContent(parser);
+        }
+
+        rescoreElement = "{\n" +
+            "    \"window_size\" : 20,\n" +
+            "    \"query\" : { \"rescore_query\" : { \"match_all\" : { } } }, \n" +
+            "    \"script\" : { \"source\" : \"\" } \n"
+            + "}\n";
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(ParsingException.class, () -> RescorerBuilder.parseFromXContent(parser));
+            assertEquals("you can either define [query] or [script], not both.", e.getMessage());
+        }
     }
 
     /**

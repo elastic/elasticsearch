@@ -44,7 +44,7 @@ public class TopBucketBuilder<B extends InternalMultiBucketAggregation.InternalB
 
     /**
      * Add a bucket if it is competitive. If there isn't space but the
-     * bucket is competitive then this will the least competitive bucket
+     * bucket is competitive then this will drop the least competitive bucket
      * to make room for the new bucket.
      * <p>
      * Instead of operating on complete buckets we this operates on a

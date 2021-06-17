@@ -165,8 +165,8 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-            return in.parserContext(dateFormatter);
+        public Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+            return in.dynamicTemplateParserContext(dateFormatter);
         }
 
         @Override
@@ -342,8 +342,8 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter) {
-            return parserContextFunction.apply(dateFormatter);
+        public Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+            return parserContextFunction.apply(dateFormatter).createDynamicTemplateFieldContext();
         }
 
         @Override
@@ -563,7 +563,7 @@ public abstract class ParseContext {
      */
     public abstract Collection<String> getFieldNames();
 
-    public abstract Mapper.TypeParser.ParserContext parserContext(DateFormatter dateFormatter);
+    public abstract Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter);
 
     /**
      * Return a new context that will be within a copy-to operation.

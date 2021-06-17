@@ -13,6 +13,8 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
+import java.io.IOException;
+
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -158,5 +160,55 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
 
         fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
+    }
+
+    public void testDynamicMapperWithBadMapping() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("badparam", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings(
+            "dynamic template [test] has invalid content [{\"match_mapping_type\":\"string\",\"mapping\":{\"badparam\":false}}], " +
+                "attempted to validate it with the following match_mapping_type: [string], caused by " +
+                "[unknown parameter [badparam] on mapper [__dynamic__test] of type [null]]");
+
+        mapper.parse(source(b -> b.field("field", "foo")));
+        assertWarnings("Parameter [badparam] is used in a dynamic template mapping and has no effect on type [null]. " +
+            "Usage will result in an error in future major versions and should be removed.");
+    }
+
+    public void testDynamicRuntimeWithBadMapping() throws IOException {
+        createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").field("badparam", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertWarnings("dynamic template [test] has invalid content " +
+            "[{\"match_mapping_type\":\"string\",\"runtime\":{\"badparam\":false}}], " +
+            "attempted to validate it with the following match_mapping_type: [string], " +
+            "caused by [unknown parameter [badparam] on runtime field [__dynamic__test] of type [null]]");
     }
 }

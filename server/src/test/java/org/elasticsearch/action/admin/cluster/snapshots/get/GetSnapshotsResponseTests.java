@@ -107,7 +107,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(0, 5); i++) {
             String repository = randomValueOtherThanMany(repositories::contains, () -> randomAlphaOfLength(10));
             repositories.add(repository);
-            responses.add(GetSnapshotsResponse.Response.snapshots(repository, createSnapshotInfos()));
+            responses.add(GetSnapshotsResponse.Response.snapshots(repository, createSnapshotInfos(), null));
         }
 
         for (int i = 0; i < randomIntBetween(0, 5); i++) {

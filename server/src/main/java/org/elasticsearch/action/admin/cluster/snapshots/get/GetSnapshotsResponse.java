@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
@@ -58,17 +59,23 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             this.successfulResponses = Collections.singletonMap("unknown", in.readList(SnapshotInfo::readFrom));
             this.failedResponses = Collections.emptyMap();
         }
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            this.next = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
+        } else {
+            this.next = Collections.emptyMap();
+        }
     }
 
     public static class Response {
         private final String repository;
         private final List<SnapshotInfo> snapshots;
+        private final String next;
         private final ElasticsearchException error;
 
         private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER = new ConstructingObjectParser<>(
             Response.class.getName(),
             true,
-            (args) -> new Response((String) args[0], (List<SnapshotInfo>) args[1], (ElasticsearchException) args[2])
+            (args) -> new Response((String) args[0], (List<SnapshotInfo>) args[1], (ElasticsearchException) args[2], (String) args[3])
         );
 
         static {
@@ -83,20 +90,22 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 (p, c) -> ElasticsearchException.fromXContent(p),
                 new ParseField("error")
             );
+            RESPONSE_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
         }
 
-        private Response(String repository, List<SnapshotInfo> snapshots, ElasticsearchException error) {
+        private Response(String repository, List<SnapshotInfo> snapshots, @Nullable ElasticsearchException error, @Nullable String next) {
             this.repository = repository;
             this.snapshots = snapshots;
             this.error = error;
+            this.next = next;
         }
 
-        public static Response snapshots(String repository, List<SnapshotInfo> snapshots) {
-            return new Response(repository, snapshots, null);
+        public static Response snapshots(String repository, List<SnapshotInfo> snapshots, @Nullable String next) {
+            return new Response(repository, snapshots, null, next);
         }
 
         public static Response error(String repository, ElasticsearchException error) {
-            return new Response(repository, null, error);
+            return new Response(repository, null, error, null);
         }
 
         private static Response fromXContent(XContentParser parser) throws IOException {
@@ -105,21 +114,28 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     }
 
     private final Map<String, List<SnapshotInfo>> successfulResponses;
+    private final Map<String, String> next;
     private final Map<String, ElasticsearchException> failedResponses;
 
     public GetSnapshotsResponse(Collection<Response> responses) {
         Map<String, List<SnapshotInfo>> successfulResponses = new HashMap<>();
+        Map<String, String> next = new HashMap<>();
         Map<String, ElasticsearchException> failedResponses = new HashMap<>();
         for (Response response : responses) {
             if (response.snapshots != null) {
                 assert response.error == null;
                 successfulResponses.put(response.repository, response.snapshots);
+                if (response.next != null) {
+                    next.put(response.repository, response.next);
+                }
             } else {
                 assert response.snapshots == null;
+                assert response.next == null;
                 failedResponses.put(response.repository, response.error);
             }
         }
         this.successfulResponses = Collections.unmodifiableMap(successfulResponses);
+        this.next = Map.copyOf(next);
         this.failedResponses = Collections.unmodifiableMap(failedResponses);
     }
 
@@ -140,6 +156,18 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             throw new IllegalArgumentException("No such repository");
         }
         throw error;
+    }
+
+    /**
+     * Pagination offset for the next request if the request for this response used a size limit and there may be additional snapshots to
+     * fetch.
+     *
+     * @param repo repository name
+     * @return pagination offset for more results if there might be any or {@code null} otherwise
+     */
+    @Nullable
+    public String getNext(String repo) {
+        return next.get(repo);
     }
 
     /**
@@ -183,6 +211,10 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
                 snapshot.toXContent(builder, params);
             }
             builder.endArray();
+            final String nextVal = next.get(snapshots.getKey());
+            if (nextVal != null) {
+                builder.field("next", nextVal);
+            }
             builder.endObject();
         }
 
@@ -218,6 +250,16 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
             if (failedResponses.isEmpty() == false) {
                 throw failedResponses.values().iterator().next();
+            }
+        }
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            out.writeMap(next, StreamOutput::writeString, StreamOutput::writeString);
+        } else {
+            if (next.isEmpty() == false) {
+                throw new IllegalArgumentException(
+                    "Requesting paginated results is not supported in versions prior to "
+                        + GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION
+                );
             }
         }
     }

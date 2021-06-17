@@ -314,7 +314,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                      if (request instanceof GetSnapshotsRequest) {
                          logger.info("--> called");
                          listener.onResponse((Response) new GetSnapshotsResponse(
-                             Collections.singleton(GetSnapshotsResponse.Response.snapshots(repoId, Collections.emptyList()))));
+                             Collections.singleton(GetSnapshotsResponse.Response.snapshots(repoId, Collections.emptyList(), null))));
                      } else {
                          super.doExecute(action, request, listener);
                      }

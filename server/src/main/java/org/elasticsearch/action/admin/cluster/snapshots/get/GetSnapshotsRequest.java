@@ -317,6 +317,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             this(in.readString(), in.readString());
         }
 
+        public static After fromParam(String param) {
+            final String[] parts = param.split(",");
+            if (parts.length != 2) {
+                throw new IllegalArgumentException(
+                    "after param must be of the form ${sort_value},${snapshot_name} but was [" + param + "]"
+                );
+            }
+            return new After(parts[0], parts[1]);
+        }
+
         @Nullable
         public static After from(@Nullable SnapshotInfo snapshotInfo, SortBy sortBy) {
             if (snapshotInfo == null) {
@@ -353,6 +363,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
         public String snapshotName() {
             return snapshotName;
+        }
+
+        public String asQueryParam() {
+            return value + "," + snapshotName;
         }
 
         @Override

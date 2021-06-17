@@ -165,7 +165,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     } else {
                         groupedListener.onFailure(e);
                     }
-                }).map(snInfos -> GetSnapshotsResponse.Response.snapshots(repoName, snInfos))
+                })
+                    .map(
+                        snInfos -> GetSnapshotsResponse.Response.snapshots(
+                            repoName,
+                            snInfos,
+                            size == GetSnapshotsRequest.NO_LIMIT || snInfos.size() < size
+                                ? null
+                                : GetSnapshotsRequest.After.from(snInfos.get(snInfos.size() - 1), sortBy).asQueryParam()
+                        )
+                    )
             );
         }
     }

@@ -79,7 +79,7 @@ public class ShardFieldUsageTracker {
 
         }
 
-        private final Map<String, PerField> usages = new ConcurrentHashMap<>();
+        private final Map<String, PerField> usages = new HashMap<>();
 
         @Override
         public void close() {

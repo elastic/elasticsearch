@@ -11,9 +11,7 @@ package org.elasticsearch.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
@@ -34,17 +32,17 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -59,7 +57,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -94,8 +91,6 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
-import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -124,7 +119,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1227,21 +1221,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        List<Releasable> releasables = new ArrayList<>();
+        Releasable releasable = null;
         try {
             IndexService indexService;
-            IndexShard indexShard;
             final boolean hasRefreshPending;
-            IndexSearcher canMatchSearcher;
+            final Engine.Searcher canMatchSearcher;
             if (request.readerId() != null) {
                 hasRefreshPending = false;
                 ReaderContext readerContext;
                 Engine.Searcher searcher;
                 try {
                     readerContext = findReaderContext(request.readerId(), request);
-                    releasables.add(readerContext.markAsUsed(getKeepAlive(request)));
+                    releasable = readerContext.markAsUsed(getKeepAlive(request));
                     indexService = readerContext.indexService();
-                    indexShard = readerContext.indexShard();
                     searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
                     final String searcherId = request.readerId().getSearcherId();
@@ -1249,47 +1241,37 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         throw e;
                     }
                     indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                    indexShard = indexService.getShard(request.shardId().getId());
+                    IndexShard indexShard = indexService.getShard(request.shardId().getId());
                     final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
                     if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
                         searcherSupplier.close();
                         throw e;
                     }
-                    releasables.add(searcherSupplier);
+                    releasable = searcherSupplier;
                     searcher = searcherSupplier.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 }
                 canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                indexShard = indexService.getShard(request.shardId().getId());
+                IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 hasRefreshPending = indexShard.hasRefreshPending() && checkRefreshPending;
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
-
-            releasables.add((Releasable) canMatchSearcher);
-            if (canMatchSearcher.getIndexReader() instanceof DirectoryReader) {
-                ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsSession =
-                    indexShard.fieldUsageTracker().createSession();
-                releasables.add(fieldUsageStatsSession);
-                canMatchSearcher = new ContextIndexSearcher(
-                    new FieldUsageTrackingDirectoryReader((DirectoryReader) canMatchSearcher.getIndexReader(), fieldUsageStatsSession),
-                    canMatchSearcher.getSimilarity(), canMatchSearcher.getQueryCache(), canMatchSearcher.getQueryCachingPolicy(),
-                    false);
-                releasables.add((Releasable) canMatchSearcher);
+            try (canMatchSearcher) {
+                SearchExecutionContext context = indexService.newSearchExecutionContext(request.shardId().id(), 0,
+                    canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
+                final MinAndMax<?> minMax;
+                if (canMatch || hasRefreshPending) {
+                    FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+                    minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                } else {
+                    minMax = null;
+                }
+                return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
-            SearchExecutionContext context = indexService.newSearchExecutionContext(request.shardId().id(), 0,
-                canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
-            final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
-            final MinAndMax<?> minMax;
-            if (canMatch || hasRefreshPending) {
-                FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-            } else {
-                minMax = null;
-            }
-            return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
         } finally {
-            Releasables.close(releasables);
+            Releasables.close(releasable);
         }
     }
 

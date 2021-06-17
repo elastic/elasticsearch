@@ -144,6 +144,7 @@ import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -1299,7 +1300,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             != null : "DirectoryReader must be an instance or ElasticsearchDirectoryReader";
         boolean success = false;
         try {
-            final Engine.Searcher newSearcher = readerWrapper == null ? searcher : wrapSearcher(searcher, readerWrapper);
+            final Engine.Searcher newSearcher = wrapSearcher(searcher, fieldUsageTracker.createSession(), readerWrapper);
             assert newSearcher != null;
             success = true;
             return newSearcher;
@@ -1313,37 +1314,37 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
-                                        CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
-        assert readerWrapper != null;
+                                        ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsTrackingSession,
+                                        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
             ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {
             throw new IllegalStateException("Can't wrap non elasticsearch directory reader");
         }
+        if (readerWrapper == null) {
+            readerWrapper = r -> r;
+        }
         NonClosingReaderWrapper nonClosingReaderWrapper = new NonClosingReaderWrapper(engineSearcher.getDirectoryReader());
-        DirectoryReader reader = readerWrapper.apply(nonClosingReaderWrapper);
-        if (reader != nonClosingReaderWrapper) {
-            if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
-                throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
-                    " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
-                    "used as cache keys since their are used only per request which would lead to subtle bugs");
-            }
-            if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
-                // prevent that somebody wraps with a non-filter reader
-                throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
-            }
+        // first apply field usage stats wrapping before applying other wrappers so that it can track the effects of these wrappers
+        DirectoryReader reader = readerWrapper.apply(
+            new FieldUsageTrackingDirectoryReader(nonClosingReaderWrapper, fieldUsageStatsTrackingSession));
+        if (reader.getReaderCacheHelper() != elasticsearchDirectoryReader.getReaderCacheHelper()) {
+            throw new IllegalStateException("wrapped directory reader doesn't delegate IndexReader#getCoreCacheKey," +
+                " wrappers must override this method and delegate to the original readers core cache key. Wrapped readers can't be " +
+                "used as cache keys since their are used only per request which would lead to subtle bugs");
+        }
+        if (ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(reader) != elasticsearchDirectoryReader) {
+            // prevent that somebody wraps with a non-filter reader
+            throw new IllegalStateException("wrapped directory reader hides actual ElasticsearchDirectoryReader but shouldn't");
         }
 
-        if (reader == nonClosingReaderWrapper) {
-            return engineSearcher;
-        } else {
-            // we close the reader to make sure wrappers can release resources if needed....
-            // our NonClosingReaderWrapper makes sure that our reader is not closed
-            return new Engine.Searcher(engineSearcher.source(), reader,
-                engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
-                () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
-                    engineSearcher)); // this will run the closeable on the wrapped engine reader
-        }
+        // we close the reader to make sure wrappers can release resources if needed....
+        // our NonClosingReaderWrapper makes sure that our reader is not closed
+        return new Engine.Searcher(engineSearcher.source(), reader,
+            engineSearcher.getSimilarity(), engineSearcher.getQueryCache(), engineSearcher.getQueryCachingPolicy(),
+            () -> IOUtils.close(reader, // this will close the wrappers excluding the NonClosingReaderWrapper
+                engineSearcher, // this will run the closeable on the wrapped engine reader
+                fieldUsageStatsTrackingSession)); // completes stats recording
     }
 
     private static final class NonClosingReaderWrapper extends FilterDirectoryReader {

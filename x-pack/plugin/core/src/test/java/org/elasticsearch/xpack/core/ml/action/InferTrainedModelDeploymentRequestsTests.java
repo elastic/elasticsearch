@@ -33,4 +33,8 @@ public class InferTrainedModelDeploymentRequestsTests extends AbstractSerializin
         }
         return request;
     }
+
+    public void testTimeoutNotNull() {
+        assertNotNull(createTestInstance().getTimeout());
+    }
 }

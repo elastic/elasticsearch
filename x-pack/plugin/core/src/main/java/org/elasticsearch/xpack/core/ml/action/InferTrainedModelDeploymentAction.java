@@ -45,7 +45,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField TIMEOUT = new ParseField("timeout");
 
-        private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
+        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(10);
 
         static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {

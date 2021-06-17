@@ -11,12 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.ml.CloseJobRequest;
 import org.elasticsearch.client.ml.CloseJobResponse;
-import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
-import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
-import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
-import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
-import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
-import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.DeleteCalendarEventRequest;
 import org.elasticsearch.client.ml.DeleteCalendarJobRequest;
 import org.elasticsearch.client.ml.DeleteCalendarRequest;
@@ -29,8 +23,14 @@ import org.elasticsearch.client.ml.DeleteForecastRequest;
 import org.elasticsearch.client.ml.DeleteJobRequest;
 import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelAliasRequest;
+import org.elasticsearch.client.ml.DeleteTrainedModelRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryRequest;
+import org.elasticsearch.client.ml.EstimateModelMemoryResponse;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
+import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -93,6 +93,8 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
+import org.elasticsearch.client.ml.ResetJobRequest;
+import org.elasticsearch.client.ml.ResetJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -608,6 +610,46 @@ public final class MachineLearningClient {
             MLRequestConverters::revertModelSnapshot,
             options,
             RevertModelSnapshotResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Resets the given Machine Learning Job
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-reset-job.html">ML Reset job documentation</a>
+     *
+     * @param request The request to reset the job
+     * @param options Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return The action response which contains the acknowledgement or the task id depending on whether the action was set to wait for
+     * completion
+     * @throws IOException when there is a serialization issue sending the request or receiving the response
+     */
+    public ResetJobResponse resetJob(ResetJobRequest request, RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(request,
+            MLRequestConverters::resetJob,
+            options,
+            ResetJobResponse::fromXContent,
+            Collections.emptySet());
+    }
+
+    /**
+     * Resets the given Machine Learning Job asynchronously and notifies the listener on completion
+     * <p>
+     * For additional info
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-reset-job.html">ML Reset Job documentation</a>
+     *
+     *  @param request  The request to reset the job
+     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener Listener to be notified upon request completion
+     * @return cancellable that may be used to cancel the request
+     */
+    public Cancellable resetJobAsync(ResetJobRequest request, RequestOptions options, ActionListener<ResetJobResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
+            MLRequestConverters::resetJob,
+            options,
+            ResetJobResponse::fromXContent,
+            listener,
             Collections.emptySet());
     }
 

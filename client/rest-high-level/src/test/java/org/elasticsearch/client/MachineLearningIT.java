@@ -97,6 +97,8 @@ import org.elasticsearch.client.ml.PutJobResponse;
 import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
 import org.elasticsearch.client.ml.PutTrainedModelResponse;
+import org.elasticsearch.client.ml.ResetJobRequest;
+import org.elasticsearch.client.ml.ResetJobResponse;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotResponse;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
@@ -309,6 +311,46 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
         // When wait_for_completion=false the DeleteJobAction stored the task result in the .tasks index. In tests we need to wait
         // for the delete job task to complete, otherwise the .tasks index could be created during the execution of a following test.
+        final GetTaskRequest taskRequest = new GetTaskRequest(taskId.getNodeId(), taskId.getId());
+        assertBusy(() -> {
+            Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);
+            assertTrue(taskResponse.isPresent());
+            assertTrue(taskResponse.get().isCompleted());
+        }, 30L, TimeUnit.SECONDS);
+    }
+
+    public void testResetJob_GivenWaitForCompletionIsTrue() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        ResetJobResponse response = execute(new ResetJobRequest(jobId),
+            machineLearningClient::resetJob,
+            machineLearningClient::resetJobAsync);
+
+        assertTrue(response.getAcknowledged());
+        assertNull(response.getTask());
+    }
+
+    public void testResetJob_GivenWaitForCompletionIsFalse() throws Exception {
+        String jobId = randomValidJobId();
+        Job job = buildJob(jobId);
+        MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
+        machineLearningClient.putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        ResetJobRequest resetJobRequest = new ResetJobRequest(jobId);
+        resetJobRequest.setWaitForCompletion(false);
+
+        ResetJobResponse response = execute(resetJobRequest, machineLearningClient::resetJob, machineLearningClient::resetJobAsync);
+
+        assertNull(response.getAcknowledged());
+
+        final TaskId taskId = response.getTask();
+        assertNotNull(taskId);
+
+        // When wait_for_completion=false the ResetJobAction stored the task result in the .tasks index. In tests we need to wait
+        // for the reset job task to complete, otherwise the .tasks index could be created during the execution of a following test.
         final GetTaskRequest taskRequest = new GetTaskRequest(taskId.getNodeId(), taskId.getId());
         assertBusy(() -> {
             Optional<GetTaskResponse> taskResponse = highLevelClient().tasks().get(taskRequest, RequestOptions.DEFAULT);

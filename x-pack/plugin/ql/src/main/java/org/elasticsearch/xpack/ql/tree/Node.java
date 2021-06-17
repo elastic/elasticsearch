@@ -162,23 +162,6 @@ public abstract class Node<T extends Node<T>> {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    public <R> Optional<R> collectFirstDown(Function<T, Optional<R>> fn) {
-        Optional<R> result = fn.apply((T) this);
-        if (result.isPresent()) {
-            return result;
-        } else {
-            for (T child : children()) {
-                Optional<R> childResult = child.collectFirstDown(fn);
-                if (childResult.isPresent()) {
-                    return childResult;
-                }
-            }
-        }
-
-        return Optional.empty();
-    }
-
     // TODO: maybe add a flatMap (need to double check the Stream bit)
 
     //

@@ -56,8 +56,14 @@ sameConstantsWithLimitV3
 SELECT 3, 5, 3, 3 FROM "test_emp" LIMIT 5;
 constantWithWhere
 SELECT 1 FROM "test_emp" WHERE gender = 'F';
+constantsWithWhere
+SELECT 1, 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F';
+constantWithWhereConjunction
+SELECT 1 FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A';
 constantWithWhereOrderAndLimit
 SELECT 1 FROM "test_emp" WHERE gender = 'F' ORDER BY emp_no LIMIT 5;
+constantsWithWhereOrderAndLimit
+SELECT 1, SUBSTRING('test', 1, 1) AS c FROM "test_emp" WHERE gender = 'F' AND SUBSTRING(first_name, 1, 1) = 'A' ORDER BY emp_no;
 constantAndColumnWithLimit
 SELECT 3, first_name, last_name FROM "test_emp" ORDER BY emp_no LIMIT 5;
 constantComparisonWithLimit

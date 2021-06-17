@@ -99,7 +99,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -1149,21 +1148,26 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            LogicalPlan relation = plan
-                .collectFirstDown(p -> p.children().isEmpty() ? Optional.of(p) : Optional.empty())
-                .get();
+            List<LogicalPlan> relations = plan.collect(p ->
+                p instanceof LocalRelation || p instanceof EsRelation);
 
-            // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
-            boolean isNonSkippedLocalRelation = relation instanceof LocalRelation
-                && ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
+            List<LogicalPlan> projectOrAggregates = plan.collect(p ->
+                p instanceof Project || p instanceof Aggregate);
 
-            Optional<LogicalPlan> optimized = plan.collectFirstDown(p -> {
-                Optional<List<Object>> foldedValues = Optional.empty();
+            if (relations.size() == 1 && projectOrAggregates.size() == 1) {
+                LogicalPlan relation = relations.get(0);
+                LogicalPlan projectOrAggregate = projectOrAggregates.get(0);
 
-                if (p instanceof Project && isNonSkippedLocalRelation) {
-                    foldedValues = Optional.of(extractConstants(((Project) p).projections()));
-                } else if (p instanceof Aggregate) {
-                    Aggregate a = (Aggregate) p;
+                List<Object> foldedValues = null;
+
+                // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
+                boolean isNonSkippedLocalRelation = relation instanceof LocalRelation
+                    && ((LocalRelation) relation).executable() instanceof EmptyExecutable == false;
+
+                if (projectOrAggregate instanceof Project && isNonSkippedLocalRelation) {
+                    foldedValues = extractConstants(((Project) projectOrAggregate).projections());
+                } else if (projectOrAggregate instanceof Aggregate) {
+                    Aggregate a = (Aggregate) projectOrAggregate;
                     List<Object> folded = extractConstants(a.aggregates());
 
                     boolean onlyConstantAggregations = relation instanceof EsRelation
@@ -1171,15 +1175,17 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         && a.groupings().isEmpty();
 
                     if (isNonSkippedLocalRelation || onlyConstantAggregations) {
-                        foldedValues = Optional.of(folded);
+                        foldedValues = folded;
                     }
                 }
 
-                return foldedValues.map(
-                    values -> new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
-            });
+                if (foldedValues != null) {
+                    return new LocalRelation(projectOrAggregate.source(),
+                        new SingletonExecutable(projectOrAggregate.output(), foldedValues.toArray()));
+                }
+            }
 
-            return optimized.orElse(plan);
+            return plan;
         }
 
         private List<Object> extractConstants(List<? extends NamedExpression> named) {

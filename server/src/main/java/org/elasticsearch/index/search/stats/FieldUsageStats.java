@@ -110,7 +110,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         public static final String TOTAL = "total";
         public static final String TERMS = "terms";
-        public static final String FREQS = "freqs";
+        public static final String FREQS = "frequencies";
         public static final String POSITIONS = "positions";
         public static final String OFFSETS = "offsets";
         public static final String DOC_VALUES = "doc_values";

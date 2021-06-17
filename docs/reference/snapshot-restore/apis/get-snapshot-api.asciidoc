@@ -387,7 +387,7 @@ The API returns the following response:
           "start_time_in_millis": 1593093628851,
           "end_time": "2020-07-06T21:55:18.130Z",
           "end_time_in_millis": 1593094752019,
-          "duration_in_millis": 0,
+          "duration_in_millis": 1,
           "failures": [],
           "shards": {
             "total": 0,
@@ -414,7 +414,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.responses.0.snapshots.0.end_time_in_millis/]
 // TESTRESPONSE[s/"end_time_in_millis": 1593094752019/"end_time_in_millis": $body.responses.0.snapshots.1.end_time_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.0.duration_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.1.duration_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 1/"duration_in_millis": $body.responses.0.snapshots.1.duration_in_millis/]
 
 A subsequent request for the remaining snapshots can then be made using the `next` value from the previous response as `after` parameter.
 

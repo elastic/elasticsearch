@@ -94,7 +94,7 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
-            t.reports(r -> r.getHtml().setEnabled(false));
+            t.reports(r -> r.getHtml().getRequired().set(false));
         });
 
         return checkstyleTask;

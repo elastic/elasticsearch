@@ -45,7 +45,7 @@ public class NodeDeprecationChecks {
             final String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/" +
                 "breaking-changes-7.13.html#deprecate-shared-data-path-setting";
             final String details = "Found shared data path configured. Discontinue use of this setting.";
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, true);
+            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false);
         }
         return null;
     }

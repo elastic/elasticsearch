@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
@@ -94,11 +95,11 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
     }
 
     public void testInvalidTimestamp() throws Exception {
+        assumeTrue("only test with fixture to have stable results", ENDPOINT != null);
         ClusterUpdateSettingsResponse settingsResponse =
             client().admin().cluster()
                 .prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder()
-                    .put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1))
                     .put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true))
                 .get();
         assertTrue(settingsResponse.isAcknowledged());
@@ -106,6 +107,17 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             GeoIpTaskState state = getGeoIpTaskState();
             assertEquals(Set.of("GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb", "GeoLite2-Country.mmdb"), state.getDatabases().keySet());
         }, 2, TimeUnit.MINUTES);
+
+        putPipeline();
+        verifyUpdatedDatabase();
+
+        settingsResponse =
+            client().admin().cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder()
+                    .put("ingest.geoip.database_validity", TimeValue.timeValueMillis(1)))
+                .get();
+        assertTrue(settingsResponse.isAcknowledged());
         Thread.sleep(10);
         settingsResponse = client().admin().cluster()
             .prepareUpdateSettings()
@@ -238,14 +250,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
             }
         });
 
-        // Verify after updating dbs:
-        assertBusy(() -> {
-            SimulateDocumentBaseResult result = simulatePipeline();
-            assertThat(result.getFailure(), nullValue());
-            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
-            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
-        });
+        verifyUpdatedDatabase();
 
         // Disable downloader:
         settings = Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false);
@@ -258,6 +263,16 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
                     assertThat(files, empty());
                 }
             }
+        });
+    }
+
+    private void verifyUpdatedDatabase() throws Exception {
+        assertBusy(() -> {
+            SimulateDocumentBaseResult result = simulatePipeline();
+            assertThat(result.getFailure(), nullValue());
+            assertThat(result.getIngestDocument().getFieldValue("ip-city.city_name", String.class), equalTo("Linköping"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-asn.organization_name", String.class), equalTo("Bredband2 AB"));
+            assertThat(result.getIngestDocument().getFieldValue("ip-country.country_name", String.class), equalTo("Sweden"));
         });
     }
 

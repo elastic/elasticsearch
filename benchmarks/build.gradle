@@ -35,6 +35,7 @@ dependencies {
   // Dependencies of JMH
   runtimeOnly 'net.sf.jopt-simple:jopt-simple:4.6'
   runtimeOnly 'org.apache.commons:commons-math3:3.2'
+
 }
 
 // enable the JMH's BenchmarkProcessor to generate the final benchmark classes
@@ -49,7 +50,7 @@ tasks.register('copyExpression', Copy) {
   into "${buildDir}/plugins/expression"
 }
 
-tasks.register("copyPainless", Copy) { 
+tasks.register("copyPainless", Copy) {
   dependsOn configurations.painless
   from { configurations.painless.collect { zipTree(it) } }
   into "${buildDir}/plugins/painless"

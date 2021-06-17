@@ -276,7 +276,7 @@ The snapshot `state` can be one of the following values:
 --
 `next`::
 (string)
-If the request contained a size limit and there might be more results a `next` field will be added to the response and can be used as the
+If the request contained a size limit and there might be more results, a `next` field will be added to the response and can be used as the
 `after` query parameter to fetch additional results.
 
 [[get-snapshot-api-example]]
@@ -416,7 +416,7 @@ The API returns the following response:
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.0.duration_in_millis/]
 // TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.1.duration_in_millis/]
 
-A subsequent request for the remaining snapshots can then be made.
+A subsequent request for the remaining snapshots can then be made using the `next` value from the previous response as `after` parameter.
 
 [source,console]
 ----

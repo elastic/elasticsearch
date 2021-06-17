@@ -49,7 +49,7 @@ tasks.register('copyExpression', Copy) {
   into "${buildDir}/plugins/expression"
 }
 
-tasks.register("copyPainless", Copy) {
+tasks.register("copyPainless", Copy) { 
   dependsOn configurations.painless
   from { configurations.painless.collect { zipTree(it) } }
   into "${buildDir}/plugins/painless"

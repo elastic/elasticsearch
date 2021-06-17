@@ -710,11 +710,10 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     private Map<String, Object> getPhaseDefinitionAsMap(LifecycleExecutionState newLifecycleState) {
         XContentType entityContentType = XContentType.fromMediaType("application/json");
-        Map<String, Object> migratedPhaseDefAsMap = (Map<String, Object>) XContentHelper.convertToMap(entityContentType.xContent(),
+        return (Map<String, Object>) XContentHelper.convertToMap(entityContentType.xContent(),
             new ByteArrayInputStream(newLifecycleState.getPhaseDefinition().getBytes(StandardCharsets.UTF_8)),
             false)
             .get("phase_definition");
-        return migratedPhaseDefAsMap;
     }
 
 }

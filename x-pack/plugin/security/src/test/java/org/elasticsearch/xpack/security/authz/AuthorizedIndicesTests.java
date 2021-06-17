@@ -104,7 +104,8 @@ public class AuthorizedIndicesTests extends ESTestCase {
     }
 
     public void testSecurityIndicesAreRestrictedForDefaultRole() {
-        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON, randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
+        Role role = Role.builder(RESTRICTED_INDICES_AUTOMATON,
+                    randomFrom("user_role", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))
                 .add(IndexPrivilege.ALL, "*")
                 .cluster(Set.of("all"), Set.of())
                 .build();

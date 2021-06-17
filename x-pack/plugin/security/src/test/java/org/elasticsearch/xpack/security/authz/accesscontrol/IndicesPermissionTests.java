@@ -251,8 +251,8 @@ public class IndicesPermissionTests extends ESTestCase {
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
                 RESTRICTED_INDICES_AUTOMATON, "a1");
         IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.READ,
-            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), RESTRICTED_INDICES_AUTOMATON,
-            "a1");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(),
+            RESTRICTED_INDICES_AUTOMATON, "a1");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(SearchAction.NAME, Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
@@ -267,10 +267,11 @@ public class IndicesPermissionTests extends ESTestCase {
         assertFalse(core.check("unknown"));
 
         // test with two indices
-        group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(), RESTRICTED_INDICES_AUTOMATON, "a1");
+        group1 = new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
+            RESTRICTED_INDICES_AUTOMATON, "a1");
         group2 = new IndicesPermission.Group(IndexPrivilege.ALL,
-            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), RESTRICTED_INDICES_AUTOMATON,
-            "a1");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(),
+            RESTRICTED_INDICES_AUTOMATON, "a1");
         IndicesPermission.Group group3 = new IndicesPermission.Group(IndexPrivilege.ALL,
                 new FieldPermissions(fieldPermissionDef(new String[] { "*_field" }, new String[] { "denied_field" })), null,
                 randomBoolean(), RESTRICTED_INDICES_AUTOMATON, "a2");
@@ -300,8 +301,8 @@ public class IndicesPermissionTests extends ESTestCase {
             indices.add("*" + prefix + "*" + suffixBegin + "*");
         }
         final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class,
-                () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(), RESTRICTED_INDICES_AUTOMATON,
-                        indices.toArray(Strings.EMPTY_ARRAY)));
+                () -> new IndicesPermission.Group(IndexPrivilege.ALL, new FieldPermissions(), null, randomBoolean(),
+                    RESTRICTED_INDICES_AUTOMATON, indices.toArray(Strings.EMPTY_ARRAY)));
         assertThat(e.getMessage(), containsString(indices.get(0)));
         assertThat(e.getMessage(), containsString("too complex to evaluate"));
     }
@@ -433,8 +434,8 @@ public class IndicesPermissionTests extends ESTestCase {
         IndicesPermission.Group group1 = new IndicesPermission.Group(IndexPrivilege.INDEX, new FieldPermissions(), null, randomBoolean(),
             RESTRICTED_INDICES_AUTOMATON, "test*");
         IndicesPermission.Group group2 = new IndicesPermission.Group(IndexPrivilege.WRITE,
-            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(), RESTRICTED_INDICES_AUTOMATON,
-            "test_write*");
+            new FieldPermissions(fieldPermissionDef(null, new String[]{"denied_field"})), null, randomBoolean(),
+            RESTRICTED_INDICES_AUTOMATON, "test_write*");
         IndicesPermission core = new IndicesPermission(group1, group2);
         Map<String, IndicesAccessControl.IndexAccessControl> authzMap =
                 core.authorize(PutMappingAction.NAME, Sets.newHashSet("test1", "test_write1"), lookup, fieldPermissionsCache);

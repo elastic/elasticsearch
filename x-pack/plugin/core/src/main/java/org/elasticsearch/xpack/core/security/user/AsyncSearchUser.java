@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 
 public class AsyncSearchUser extends User {

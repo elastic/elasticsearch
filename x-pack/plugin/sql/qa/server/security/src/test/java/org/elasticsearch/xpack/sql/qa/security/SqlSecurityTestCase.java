@@ -642,8 +642,9 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                     List<String> castIndices = (ArrayList<String>) log.get("indices");
                                     indices = castIndices;
                                     if ("test_admin".equals(log.get("user.name"))) {
-                                        CharacterRunAutomaton restrictedAutomaton =
-                                            new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
+                                        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(
+                                            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON
+                                        );
                                         /*
                                          * Sometimes we accidentally sneak access to the security tables. This is fine,
                                          * SQL drops them from the interface. So we might have access to them, but we

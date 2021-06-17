@@ -291,7 +291,7 @@ public final class DatabaseRegistry implements Closeable {
 
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                updateDatabase(databaseName, recordedMd5, databaseFile, metadata.getLastUpdate());
+                updateDatabase(databaseName, recordedMd5, databaseFile);
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
@@ -306,7 +306,7 @@ public final class DatabaseRegistry implements Closeable {
             });
     }
 
-    void updateDatabase(String databaseFileName, String recordedMd5, Path file, long lastUpdate) {
+    void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);

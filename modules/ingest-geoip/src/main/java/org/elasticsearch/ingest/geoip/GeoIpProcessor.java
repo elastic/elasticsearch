@@ -429,9 +429,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             };
             Supplier<Boolean> isValid = () -> {
                 ClusterState currentState = clusterService.state();
-                if (currentState == null) {
-                    return true;
-                }
+                assert currentState != null;
+
                 PersistentTask<?> task = getTaskWithId(currentState, GeoIpDownloader.GEOIP_DOWNLOADER);
                 if (task == null || task.getState() == null) {
                     return true;

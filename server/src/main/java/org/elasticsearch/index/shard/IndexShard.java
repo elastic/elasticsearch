@@ -111,7 +111,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.FieldUsageStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -193,7 +193,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final Store store;
     private final InternalIndexingStats internalIndexingStats;
     private final ShardSearchStats searchStats = new ShardSearchStats();
-    private final FieldUsageStats fieldUsageStats = new FieldUsageStats();
+    private final ShardFieldUsageTracker fieldUsageTracker = new ShardFieldUsageTracker();
     private final ShardGetService getService;
     private final ShardIndexWarmerService shardWarmerService;
     private final ShardRequestCache requestCacheStats;
@@ -1066,8 +1066,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         return searchStats.stats(groups);
     }
 
-    public FieldUsageStats fieldUsageStats() {
-        return fieldUsageStats;
+    public ShardFieldUsageTracker fieldUsageTracker() {
+        return fieldUsageTracker;
     }
 
     public GetStats getStats() {

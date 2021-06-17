@@ -59,7 +59,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.index.search.stats.FieldUsageStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -1268,7 +1268,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             releasables.add((Releasable) canMatchSearcher);
             if (canMatchSearcher.getIndexReader() instanceof DirectoryReader) {
-                FieldUsageStats.FieldUsageStatsTrackingSession fieldUsageStatsSession = indexShard.fieldUsageStats().createSession();
+                ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsSession =
+                    indexShard.fieldUsageTracker().createSession();
                 releasables.add(fieldUsageStatsSession);
                 canMatchSearcher = new ContextIndexSearcher(
                     new FieldUsageTrackingDirectoryReader((DirectoryReader) canMatchSearcher.getIndexReader(), fieldUsageStatsSession),

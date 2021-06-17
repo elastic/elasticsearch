@@ -255,6 +255,15 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.isSet(Flag.Bulk);
     }
 
+    public IndicesStatsRequest fieldUsage(boolean fieldUsage) {
+        flags.set(Flag.FieldUsage, fieldUsage);
+        return this;
+    }
+
+    public boolean fieldUsage() {
+        return flags.isSet(Flag.FieldUsage);
+    }
+
     public boolean includeSegmentFileSizes() {
         return flags.includeSegmentFileSizes();
     }

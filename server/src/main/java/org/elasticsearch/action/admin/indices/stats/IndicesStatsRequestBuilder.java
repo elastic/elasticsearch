@@ -143,6 +143,11 @@ public class IndicesStatsRequestBuilder
         return this;
     }
 
+    public IndicesStatsRequestBuilder setFieldUsage(boolean fieldUsage) {
+        request.fieldUsage(fieldUsage);
+        return this;
+    }
+
     public IndicesStatsRequestBuilder setIncludeSegmentFileSizes(boolean includeSegmentFileSizes) {
         request.includeSegmentFileSizes(includeSegmentFileSizes);
         return this;

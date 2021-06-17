@@ -8,120 +8,279 @@
 
 package org.elasticsearch.index.search.stats;
 
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader.FieldUsageNotifier;
-import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader.UsageContext;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.util.Collections;
+import java.io.IOException;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
 
-public class FieldUsageStats {
+public class FieldUsageStats implements ToXContentFragment, Writeable {
 
-    private final Map<String, InternalFieldStats> perFieldStats = new ConcurrentHashMap<>();
+    private final Map<String, PerFieldUsageStats> stats;
 
-    public FieldUsageStatsTrackingSession createSession() {
-        return new FieldUsageStatsTrackingSession();
+    public FieldUsageStats() {
+        this(new HashMap<>());
     }
 
-    public Map<String, FieldStats> getPerFieldStats() {
-        final Map<String, FieldStats> stats = new HashMap<>(perFieldStats.size());
-        for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
-            Map<UsageContext, Long> usages = new HashMap<>();
-            for (Map.Entry<UsageContext, AtomicLong> e : entry.getValue().usages.entrySet()) {
-                usages.put(e.getKey(), e.getValue().get());
+    public FieldUsageStats(Map<String, PerFieldUsageStats> stats) {
+        this.stats = stats;
+    }
+
+    public FieldUsageStats(StreamInput in) throws IOException {
+        stats = in.readMap(StreamInput::readString, PerFieldUsageStats::new);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeMap(stats, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject("field_usage");
+        final List<String> fields = stats.keySet().stream().sorted().collect(Collectors.toList());
+        if (fields.isEmpty() == false) {
+            builder.startObject("_all");
+            total().toXContent(builder, params);
+            builder.endObject();
+
+            builder.startObject("fields");
+            for (String field : fields) {
+                builder.startObject(field);
+                stats.get(field).toXContent(builder, params);
+                builder.endObject();
             }
-            stats.put(entry.getKey(), new FieldStats(usages));
+            builder.endObject();
         }
-        return Collections.unmodifiableMap(stats);
+        builder.endObject();
+        return builder;
     }
 
-    static class InternalFieldStats {
-        private final Map<UsageContext, AtomicLong> usages = new ConcurrentHashMap<>();
+    PerFieldUsageStats total() {
+        final PerFieldUsageStats total = new PerFieldUsageStats();
+        for (PerFieldUsageStats value : stats.values()) {
+            total.add(value);
+        }
+        return total;
     }
 
-    public static class FieldStats {
-        private final Map<UsageContext, Long> usages;
+    @Override
+    public String toString() {
+        return Strings.toString(this);
+    }
 
-        public FieldStats(Map<UsageContext, Long> usages) {
-            this.usages = usages;
+    public boolean hasField(String field) {
+        return stats.containsKey(field);
+    }
+
+    public PerFieldUsageStats get(String field) {
+        return stats.get(field);
+    }
+
+    public void add(FieldUsageStats other) {
+        for (Map.Entry<String, PerFieldUsageStats> entry : other.stats.entrySet()) {
+            stats.computeIfAbsent(entry.getKey(), f -> new PerFieldUsageStats()).add(entry.getValue());
+        }
+    }
+
+    public enum UsageContext {
+        DOC_VALUES,
+        STORED_FIELDS,
+        TERMS,
+        FREQS,
+        POSITIONS,
+        OFFSETS,
+        NORMS,
+        PAYLOADS,
+        IMPACTS,
+        TERM_VECTORS, // possibly refine this one
+        POINTS,
+    }
+
+    public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
+
+        public static final String TOTAL = "total";
+        public static final String TERMS = "terms";
+        public static final String FREQS = "freqs";
+        public static final String POSITIONS = "positions";
+        public static final String OFFSETS = "offsets";
+        public static final String DOC_VALUES = "doc_values";
+        public static final String STORED_FIELDS = "stored_fields";
+        public static final String NORMS = "norms";
+        public static final String PAYLOADS = "payloads";
+        public static final String IMPACTS = "impacts";
+        public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
+        public static final String POINTS = "points";
+
+        public long terms;
+        public long freqs;
+        public long positions;
+        public long offsets;
+        public long docValues;
+        public long storedFields;
+        public long norms;
+        public long payloads;
+        public long impacts;
+        public long termVectors;
+        public long points;
+
+        public PerFieldUsageStats() {
+
         }
 
-        public long get(UsageContext usageContext) {
-            return usages.get(usageContext);
+        private void add(PerFieldUsageStats other) {
+            terms += other.terms;
+            freqs += other.freqs;
+            positions += other.positions;
+            offsets += other.offsets;
+            docValues += other.docValues;
+            storedFields += other.storedFields;
+            norms += other.norms;
+            payloads += other.payloads;
+            impacts += other.impacts;
+            termVectors += other.termVectors;
+            points += other.points;
+        }
+
+        public PerFieldUsageStats(StreamInput in) throws IOException {
+            terms = in.readVLong();
+            freqs = in.readVLong();
+            positions = in.readVLong();
+            offsets = in.readVLong();
+            docValues = in.readVLong();
+            storedFields = in.readVLong();
+            norms = in.readVLong();
+            payloads = in.readVLong();
+            impacts = in.readVLong();
+            termVectors = in.readVLong();
+            points = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(terms);
+            out.writeVLong(freqs);
+            out.writeVLong(positions);
+            out.writeVLong(offsets);
+            out.writeVLong(docValues);
+            out.writeVLong(storedFields);
+            out.writeVLong(norms);
+            out.writeVLong(payloads);
+            out.writeVLong(impacts);
+            out.writeVLong(termVectors);
+            out.writeVLong(points);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(TERMS, terms);
+            builder.field(FREQS, freqs);
+            builder.field(POSITIONS, positions);
+            builder.field(OFFSETS, offsets);
+            builder.field(DOC_VALUES, docValues);
+            builder.field(STORED_FIELDS, storedFields);
+            builder.field(NORMS, norms);
+            builder.field(PAYLOADS, payloads);
+            builder.field(IMPACTS, impacts);
+            builder.field(TERM_VECTORS, termVectors);
+            builder.field(POINTS, points);
+            return builder;
         }
 
         public Set<UsageContext> keySet() {
-            return usages.keySet();
+            final EnumSet<UsageContext> set = EnumSet.noneOf(UsageContext.class);
+            if (terms > 0L) {
+                set.add(UsageContext.TERMS);
+            }
+            if (freqs > 0L) {
+                set.add(UsageContext.FREQS);
+            }
+            if (positions > 0L) {
+                set.add(UsageContext.POSITIONS);
+            }
+            if (offsets > 0L) {
+                set.add(UsageContext.OFFSETS);
+            }
+            if (docValues > 0L) {
+                set.add(UsageContext.DOC_VALUES);
+            }
+            if (storedFields > 0L) {
+                set.add(UsageContext.STORED_FIELDS);
+            }
+            if (norms > 0L) {
+                set.add(UsageContext.NORMS);
+            }
+            if (payloads > 0L) {
+                set.add(UsageContext.PAYLOADS);
+            }
+            if (impacts > 0L) {
+                set.add(UsageContext.IMPACTS);
+            }
+            if (termVectors > 0L) {
+                set.add(UsageContext.TERM_VECTORS);
+            }
+            if (points > 0L) {
+                set.add(UsageContext.POINTS);
+            }
+            return set;
         }
 
-        public boolean usesDocValues() {
-            return usages.containsKey(UsageContext.DOC_VALUES);
+        public long getTerms() {
+            return terms;
         }
 
-        public boolean usesSearch() {
-            return usages.containsKey(UsageContext.TERMS);
+        public long getFreqs() {
+            return freqs;
         }
 
-        public boolean usesStoredFields() {
-            return usages.containsKey(UsageContext.STORED_FIELDS);
+        public long getPositions() {
+            return positions;
         }
 
-        public boolean usesFreqs() {
-            return usages.containsKey(UsageContext.FREQS);
+        public long getOffsets() {
+            return offsets;
         }
 
-        public boolean usesPositions() {
-            return usages.containsKey(UsageContext.POSITIONS);
+        public long getDocValues() {
+            return docValues;
         }
 
-        public boolean usesOffsets() {
-            return usages.containsKey(UsageContext.OFFSETS);
+        public long getStoredFields() {
+            return storedFields;
         }
 
-        public boolean usesNorms() {
-            return usages.containsKey(UsageContext.NORMS);
+        public long getNorms() {
+            return norms;
         }
 
-        public boolean usesPoints() {
-            return usages.containsKey(UsageContext.POINTS);
+        public long getPayloads() {
+            return payloads;
         }
 
-        public boolean usesTermVectors() {
-            return usages.containsKey(UsageContext.TERM_VECTORS);
+        public long getImpacts() {
+            return impacts;
+        }
+
+        public long getTermVectors() {
+            return termVectors;
+        }
+
+        public long getPoints() {
+            return points;
         }
 
         @Override
         public String toString() {
-            return "FieldStats{" +
-                "usages=" + usages +
-                '}';
-        }
-    }
-
-    public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
-
-        private final Map<String, Set<UsageContext>> usages = new ConcurrentHashMap<>();
-
-        @Override
-        public void onFieldUsage(String field, UsageContext usageContext) {
-            usages.computeIfAbsent(field, f -> Collections.synchronizedSet(EnumSet.noneOf(UsageContext.class)))
-                .add(usageContext);
-        }
-
-        @Override
-        public void close() {
-            usages.entrySet().stream().forEach(e -> {
-                InternalFieldStats fieldStats = perFieldStats.computeIfAbsent(e.getKey(), f -> new InternalFieldStats());
-                for (UsageContext usageContext : e.getValue()) {
-                    fieldStats.usages.computeIfAbsent(usageContext, c -> new AtomicLong())
-                        .incrementAndGet();
-                }
-            });
+            return Strings.toString(this);
         }
     }
 }

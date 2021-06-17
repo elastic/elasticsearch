@@ -31,7 +31,7 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
-import org.elasticsearch.index.search.stats.FieldUsageStats;
+import org.elasticsearch.index.search.stats.ShardFieldUsageTracker;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.collapse.CollapseContext;
@@ -153,7 +153,7 @@ final class DefaultSearchContext extends SearchContext {
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         IndexReader indexReader = engineSearcher.getIndexReader();
         if (indexReader instanceof DirectoryReader) {
-            FieldUsageStats.FieldUsageStatsTrackingSession fieldUsageStatsSession = indexShard.fieldUsageStats().createSession();
+            ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsSession = indexShard.fieldUsageTracker().createSession();
             releasables.add(fieldUsageStatsSession);
             indexReader = new FieldUsageTrackingDirectoryReader((DirectoryReader) indexReader, fieldUsageStatsSession);
         }

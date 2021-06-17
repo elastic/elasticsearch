@@ -53,22 +53,18 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         return in.getReaderCacheHelper();
     }
 
-    public enum UsageContext {
-        DOC_VALUES,
-        STORED_FIELDS,
-        TERMS,
-        FREQS,
-        POSITIONS,
-        OFFSETS,
-        NORMS,
-        PAYLOADS,
-        IMPACTS,
-        TERM_VECTORS, // possibly refine this one
-        POINTS,
-    }
-
     public interface FieldUsageNotifier {
-        void onFieldUsage(String field, UsageContext usageContext);
+        void onTermsUsed(String field);
+        void onFreqsUsed(String field);
+        void onPositionsUsed(String field);
+        void onOffsetsUsed(String field);
+        void onDocValuesUsed(String field);
+        void onStoredFieldsUsed(String field);
+        void onNormsUsed(String field);
+        void onPayloadsUsed(String field);
+        void onImpactsUsed(String field);
+        void onPointsUsed(String field);
+        void onTermVectorsUsed(String field);
     }
 
     public static final class FieldUsageTrackingLeafReader extends SequentialStoredFieldsLeafReader {
@@ -93,7 +89,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public PointValues getPointValues(String field) throws IOException {
             PointValues pointValues = super.getPointValues(field);
             if (pointValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.POINTS);
+                notifier.onPointsUsed(field);
             }
             return pointValues;
         }
@@ -105,7 +101,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 public Status needsField(FieldInfo fieldInfo) throws IOException {
                     Status status = visitor.needsField(fieldInfo);
                     if (status == Status.YES) {
-                        notifier.onFieldUsage(fieldInfo.name, FieldUsageTrackingDirectoryReader.UsageContext.STORED_FIELDS);
+                        notifier.onStoredFieldsUsed(fieldInfo.name);
                     }
                     return status;
                 }
@@ -116,7 +112,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public Terms terms(String field) throws IOException {
             Terms terms = super.terms(field);
             if (terms != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.TERMS);
+                notifier.onTermsUsed(field);
                 terms = new FieldUsageTrackingTerms(field, terms);
             }
             return terms;
@@ -126,7 +122,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public BinaryDocValues getBinaryDocValues(String field) throws IOException {
             BinaryDocValues binaryDocValues = super.getBinaryDocValues(field);
             if (binaryDocValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.DOC_VALUES);
+                notifier.onDocValuesUsed(field);
             }
             return binaryDocValues;
         }
@@ -135,7 +131,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public SortedDocValues getSortedDocValues(String field) throws IOException {
             SortedDocValues sortedDocValues = super.getSortedDocValues(field);
             if (sortedDocValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.DOC_VALUES);
+                notifier.onDocValuesUsed(field);
             }
             return sortedDocValues;
         }
@@ -144,7 +140,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public SortedNumericDocValues getSortedNumericDocValues(String field) throws IOException {
             SortedNumericDocValues sortedNumericDocValues = super.getSortedNumericDocValues(field);
             if (sortedNumericDocValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.DOC_VALUES);
+                notifier.onDocValuesUsed(field);
             }
             return sortedNumericDocValues;
         }
@@ -153,7 +149,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
             SortedSetDocValues sortedSetDocValues = super.getSortedSetDocValues(field);
             if (sortedSetDocValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.DOC_VALUES);
+                notifier.onDocValuesUsed(field);
             }
             return sortedSetDocValues;
         }
@@ -162,7 +158,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public NumericDocValues getNormValues(String field) throws IOException {
             NumericDocValues numericDocValues = super.getNormValues(field);
             if (numericDocValues != null) {
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.NORMS);
+                notifier.onNormsUsed(field);
             }
             return numericDocValues;
         }
@@ -199,7 +195,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long getSumTotalTermFreq() throws IOException {
                 long totalTermFreq = super.getSumTotalTermFreq();
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.FREQS);
+                notifier.onFreqsUsed(field);
                 return totalTermFreq;
             }
 
@@ -221,7 +217,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long totalTermFreq() throws IOException {
                 long totalTermFreq = super.totalTermFreq();
-                notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.FREQS);
+                notifier.onFreqsUsed(field);
                 return totalTermFreq;
             }
 
@@ -238,7 +234,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public ImpactsEnum impacts(int flags) throws IOException {
                 ImpactsEnum impactsEnum = super.impacts(flags);
                 if (impactsEnum != null) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.IMPACTS);
+                    notifier.onImpactsUsed(field);
                     checkPostingsFlags(flags);
                 }
                 return impactsEnum;
@@ -246,16 +242,16 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
             private void checkPostingsFlags(int flags) {
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.FREQS)) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.FREQS);
+                    notifier.onFreqsUsed(field);
                 }
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.POSITIONS);
+                    notifier.onPositionsUsed(field);
                 }
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.OFFSETS)) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.OFFSETS);
+                    notifier.onOffsetsUsed(field);
                 }
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.PAYLOADS)) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.PAYLOADS);
+                    notifier.onPayloadsUsed(field);
                 }
             }
 
@@ -271,7 +267,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public Terms terms(String field) throws IOException {
                 Terms terms = super.terms(field);
                 if (terms != null) {
-                    notifier.onFieldUsage(field, FieldUsageTrackingDirectoryReader.UsageContext.TERM_VECTORS);
+                    notifier.onTermVectorsUsed(field);
                 }
                 return terms;
             }

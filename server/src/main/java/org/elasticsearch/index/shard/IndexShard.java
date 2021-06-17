@@ -1315,7 +1315,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     static Engine.Searcher wrapSearcher(Engine.Searcher engineSearcher,
                                         ShardFieldUsageTracker.FieldUsageStatsTrackingSession fieldUsageStatsTrackingSession,
-                                        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper) throws IOException {
+                                        @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper)
+        throws IOException {
         final ElasticsearchDirectoryReader elasticsearchDirectoryReader =
             ElasticsearchDirectoryReader.getElasticsearchDirectoryReader(engineSearcher.getDirectoryReader());
         if (elasticsearchDirectoryReader == null) {

@@ -100,6 +100,37 @@ comprising the number of shards in the index, the total size of the index in
 bytes, and the maximum number of segments per shard in the index. Defaults to
 `false`, meaning that this information is omitted.
 
+`sort`::
+(Optional, string)
+Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorting by snapshot start time stamp.
++
+.Valid values for `sort`
+[%collapsible%open]
+====
+`start_time`::
+  Sort snapshots by their start time stamp and break ties by snapshot name.
+
+`duration`::
+  Sort snapshots by their duration and break ties by snapshot name.
+
+`name`::
+  Sort snapshots by their name.
+
+`index_count`::
+  Sort snapshots by the number of indices they contain and break ties by snapshot name.
+====
+
+`size`::
+(Optional, integer)
+ Maximum number of snapshots to return. Defaults to `0` which means return all that match the request without limit.
+
+`order`::
+(Optional, string)
+Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `asc`, meaning ascending order.
+
+NOTE: The pagination parameters `size`, `order`, and `sort` are not supported when using `verbose=false` and the sort order for
+requests with `verbose=false` is undefined.
+
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]
 ==== {api-response-body-title}

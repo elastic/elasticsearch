@@ -20,7 +20,7 @@ public class XPackUser extends User {
     public static final RoleDescriptor ROLE_DESCRIPTOR = new RoleDescriptor(ROLE_NAME, new String[] { "all" },
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
-                .indices("/@&~(\\.security.*)/")
+                .indices("/@&~(\\.security.*)&~(\\.async-search.*)/")
                 .privileges("all")
                 .allowRestrictedIndices(true)
                 .build(),

@@ -36,7 +36,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.license.TestUtils.UpdatableLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
@@ -69,7 +68,6 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
@@ -83,6 +81,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.test.TestRestrictedIndices;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 
@@ -113,6 +112,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AP
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
+import static org.elasticsearch.xpack.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -140,7 +140,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
             .build();
 
-    private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+    private final IndexNameExpressionResolver resolver = TestRestrictedIndices.RESOLVER;
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
         RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6, RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7);
@@ -565,7 +565,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         CompositeRolesStore.buildRoleFromDescriptors(
-            Sets.newHashSet(flsRole, addsL1Fields), cache, null, Automatons.EMPTY, future);
+            Sets.newHashSet(flsRole, addsL1Fields), cache, null, RESTRICTED_INDICES_AUTOMATON, future);
         Role role = future.actionGet();
 
         Metadata metadata = Metadata.builder()
@@ -661,7 +661,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             listener.onResponse(set);
             return null;
         }).when(privilegeStore).getPrivileges(any(Collection.class), any(Collection.class), any(ActionListener.class));
-        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, Automatons.EMPTY, future);
+        CompositeRolesStore.buildRoleFromDescriptors(Sets.newHashSet(role1, role2), cache, privilegeStore, RESTRICTED_INDICES_AUTOMATON,
+            future);
         Role role = future.actionGet();
 
         assertThat(role.cluster().check(ClusterStateAction.NAME, randomFrom(request1, request2, request3), authentication), equalTo(true));
@@ -1378,7 +1379,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
-    public void testXPackUserCannotAccessRestrictedIndices() {
+    public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {

@@ -20,7 +20,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
@@ -33,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
@@ -69,7 +69,7 @@ public final class IndicesPermission {
             matcher = StringMatcher.of(ordinaryIndices);
             if (restrictedNamesAutomaton != null) {
                 CharacterRunAutomaton characterRunAutomaton = new CharacterRunAutomaton(restrictedNamesAutomaton);
-                matcher = matcher.and(name -> characterRunAutomaton.run(name) == false);
+                matcher = matcher.and("<not-restricted>", name -> characterRunAutomaton.run(name) == false);
             }
             if (restrictedIndices.isEmpty() == false) {
                 matcher = StringMatcher.of(restrictedIndices).or(matcher);
@@ -98,14 +98,17 @@ public final class IndicesPermission {
         final boolean isMappingUpdateAction = isMappingUpdateAction(action);
         Automaton restrictedNamesAutomaton = null;
         for (final Group group : groups) {
+            if (restrictedNamesAutomaton == null) {
+                restrictedNamesAutomaton = group.restrictedNamesAutomaton;
+            } else {
+                assert restrictedNamesAutomaton == group.restrictedNamesAutomaton : "Groups have different restricted names automatons";
+            }
+
             if (group.actionMatcher.test(action)) {
                 if (group.allowRestrictedIndices) {
                     restrictedIndices.addAll(Arrays.asList(group.indices()));
                 } else {
                     ordinaryIndices.addAll(Arrays.asList(group.indices()));
-                    if (restrictedNamesAutomaton == null) {
-                        restrictedNamesAutomaton = group.restrictedNamesAutomaton;
-                    }
                 }
             } else if (isMappingUpdateAction && containsPrivilegeThatGrantsMappingUpdatesForBwc(group)) {
                 // special BWC case for certain privileges: allow put mapping on indices and aliases (but not on data streams), even if
@@ -114,9 +117,6 @@ public final class IndicesPermission {
                     grantMappingUpdatesOnRestrictedIndices.addAll(Arrays.asList(group.indices()));
                 } else {
                     grantMappingUpdatesOnIndices.addAll(Arrays.asList(group.indices()));
-                    if (restrictedNamesAutomaton == null) {
-                        restrictedNamesAutomaton = group.restrictedNamesAutomaton;
-                    }
                 }
             }
         }
@@ -163,7 +163,8 @@ public final class IndicesPermission {
         for (String forIndexPattern : checkForIndexPatterns) {
             Automaton checkIndexAutomaton = Automatons.patterns(forIndexPattern);
             if (false == allowRestrictedIndices && false == isConcreteRestrictedIndex(forIndexPattern)) {
-                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, RestrictedIndicesNames.NAMES_AUTOMATON);
+                Optional<Automaton> restrictedNamesAutomaton = Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst();
+                checkIndexAutomaton = Automatons.minusAndMinimize(checkIndexAutomaton, restrictedNamesAutomaton.orElse(Automatons.EMPTY));
             }
             if (false == Operations.isEmpty(checkIndexAutomaton)) {
                 Automaton allowedIndexPrivilegesAutomaton = null;
@@ -341,7 +342,9 @@ public final class IndicesPermission {
         if (Regex.isSimpleMatchPattern(indexPattern) || Automatons.isLuceneRegex(indexPattern)) {
             return false;
         }
-        return RestrictedIndicesNames.isRestricted(indexPattern);
+        CharacterRunAutomaton runAutomaton =
+            new CharacterRunAutomaton(Arrays.stream(groups).map(g -> g.restrictedNamesAutomaton).findFirst().orElse(Automatons.EMPTY));
+        return runAutomaton.run(indexPattern);
     }
 
     private static boolean isMappingUpdateAction(String action) {

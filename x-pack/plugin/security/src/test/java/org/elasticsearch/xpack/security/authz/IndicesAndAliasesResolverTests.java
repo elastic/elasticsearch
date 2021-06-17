@@ -64,7 +64,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivile
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -90,6 +90,7 @@ import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTime
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
+import static org.elasticsearch.xpack.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -277,12 +278,35 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 callback.onResponse(Role.EMPTY);
             } else {
                 CompositeRolesStore.buildRoleFromDescriptors(roleDescriptors, fieldPermissionsCache, null,
-                    Automatons.EMPTY, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
+                    RESTRICTED_INDICES_AUTOMATON, ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }
             return Void.TYPE;
         }).when(rolesStore).roles(any(Set.class), any(ActionListener.class));
-        doCallRealMethod().when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
+
+        doAnswer(i -> {
+            User user = (User) i.getArguments()[0];
+            ActionListener listener = (ActionListener) i.getArguments()[2];
+            if (XPackUser.is(user)) {
+                listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build());
+                return Void.TYPE;
+            }
+            if (XPackSecurityUser.is(user)) {
+                listener.onResponse(Role.builder(
+                    ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR,
+                    fieldPermissionsCache,
+                    RESTRICTED_INDICES_AUTOMATON
+                ).build());
+                return Void.TYPE;
+            }
+            if (AsyncSearchUser.is(user)) {
+                listener.onResponse(
+                    Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build());
+                return Void.TYPE;
+            }
+            i.callRealMethod();
+            return Void.TYPE;
+        }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));

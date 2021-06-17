@@ -518,7 +518,7 @@ public class Node implements Closeable {
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
                     searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
-                    snapshotCommitSuppliers, searchModule.getRequestCacheKeyDifferentiators());
+                    snapshotCommitSuppliers, searchModule.getRequestCacheKeyProvider());
 
             final AliasValidator aliasValidator = new AliasValidator();
 

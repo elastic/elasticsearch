@@ -24,10 +24,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -224,7 +222,7 @@ import org.elasticsearch.xpack.security.authc.support.SecondaryAuthenticator;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingStore;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
-import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheDifferentiator;
+import org.elasticsearch.xpack.security.authz.DlsFlsRequestCacheKeyProvider;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
@@ -1860,7 +1858,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
     }
 
     @Override
-    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return List.of(new DlsFlsRequestCacheDifferentiator(getLicenseState(), threadContext));
+    public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
+        return new DlsFlsRequestCacheKeyProvider(getLicenseState(), threadContext);
     }
 }

@@ -9,14 +9,12 @@
 package org.elasticsearch.search;
 
 import org.apache.lucene.search.BooleanQuery;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry.Entry;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -247,7 +245,6 @@ import org.elasticsearch.search.suggest.phrase.StupidBackoff;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -275,7 +272,7 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators = new ArrayList<>();
+    private final ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider;
 
     /**
      * Constructs a new SearchModule object
@@ -301,7 +298,7 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
-        registerRequestCacheKeyDifferentiators(plugins);
+        this.requestCacheKeyProvider = registerRequestCacheKeyProvider(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
     }
 
@@ -317,8 +314,8 @@ public class SearchModule {
         return valuesSourceRegistry;
     }
 
-    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return requestCacheKeyDifferentiators;
+    public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
+        return requestCacheKeyProvider;
     }
 
     /**
@@ -843,8 +840,22 @@ public class SearchModule {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
 
-    private void registerRequestCacheKeyDifferentiators(List<SearchPlugin> plugins) {
-        registerFromPlugin(plugins, SearchPlugin::getRequestCacheKeyDifferentiators, requestCacheKeyDifferentiators::add);
+    private ShardSearchRequest.RequestCacheKeyProvider registerRequestCacheKeyProvider(List<SearchPlugin> plugins) {
+        ShardSearchRequest.RequestCacheKeyProvider finalProvider = null;
+        for (SearchPlugin plugin : plugins) {
+            final ShardSearchRequest.RequestCacheKeyProvider provider = plugin.getRequestCacheKeyProvider();
+            if (provider != null) {
+                if (finalProvider == null) {
+                    finalProvider = provider;
+                } else {
+                    throw new IllegalArgumentException("Cannot have more than one plugin providing a RequestCacheKeyProvider");
+                }
+            }
+        }
+        if (finalProvider == null) {
+            finalProvider = new ShardSearchRequest.RequestCacheKeyProvider();
+        }
+        return finalProvider;
     }
 
     public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {

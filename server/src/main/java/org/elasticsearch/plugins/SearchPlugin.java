@@ -9,12 +9,10 @@
 package org.elasticsearch.plugins;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -131,9 +129,10 @@ public interface SearchPlugin {
      * Allows plugins to register cache differentiators which contributes to the cacheKey
      * computation for the request cache. This helps differentiate between queries that
      * are otherwise identical.
+     * @return
      */
-    default List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return emptyList();
+    default ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
+        return null;
     }
 
     /**

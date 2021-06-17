@@ -40,8 +40,8 @@ import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
  * queries are used as an additional filter.
  */
 public final class DocumentPermissions implements CacheKey {
-    private final Set<BytesReference> queries;
-    private final Set<BytesReference> limitedByQueries;
+    private final SortedSet<BytesReference> queries;
+    private final SortedSet<BytesReference> limitedByQueries;
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 

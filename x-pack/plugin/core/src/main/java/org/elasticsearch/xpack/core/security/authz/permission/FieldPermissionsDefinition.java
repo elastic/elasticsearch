@@ -24,7 +24,7 @@ import java.util.TreeSet;
  */
 public final class FieldPermissionsDefinition implements CacheKey {
 
-    private final Set<FieldGrantExcludeGroup> fieldGrantExcludeGroups;
+    private final SortedSet<FieldGrantExcludeGroup> fieldGrantExcludeGroups;
 
     public FieldPermissionsDefinition(String[] grant, String[] exclude) {
         this(Collections.singleton(new FieldGrantExcludeGroup(grant, exclude)));

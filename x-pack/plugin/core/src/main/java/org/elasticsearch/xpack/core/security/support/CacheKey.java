@@ -16,5 +16,5 @@ import java.io.IOException;
  */
 public interface CacheKey {
 
-    void writeCacheKey(StreamOutput out) throws IOException;
+    void buildCacheKey(StreamOutput out) throws IOException;
 }

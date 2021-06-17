@@ -427,7 +427,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
             bulk.add(stats.getBulk());
         }
         if (fieldUsageStats == null) {
-            if (stats.fieldUsageStats != null) {
+            if (stats.getFieldUsageStats() != null) {
                 fieldUsageStats = new FieldUsageStats();
                 fieldUsageStats.add(stats.getFieldUsageStats());
             }

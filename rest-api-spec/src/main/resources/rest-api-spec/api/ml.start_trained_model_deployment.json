@@ -25,6 +25,13 @@
           }
         }
       ]
+    },
+    "params":{
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait until the model is deployed"
+      }
     }
   }
 }

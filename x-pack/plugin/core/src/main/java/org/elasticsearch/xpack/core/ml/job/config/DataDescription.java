@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.ml.job.config;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,43 +27,47 @@ import java.util.Objects;
  * Describes the format of the data used in the job and how it should
  * be interpreted by autodetect.
  * <p>
- * Data must either be in a textual delineated format (e.g. csv, tsv) or JSON
- * the {@linkplain DataFormat} enum indicates which. {@link #getTimeField()}
+ * Data must either be in JSON or SMILE format (and only JSON is publicly documented).
+ * The {@linkplain DataFormat} enum is always set to XCONTENT. {@link #getTimeField()}
  * is the name of the field containing the timestamp and {@link #getTimeFormat()}
  * is the format code for the date string in as described by
- * {@link java.time.format.DateTimeFormatter}. The default quote character for
- * delineated formats is {@value #DEFAULT_QUOTE_CHAR} but any other character can be
- * used.
+ * {@link java.time.format.DateTimeFormatter}.
  */
 public class DataDescription implements ToXContentObject, Writeable {
     /**
      * Enum of the acceptable data formats.
      */
     public enum DataFormat implements Writeable {
-        XCONTENT,
-        DELIMITED;
+        XCONTENT;
 
         /**
-         * Delimited used to be called delineated. We keep supporting that for backwards
-         * compatibility.
+         * Delimited used to be an option, although it was never documented.
+         * We silently convert it to XContent now.
          */
-        private static final String DEPRECATED_DELINEATED = "DELINEATED";
+        private static final String REMOVED_DELIMITED = "DELIMITED";
 
         /**
          * Case-insensitive from string method.
-         * Works with either JSON, json, etc.
-         *
+         * Works with either XCONTENT, Xcontent, etc.
+         * The old value DELIMITED is tolerated as it may have been persisted,
+         * but is silently converted to XCONTENT as it was never documented.
+         * Any other values throw an exception.
          * @param value String representation
          * @return The data format
          */
         public static DataFormat forString(String value) {
             String valueUpperCase = value.toUpperCase(Locale.ROOT);
-            return DEPRECATED_DELINEATED.equals(valueUpperCase) ? DELIMITED : DataFormat
-                    .valueOf(valueUpperCase);
+            return REMOVED_DELIMITED.equals(valueUpperCase) ? XCONTENT : DataFormat.valueOf(valueUpperCase);
         }
 
-        public static DataFormat readFromStream(StreamInput in) throws IOException {
-            return in.readEnum(DataFormat.class);
+        public static DataFormat readFromStream(StreamInput in) {
+            try {
+                return in.readEnum(DataFormat.class);
+            } catch (IOException e) {
+                // Older nodes may serialise DELIMITED on the wire, which will cause an exception.
+                // We just silently convert to XCONTENT like we do when parsing.
+                return XCONTENT;
+            }
         }
 
         @Override
@@ -80,8 +85,6 @@ public class DataDescription implements ToXContentObject, Writeable {
     public static final ParseField FORMAT_FIELD = new ParseField("format");
     public static final ParseField TIME_FIELD_NAME_FIELD = new ParseField("time_field");
     public static final ParseField TIME_FORMAT_FIELD = new ParseField("time_format");
-    public static final ParseField FIELD_DELIMITER_FIELD = new ParseField("field_delimiter");
-    public static final ParseField QUOTE_CHARACTER_FIELD = new ParseField("quote_character");
 
     /**
      * Special time format string for epoch times (seconds)
@@ -98,28 +101,8 @@ public class DataDescription implements ToXContentObject, Writeable {
      */
     public static final String DEFAULT_TIME_FIELD = "time";
 
-    /**
-     * The default field delimiter expected by the native autodetect
-     * program.
-     */
-    public static final char DEFAULT_DELIMITER = '\t';
-
-    /**
-     * Csv data must have this line ending
-     */
-    public static final char LINE_ENDING = '\n';
-
-    /**
-     * The default quote character used to escape text in
-     * delineated data formats
-     */
-    public static final char DEFAULT_QUOTE_CHAR = '"';
-
-    private final DataFormat dataFormat;
     private final String timeFieldName;
     private final String timeFormat;
-    private final Character fieldDelimiter;
-    private final Character quoteCharacter;
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
     public static final ObjectParser<Builder, Void> LENIENT_PARSER = createParser(true);
@@ -129,47 +112,50 @@ public class DataDescription implements ToXContentObject, Writeable {
         ObjectParser<Builder, Void> parser =
             new ObjectParser<>(DATA_DESCRIPTION_FIELD.getPreferredName(), ignoreUnknownFields, Builder::new);
 
-        parser.declareString(Builder::setFormat, FORMAT_FIELD);
+        if (ignoreUnknownFields == false) {
+            // The strict parser needs to tolerate this field as it's documented, but there's only one value so we don't need to store it
+            parser.declareString((builder, format) -> DataFormat.forString(format), FORMAT_FIELD);
+        }
         parser.declareString(Builder::setTimeField, TIME_FIELD_NAME_FIELD);
         parser.declareString(Builder::setTimeFormat, TIME_FORMAT_FIELD);
-        parser.declareString(Builder::setFieldDelimiter, DataDescription::extractChar, FIELD_DELIMITER_FIELD);
-        parser.declareString(Builder::setQuoteCharacter, DataDescription::extractChar, QUOTE_CHARACTER_FIELD);
 
         return parser;
     }
 
-    public DataDescription(DataFormat dataFormat, String timeFieldName, String timeFormat, Character fieldDelimiter,
-                           Character quoteCharacter) {
-        this.dataFormat = dataFormat;
+    public DataDescription(String timeFieldName, String timeFormat) {
         this.timeFieldName = timeFieldName;
         this.timeFormat = timeFormat;
-        this.fieldDelimiter = fieldDelimiter;
-        this.quoteCharacter = quoteCharacter;
     }
 
     public DataDescription(StreamInput in) throws IOException {
-        dataFormat = DataFormat.readFromStream(in);
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            DataFormat.readFromStream(in);
+        }
         timeFieldName = in.readString();
         timeFormat = in.readString();
-        fieldDelimiter = in.readBoolean() ? (char) in.read() : null;
-        quoteCharacter = in.readBoolean() ? (char) in.read() : null;
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            // fieldDelimiter
+            if (in.readBoolean()) {
+                in.read();
+            }
+            // quoteCharacter
+            if (in.readBoolean()) {
+                in.read();
+            }
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        dataFormat.writeTo(out);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            DataFormat.XCONTENT.writeTo(out);
+        }
         out.writeString(timeFieldName);
         out.writeString(timeFormat);
-        if (fieldDelimiter != null) {
-            out.writeBoolean(true);
-            out.write(fieldDelimiter);
-        } else {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // fieldDelimiter
             out.writeBoolean(false);
-        }
-        if (quoteCharacter != null) {
-            out.writeBoolean(true);
-            out.write(quoteCharacter);
-        } else {
+            // quoteCharacter
             out.writeBoolean(false);
         }
     }
@@ -177,29 +163,10 @@ public class DataDescription implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (dataFormat != DataFormat.XCONTENT) {
-            builder.field(FORMAT_FIELD.getPreferredName(), dataFormat);
-        }
         builder.field(TIME_FIELD_NAME_FIELD.getPreferredName(), timeFieldName);
         builder.field(TIME_FORMAT_FIELD.getPreferredName(), timeFormat);
-        if (fieldDelimiter != null) {
-            builder.field(FIELD_DELIMITER_FIELD.getPreferredName(), String.valueOf(fieldDelimiter));
-        }
-        if (quoteCharacter != null) {
-            builder.field(QUOTE_CHARACTER_FIELD.getPreferredName(), String.valueOf(quoteCharacter));
-        }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * The format of the data to be processed.
-     * Defaults to {@link DataDescription.DataFormat#XCONTENT}
-     *
-     * @return The data format
-     */
-    public DataFormat getFormat() {
-        return dataFormat;
     }
 
     /**
@@ -224,40 +191,6 @@ public class DataDescription implements ToXContentObject, Writeable {
     }
 
     /**
-     * If the data is in a delineated format with a header e.g. csv or tsv
-     * this is the delimiter character used. This is only applicable if
-     * {@linkplain #getFormat()} is {@link DataDescription.DataFormat#DELIMITED}.
-     * The default value for delimited format is {@value #DEFAULT_DELIMITER}.
-     *
-     * @return A char
-     */
-    public Character getFieldDelimiter() {
-        return fieldDelimiter;
-    }
-
-    /**
-     * The quote character used in delineated formats.
-     * The default value for delimited format is {@value #DEFAULT_QUOTE_CHAR}.
-     *
-     * @return The delineated format quote character
-     */
-    public Character getQuoteCharacter() {
-        return quoteCharacter;
-    }
-
-    /**
-     * Returns true if the data described by this object needs
-     * transforming before processing by autodetect.
-     * A transformation must be applied if either a timeformat is
-     * not in seconds since the epoch or the data is in Json format.
-     *
-     * @return True if the data should be transformed.
-     */
-    public boolean transform() {
-        return dataFormat == DataFormat.XCONTENT || isTransformTime();
-    }
-
-    /**
      * Return true if the time is in a format that needs transforming.
      * Anytime format this isn't {@value #EPOCH} or <code>null</code>
      * needs transforming.
@@ -277,13 +210,6 @@ public class DataDescription implements ToXContentObject, Writeable {
         return EPOCH_MS.equals(timeFormat);
     }
 
-    private static Character extractChar(String charStr) {
-        if (charStr.length() != 1) {
-            throw new IllegalArgumentException("String must be a single character, found [" + charStr + "]");
-        }
-        return charStr.charAt(0);
-    }
-
     /**
      * Overridden equality test
      */
@@ -299,35 +225,18 @@ public class DataDescription implements ToXContentObject, Writeable {
 
         DataDescription that = (DataDescription) other;
 
-        return this.dataFormat == that.dataFormat &&
-                Objects.equals(this.quoteCharacter, that.quoteCharacter) &&
-                Objects.equals(this.timeFieldName, that.timeFieldName) &&
-                Objects.equals(this.timeFormat, that.timeFormat) &&
-                Objects.equals(this.fieldDelimiter, that.fieldDelimiter);
+        return Objects.equals(this.timeFieldName, that.timeFieldName) && Objects.equals(this.timeFormat, that.timeFormat);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(dataFormat, quoteCharacter, timeFieldName, timeFormat, fieldDelimiter);
+        return Objects.hash(timeFieldName, timeFormat);
     }
 
     public static class Builder {
 
-        private DataFormat dataFormat = DataFormat.XCONTENT;
         private String timeFieldName = DEFAULT_TIME_FIELD;
         private String timeFormat = EPOCH_MS;
-        private Character fieldDelimiter;
-        private Character quoteCharacter;
-
-        public Builder setFormat(DataFormat format) {
-            dataFormat = ExceptionsHelper.requireNonNull(format, FORMAT_FIELD.getPreferredName() + " must not be null");
-            return this;
-        }
-
-        private Builder setFormat(String format) {
-            setFormat(DataFormat.forString(format));
-            return this;
-        }
 
         public Builder setTimeField(String fieldName) {
             timeFieldName = ExceptionsHelper.requireNonNull(fieldName, TIME_FIELD_NAME_FIELD.getPreferredName() + " must not be null");
@@ -352,26 +261,8 @@ public class DataDescription implements ToXContentObject, Writeable {
             return this;
         }
 
-        public Builder setFieldDelimiter(Character delimiter) {
-            fieldDelimiter = delimiter;
-            return this;
-        }
-
-        public Builder setQuoteCharacter(Character value) {
-            quoteCharacter = value;
-            return this;
-        }
-
         public DataDescription build() {
-            if (dataFormat == DataFormat.DELIMITED) {
-                if (fieldDelimiter == null) {
-                    fieldDelimiter = DEFAULT_DELIMITER;
-                }
-                if (quoteCharacter == null) {
-                    quoteCharacter = DEFAULT_QUOTE_CHAR;
-                }
-            }
-            return new DataDescription(dataFormat, timeFieldName, timeFormat, fieldDelimiter, quoteCharacter);
+            return new DataDescription(timeFieldName, timeFormat);
         }
     }
 }

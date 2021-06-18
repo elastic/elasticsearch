@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -302,8 +302,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         }));
 
         assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
-            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"long\"}}," +
-            "\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}",
+            "\"runtime\":{\"foo.bar.baz\":{\"type\":\"long\"}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
@@ -326,8 +325,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
                 "\"runtime\":{\"object.foo.bar.baz\":{\"type\":\"long\"}}," +
                 "\"properties\":{\"dynamic_object\":{\"dynamic\":\"true\"," +
-                "\"properties\":{\"foo\":{" + "\"properties\":{\"bar\":{" + "\"properties\":{\"baz\":" + "{\"type\":\"long\"}}}}}}}," +
-                "\"object\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}}}",
+                "\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"properties\":{\"baz\":{\"type\":\"long\"}}}}}}}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 
@@ -350,8 +348,7 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertEquals("{\"_doc\":{\"dynamic\":\"true\",\"" +
                 "runtime\":{\"runtime_object.foo.bar.baz\":{\"type\":\"keyword\"}}," +
                 "\"properties\":{\"object\":{\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"properties\":{" +
-                "\"baz\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}}," +
-                "\"runtime_object\":{\"dynamic\":\"runtime\",\"properties\":{\"foo\":{\"properties\":{\"bar\":{\"type\":\"object\"}}}}}}}}",
+                "\"baz\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}}}}}",
             Strings.toString(doc.dynamicMappingsUpdate()));
     }
 

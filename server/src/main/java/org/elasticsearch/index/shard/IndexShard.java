@@ -46,27 +46,27 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.core.Booleans;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.CheckedRunnable;
-import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
@@ -2544,6 +2544,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeCheckIndex() {
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
+            logger.warn(
+                "performing expensive diagnostic checks during shard startup [{}={}]; " +
+                    "these checks should only be enabled temporarily, you must remove this index setting as soon as possible",
+                IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(),
+                checkIndexOnStartup);
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -2576,7 +2581,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            MetadataSnapshot metadata = snapshotStoreMetadata();
+            final MetadataSnapshot metadata;
+            try {
+                metadata = snapshotStoreMetadata();
+            } catch (IOException e) {
+                logger.warn("check index [failure]", e);
+                throw e;
+            }
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
@@ -2601,7 +2612,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // ignore if closed....
                     return;
                 }
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                logger.warn("check index [failure]");
+                // report details in a separate message, it might contain control characters which mess up detection of the failure message
+                logger.warn("{}", os.bytes().utf8ToString());
                 throw new IOException("index check failure");
             }
         }

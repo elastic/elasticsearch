@@ -8,23 +8,15 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {

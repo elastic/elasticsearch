@@ -326,7 +326,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             .endObject()
             .endArray()
             .endObject());
-        mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping), MapperService.MergeReason.INDEX_TEMPLATE);
+        mapper = mapperService.merge(MapperService.SINGLE_MAPPING_NAME, new CompressedXContent(mapping),
+            MapperService.MergeReason.INDEX_TEMPLATE);
 
         templates = mapper.mapping().getRoot().dynamicTemplates();
         assertEquals(3, templates.length);

@@ -78,35 +78,37 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         canRemain.set((r, n, a) -> { throw new UnsupportedOperationException("canRemain not initiated in this test"); });
 
         clusterInfoService = EmptyClusterInfoService.INSTANCE;
-        allocationDeciders = new AllocationDeciders(List.of(new NodeShutdownAllocationDecider(), new AllocationDecider() {
-            @Override
-            public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canAllocate.get().test(shardRouting, node, allocation);
-            }
+        allocationDeciders = new AllocationDeciders(
+            org.elasticsearch.core.List.of(new NodeShutdownAllocationDecider(), new AllocationDecider() {
+                @Override
+                public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return canAllocate.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
+                @Override
+                public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
 
-            @Override
-            public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-                return canRemain.get().test(shardRouting, node, allocation);
-            }
+                @Override
+                public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
+                    return canRemain.get().test(shardRouting, node, allocation);
+                }
 
-            @Override
-            public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
-                // No behavior relevant to these tests should change based on auto expansion decisions
-                throw new UnsupportedOperationException();
-            }
+                @Override
+                public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
+                    // No behavior relevant to these tests should change based on auto expansion decisions
+                    throw new UnsupportedOperationException();
+                }
 
-            @Override
-            public Decision canRebalance(RoutingAllocation allocation) {
-                // No behavior should change based on rebalance decisions
-                return Decision.NO;
-            }
-        }));
+                @Override
+                public Decision canRebalance(RoutingAllocation allocation) {
+                    // No behavior should change based on rebalance decisions
+                    return Decision.NO;
+                }
+            })
+        );
         snapshotsInfoService = () -> new SnapshotShardSizeInfo(
             new ImmutableOpenMap.Builder<InternalSnapshotsInfoService.SnapshotShard, Long>().build()
         );
@@ -152,7 +154,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.RESTART);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.RESTART
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -187,7 +193,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -231,7 +241,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -282,7 +296,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -317,7 +335,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,
@@ -348,7 +370,11 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
 
         RoutingTable.Builder routingTable = RoutingTable.builder();
         routingTable.add(indexRoutingTable);
-        ClusterState state = createTestClusterState(routingTable.build(), List.of(imd), SingleNodeShutdownMetadata.Type.REMOVE);
+        ClusterState state = createTestClusterState(
+            routingTable.build(),
+            org.elasticsearch.core.List.of(imd),
+            SingleNodeShutdownMetadata.Type.REMOVE
+        );
 
         ShutdownShardMigrationStatus status = TransportGetShutdownStatusAction.shardMigrationStatus(
             state,

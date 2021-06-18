@@ -26,9 +26,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.hamcrest.Matchers;
@@ -46,6 +48,7 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_L
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -344,7 +347,6 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (IndexRequest doc : docs) {
             bulkRequest.add(doc);
         }
-        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
@@ -353,7 +355,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(sourceAsMap.containsKey("properties"));
         @SuppressWarnings("unchecked")
         Map<String, Object> runtime = (Map<String, Object>)sourceAsMap.get("runtime");
-        //depending on which field came first, field types may differ, but docs are always accepted anyways
+        //depending on the order of the documents field types may differ, but there are no mapping conflicts
         assertThat(runtime.keySet(), containsInAnyOrder("one", "one.two", "one.two.three"));
     }
 
@@ -390,12 +392,19 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setSource("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":" +
             "{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}", XContentType.JSON));
 
-        client().prepareIndex("test").setSource("obj.runtime.dynamic.leaf", 1).get();
-        assertEquals("{\"test\":{\"mappings\":{\"runtime\":{\"obj.runtime.one\":{\"type\":\"keyword\"}," +
-                "\"obj.runtime.one.two\":{\"type\":\"keyword\"}}," +
-                "\"properties\":{\"anything\":{\"type\":\"long\"},\"obj\":{\"properties\":{\"one\":{\"type\":\"long\"}," +
-                "\"runtime\":{\"dynamic\":\"runtime\",\"properties\":{" +
-                "\"dynamic\":{\"dynamic\":\"true\",\"properties\":{\"leaf\":{\"type\":\"long\"}}}}}}}}}}}",
-            Strings.toString(client().admin().indices().prepareGetMappings("test").get()));
+        assertEquals(RestStatus.CREATED, client().prepareIndex("test").setSource("obj.runtime.dynamic.leaf", 1).get().status());
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").sourceAsMap();
+        assertThat(
+            XContentMapValues.extractRawValues("properties.obj.properties.runtime.properties.dynamic.properties.leaf.type", sourceAsMap),
+            contains("long"));
+    }
+
+    private static Map<String, Object> getMappedField(Map<String, Object> sourceAsMap, String name) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> properties = (Map<String, Object>)sourceAsMap.get("properties");
+        @SuppressWarnings("unchecked")
+        Map<String, Object> mappedField = (Map<String, Object>)properties.get(name);
+        return mappedField;
     }
 }

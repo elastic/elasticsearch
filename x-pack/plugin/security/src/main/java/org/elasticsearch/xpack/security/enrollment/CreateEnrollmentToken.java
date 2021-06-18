@@ -19,11 +19,9 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
-import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 
@@ -50,33 +48,30 @@ public class CreateEnrollmentToken {
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
     private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
-    private static final String elasticUser = ElasticUser.NAME;
     private final Environment environment;
     private final SSLService sslService;
     private final CommandLineHttpClient client;
-    private final SecureString elasticUserPassword;
+    private final URL defaultUrl;
 
-    public CreateEnrollmentToken(Environment environment) {
+    public CreateEnrollmentToken(Environment environment) throws MalformedURLException {
         this(environment, new CommandLineHttpClient(environment));
     }
 
     // protected for testing
-    protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) {
+    protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) throws MalformedURLException {
         this.environment = environment;
         this.sslService = new SSLService(environment);
         this.client = client;
-        this.elasticUserPassword = ReservedRealm.BOOTSTRAP_ELASTIC_PASSWORD.get(environment.settings());
+        this.defaultUrl = new URL(client.getDefaultURL());
     }
 
-    public String create() throws Exception {
+    public String createNodeEnrollmentToken(String user, SecureString password) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
-        final String defaultURL = client.getDefaultURL();
-        final URL url = new URL(defaultURL);
         final String fingerprint = getCaFingerprint();
-        final String apiKey = getApiKey(url);
-        final Tuple<List<String>, String> httpInfo = getNodeInfo(url);
+        final String apiKey = getApiKey(user, password);
+        final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
 
         try {
             final XContentBuilder builder = JsonXContent.contentBuilder();
@@ -95,8 +90,6 @@ public class CreateEnrollmentToken {
         } catch (Exception e) {
             logger.error(("Error generating enrollment token"), e);
             throw new IllegalStateException("Error generating enrollment token: " + e.getMessage());
-        } finally {
-            elasticUserPassword.close();
         }
     }
 
@@ -124,12 +117,12 @@ public class CreateEnrollmentToken {
         return baos.toByteArray();
     }
 
-    protected static URL createAPIKeyURL(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/api_key").replaceAll("/+", "/"));
+    protected URL createAPIKeyUrl() throws MalformedURLException, URISyntaxException {
+        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_security/api_key").replaceAll("/+", "/"));
     }
 
-    protected static URL getHttpInfoURL(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_nodes/http").replaceAll("/+", "/"));
+    protected URL getHttpInfoUrl() throws MalformedURLException, URISyntaxException {
+        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/http").replaceAll("/+", "/"));
     }
 
     protected static List<String> getBoundAddresses(Map<?, ?> nodesInfo) {
@@ -145,7 +138,7 @@ public class CreateEnrollmentToken {
         return nodeInfo.get("version").toString();
     }
 
-    protected String getApiKey(URL url) throws Exception {
+    protected String getApiKey(String user, SecureString password) throws Exception {
         final CheckedSupplier<String, Exception> createApiKeyRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -160,8 +153,8 @@ public class CreateEnrollmentToken {
             return Strings.toString(xContentBuilder);
         };
 
-        final URL Url = createAPIKeyURL(url);
-        final HttpResponse httpResponseApiKey = client.execute("POST", Url, elasticUser, elasticUserPassword,
+        final URL Url = createAPIKeyUrl();
+        final HttpResponse httpResponseApiKey = client.execute("POST", Url, user, password,
             createApiKeyRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
@@ -179,7 +172,7 @@ public class CreateEnrollmentToken {
         return apiKey;
     }
 
-    protected Tuple<List<String>, String> getNodeInfo(URL url) throws Exception {
+    protected Tuple<List<String>, String> getNodeInfo(String user, SecureString password) throws Exception {
         final CheckedSupplier<String, Exception> getHttpInfoRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -187,8 +180,8 @@ public class CreateEnrollmentToken {
             return Strings.toString(xContentBuilder);
         };
 
-        final URL Url = getHttpInfoURL(url);
-        final HttpResponse httpResponseHttp = client.execute("GET", Url, elasticUser, elasticUserPassword,
+        final URL Url = getHttpInfoUrl();
+        final HttpResponse httpResponseHttp = client.execute("GET", Url, user, password,
             getHttpInfoRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseHttp.getHttpStatus();
 

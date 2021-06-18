@@ -14,7 +14,7 @@
     "url": {
       "paths": [
         {
-          "path": "/{index}/_index_disk_usage",
+          "path": "/{index}/_disk_usage",
           "methods": [
             "POST"
           ],

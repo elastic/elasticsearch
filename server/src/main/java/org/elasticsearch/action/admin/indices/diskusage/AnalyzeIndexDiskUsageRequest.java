@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,6 +19,8 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexDiskUsageRequest> {
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, false, true);
@@ -37,6 +40,15 @@ public class AnalyzeIndexDiskUsageRequest extends BroadcastRequest<AnalyzeIndexD
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(flush);
+    }
+
+    @Override
+    public ActionRequestValidationException validate() {
+        ActionRequestValidationException validationError = super.validate();
+        if (indices.length == 0) {
+            validationError = addValidationError("indices must be specified for disk usage request", validationError);
+        }
+        return validationError;
     }
 
     @Override

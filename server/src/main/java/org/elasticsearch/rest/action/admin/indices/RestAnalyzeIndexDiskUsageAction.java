@@ -48,7 +48,7 @@ public class RestAnalyzeIndexDiskUsageAction extends BaseRestHandler {
 
     @Override
     public List<RestHandler.Route> routes() {
-        return List.of(new RestHandler.Route(POST, "/{index}/_index_disk_usage"));
+        return List.of(new RestHandler.Route(POST, "/{index}/_disk_usage"));
     }
 
     @Override

@@ -9,18 +9,20 @@ experimental[]
 Analyzes the disk usage of each field of an index. This API
 might not support indices created in previous {es} versions.
 The result of a small index can be inaccurate as some parts
-of an index might not be analyzed by the API.
+of an index might not be analyzed by the API. It's recommended
+to execute this API with a single index (or the latest backing
+index of a data streams) as the API consumes resources significantly.
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
+POST /my-index-000001/_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
 // TEST[setup:messages]
 
 [[analyze-index-disk-usage-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_index_disk_usage`
+`POST /<index>/_disk_usage`
 
 [[analyze-index-disk-usage-api-request-prereqs]]
 ==== {api-prereq-title}
@@ -71,7 +73,7 @@ The following request analyzes the disk usage of index `my-index-000001`.
 
 [source,console]
 --------------------------------------------------
-POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
+POST /my-index-000001/_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
 // TEST[setup:messages]
 

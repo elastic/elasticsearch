@@ -2575,8 +2575,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (Lucene.indexExists(store.directory()) == false) {
             return;
         }
-        BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
@@ -2588,23 +2586,36 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 logger.warn("check index [failure]", e);
                 throw e;
             }
+            final List<String> checkedFiles = new ArrayList<>(metadata.size());
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
-                    out.println("checksum passed: " + entry.getKey());
-                } catch (IOException exc) {
-                    out.println("checksum failed: " + entry.getKey());
-                    exc.printStackTrace(out);
-                    corrupt = exc;
+                    if (corrupt == null) {
+                        checkedFiles.add(entry.getKey());
+                    } else {
+                        logger.info("check index [ok]: checksum check passed on [{}]", entry.getKey());
+                    }
+                } catch (IOException ioException) {
+                    for (final String checkedFile : checkedFiles) {
+                        logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
+                    }
+                    checkedFiles.clear();
+                    logger.warn(new ParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    corrupt = ioException;
                 }
             }
-            out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                 throw corrupt;
+            }
+            if (logger.isDebugEnabled()) {
+                for (final String checkedFile : checkedFiles) {
+                    logger.debug("check index [ok]: checksum check passed on [{}]", checkedFile);
+                }
             }
         } else {
             // full checkindex
+            final BytesStreamOutput os = new BytesStreamOutput();
+            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (status.clean == false) {
@@ -2617,10 +2628,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 logger.warn("{}", os.bytes().utf8ToString());
                 throw new IOException("index check failure");
             }
-        }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            }
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));

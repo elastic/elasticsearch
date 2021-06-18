@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -67,8 +64,6 @@ public interface RuntimeField extends ToXContentFragment {
         final String name;
         final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RuntimeField.class);
-
         protected Builder(String name) {
             this.name = name;
         }
@@ -104,18 +99,6 @@ public interface RuntimeField extends ToXContentFragment {
                 final Object propNode = entry.getValue();
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
-                    if (parserContext.isFromDynamicTemplate() && parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                        // The parameter is unknown, but this mapping is from a dynamic template.
-                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
-                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
-                            "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
-                                + "Usage will result in an error in future major versions and should be removed.",
-                            propName,
-                            type
-                        );
-                        iterator.remove();
-                        continue;
-                    }
                     throw new MapperParsingException(
                         "unknown parameter [" + propName + "] on runtime field [" + name + "] of type [" + type + "]"
                     );

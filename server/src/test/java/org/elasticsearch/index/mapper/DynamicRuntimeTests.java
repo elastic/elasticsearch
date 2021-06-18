@@ -9,10 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperServiceTestCase;
-import org.elasticsearch.index.mapper.ObjectMapper;
-import org.elasticsearch.index.mapper.ParsedDocument;
 
 import java.io.IOException;
 
@@ -72,7 +68,7 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
             "{\"_doc\":{\"dynamic\":\"false\","
                 + "\"runtime\":{\"dynamic_runtime.child.field4\":{\"type\":\"keyword\"},"
                 + "\"dynamic_runtime.field3\":{\"type\":\"keyword\"}},"
-                + "\"properties\":{\"dynamic_runtime\":{\"dynamic\":\"runtime\",\"properties\":{\"child\":{\"type\":\"object\"}}},"
+                + "\"properties\":{"
                 + "\"dynamic_true\":{\"dynamic\":\"true\",\"properties\":{\"child\":{\"properties\":{"
                 + "\"field2\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}},"
                 + "\"field1\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}}}}}}",
@@ -107,6 +103,23 @@ public class DynamicRuntimeTests extends MapperServiceTestCase {
                 + "\"runtime\":{\"l\":{\"type\":\"long\"}},"
                 + "\"properties\":{\"s\":{\"type\":\"keyword\"}}}}",
             Strings.toString(parsedDoc.dynamicMappingsUpdate())
+        );
+    }
+
+    public void testDotsInFieldNames() throws IOException {
+        DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> b.field("dynamic", ObjectMapper.Dynamic.RUNTIME)));
+        ParsedDocument doc = documentMapper.parse(source(b -> {
+            b.field("one.two.three.four", "1234");
+            b.field("one.two.three", 123);
+            b.array("one.two", 1.2, 1.2, 1.2);
+            b.field("one", "one");
+        }));
+        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\",\"runtime\":{" +
+                "\"one\":{\"type\":\"keyword\"}," +
+                "\"one.two\":{\"type\":\"double\"}," +
+                "\"one.two.three\":{\"type\":\"long\"}," +
+                "\"one.two.three.four\":{\"type\":\"keyword\"}}}}",
+            Strings.toString(doc.dynamicMappingsUpdate())
         );
     }
 }

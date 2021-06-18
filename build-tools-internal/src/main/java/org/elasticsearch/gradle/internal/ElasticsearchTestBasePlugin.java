@@ -48,7 +48,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            File testOutputDir = new File(test.getReports().getJunitXml().getDestination(), "output");
+            File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
             test.getExtensions().add("errorReportingTestListener", listener);

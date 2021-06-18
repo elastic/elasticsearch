@@ -148,10 +148,11 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         // per field
         builder.startObject("fields");
         {
-            final List<String> sortedFields = fields.keySet().stream().sorted().collect(Collectors.toList());
-            for (String field : sortedFields) {
-                builder.startObject(field);
-                fields.get(field).toXContent(builder, params);
+            final List<Map.Entry<String, PerFieldDiskUsage>> entries = fields.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
+            for (Map.Entry<String, PerFieldDiskUsage> entry : entries) {
+                builder.startObject(entry.getKey());
+                entry.getValue().toXContent(builder, params);
                 builder.endObject();
             }
         }

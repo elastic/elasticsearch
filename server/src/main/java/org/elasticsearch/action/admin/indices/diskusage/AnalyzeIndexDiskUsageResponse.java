@@ -46,10 +46,12 @@ public final class AnalyzeIndexDiskUsageResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<String> indices = stats.keySet().stream().sorted().collect(Collectors.toList());
-        for (String index : indices) {
-            builder.startObject(index);
-            stats.get(index).toXContent(builder, params);
+        final List<Map.Entry<String, IndexDiskUsageStats>> entries = stats.entrySet().stream()
+            .sorted(Map.Entry.comparingByKey())
+            .collect(Collectors.toList());
+        for (Map.Entry<String, IndexDiskUsageStats> entry : entries) {
+            builder.startObject(entry.getKey());
+            entry.getValue().toXContent(builder, params);
             builder.endObject();
         }
     }

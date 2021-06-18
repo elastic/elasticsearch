@@ -197,38 +197,42 @@ import java.util.Map;
             return;
         }
         docValuesReader = reader.getDocValuesReader().getMergeInstance();
-        for (FieldInfo fieldInfo : reader.getFieldInfos()) {
-            final DocValuesType dvType = fieldInfo.getDocValuesType();
+        for (FieldInfo field : reader.getFieldInfos()) {
+            final DocValuesType dvType = field.getDocValuesType();
             if (dvType == DocValuesType.NONE) {
                 continue;
             }
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
+            long numericValues = 0;
             switch (dvType) {
                 case NUMERIC:
-                    final NumericDocValues numeric = docValuesReader.getNumeric(fieldInfo);
+                    final NumericDocValues numeric = docValuesReader.getNumeric(field);
                     while (numeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        cancellationChecker.logEvent();
                         numeric.longValue();
+                        numericValues++;
                     }
                     break;
                 case SORTED_NUMERIC:
-                    final SortedNumericDocValues sortedNumeric = docValuesReader.getSortedNumeric(fieldInfo);
+                    final SortedNumericDocValues sortedNumeric = docValuesReader.getSortedNumeric(field);
                     while (sortedNumeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         for (int i = 0; i < sortedNumeric.docValueCount(); i++) {
                             cancellationChecker.logEvent();
                             sortedNumeric.nextValue();
+                            numericValues++;
                         }
                     }
                     break;
                 case BINARY:
-                    final BinaryDocValues binary = docValuesReader.getBinary(fieldInfo);
+                    final BinaryDocValues binary = docValuesReader.getBinary(field);
                     while (binary.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         cancellationChecker.logEvent();
                         binary.binaryValue();
                     }
                     break;
                 case SORTED:
-                    final SortedDocValues sorted = docValuesReader.getSorted(fieldInfo);
+                    final SortedDocValues sorted = docValuesReader.getSorted(field);
                     while (sorted.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         cancellationChecker.logEvent();
                         sorted.ordValue();
@@ -237,7 +241,7 @@ import java.util.Map;
                     sorted.lookupOrd(sorted.getValueCount() - 1);
                     break;
                 case SORTED_SET:
-                    final SortedSetDocValues sortedSet = docValuesReader.getSortedSet(fieldInfo);
+                    final SortedSetDocValues sortedSet = docValuesReader.getSortedSet(field);
                     while (sortedSet.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         while (sortedSet.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
                             cancellationChecker.logEvent();
@@ -250,7 +254,13 @@ import java.util.Map;
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
             }
-            stats.addDocValues(fieldInfo.name, directory.getBytesRead());
+            long bytesRead = directory.getBytesRead();
+            // A small NumericDV field can be loaded into memory when opening an index.
+            if (bytesRead == 0 && (dvType == DocValuesType.NUMERIC || dvType == DocValuesType.SORTED_NUMERIC)) {
+                assert numericValues <= 256 : "Too many numeric values [" + numericValues + "] are loaded into memory";
+                bytesRead = numericValues * Long.BYTES;
+            }
+            stats.addDocValues(field.name, bytesRead);
         }
     }
 

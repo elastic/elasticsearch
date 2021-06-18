@@ -24,15 +24,27 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentFragment, Writeable {
+    public static final String TOTAL = "total";
+    public static final String TERMS = "terms";
+    public static final String FREQS = "frequencies";
+    public static final String POSITIONS = "positions";
+    public static final String OFFSETS = "offsets";
+    public static final String DOC_VALUES = "doc_values";
+    public static final String STORED_FIELDS = "stored_fields";
+    public static final String NORMS = "norms";
+    public static final String PAYLOADS = "payloads";
+    public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
+    public static final String POINTS = "points";
+    public static final String PROXIMITY = "proximity";
 
     private final Map<String, PerFieldUsageStats> stats;
 
     public FieldUsageStats() {
-        this(new HashMap<>());
+        this.stats = new HashMap<>();
     }
 
     public FieldUsageStats(Map<String, PerFieldUsageStats> stats) {
-        this.stats = stats;
+        this.stats = new HashMap<>(stats);
     }
 
     public FieldUsageStats(StreamInput in) throws IOException {
@@ -46,20 +58,18 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("field_usage");
-        final List<String> fields = stats.keySet().stream().sorted().collect(Collectors.toList());
-        if (fields.isEmpty() == false) {
-            builder.startObject("_all");
-            total().toXContent(builder, params);
-            builder.endObject();
+        builder.startObject("all_fields");
+        total().toXContent(builder, params);
+        builder.endObject();
 
-            builder.startObject("fields");
-            for (String field : fields) {
+        builder.startObject("fields");
+        {
+            final List<String> sortedFields = stats.keySet().stream().sorted().collect(Collectors.toList());
+            for (String field : sortedFields) {
                 builder.startObject(field);
                 stats.get(field).toXContent(builder, params);
                 builder.endObject();
             }
-            builder.endObject();
         }
         builder.endObject();
         return builder;
@@ -86,10 +96,9 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         return stats.get(field);
     }
 
-    public void add(FieldUsageStats other) {
-        for (Map.Entry<String, PerFieldUsageStats> entry : other.stats.entrySet()) {
-            stats.computeIfAbsent(entry.getKey(), f -> new PerFieldUsageStats()).add(entry.getValue());
-        }
+    public FieldUsageStats add(FieldUsageStats other) {
+        other.stats.forEach((k, v) -> stats.computeIfAbsent(k, f -> new PerFieldUsageStats()).add(v));
+        return this;
     }
 
     public enum UsageContext {
@@ -106,18 +115,6 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
     }
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
-
-        public static final String TOTAL = "total";
-        public static final String TERMS = "terms";
-        public static final String FREQS = "frequencies";
-        public static final String POSITIONS = "positions";
-        public static final String OFFSETS = "offsets";
-        public static final String DOC_VALUES = "doc_values";
-        public static final String STORED_FIELDS = "stored_fields";
-        public static final String NORMS = "norms";
-        public static final String PAYLOADS = "payloads";
-        public static final String TERM_VECTORS = "term_vectors"; // possibly refine this one
-        public static final String POINTS = "points";
 
         public long terms;
         public long freqs;
@@ -176,16 +173,18 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(TOTAL, getTotal());
             builder.field(TERMS, terms);
+            builder.field(PROXIMITY, getProximity());
+            builder.field(STORED_FIELDS, storedFields);
+            builder.field(DOC_VALUES, docValues);
+            builder.field(POINTS, points);
+            builder.field(NORMS, norms);
+            builder.field(TERM_VECTORS, termVectors);
             builder.field(FREQS, freqs);
             builder.field(POSITIONS, positions);
             builder.field(OFFSETS, offsets);
-            builder.field(DOC_VALUES, docValues);
-            builder.field(STORED_FIELDS, storedFields);
-            builder.field(NORMS, norms);
             builder.field(PAYLOADS, payloads);
-            builder.field(TERM_VECTORS, termVectors);
-            builder.field(POINTS, points);
             return builder;
         }
 
@@ -262,6 +261,14 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         public long getPoints() {
             return points;
+        }
+
+        public long getProximity() {
+            return freqs + offsets + positions + payloads;
+        }
+
+        public long getTotal() {
+            return terms + freqs + positions + offsets + docValues + storedFields + norms + payloads + termVectors + points;
         }
 
         @Override

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.stats;
 
+import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
+import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -16,6 +18,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
@@ -30,7 +33,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         return Settings.builder().put("search.aggs.rewrite_to_filter_by_filter", false).build();
     }
 
-    public void testFieldUsageStats() {
+    public void testFieldUsageStats() throws ExecutionException, InterruptedException {
         int numShards = 2;
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
@@ -42,8 +45,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         }
         client().admin().indices().prepareRefresh("test").get();
 
-        FieldUsageStats stats = client().admin().indices().prepareStats("test").clear().setFieldUsage(true).get()
-            .getIndex("test").getTotal().getFieldUsageStats();
+        FieldUsageStats stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
 
         assertFalse(stats.hasField("field"));
         assertFalse(stats.hasField("field.keyword"));
@@ -59,8 +61,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertHitCount(searchResponse, 9);
         assertAllSuccessful(searchResponse);
 
-        stats = client().admin().indices().prepareStats("test").clear().setFieldUsage(true).get()
-            .getIndex("test").getTotal().getFieldUsageStats();
+        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
         logger.info("Stats after first query: {}", stats);
 
         assertTrue(stats.hasField("_id"));
@@ -91,8 +92,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
             .setSize(100)
             .get();
 
-        stats = client().admin().indices().prepareStats("test").clear().setFieldUsage(true).get()
-            .getIndex("test").getTotal().getFieldUsageStats();
+        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
         logger.info("Stats after second query: {}", stats);
 
         assertEquals(2L * numShards, stats.get("field").getTerms());
@@ -110,8 +110,7 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
             .setSize(100)
             .get();
 
-        stats = client().admin().indices().prepareStats("test").clear().setFieldUsage(true).get()
-            .getIndex("test").getTotal().getFieldUsageStats();
+        stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
         logger.info("Stats after third query: {}", stats);
 
         assertTrue(stats.hasField("date_field"));

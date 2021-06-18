@@ -28,7 +28,6 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
-import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -97,9 +96,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
     @Nullable
     public BulkStats bulk;
 
-    @Nullable
-    public FieldUsageStats fieldUsageStats;
-
     public CommonStats() {
         this(CommonStatsFlags.NONE);
     }
@@ -159,9 +155,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     break;
                 case Bulk:
                     bulk = new BulkStats();
-                    break;
-                case FieldUsage:
-                    fieldUsageStats = new FieldUsageStats();
                     break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
@@ -225,9 +218,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
                     case Bulk:
                         bulk = indexShard.bulkStats();
                         break;
-                    case FieldUsage:
-                        fieldUsageStats = indexShard.fieldUsageStats(flags.fieldUsageFields());
-                        break;
                     default:
                         throw new IllegalStateException("Unknown Flag: " + flag);
                 }
@@ -257,9 +247,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             bulk = in.readOptionalWriteable(BulkStats::new);
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            fieldUsageStats = in.readOptionalWriteable(FieldUsageStats::new);
-        }
     }
 
     @Override
@@ -282,9 +269,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         out.writeOptionalWriteable(recoveryStats);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeOptionalWriteable(bulk);
-        }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalWriteable(fieldUsageStats);
         }
     }
 
@@ -426,14 +410,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         } else {
             bulk.add(stats.getBulk());
         }
-        if (fieldUsageStats == null) {
-            if (stats.getFieldUsageStats() != null) {
-                fieldUsageStats = new FieldUsageStats();
-                fieldUsageStats.add(stats.getFieldUsageStats());
-            }
-        } else {
-            fieldUsageStats.add(stats.getFieldUsageStats());
-        }
     }
 
     @Nullable
@@ -521,11 +497,6 @@ public class CommonStats implements Writeable, ToXContentFragment {
         return bulk;
     }
 
-    @Nullable
-    public FieldUsageStats getFieldUsageStats() {
-        return fieldUsageStats;
-    }
-
     /**
      * Utility method which computes total memory by adding
      * FieldData, PercolatorCache, Segments (memory, index writer, version map)
@@ -552,7 +523,7 @@ public class CommonStats implements Writeable, ToXContentFragment {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final Stream<ToXContent> stream = Arrays.stream(new ToXContent[] {
             docs, store, indexing, get, search, merge, refresh, flush, warmer, queryCache,
-            fieldData, completion, segments, translog, requestCache, recoveryStats, bulk, fieldUsageStats})
+            fieldData, completion, segments, translog, requestCache, recoveryStats, bulk})
             .filter(Objects::nonNull);
         for (ToXContent toXContent : ((Iterable<ToXContent>)stream::iterator)) {
             toXContent.toXContent(builder, params);

@@ -25,29 +25,27 @@ public class ShardFieldUsageTracker {
 
     private final Map<String, InternalFieldStats> perFieldStats = new ConcurrentHashMap<>();
 
-    public FieldUsageNotifier createSession() {
+    public FieldUsageStatsTrackingSession createSession() {
         return new FieldUsageStatsTrackingSession();
     }
 
     public FieldUsageStats stats(String... fields) {
         final Map<String, PerFieldUsageStats> stats = new HashMap<>(perFieldStats.size());
-        if (CollectionUtils.isEmpty(fields) == false) {
-            for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
-                InternalFieldStats ifs = entry.getValue();
-                if (Regex.simpleMatch(fields, entry.getKey())) {
-                    PerFieldUsageStats pf = new PerFieldUsageStats();
-                    pf.terms = ifs.terms.longValue();
-                    pf.freqs = ifs.freqs.longValue();
-                    pf.positions = ifs.positions.longValue();
-                    pf.offsets = ifs.offsets.longValue();
-                    pf.docValues = ifs.docValues.longValue();
-                    pf.storedFields = ifs.storedFields.longValue();
-                    pf.norms = ifs.norms.longValue();
-                    pf.payloads = ifs.payloads.longValue();
-                    pf.termVectors = ifs.termVectors.longValue();
-                    pf.points = ifs.points.longValue();
-                    stats.put(entry.getKey(), pf);
-                }
+        for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
+            InternalFieldStats ifs = entry.getValue();
+            if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
+                PerFieldUsageStats pf = new PerFieldUsageStats();
+                pf.terms = ifs.terms.longValue();
+                pf.freqs = ifs.freqs.longValue();
+                pf.positions = ifs.positions.longValue();
+                pf.offsets = ifs.offsets.longValue();
+                pf.docValues = ifs.docValues.longValue();
+                pf.storedFields = ifs.storedFields.longValue();
+                pf.norms = ifs.norms.longValue();
+                pf.payloads = ifs.payloads.longValue();
+                pf.termVectors = ifs.termVectors.longValue();
+                pf.points = ifs.points.longValue();
+                stats.put(entry.getKey(), pf);
             }
         }
         return new FieldUsageStats(Collections.unmodifiableMap(stats));

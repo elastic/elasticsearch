@@ -9,12 +9,12 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -59,12 +59,12 @@ public class ShardStats implements Writeable, ToXContentFragment {
     }
 
     public ShardStats(
-            final ShardRouting routing,
-            final ShardPath shardPath,
-            final CommonStats commonStats,
-            final CommitStats commitStats,
-            final SeqNoStats seqNoStats,
-            final RetentionLeaseStats retentionLeaseStats) {
+        final ShardRouting routing,
+        final ShardPath shardPath,
+        final CommonStats commonStats,
+        final CommitStats commitStats,
+        final SeqNoStats seqNoStats,
+        final RetentionLeaseStats retentionLeaseStats) {
         this.shardRouting = routing;
         this.dataPath = shardPath.getRootDataPath().toString();
         this.statePath = shardPath.getRootStatePath().toString();

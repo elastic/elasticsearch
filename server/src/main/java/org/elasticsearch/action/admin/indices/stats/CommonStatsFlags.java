@@ -27,7 +27,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
     private String[] groups = null;
     private String[] fieldDataFields = null;
     private String[] completionDataFields = null;
-    private String[] fieldUsageFields = null;
     private boolean includeSegmentFileSizes = false;
     private boolean includeUnloadedSegments = false;
 
@@ -59,9 +58,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
             includeUnloadedSegments = in.readBoolean();
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            fieldUsageFields = in.readStringArray();
-        }
     }
 
     @Override
@@ -82,9 +78,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
             out.writeBoolean(includeUnloadedSegments);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeStringArrayNullable(fieldUsageFields);
-        }
     }
 
     /**
@@ -97,7 +90,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
-        fieldUsageFields = null;
         return this;
     }
 
@@ -111,7 +103,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         completionDataFields = null;
         includeSegmentFileSizes = false;
         includeUnloadedSegments = false;
-        fieldUsageFields = null;
         return this;
     }
 
@@ -156,15 +147,6 @@ public class CommonStatsFlags implements Writeable, Cloneable {
 
     public String[] completionDataFields() {
         return this.completionDataFields;
-    }
-
-    public CommonStatsFlags fieldUsageFields(String... fieldUsageFields) {
-        this.fieldUsageFields = fieldUsageFields;
-        return this;
-    }
-
-    public String[] fieldUsageFields() {
-        return this.fieldUsageFields;
     }
 
     public CommonStatsFlags includeSegmentFileSizes(boolean includeSegmentFileSizes) {
@@ -235,8 +217,7 @@ public class CommonStatsFlags implements Writeable, Cloneable {
         // 14 was previously used for Suggest
         RequestCache("request_cache", 15),
         Recovery("recovery", 16),
-        Bulk("bulk", 17),
-        FieldUsage("field_usage", 18);
+        Bulk("bulk", 17);
 
         private final String restName;
         private final int index;

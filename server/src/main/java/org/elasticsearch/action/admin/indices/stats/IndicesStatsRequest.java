@@ -202,15 +202,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
         return flags.fieldDataFields();
     }
 
-    public IndicesStatsRequest fieldUsageFields(String... fieldUsageFields) {
-        flags.fieldUsageFields(fieldUsageFields);
-        return this;
-    }
-
-    public String[] fieldUsageFields() {
-        return flags.fieldUsageFields();
-    }
-
     public IndicesStatsRequest completion(boolean completion) {
         flags.set(Flag.Completion, completion);
         return this;
@@ -262,15 +253,6 @@ public class IndicesStatsRequest extends BroadcastRequest<IndicesStatsRequest> {
     }
     public boolean bulk() {
         return flags.isSet(Flag.Bulk);
-    }
-
-    public IndicesStatsRequest fieldUsage(boolean fieldUsage) {
-        flags.set(Flag.FieldUsage, fieldUsage);
-        return this;
-    }
-
-    public boolean fieldUsage() {
-        return flags.isSet(Flag.FieldUsage);
     }
 
     public boolean includeSegmentFileSizes() {

@@ -10,10 +10,10 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.script.ScriptCompiler;
 
@@ -23,8 +23,9 @@ import java.util.Map;
 
 /**
  * Encapsulates the logic for dynamically creating fields as part of document parsing.
- * Objects are always created the same, but leaf fields can be mapped under properties, as concrete fields that get indexed,
+ * Fields can be mapped under properties, as concrete fields that get indexed,
  * or as runtime fields that are evaluated at search-time and have no indexing overhead.
+ * Objects get dynamically mapped only under dynamic:true.
  */
 final class DynamicFieldsBuilder {
     private static final Concrete CONCRETE = new Concrete(DocumentParser::parseObjectOrField);
@@ -121,10 +122,8 @@ final class DynamicFieldsBuilder {
 
     /**
      * Returns a dynamically created object mapper, eventually based on a matching dynamic template.
-     * Note that objects are always mapped under properties.
      */
     Mapper createDynamicObjectMapper(ParseContext context, String name) {
-        //dynamic:runtime maps objects under properties, exactly like dynamic:true
         Mapper mapper = createObjectMapperFromTemplate(context, name);
         return mapper != null ? mapper :
             new ObjectMapper.Builder(name, context.indexSettings().getIndexVersionCreated()).enabled(true).build(context.path());
@@ -132,7 +131,6 @@ final class DynamicFieldsBuilder {
 
     /**
      * Returns a dynamically created object mapper, based exclusively on a matching dynamic template, null otherwise.
-     * Note that objects are always mapped under properties.
      */
     Mapper createObjectMapperFromTemplate(ParseContext context, String name) {
         Mapper.Builder templateBuilder = findTemplateBuilderForObject(context, name);
@@ -311,7 +309,7 @@ final class DynamicFieldsBuilder {
 
     /**
      * Dynamically creates runtime fields, in the runtime section.
-     * Used for leaf fields, when their parent object is mapped as dynamic:runtime.
+     * Used for sub-fields of objects that are mapped as dynamic:runtime.
      * @see Dynamic
      */
     private static final class Runtime implements Strategy {

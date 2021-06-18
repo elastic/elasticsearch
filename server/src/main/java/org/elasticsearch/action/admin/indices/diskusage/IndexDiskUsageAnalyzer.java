@@ -81,7 +81,7 @@ import java.util.Map;
     }
 
     void doAnalyze(IndexDiskUsageStats stats) throws IOException {
-        long startTime;
+        long startTimeInNanos;
         final ExecutionTime executionTime = new ExecutionTime();
         try (DirectoryReader directoryReader = DirectoryReader.open(commit)) {
             directory.resetBytesRead();
@@ -89,36 +89,32 @@ import java.util.Map;
                 cancellationChecker.checkForCancellation();
                 final SegmentReader reader = Lucene.segmentReader(leaf.reader());
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzePostings(reader, stats);
-                executionTime.postingsTimeInMillis += System.currentTimeMillis() - startTime;
+                executionTime.postingsTimeInNanos += System.nanoTime() - startTimeInNanos;
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzeStoredFields(reader, stats);
-                executionTime.storedFieldsTimeInMillis += System.currentTimeMillis() - startTime;
+                executionTime.storedFieldsTimeInNanos += System.nanoTime() - startTimeInNanos;
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzeDocValues(reader, stats);
-                executionTime.docValuesTimeInMillis += System.currentTimeMillis() - startTime;
+                executionTime.docValuesTimeInNanos += System.nanoTime() - startTimeInNanos;
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzePoints(reader, stats);
-                executionTime.pointsTimeInMills += System.currentTimeMillis() - startTime;
+                executionTime.pointsTimeInNanos += System.nanoTime() - startTimeInNanos;
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzeNorms(reader, stats);
-                executionTime.normsTimeInMillis += System.currentTimeMillis() - startTime;
+                executionTime.normsTimeInNanos += System.nanoTime() - startTimeInNanos;
 
-                startTime = System.currentTimeMillis();
+                startTimeInNanos = System.nanoTime();
                 analyzeTermVectors(reader, stats);
-                executionTime.termVectorsTimeInMillis += System.currentTimeMillis() - startTime;
+                executionTime.termVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
-        LOGGER.debug("analyzing the disk usage took {}ms, postings: {}ms, stored fields: {}ms, doc values: {}ms, " +
-                "points: {}ms, norms: {}ms, term vectors: {}ms\nstats: {}",
-            executionTime.totalInMillis(), executionTime.postingsTimeInMillis, executionTime.storedFieldsTimeInMillis,
-            executionTime.docValuesTimeInMillis, executionTime.pointsTimeInMills, executionTime.normsTimeInMillis,
-            executionTime.termVectorsTimeInMillis, stats);
+        LOGGER.debug("analyzing the disk usage took {} \nstats: {}", executionTime, stats);
     }
 
     void analyzeStoredFields(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
@@ -643,16 +639,27 @@ import java.util.Map;
     }
 
     private static class ExecutionTime {
-        long postingsTimeInMillis;
-        long storedFieldsTimeInMillis;
-        long docValuesTimeInMillis;
-        long pointsTimeInMills;
-        long normsTimeInMillis;
-        long termVectorsTimeInMillis;
+        long postingsTimeInNanos;
+        long storedFieldsTimeInNanos;
+        long docValuesTimeInNanos;
+        long pointsTimeInNanos;
+        long normsTimeInNanos;
+        long termVectorsTimeInNanos;
 
-        long totalInMillis() {
-            return postingsTimeInMillis + storedFieldsTimeInMillis + docValuesTimeInMillis
-                + pointsTimeInMills + normsTimeInMillis + termVectorsTimeInMillis;
+        long totalInNanos() {
+            return postingsTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
+                + pointsTimeInNanos + normsTimeInNanos + termVectorsTimeInNanos;
+        }
+
+        @Override
+        public String toString() {
+            return "total: " + totalInNanos() / 1000_000 + "ms" +
+                ", postings: " + postingsTimeInNanos / 1000_000 + "ms" +
+                ", stored fields: " + storedFieldsTimeInNanos / 1000_000 + "ms" +
+                ", doc values: " + docValuesTimeInNanos / 1000_000 + "ms" +
+                ", points: " + pointsTimeInNanos / 1000_000 + "ms" +
+                ", norms: " + normsTimeInNanos / 1000_000 + "ms" +
+                ", term vectors: " + termVectorsTimeInNanos / 1000_000 + "ms";
         }
     }
 }

@@ -107,8 +107,8 @@ setup:
   - do:
       catch: bad_request
       indices.stats:
-        metric: [ seach ]
+        metric: [ fieldata ]
 
   - match: { status: 400 }
   - match: { error.type: illegal_argument_exception }
-  - match: { error.reason: "request [/_stats/seach] contains unrecognized metric: [seach] -> did you mean [search]?" }
+  - match: { error.reason: "request [/_stats/fieldata] contains unrecognized metric: [fieldata] -> did you mean [fielddata]?" }

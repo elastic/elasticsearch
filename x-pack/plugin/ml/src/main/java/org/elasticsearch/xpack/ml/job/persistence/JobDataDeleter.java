@@ -429,8 +429,11 @@ public class JobDataDeleter {
         );
 
         // First, we refresh the indices to ensure any in-flight docs become visible
-        executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, new RefreshRequest(indices), refreshListener);
+        RefreshRequest refreshRequest = new RefreshRequest(indices);
+        refreshRequest.indicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpenHidden()));
+        executeAsyncWithOrigin(client, ML_ORIGIN, RefreshAction.INSTANCE, refreshRequest, refreshListener);
     }
+
     private void deleteAliases(String jobId, ActionListener<AcknowledgedResponse> finishedHandler) {
         final String readAliasName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         final String writeAliasName = AnomalyDetectorsIndex.resultsWriteAlias(jobId);

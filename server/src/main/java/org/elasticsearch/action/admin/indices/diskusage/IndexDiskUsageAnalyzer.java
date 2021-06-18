@@ -280,13 +280,20 @@ import java.util.Map;
                 continue;
             }
 
-            // Visit terms index and term dictionary and postings
-            final BytesRefIterator termsIterator = terms.iterator();
+            // It's expensive to look up every term and visit every document of the postings lists of all terms.
+            // As we track the min/max positions of read bytes, we just visit the two ends of a partition containing
+            // the data. We might some small parts of the data, but it's an good trade-off to speed up the process.
             TermsEnum termsEnum = terms.iterator();
+            final TermsEnum termsIndexLookup = terms.iterator(); // used to traverse the term index
+            termsIndexLookup.seekExact(terms.getMin());
+            byte lastFirstByte = terms.getMin().bytes[0];
             BytesRef bytesRef;
-            while ((bytesRef = termsIterator.next()) != null) {
+            while ((bytesRef = termsEnum.next()) != null) {
                 cancellationChecker.logEvent();
-                termsEnum.seekExact(bytesRef); // it's expensive to look up every term
+                if (lastFirstByte != bytesRef.bytes[0]) {
+                    lastFirstByte = bytesRef.bytes[0];
+                    termsIndexLookup.seekExact(bytesRef);
+                }
                 termsEnum.totalTermFreq();
                 for (long idx = 0; idx <= 8; idx++) {
                     cancellationChecker.logEvent();
@@ -304,25 +311,27 @@ import java.util.Map;
             stats.addTerms(field.name, termsBytes);
 
             // Visit positions, offsets, and payloads
-            termsEnum = terms.iterator();
-            while (termsEnum.next() != null) {
-                cancellationChecker.logEvent();
-                termsEnum.docFreq();
-                termsEnum.totalTermFreq();
-                postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                    if (terms.hasPositions()) {
-                        for (int pos = 0; pos < postings.freq(); pos++) {
-                            postings.nextPosition();
-                            postings.startOffset();
-                            postings.endOffset();
-                            postings.getPayload();
+            if (field.getIndexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ||
+                field.getIndexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                termsEnum = terms.iterator();
+                while (termsEnum.next() != null) {
+                    cancellationChecker.logEvent();
+                    termsEnum.docFreq();
+                    postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                    while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        if (terms.hasPositions()) {
+                            for (int pos = 0; pos < postings.freq(); pos++) {
+                                postings.nextPosition();
+                                postings.startOffset();
+                                postings.endOffset();
+                                postings.getPayload();
+                            }
                         }
                     }
                 }
+                final long proximityBytes = directory.getBytesRead() - termsBytes;
+                stats.addProximity(field.name, proximityBytes);
             }
-            final long proximityBytes = directory.getBytesRead() - termsBytes;
-            stats.addProximity(field.name, proximityBytes);
         }
     }
 

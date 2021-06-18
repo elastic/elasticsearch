@@ -48,6 +48,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -382,44 +383,44 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         final FieldLookup fieldLookup = new FieldLookup(reader.getFieldInfos());
         try {
             for (String file : files) {
-                final String ext = IndexFileNames.getExtension(file);
+                final LuceneFilesExtensions ext = LuceneFilesExtensions.fromFile(file);
                 if (ext == null) {
                     continue;
                 }
                 final long bytes = directory.fileLength(file);
                 switch (ext) {
-                    case "dvd":
-                    case "dvm":
+                    case DVD:
+                    case DVM:
                         stats.addDocValues(fieldLookup.getDocValuesField(file), bytes);
                         break;
-                    case "tim":
-                    case "tip":
-                    case "tmd":
-                    case "doc":
+                    case TIM:
+                    case TIP:
+                    case TMD:
+                    case DOC:
                         stats.addTerms(fieldLookup.getPostingsField(file), bytes);
                         break;
-                    case "pos":
-                    case "pay":
+                    case POS:
+                    case PAY:
                         stats.addProximity(fieldLookup.getPostingsField(file), bytes);
                         break;
-                    case "kdm":
+                    case KDM:
                         // not a per-field file, but we can hackishly do this for the points case.
                         for (ObjectLongCursor<String> e : readPointLengths(directory, file, sis, reader.getFieldInfos())) {
                             stats.addPoints(e.key, e.value);
                         }
                         break;
-                    case "fdt":
-                    case "fdx":
-                    case "fdm":
+                    case FDT:
+                    case FDX:
+                    case FDM:
                         // We don't have per field Codec for stored, vector, and norms field
                         stats.addStoredField("_all_stored_fields", bytes);
                         break;
-                    case "tvx":
-                    case "tvd":
+                    case TVX:
+                    case TVD:
                         stats.addTermVectors("_all_vectors_fields", bytes);
                         break;
-                    case "nvd":
-                    case "nvm":
+                    case NVD:
+                    case NVM:
                         stats.addNorms("_all_norms_fields", bytes);
                         break;
                     default:
@@ -435,7 +436,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
     private static ObjectLongMap<String> readPointLengths(Directory dir, String fileName, SegmentInfo sis,
                                                           FieldInfos fieldInfos) throws IOException {
-        assert IndexFileNames.getExtension(fileName).equals("kdm") : fileName;
+        assert LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.KDM;
         final ObjectLongMap<String> pointLengths = new ObjectLongHashMap<>();
         final long totalDataLength = dir.fileLength(fileName.substring(0, fileName.length() - 1) + "d");
         try (ChecksumIndexInput in = dir.openChecksumInput(fileName, IOContext.READONCE)) {

@@ -23,7 +23,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -42,7 +41,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -485,7 +483,7 @@ import java.util.Map;
             IndexInput in = super.openInput(name, context);
             try {
                 final BytesReadTracker tracker = trackers.computeIfAbsent(name, k -> {
-                    if (LuceneFilesExtensions.CFS.getExtension().equals(IndexFileNames.getExtension(name))) {
+                    if (LuceneFilesExtensions.fromFile(name) == LuceneFilesExtensions.CFS) {
                         return new CompoundFileBytesReaderTracker();
                     } else {
                         return new BytesReadTracker();

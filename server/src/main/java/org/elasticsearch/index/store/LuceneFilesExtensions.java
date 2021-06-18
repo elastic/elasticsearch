@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.store;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -132,5 +133,10 @@ public enum LuceneFilesExtensions {
             return extension;
         }
         return null;
+    }
+
+    @Nullable
+    public static LuceneFilesExtensions fromFile(String fileName) {
+        return fromExtension(IndexFileNames.getExtension(fileName));
     }
 }

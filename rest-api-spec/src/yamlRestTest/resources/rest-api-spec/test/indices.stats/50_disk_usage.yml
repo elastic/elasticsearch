@@ -43,72 +43,67 @@ setup:
   - do:
       indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
 
+  - gt: {testindex.index_size_in_bytes: 100}
   # _all
-  - set: { testindex._all: stat }
+  - set: { testindex.all_fields: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - gt: { $stat.terms_in_bytes: 0 }
-  - gt: { $stat.postings_in_bytes: 0 }
   - gt: { $stat.proximity_in_bytes: 0 }
   - gt: { $stat.stored_fields_in_bytes: 0 }
   - gt: { $stat.doc_values_in_bytes: 0 }
   - gt: { $stat.points_in_bytes: 0 }
-  - match: { $stat.vectors_in_bytes: 0 }
+  - match: { $stat.term_vectors_in_bytes: 0 }
 
   # name
   - set: { testindex.fields.name: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - gt: { $stat.terms_in_bytes: 0 }
-  - gt: { $stat.postings_in_bytes: 0 }
   - gt: { $stat.proximity_in_bytes: 0 }
   - match: { $stat.stored_fields_in_bytes: 0 }
   - match: { $stat.doc_values_in_bytes: 0 }
   - match: { $stat.points_in_bytes: 0 }
-  - match: {$stat.vectors_in_bytes: 0}
+  - match: {$stat.term_vectors_in_bytes: 0}
 
   # price
   - set: { testindex.fields.price: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - match: { $stat.terms_in_bytes: 0 }
-  - match: { $stat.postings_in_bytes: 0 }
   - match: { $stat.proximity_in_bytes: 0 }
   - match: { $stat.stored_fields_in_bytes: 0 }
   - gt: { $stat.doc_values_in_bytes: 0 }
   - gt: { $stat.points_in_bytes: 0 }
   - match: { $stat.norms_in_bytes: 0 }
-  - match: { $stat.vectors_in_bytes: 0 }
+  - match: { $stat.term_vectors_in_bytes: 0 }
 
   # _source
   - set: { testindex.fields._source: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - match: { $stat.terms_in_bytes: 0 }
-  - match: { $stat.postings_in_bytes: 0 }
   - match: { $stat.proximity_in_bytes: 0 }
   - gt: { $stat.stored_fields_in_bytes: 0 }
   - match: { $stat.doc_values_in_bytes: 0 }
   - match: { $stat.points_in_bytes: 0 }
   - match: { $stat.norms_in_bytes: 0 }
-  - match: { $stat.vectors_in_bytes: 0 }
+  - match: { $stat.term_vectors_in_bytes: 0 }
 
   # _id
   - set: { testindex.fields._id: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - gt: { $stat.terms_in_bytes: 0 }
-  - match: { $stat.postings_in_bytes: 0 }
   - match: { $stat.proximity_in_bytes: 0 }
   - gt: { $stat.stored_fields_in_bytes: 0 }
   - match: { $stat.doc_values_in_bytes: 0 }
   - match: { $stat.points_in_bytes: 0 }
   - match: { $stat.norms_in_bytes: 0 }
-  - match: {$stat.vectors_in_bytes: 0}
+  - match: {$stat.term_vectors_in_bytes: 0}
 
   # _seq_no
   - set: { testindex.fields._seq_no: stat }
   - gt: { $stat.total_in_bytes: 0 }
   - match: { $stat.terms_in_bytes: 0 }
-  - match: { $stat.postings_in_bytes: 0 }
   - match: { $stat.proximity_in_bytes: 0 }
   - match: { $stat.stored_fields_in_bytes: 0 }
   - gt: { $stat.doc_values_in_bytes: 0 }
   - gt: { $stat.points_in_bytes: 0 }
   - match: { $stat.norms_in_bytes: 0 }
-  - match: {$stat.vectors_in_bytes: 0}
+  - match: {$stat.term_vectors_in_bytes: 0}

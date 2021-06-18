@@ -8,13 +8,14 @@ experimental[]
 
 Analyzes the disk usage of each field of an index. This API
 might not support indices created in previous {es} versions.
+The result of a small index can be inaccurate as some parts
+of an index might not be analyzed by the API.
 
 [source,console]
 --------------------------------------------------
 POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
-// TEST[setup:my_index]
-
+// TEST[setup:messages]
 
 [[analyze-index-disk-usage-api-request]]
 ==== {api-request-title}
@@ -26,7 +27,6 @@ POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
 
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-indices,index privilege>> for the target index or index alias.
-
 
 [[analyze-index-disk-usage-api-path-params]]
 ==== {api-path-parms-title}
@@ -52,7 +52,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `run_expensive_tasks`::
 (Optional, Boolean)
-Since analyzing per field disk usage of indices is expensive and resource-intensive,
+Since analyzing the per field disk usage of indices is expensive and resource-intensive,
 the parameter `run_expensive_tasks` must be set to `true` in order for the task to be
 performed.
 Defaults to `false`.
@@ -73,7 +73,7 @@ The following request analyzes the disk usage of index `my-index-000001`.
 --------------------------------------------------
 POST /my-index-000001/_index_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
-// TEST[setup:my_index]
+// TEST[setup:messages]
 
 The API returns the following response:
 
@@ -86,34 +86,71 @@ The API returns the following response:
         "failed": 0
     },
     "my-index-000001": {
-        "_all": {
-            "total": "925.4mb",
-            "total_in_bytes": 970370607,
-            "terms": "38.6mb",
-            "terms_in_bytes": 40541738,
-            "postings": "65.7mb",
-            "postings_in_bytes": 68963453,
+        "index_size": "929mb", <1>
+        "index_size_in_bytes": 974192723,
+        "all_fields": {
+            "total": "928.9mb", <2>
+            "total_in_bytes": 973977084,
+            "terms": "107.8mb",
+            "terms_in_bytes": 113128526,
             "proximity": "11.6mb",
             "proximity_in_bytes": 12253834,
             "stored_fields": "623.5mb",
-            "stored_fields_in_bytes": 653843556,
+            "stored_fields_in_bytes": 653819143,
             "doc_values": "125.7mb",
-            "doc_values_in_bytes": 131882253,
+            "doc_values_in_bytes": 131885142,
             "points": "59.9mb",
             "points_in_bytes": 62885773,
-            "norms": "0b",
-            "norms_in_bytes": 0,
-            "vectors": "0b",
-            "vectors_in_bytes": 0
+            "norms": "2.3kb",
+            "norms_in_bytes": 2356,
+            "term_vectors": "2.2kb",
+            "term_vectors_in_bytes": 2310
         },
         "fields": {
-            "title": {
-                "total": "27.6mb",
-                "total_in_bytes": 29005703,
-                "terms": "1.2mb",
-                "terms_in_bytes": 1295195,
-                "postings": "19.7mb",
-                "postings_in_bytes": 20741011,
+            "_id": {
+                "total": "49.3mb",
+                "total_in_bytes": 51709993,
+                "terms": "29.7mb",
+                "terms_in_bytes": 31172745,
+                "proximity": "0b",
+                "proximity_in_bytes": 0,
+                "stored_fields": "19.5mb", <3>
+                "stored_fields_in_bytes": 20537248,
+                "doc_values": "0b",
+                "doc_values_in_bytes": 0,
+                "points": "0b",
+                "points_in_bytes": 0,
+                "norms": "0b",
+                "norms_in_bytes": 0,
+                "term_vectors": "0b",
+                "term_vectors_in_bytes": 0
+            },
+            "_primary_term": {...},
+            "_seq_no": {...},
+            "_version": {...},
+            "_source": {
+                "total": "603.9mb",
+                "total_in_bytes": 633281895,
+                "terms": "0b",
+                "terms_in_bytes": 0,
+                "proximity": "0b",
+                "proximity_in_bytes": 0,
+                "stored_fields": "603.9mb", <4>
+                "stored_fields_in_bytes": 633281895,
+                "doc_values": "0b",
+                "doc_values_in_bytes": 0,
+                "points": "0b",
+                "points_in_bytes": 0,
+                "norms": "0b",
+                "norms_in_bytes": 0,
+                "term_vectors": "0b",
+                "term_vectors_in_bytes": 0
+            },
+            "context": {
+                "total": "28.6mb",
+                "total_in_bytes": 30060405,
+                "terms": "22mb",
+                "terms_in_bytes": 23090908,
                 "proximity": "6.6mb",
                 "proximity_in_bytes": 6969497,
                 "stored_fields": "0b",
@@ -122,33 +159,34 @@ The API returns the following response:
                 "doc_values_in_bytes": 0,
                 "points": "0b",
                 "points_in_bytes": 0,
-                "norms": "0b",
-                "norms_in_bytes": 0,
-                "vectors": "0b",
-                "vectors_in_bytes": 0
+                "norms": "2.3kb",
+                "norms_in_bytes": 2356,
+                "term_vectors": "2.2kb",
+                "term_vectors_in_bytes": 2310
             },
-            "_source": {
-                "total": "609.5mb",
-                "total_in_bytes": 639114192,
-                "terms": "0b",
-                "terms_in_bytes": 0,
-                "postings": "0b",
-                "postings_in_bytes": 0,
-                "proximity": "0b",
-                "proximity_in_bytes": 0,
-                "stored_fields": "609.5mb",
-                "stored_fields_in_bytes": 639114192,
-                "doc_values": "0b",
-                "doc_values_in_bytes": 0,
-                "points": "0b",
-                "points_in_bytes": 0,
-                "norms": "0b",
-                "norms_in_bytes": 0,
-                "vectors": "0b",
-                "vectors_in_bytes": 0
-            }
+            "context.keyword": {...},
+            "message": {...},
+            "message.keyword": {...}
         }
     }
 }
 --------------------------------------------------
-// TESTRESPONSE[skip: just an example]
+// TESTRESPONSE[s/: \{\.\.\.\}/: $body.$_path/]
+// TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
+// TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
+
+<1> The total size of only analyzed shards of the index. This size can be
+smaller than the store size of the index because only one copy of each shard
+is examined. Also, some shards can have more than one index commit due to
+snapshots or recoveries.
+
+<2> The total size of fields of the analyzed shards of the index. This total
+is usually smaller than the index size specified in <1> as some small metadata
+files are ignored and some parts of data files might not be scanned by the API.
+
+<3> The stored size of the field `_id`
+
+<4> The stored size of the field `_source`. As stored fields are stored
+together in a compressed format, the estimated sizes of stored fields are
+best efforts and can be inaccurate. The stored size of the field `_id`
+is likely underestimated while the field `_source` is overestimated.

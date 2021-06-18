@@ -8,6 +8,8 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.NormsProducer;
@@ -21,6 +23,7 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -43,9 +46,8 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.index.seqno.CountedBitSet;
+import org.elasticsearch.index.store.LuceneFilesExtensions;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -53,44 +55,79 @@ import java.util.Map;
 /**
  * Analyze the disk usage of each field in the index.
  */
-public final class IndexDiskUsageAnalyzer implements Closeable {
+ final class IndexDiskUsageAnalyzer {
+    private static final Logger LOGGER = LogManager.getLogger(IndexDiskUsageAnalyzer.class);
+
+    private final IndexCommit commit;
     private final TrackingReadBytesDirectory directory;
-    private final DirectoryReader directoryReader;
     private final CancellationChecker cancellationChecker;
 
-    IndexDiskUsageAnalyzer(IndexCommit commit, Runnable checkForCancellation) throws IOException {
+    private IndexDiskUsageAnalyzer(IndexCommit commit, Runnable checkForCancellation) {
         this.directory = new TrackingReadBytesDirectory(commit.getDirectory());
-        this.cancellationChecker = new CancellationChecker(checkForCancellation);
-        this.directoryReader = DirectoryReader.open(new FilterIndexCommit(commit) {
+        this.commit = new FilterIndexCommit(commit) {
             @Override
             public Directory getDirectory() {
                 return directory;
             }
-        });
+        };
+        this.cancellationChecker = new CancellationChecker(checkForCancellation);
     }
 
-    public IndexDiskUsageStats analyze() throws IOException {
-        final IndexDiskUsageStats stats = new IndexDiskUsageStats();
-        for (LeafReaderContext leaf : directoryReader.leaves()) {
-            cancellationChecker.checkForCancellation();
-            final SegmentReader reader = Lucene.segmentReader(leaf.reader());
-            analyzeStoredFields(reader, stats);
-            analyzeDocValues(reader, stats);
-            analyzePostings(reader, stats);
-            analyzePoints(reader, stats);
-            analyzeNorms(reader, stats);
-            analyzeTermVectors(reader, stats);
-        }
+    static IndexDiskUsageStats analyze(IndexCommit commit, Runnable checkForCancellation) throws IOException {
+        final IndexDiskUsageAnalyzer analyzer = new IndexDiskUsageAnalyzer(commit, checkForCancellation);
+        final IndexDiskUsageStats stats = new IndexDiskUsageStats(getIndexSize(commit));
+        analyzer.doAnalyze(stats);
         return stats;
+    }
+
+    void doAnalyze(IndexDiskUsageStats stats) throws IOException {
+        long startTime;
+        final ExecutionTime executionTime = new ExecutionTime();
+        try (DirectoryReader directoryReader = DirectoryReader.open(commit)) {
+            directory.resetBytesRead();
+            for (LeafReaderContext leaf : directoryReader.leaves()) {
+                cancellationChecker.checkForCancellation();
+                final SegmentReader reader = Lucene.segmentReader(leaf.reader());
+
+                startTime = System.currentTimeMillis();
+                analyzePostings(reader, stats);
+                executionTime.postingsTimeInMillis += System.currentTimeMillis() - startTime;
+
+                startTime = System.currentTimeMillis();
+                analyzeStoredFields(reader, stats);
+                executionTime.storedFieldsTimeInMillis += System.currentTimeMillis() - startTime;
+
+                startTime = System.currentTimeMillis();
+                analyzeDocValues(reader, stats);
+                executionTime.docValuesTimeInMillis += System.currentTimeMillis() - startTime;
+
+                startTime = System.currentTimeMillis();
+                analyzePoints(reader, stats);
+                executionTime.pointsTimeInMills += System.currentTimeMillis() - startTime;
+
+                startTime = System.currentTimeMillis();
+                analyzeNorms(reader, stats);
+                executionTime.normsTimeInMillis += System.currentTimeMillis() - startTime;
+
+                startTime = System.currentTimeMillis();
+                analyzeTermVectors(reader, stats);
+                executionTime.termVectorsTimeInMillis += System.currentTimeMillis() - startTime;
+            }
+        }
+        LOGGER.debug("analyzing the disk usage took {}ms, postings: {}ms, stored fields: {}ms, doc values: {}ms, " +
+                "points: {}ms, norms: {}ms, term vectors: {}ms\nstats: {}",
+            executionTime.totalInMillis(), executionTime.postingsTimeInMillis, executionTime.storedFieldsTimeInMillis,
+            executionTime.docValuesTimeInMillis, executionTime.pointsTimeInMills, executionTime.normsTimeInMillis,
+            executionTime.termVectorsTimeInMillis, stats);
     }
 
     void analyzeStoredFields(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
         // We can't record the disk usages of stored fields in Lucene Codec as we need to record them for each chunk,
         // which is expensive; otherwise, bulk merge won't work.
         final StoredFieldsReader storedFieldsReader = reader.getFieldsReader().getMergeInstance();
+        directory.resetBytesRead();
         final TrackingSizeStoredFieldVisitor visitor = new TrackingSizeStoredFieldVisitor();
-        directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_ONLY);
-        for (int docID = 0; docID < reader.numDocs(); docID++) {
+        for (int docID = 0; docID < reader.maxDoc(); docID++) {
             cancellationChecker.logEvent();
             storedFieldsReader.visitDocument(docID, visitor);
         }
@@ -111,8 +148,9 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
     private static class TrackingSizeStoredFieldVisitor extends StoredFieldVisitor {
         private final Map<Integer, Long> fields = new HashMap<>();
 
-        private void trackField(FieldInfo fieldInfo, int bytes) {
-            fields.compute(fieldInfo.number, (k, v) -> v == null ? bytes : v + bytes);
+        private void trackField(FieldInfo fieldInfo, int fieldLength) {
+            final int totalBytes = fieldLength + Long.BYTES; // a Long for bitsAndInfo
+            fields.compute(fieldInfo.number, (k, v) -> v == null ? totalBytes : v + totalBytes);
         }
 
         @Override
@@ -158,19 +196,18 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         if (docValuesReader == null) {
             return;
         }
-        docValuesReader = docValuesReader.getMergeInstance();
+        docValuesReader = reader.getDocValuesReader().getMergeInstance();
         for (FieldInfo fieldInfo : reader.getFieldInfos()) {
             final DocValuesType dvType = fieldInfo.getDocValuesType();
             if (dvType == DocValuesType.NONE) {
                 continue;
             }
             cancellationChecker.checkForCancellation();
-            directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_AND_POSITION);
+            directory.resetBytesRead();
             switch (dvType) {
                 case NUMERIC:
                     final NumericDocValues numeric = docValuesReader.getNumeric(fieldInfo);
                     while (numeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
                         numeric.longValue();
                     }
                     break;
@@ -196,32 +233,24 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
                         cancellationChecker.logEvent();
                         sorted.ordValue();
                     }
-                    for (int ord = 0; ord < sorted.getValueCount(); ord++) {
-                        cancellationChecker.logEvent();
-                        sorted.lookupOrd(ord);
-                    }
+                    sorted.lookupOrd(0);
+                    sorted.lookupOrd(sorted.getValueCount() - 1);
                     break;
                 case SORTED_SET:
                     final SortedSetDocValues sortedSet = docValuesReader.getSortedSet(fieldInfo);
                     while (sortedSet.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
                         while (sortedSet.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
                             cancellationChecker.logEvent();
                         }
                     }
-                    for (long ord = 0; ord < sortedSet.getValueCount(); ord++) {
-                        cancellationChecker.logEvent();
-                        sortedSet.lookupOrd(ord);
-                    }
+                    sortedSet.lookupOrd(0);
+                    sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
                     break;
                 default:
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
             }
-            final long bytesRead = directory.getBytesRead();
-            if (bytesRead > 0) {
-                stats.addDocValues(fieldInfo.name, bytesRead);
-            }
+            stats.addDocValues(fieldInfo.name, directory.getBytesRead());
         }
     }
 
@@ -239,82 +268,55 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
                 continue;
             }
             cancellationChecker.checkForCancellation();
-            directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_AND_POSITION);
+            directory.resetBytesRead();
             final Terms terms = postingsReader.terms(field.name);
             if (terms == null) {
                 continue;
             }
-            // Visit terms index and term dictionary
-            final long termBytes;
-            {
-                final BytesRefIterator termsIterator = terms.iterator();
-                final TermsEnum termsEnum = terms.iterator();
-                BytesRef bytesRef;
-                while ((bytesRef = termsIterator.next()) != null) {
-                    cancellationChecker.logEvent();
-                    final boolean found = termsEnum.seekExact(bytesRef);
-                    assert found;
-                }
-                termBytes = directory.getBytesRead();
-                if (termBytes > 0) {
-                    stats.addTerms(field.name, termBytes);
-                }
-            }
 
-            // Visit posting and skip lists
-            final long postingsBytes;
-            {
-                final TermsEnum termsEnum = terms.iterator();
-                while (termsEnum.next() != null) {
-                    termsEnum.totalTermFreq();
+            // Visit terms index and term dictionary and postings
+            final BytesRefIterator termsIterator = terms.iterator();
+            TermsEnum termsEnum = terms.iterator();
+            BytesRef bytesRef;
+            while ((bytesRef = termsIterator.next()) != null) {
+                cancellationChecker.logEvent();
+                termsEnum.seekExact(bytesRef); // it's expensive to look up every term
+                termsEnum.totalTermFreq();
+                for (long idx = 0; idx <= 8; idx++) {
+                    cancellationChecker.logEvent();
+                    final int skipDocID = Math.toIntExact(idx * reader.maxDoc() / 8);
                     postings = termsEnum.postings(postings, PostingsEnum.NONE);
-                    while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
+                    if (postings.advance(skipDocID) != DocIdSetIterator.NO_MORE_DOCS) {
                         postings.freq();
+                        postings.nextDoc();
+                    } else {
+                        break;
                     }
-                    // skip lists
-                    for (long idx = 1; idx <= 8; idx++) {
-                        cancellationChecker.logEvent();
-                        final int skipDocID = Math.toIntExact(idx * reader.maxDoc() / 8);
-                        postings = termsEnum.postings(postings, PostingsEnum.NONE);
-                        if (postings.advance(skipDocID) != DocIdSetIterator.NO_MORE_DOCS) {
-                            postings.freq();
-                            postings.nextDoc();
-                        } else {
-                            break;
-                        }
-                    }
-                }
-                postingsBytes = directory.getBytesRead() - termBytes;
-                if (postingsBytes > 0) {
-                    stats.addPosting(field.name, postingsBytes);
                 }
             }
+            final long termsBytes = directory.getBytesRead();
+            stats.addTerms(field.name, termsBytes);
 
             // Visit positions, offsets, and payloads
-            {
-                TermsEnum termsEnum = terms.iterator();
-                while (termsEnum.next() != null) {
-                    cancellationChecker.logEvent();
-                    termsEnum.docFreq();
-                    termsEnum.totalTermFreq();
-                    postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                    while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        if (terms.hasPositions()) {
-                            for (int pos = 0; pos < postings.freq(); pos++) {
-                                postings.nextPosition();
-                                postings.startOffset();
-                                postings.endOffset();
-                                postings.getPayload();
-                            }
+            termsEnum = terms.iterator();
+            while (termsEnum.next() != null) {
+                cancellationChecker.logEvent();
+                termsEnum.docFreq();
+                termsEnum.totalTermFreq();
+                postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (terms.hasPositions()) {
+                        for (int pos = 0; pos < postings.freq(); pos++) {
+                            postings.nextPosition();
+                            postings.startOffset();
+                            postings.endOffset();
+                            postings.getPayload();
                         }
                     }
                 }
-                final long proximityBytes = directory.getBytesRead() - postingsBytes - termBytes;
-                if (proximityBytes > 0) {
-                    stats.addProximity(field.name, proximityBytes);
-                }
             }
+            final long proximityBytes = directory.getBytesRead() - termsBytes;
+            stats.addProximity(field.name, proximityBytes);
         }
     }
 
@@ -343,14 +345,11 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         };
         for (FieldInfo field : reader.getFieldInfos()) {
             cancellationChecker.checkForCancellation();
-            directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_ONLY);
+            directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
                 values.intersect(visitor);
-                final long length = directory.getBytesRead();
-                if (length > 0) {
-                    stats.addPoints(field.name, length);
-                }
+                stats.addPoints(field.name, directory.getBytesRead());
             }
         }
     }
@@ -364,16 +363,13 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         for (FieldInfo field : reader.getFieldInfos()) {
             if (field.hasNorms()) {
                 cancellationChecker.checkForCancellation();
-                directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_ONLY);
+                directory.resetBytesRead();
                 final NumericDocValues norms = normsReader.getNorms(field);
                 while (norms.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     cancellationChecker.logEvent();
                     norms.longValue();
                 }
-                final long fieldLength = directory.getBytesRead();
-                if (fieldLength > 0) {
-                    stats.addNorms(field.name, fieldLength);
-                }
+                stats.addNorms(field.name, directory.getBytesRead());
             }
         }
     }
@@ -384,7 +380,7 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
             return;
         }
         termVectorsReader = termVectorsReader.getMergeInstance();
-        directory.resetAndTrackBytesRead(BytesReadTrackingMode.SIZE_AND_POSITION);
+        directory.resetBytesRead();
         final TermVectorsVisitor visitor = new TermVectorsVisitor();
         for (int docID = 0; docID < reader.numDocs(); docID++) {
             cancellationChecker.logEvent();
@@ -454,11 +450,6 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         }
     }
 
-    @Override
-    public void close() throws IOException {
-        directoryReader.close();
-    }
-
     private static class TrackingReadBytesDirectory extends FilterDirectory {
         private final Map<String, BytesReadTracker> trackers = new HashMap<>();
 
@@ -466,25 +457,25 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
             super(in);
         }
 
-        void resetAndTrackBytesRead(BytesReadTrackingMode mode) {
-            for (BytesReadTracker tracker : trackers.values()) {
-                tracker.reset(mode);
-            }
+        long getBytesRead() {
+            return trackers.values().stream().mapToLong(BytesReadTracker::getBytesRead).sum();
         }
 
-        long getBytesRead() {
-            long total = 0;
-            for (BytesReadTracker tracker : trackers.values()) {
-                total += tracker.getBytesRead();
-            }
-            return total;
+        void resetBytesRead() {
+            trackers.values().forEach(BytesReadTracker::resetBytesRead);
         }
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
             IndexInput in = super.openInput(name, context);
             try {
-                final BytesReadTracker tracker = trackers.computeIfAbsent(name, k -> new BytesReadTracker());
+                final BytesReadTracker tracker = trackers.computeIfAbsent(name, k -> {
+                    if (LuceneFilesExtensions.CFS.getExtension().equals(IndexFileNames.getExtension(name))) {
+                        return new CompoundFileBytesReaderTracker();
+                    } else {
+                        return new BytesReadTracker();
+                    }
+                });
                 final TrackingReadBytesIndexInput wrapped = new TrackingReadBytesIndexInput(in, 0L, tracker);
                 in = null;
                 return wrapped;
@@ -528,7 +519,8 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
 
         @Override
         public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-           return new TrackingReadBytesIndexInput(in.slice(sliceDescription, offset, length), this.fileOffset + offset, bytesReadTracker);
+            final IndexInput slice = in.slice(sliceDescription, offset, length);
+            return new TrackingReadBytesIndexInput(slice, fileOffset + offset, bytesReadTracker.createSliceTracker(offset));
         }
 
         @Override
@@ -549,63 +541,69 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         }
     }
 
-    private enum BytesReadTrackingMode {
-        SIZE_ONLY,
-        SIZE_AND_POSITION
-    }
-
     /**
-     * Tracks the number of bytes that are read in {@link TrackingReadBytesDirectory}. This tracker supports two modes:
-     * - {@link BytesReadTrackingMode#SIZE_ONLY} which is fast but can be inaccurate if the same position is read multiple times
-     * - {@link BytesReadTrackingMode#SIZE_AND_POSITION} which is accurate but slower and uses more memory as it tracks
-     * the positions of each byte read. We need to use this mode if the reader decodes/decompresses the same block/chunk
-     * multiple times or access the same region multiple times.
+     * Lucene Codec organizes data field by field for doc values, points, postings, and norms; and document by document
+     * for stored fields and term vectors. BytesReadTracker then can simply track the min and max read positions.
+     * This would allow us to traverse only two ends of each partition.
      */
     private static class BytesReadTracker {
-        private static final short PARTITION = 8192;
-        private BytesReadTrackingMode mode = BytesReadTrackingMode.SIZE_ONLY;
-        private long bytesRead;
-        private final Map<Long, CountedBitSet> buckets = new HashMap<>();
+        private long minPosition = Long.MAX_VALUE; // inclusive
+        private long maxPosition = Long.MIN_VALUE; // exclusive
 
-        // Keep the last bitset to avoid looking up it in the HashMap as we should access bytes in the same range in adjacent reads.
-        private long lastPositionKey = -1;
-        private CountedBitSet lastBitSet = null;
-
-        void trackPositions(long position, int length) {
-            if (mode == BytesReadTrackingMode.SIZE_ONLY) {
-                assert buckets.isEmpty();
-                bytesRead += length;
-            } else {
-                assert bytesRead == 0;
-                final long endPosition = position + length;
-                for (; position < endPosition; position++) {
-                    long key = position / PARTITION;
-                    if (key != lastPositionKey) {
-                        lastPositionKey = key;
-                        lastBitSet = buckets.computeIfAbsent(lastPositionKey, k -> new CountedBitSet(PARTITION));
-                    }
-                    lastBitSet.set(Math.toIntExact(position % PARTITION));
-                }
-            }
+        BytesReadTracker createSliceTracker(long offset) {
+            return this;
         }
 
-        void reset(BytesReadTrackingMode mode) {
-            this.mode = mode;
-            this.buckets.clear();
-            this.bytesRead = 0;
-            this.lastPositionKey = -1;
-            this.lastBitSet = null;
+        void trackPositions(long position, int length) {
+            minPosition = Math.min(minPosition, position);
+            maxPosition = Math.max(maxPosition, position + length -1);
+        }
+
+
+        void resetBytesRead() {
+            minPosition = Long.MAX_VALUE;
+            maxPosition = Long.MIN_VALUE;
         }
 
         long getBytesRead() {
-            if (mode == BytesReadTrackingMode.SIZE_AND_POSITION) {
-                assert bytesRead == 0;
-                return buckets.values().stream().mapToLong(CountedBitSet::cardinality).sum();
+            if (minPosition <= maxPosition) {
+                return maxPosition - minPosition;
             } else {
-                assert buckets.isEmpty();
-                return bytesRead;
+                return 0L;
             }
         }
+    }
+
+    private static class CompoundFileBytesReaderTracker extends BytesReadTracker {
+        private final Map<Long, BytesReadTracker> slicedTrackers = new HashMap<>();
+
+        @Override
+        BytesReadTracker createSliceTracker(long offset) {
+            return slicedTrackers.computeIfAbsent(offset, k -> new BytesReadTracker());
+        }
+
+        @Override
+        void trackPositions(long position, int length) {
+            // already tracked by a child tracker except for the header and footer, but we can ignore them.
+        }
+
+        @Override
+        void resetBytesRead() {
+            slicedTrackers.values().forEach(BytesReadTracker::resetBytesRead);
+        }
+
+        @Override
+        long getBytesRead() {
+            return slicedTrackers.values().stream().mapToLong(BytesReadTracker::getBytesRead).sum();
+        }
+    }
+
+    static long getIndexSize(IndexCommit commit) throws IOException {
+        long total = 0;
+        for (String file : commit.getFileNames()) {
+            total += commit.getDirectory().fileLength(file);
+        }
+        return total;
     }
 
     /**
@@ -631,6 +629,20 @@ public final class IndexDiskUsageAnalyzer implements Closeable {
         void checkForCancellation() {
             iterations = 0;
             checkForCancellationRunner.run();
+        }
+    }
+
+    private static class ExecutionTime {
+        long postingsTimeInMillis;
+        long storedFieldsTimeInMillis;
+        long docValuesTimeInMillis;
+        long pointsTimeInMills;
+        long normsTimeInMillis;
+        long termVectorsTimeInMillis;
+
+        long totalInMillis() {
+            return postingsTimeInMillis + storedFieldsTimeInMillis + docValuesTimeInMillis
+                + pointsTimeInMills + normsTimeInMillis + termVectorsTimeInMillis;
         }
     }
 }

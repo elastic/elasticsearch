@@ -31,8 +31,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String TOTAL_IN_BYTES = "total_in_bytes";
     public static final String TERMS = "terms";
     public static final String TERMS_IN_BYTES = "terms_in_bytes";
-    public static final String POSTINGS = "postings";
-    public static final String POSTINGS_IN_BYTES = "postings_in_bytes";
     public static final String PROXIMITY = "proximity";
     public static final String PROXIMITY_IN_BYTES = "proximity_in_bytes";
     public static final String STORED_FIELDS = "stored_fields";
@@ -46,19 +44,26 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String TERM_VECTORS = "term_vectors";
     public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
 
-    private final Map<String, PerFieldDiskUsage> fields;
+    public static final String INDEX_SIZE = "index_size";
+    public static final String INDEX_SIZE_IN_BYTES = "index_size_in_bytes";
 
-    public IndexDiskUsageStats() {
+    private final Map<String, PerFieldDiskUsage> fields;
+    private long indexSizeInBytes;
+
+    public IndexDiskUsageStats(long indexSizeInBytes) {
         fields = new HashMap<>();
+        this.indexSizeInBytes = indexSizeInBytes;
     }
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
         this.fields = in.readMap(StreamInput::readString, PerFieldDiskUsage::new);
+        this.indexSizeInBytes = in.readZLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, v) -> v.writeTo(o));
+        out.writeZLong(indexSizeInBytes);
     }
 
     PerFieldDiskUsage total() {
@@ -71,6 +76,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
     Map<String, PerFieldDiskUsage> getFields() {
         return fields;
+    }
+
+    long getIndexSizeInBytes() {
+        return indexSizeInBytes;
     }
 
     private void checkByteSize(long bytes) {
@@ -87,11 +96,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public void addTerms(String fieldName, long bytes) {
         checkByteSize(bytes);
         getOrAdd(fieldName).termsBytes += bytes;
-    }
-
-    public void addPosting(String fieldName, long bytes) {
-        checkByteSize(bytes);
-        getOrAdd(fieldName).postingsBytes += bytes;
     }
 
     public void addProximity(String fieldName, long bytes) {
@@ -126,28 +130,32 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
     public IndexDiskUsageStats add(IndexDiskUsageStats other) {
         other.fields.forEach((k, v) -> getOrAdd(k).add(v));
+        this.indexSizeInBytes += other.indexSizeInBytes;
         return this;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        // _all
-        {
-            builder.startObject("_all");
-            total().toXContent(builder, params);
-            builder.endObject();
-        }
+        final PerFieldDiskUsage total = total();
+        builder.field(INDEX_SIZE, new ByteSizeValue(indexSizeInBytes));
+        builder.field(INDEX_SIZE_IN_BYTES, indexSizeInBytes);
+
+        // all fields
+        builder.startObject("all_fields");
+        total.toXContent(builder, params);
+        builder.endObject();
+
         // per field
+        builder.startObject("fields");
         {
-            builder.startObject("fields");
             final List<String> sortedFields = fields.keySet().stream().sorted().collect(Collectors.toList());
             for (String field : sortedFields) {
                 builder.startObject(field);
                 fields.get(field).toXContent(builder, params);
                 builder.endObject();
             }
-            builder.endObject();
         }
+        builder.endObject();
         return builder;
     }
 
@@ -159,9 +167,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     /**
      * Disk usage stats for a single field
      */
-    public static final class PerFieldDiskUsage implements Writeable, ToXContentFragment {
+    public static final class PerFieldDiskUsage implements ToXContentFragment, Writeable {
         private long termsBytes;
-        private long postingsBytes;
         private long proximityBytes;
         private long storedFieldBytes;
         private long docValuesBytes;
@@ -175,7 +182,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
         private PerFieldDiskUsage(StreamInput in) throws IOException {
             termsBytes = in.readZLong();
-            postingsBytes = in.readZLong();
             proximityBytes = in.readZLong();
             storedFieldBytes = in.readZLong();
             docValuesBytes = in.readZLong();
@@ -186,7 +192,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
         private void add(PerFieldDiskUsage other) {
             termsBytes += other.termsBytes;
-            postingsBytes += other.postingsBytes;
             proximityBytes += other.proximityBytes;
             storedFieldBytes += other.storedFieldBytes;
             docValuesBytes += other.docValuesBytes;
@@ -198,17 +203,12 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(termsBytes);
-            out.writeZLong(postingsBytes);
             out.writeZLong(proximityBytes);
             out.writeZLong(storedFieldBytes);
             out.writeZLong(docValuesBytes);
             out.writeZLong(pointsBytes);
             out.writeZLong(normsBytes);
             out.writeZLong(termVectorsBytes);
-        }
-
-        public long getPostingsBytes() {
-            return postingsBytes;
         }
 
         public long getTermsBytes() {
@@ -239,9 +239,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             return termVectorsBytes;
         }
 
+
         long totalBytes() {
-            return termsBytes + postingsBytes + proximityBytes +
-                storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
+            return termsBytes + proximityBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
         }
 
         @Override
@@ -252,9 +252,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
             builder.field(TERMS, new ByteSizeValue(termsBytes));
             builder.field(TERMS_IN_BYTES, termsBytes);
-
-            builder.field(POSTINGS, new ByteSizeValue(postingsBytes));
-            builder.field(POSTINGS_IN_BYTES, postingsBytes);
 
             builder.field(PROXIMITY, new ByteSizeValue(proximityBytes));
             builder.field(PROXIMITY_IN_BYTES, proximityBytes);

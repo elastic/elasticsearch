@@ -82,9 +82,8 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             }
         };
         final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        try (Engine.IndexCommitRef commitRef = shard.acquireLastIndexCommit(request.flush);
-             IndexDiskUsageAnalyzer analyzer = new IndexDiskUsageAnalyzer(commitRef.getIndexCommit(), checkForCancellation)) {
-            final IndexDiskUsageStats stats = analyzer.analyze();
+        try (Engine.IndexCommitRef commitRef = shard.acquireLastIndexCommit(request.flush)) {
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(commitRef.getIndexCommit(), checkForCancellation);
             return new AnalyzeDiskUsageShardResponse(shardId, stats);
         }
     }

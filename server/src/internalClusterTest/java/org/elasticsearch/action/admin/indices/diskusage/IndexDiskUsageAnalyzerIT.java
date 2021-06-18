@@ -72,16 +72,15 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         final IndexDiskUsageStats stats = resp.getStats().get(index);
         logger.info("--> stats {}", stats);
         assertNotNull(stats);
+        assertThat(stats.getIndexSizeInBytes(), greaterThan(100L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage englishField = stats.getFields().get("english_text");
-        assertThat(englishField.getPostingsBytes(), greaterThan(0L));
         assertThat(englishField.getTermsBytes(), greaterThan(0L));
         assertThat(englishField.getProximityBytes(), greaterThan(0L));
         assertThat(englishField.getStoredFieldBytes(), equalTo(0L));
         assertThat(englishField.getNormsBytes(), greaterThan(0L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage valueField = stats.getFields().get("value");
-        assertThat(valueField.getPostingsBytes(), equalTo(0L));
         assertThat(valueField.getTermsBytes(), equalTo(0L));
         assertThat(valueField.getProximityBytes(), equalTo(0L));
         assertThat(valueField.getStoredFieldBytes(), equalTo(0L));
@@ -94,7 +93,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
 
     void assertMetadataFields(IndexDiskUsageStats stats) {
         final IndexDiskUsageStats.PerFieldDiskUsage sourceField = stats.getFields().get("_source");
-        assertThat(sourceField.getPostingsBytes(), equalTo(0L));
         assertThat(sourceField.getTermsBytes(), equalTo(0L));
         assertThat(sourceField.getProximityBytes(), equalTo(0L));
         assertThat(sourceField.getStoredFieldBytes(), greaterThan(0L));
@@ -102,7 +100,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(sourceField.getDocValuesBytes(), equalTo(0L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage idField = stats.getFields().get("_id");
-        assertThat(idField.getPostingsBytes(), equalTo(0L));
         assertThat(idField.getTermsBytes(), greaterThan(0L));
         assertThat(idField.getProximityBytes(), equalTo(0L));
         assertThat(idField.getStoredFieldBytes(), greaterThan(0L));
@@ -110,7 +107,6 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         assertThat(idField.getDocValuesBytes(), equalTo(0L));
 
         final IndexDiskUsageStats.PerFieldDiskUsage seqNoField = stats.getFields().get("_seq_no");
-        assertThat(seqNoField.getPostingsBytes(), equalTo(0L));
         assertThat(seqNoField.getTermsBytes(), equalTo(0L));
         assertThat(seqNoField.getProximityBytes(), equalTo(0L));
         assertThat(seqNoField.getStoredFieldBytes(), equalTo(0L));

@@ -45,6 +45,9 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class CreateEnrollmentToken {
+    private static final String nodeAction = "[cluster:admin/xpack/security/enroll/node]";
+    private static final String kibanaAction = "[cluster:admin/xpack/security/enroll/kibana]";
+
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
     private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
@@ -71,11 +74,19 @@ public class CreateEnrollmentToken {
     }
 
     public String createNodeEnrollmentToken(String user, SecureString password) throws Exception {
+        return this.create(user, password, nodeAction);
+    }
+
+    public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
+        return this.create(user, password, kibanaAction);
+    }
+
+    protected String create(String user, SecureString password, String action) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
         final String fingerprint = getCaFingerprint();
-        final String apiKey = getApiKey(user, password);
+        final String apiKey = getApiKey(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
 
         try {
@@ -143,7 +154,7 @@ public class CreateEnrollmentToken {
         return nodeInfo.get("version").toString();
     }
 
-    protected String getApiKey(String user, SecureString password) throws Exception {
+    protected String getApiKey(String user, SecureString password, String action) throws Exception {
         final CheckedSupplier<String, Exception> createApiKeyRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -151,7 +162,7 @@ public class CreateEnrollmentToken {
                 .field("expiration", ENROLL_API_KEY_EXPIRATION)
                 .startObject("role_descriptors")
                 .startObject("create_enrollment_token")
-                .field("cluster", "[cluster:admin/xpack/security/enroll/node]")
+                .field("cluster", action)
                 .endObject()
                 .endObject()
                 .endObject();

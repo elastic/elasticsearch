@@ -390,8 +390,6 @@ public class AzureBlobStore implements BlobStore {
         executeSingleUpload(blobName, byteBufferFlux, bytes.length(), failIfAlreadyExists);
     }
 
-    private static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
-
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
@@ -400,7 +398,11 @@ public class AzureBlobStore implements BlobStore {
             final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container)
                     .getBlobAsyncClient(blobName);
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
-            try (OutputStream out = new ChunkedBlobOutputStream<String>(bigArrays) {
+            try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays) {
+
+                private final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
+
+                private final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
 
                 @Override
                 protected void maybeFlushBuffer() {
@@ -413,8 +415,6 @@ public class AzureBlobStore implements BlobStore {
                     if (buffer.size() == 0) {
                         return;
                     }
-                    final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
-                    final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
                     Flux<ByteBuffer> byteBufferFlux = Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes()));
                     final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
                     blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, buffer.size()).block();
@@ -424,11 +424,13 @@ public class AzureBlobStore implements BlobStore {
                 @Override
                 public void close() {
                     try {
-                        if (written == 0L) {
-                            writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                        } else {
-                            flushBuffer();
-                            blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
+                        if (successful) {
+                            if (written == 0L) {
+                                writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                            } else {
+                                flushBuffer();
+                                blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
+                            }
                         }
                     } finally {
                         buffer.close();
@@ -436,6 +438,7 @@ public class AzureBlobStore implements BlobStore {
                 }
             }) {
                 writer.accept(out);
+                out.markSuccess();
             }
         });
     }

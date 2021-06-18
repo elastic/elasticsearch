@@ -132,14 +132,12 @@ class S3BlobContainer extends AbstractBlobContainer {
         });
     }
 
-    private static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
-
     @Override
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference();
-             OutputStream out = new ChunkedBlobOutputStream<PartETag>(blobStore.bigArrays()) {
+             ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<>(blobStore.bigArrays()) {
 
                  private final SetOnce<String> uploadId = new SetOnce<>();
 
@@ -161,17 +159,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                      if (buffer.size() == 0) {
                          return;
                      }
-                     final UploadPartRequest uploadRequest = new UploadPartRequest();
-                     uploadRequest.setBucketName(blobStore.bucket());
-                     uploadRequest.setKey(blobName);
-                     uploadRequest.setUploadId(uploadId.get());
-                     uploadRequest.setPartNumber(parts.size() + 1);
-                     uploadRequest.setInputStream(buffer.bytes().streamInput());
-                     uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-
-                     uploadRequest.setPartSize(buffer.size());
-                     uploadRequest.setLastPart(lastPart);
-
+                     final UploadPartRequest uploadRequest = createPartUploadRequest(
+                             buffer.bytes().streamInput(), uploadId.get(), parts.size() + 1, blobName, buffer.size(), lastPart);
                      final UploadPartResult uploadResponse =
                              SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
                      finishPart(uploadResponse.getPartETag());
@@ -180,14 +169,19 @@ class S3BlobContainer extends AbstractBlobContainer {
                  @Override
                  public void close() throws IOException {
                      try {
-                         if (written == 0L) {
-                             writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                         } else {
-                             flushBuffer(true);
-                             final CompleteMultipartUploadRequest complRequest =
-                                     new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
-                             complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+                         final String bucketName = blobStore.bucket();
+                         if (successful) {
+                             if (written == 0L) {
+                                 writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                             } else {
+                                 flushBuffer(true);
+                                 final CompleteMultipartUploadRequest complRequest =
+                                         new CompleteMultipartUploadRequest(bucketName, blobName, uploadId.get(), parts);
+                                 complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+                                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+                             }
+                         } else if (Strings.hasText(uploadId.get())) {
+                             abortMultiPartUpload(uploadId.get(), blobName);
                          }
                      } finally {
                          buffer.close();
@@ -195,6 +189,33 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
              }) {
             writer.accept(out);
+            out.markSuccess();
+        }
+    }
+
+    private UploadPartRequest createPartUploadRequest(InputStream stream,
+                                                      String uploadId,
+                                                      int number,
+                                                      String blobName,
+                                                      long size,
+                                                      boolean lastPart) {
+        final UploadPartRequest uploadRequest = new UploadPartRequest();
+        uploadRequest.setBucketName(blobStore.bucket());
+        uploadRequest.setKey(blobName);
+        uploadRequest.setUploadId(uploadId);
+        uploadRequest.setPartNumber(number);
+        uploadRequest.setInputStream(stream);
+        uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+        uploadRequest.setPartSize(size);
+        uploadRequest.setLastPart(lastPart);
+        return uploadRequest;
+    }
+
+    private void abortMultiPartUpload(String uploadId, String blobName) {
+        final AbortMultipartUploadRequest abortRequest =
+                new AbortMultipartUploadRequest(blobStore.bucket(), blobName, uploadId);
+        try (AmazonS3Reference clientReference = blobStore.clientReference()) {
+            SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
         }
     }
 
@@ -483,21 +504,9 @@ class S3BlobContainer extends AbstractBlobContainer {
 
             long bytesCount = 0;
             for (int i = 1; i <= nbParts; i++) {
-                final UploadPartRequest uploadRequest = new UploadPartRequest();
-                uploadRequest.setBucketName(bucketName);
-                uploadRequest.setKey(blobName);
-                uploadRequest.setUploadId(uploadId.get());
-                uploadRequest.setPartNumber(i);
-                uploadRequest.setInputStream(input);
-                uploadRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-
-                if (i < nbParts) {
-                    uploadRequest.setPartSize(partSize);
-                    uploadRequest.setLastPart(false);
-                } else {
-                    uploadRequest.setPartSize(lastPartSize);
-                    uploadRequest.setLastPart(true);
-                }
+                final boolean lastPart = i == nbParts;
+                final UploadPartRequest uploadRequest =
+                        createPartUploadRequest(input, uploadId.get(), i, blobName, lastPart ? lastPartSize : partSize, lastPart);
                 bytesCount += uploadRequest.getPartSize();
 
                 final UploadPartResult uploadResponse = SocketAccess.doPrivileged(() -> clientReference.client().uploadPart(uploadRequest));
@@ -519,10 +528,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             throw new IOException("Unable to upload object [" + blobName + "] using multipart upload", e);
         } finally {
             if ((success == false) && Strings.hasLength(uploadId.get())) {
-                final AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(bucketName, blobName, uploadId.get());
-                try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-                    SocketAccess.doPrivilegedVoid(() -> clientReference.client().abortMultipartUpload(abortRequest));
-                }
+                abortMultiPartUpload(uploadId.get(), blobName);
             }
         }
     }

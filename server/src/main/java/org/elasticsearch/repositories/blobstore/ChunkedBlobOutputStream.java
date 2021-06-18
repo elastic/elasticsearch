@@ -8,6 +8,8 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 
 import java.io.IOException;
@@ -17,11 +19,15 @@ import java.util.List;
 
 public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
+    public static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
+
     protected final List<T> parts = new ArrayList<>();
 
     protected ReleasableBytesStreamOutput buffer;
 
     private final BigArrays bigArrays;
+
+    protected boolean successful = false;
 
     protected long written = 0L;
 
@@ -40,6 +46,10 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     public void write(byte[] b, int off, int len) throws IOException {
         buffer.write(b, off, len);
         maybeFlushBuffer();
+    }
+
+    public void markSuccess() {
+        this.successful = true;
     }
 
     protected final void finishPart(T partId) {

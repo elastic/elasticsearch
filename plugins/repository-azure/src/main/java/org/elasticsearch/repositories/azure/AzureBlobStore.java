@@ -394,10 +394,8 @@ public class AzureBlobStore implements BlobStore {
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         SocketAccess.doPrivilegedVoidException(() -> {
-            final BlobServiceAsyncClient asyncClient = asyncClient();
-            final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container)
-                    .getBlobAsyncClient(blobName);
-            final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
+            final BlockBlobAsyncClient blockBlobAsyncClient = asyncClient().getBlobContainerAsyncClient(container)
+                    .getBlobAsyncClient(blobName).getBlockBlobAsyncClient();
             try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays) {
 
                 @Override
@@ -421,18 +419,16 @@ public class AzureBlobStore implements BlobStore {
                 }
 
                 @Override
-                public void close() {
-                    try {
-                        if (successful) {
-                            if (written == 0L) {
-                                writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                            } else {
-                                flushBuffer();
-                                blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
-                            }
+                protected void doClose() {
+                    if (successful) {
+                        if (written == 0L) {
+                            writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                        } else {
+                            flushBuffer();
+                            blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
                         }
-                    } finally {
-                        buffer.close();
+                    } else {
+                        // TODO: here and in multi-part upload, should we clean up uploaded blobs?
                     }
                 }
             }) {

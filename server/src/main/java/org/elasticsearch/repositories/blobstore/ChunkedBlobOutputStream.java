@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -19,13 +20,16 @@ import java.util.List;
 
 public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
+    /**
+     * We buffer 8MB before flushing to storage.
+     */
     public static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
 
     protected final List<T> parts = new ArrayList<>();
 
-    protected ReleasableBytesStreamOutput buffer;
-
     private final BigArrays bigArrays;
+
+    protected ReleasableBytesStreamOutput buffer;
 
     protected boolean successful = false;
 
@@ -48,6 +52,15 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         maybeFlushBuffer();
     }
 
+    @Override
+    public void close() throws IOException {
+        try {
+            doClose();
+        } finally {
+            Releasables.close(buffer);
+        }
+    }
+
     public void markSuccess() {
         this.successful = true;
     }
@@ -56,11 +69,15 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         written += buffer.size();
         parts.add(partId);
         buffer.close();
-        if (successful = false) {
-            // only need a new buffer if we're not done yet
+        // only need a new buffer if we're not done yet
+        if (successful) {
+            buffer = null;
+        } else {
             buffer = new ReleasableBytesStreamOutput(bigArrays);
         }
     }
 
     protected abstract void maybeFlushBuffer() throws IOException;
+
+    protected abstract void doClose() throws IOException;
 }

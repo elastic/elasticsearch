@@ -144,13 +144,6 @@ class S3BlobContainer extends AbstractBlobContainer {
                  @Override
                  protected void maybeFlushBuffer() throws IOException {
                      if (buffer.size() >= FLUSH_BUFFER_BYTES) {
-                         if (written == 0L) {
-                             uploadId.set(SocketAccess.doPrivileged(() ->
-                                     clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
-                             if (Strings.isEmpty(uploadId.get())) {
-                                 throw new IOException("Failed to initialize multipart upload " + blobName);
-                             }
-                         }
                          flushBuffer(false);
                      }
                  }
@@ -158,6 +151,14 @@ class S3BlobContainer extends AbstractBlobContainer {
                  private void flushBuffer(boolean lastPart) throws IOException {
                      if (buffer.size() == 0) {
                          return;
+                     }
+                     if (written == 0L) {
+                         assert lastPart == false : "use single part upload if there's only a single part";
+                         uploadId.set(SocketAccess.doPrivileged(() ->
+                                 clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
+                         if (Strings.isEmpty(uploadId.get())) {
+                             throw new IOException("Failed to initialize multipart upload " + blobName);
+                         }
                      }
                      assert lastPart == false || successful : "must only write last part if successful";
                      final UploadPartRequest uploadRequest = createPartUploadRequest(
@@ -168,24 +169,19 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
 
                  @Override
-                 public void close() throws IOException {
-                     try {
-                         final String bucketName = blobStore.bucket();
-                         if (successful) {
-                             if (written == 0L) {
-                                 writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                             } else {
-                                 flushBuffer(true);
-                                 final CompleteMultipartUploadRequest complRequest =
-                                         new CompleteMultipartUploadRequest(bucketName, blobName, uploadId.get(), parts);
-                                 complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-                                 SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
-                             }
-                         } else if (Strings.hasText(uploadId.get())) {
-                             abortMultiPartUpload(uploadId.get(), blobName);
+                 protected void doClose() throws IOException {
+                     if (successful) {
+                         if (written == 0L) {
+                             writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                         } else {
+                             flushBuffer(true);
+                             final CompleteMultipartUploadRequest complRequest =
+                                     new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
+                             complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
                          }
-                     } finally {
-                         buffer.close();
+                     } else if (Strings.hasText(uploadId.get())) {
+                         abortMultiPartUpload(uploadId.get(), blobName);
                      }
                  }
              }) {

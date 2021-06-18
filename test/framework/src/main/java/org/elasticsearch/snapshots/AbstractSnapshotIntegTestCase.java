@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -51,6 +53,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -75,6 +78,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
@@ -84,12 +88,15 @@ import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VAL
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
-    private static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
+    public static final String RANDOM_SNAPSHOT_NAME_PREFIX = "snap-";
+
+    public static final String OLD_VERSION_SNAPSHOT_PREFIX = "old-version-snapshot-";
 
     // Large snapshot pool settings to set up nodes for tests involving multiple repositories that need to have enough
     // threads so that blocking some threads on one repository doesn't block other repositories from doing work
@@ -484,15 +491,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected void awaitNoMoreRunningOperations(String viaNode) throws Exception {
         logger.info("--> verify no more operations in the cluster state");
-        awaitClusterState(viaNode, state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty() &&
-                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).hasDeletionsInProgress() == false);
+        awaitClusterState(
+                logger,
+                viaNode,
+                state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().isEmpty()
+                    && state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY)
+                        .hasDeletionsInProgress() == false
+        );
     }
 
     protected void awaitClusterState(Predicate<ClusterState> statePredicate) throws Exception {
-        awaitClusterState(internalCluster().getMasterName(), statePredicate);
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
     }
 
-    protected void awaitClusterState(String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
+    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate) throws Exception {
+        awaitClusterState(logger, internalCluster().getMasterName(), statePredicate);
+    }
+
+    public static void awaitClusterState(Logger logger, String viaNode, Predicate<ClusterState> statePredicate) throws Exception {
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class, viaNode);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, viaNode);
         final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger, threadPool.getThreadContext());
@@ -531,6 +547,13 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected ActionFuture<CreateSnapshotResponse> startFullSnapshot(String repoName, String snapshotName, boolean partial) {
+        return startFullSnapshot(logger, repoName, snapshotName, partial);
+    }
+
+    public static ActionFuture<CreateSnapshotResponse> startFullSnapshot(Logger logger,
+                                                                         String repoName,
+                                                                         String snapshotName,
+                                                                         boolean partial) {
         logger.info("--> creating full snapshot [{}] to repo [{}]", snapshotName, repoName);
         return clusterAdmin().prepareCreateSnapshot(repoName, snapshotName).setWaitForCompletion(true)
                 .setPartial(partial).execute();
@@ -542,14 +565,24 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
     }
 
+    public static void awaitNumberOfSnapshotsInProgress(Logger logger, int count) throws Exception {
+        logger.info("--> wait for [{}] snapshots to show up in the cluster state", count);
+        awaitClusterState(logger, state ->
+                state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY).entries().size() == count);
+    }
+
     protected SnapshotInfo assertSuccessful(ActionFuture<CreateSnapshotResponse> future) throws Exception {
+        return assertSuccessful(logger, future);
+    }
+
+    public static SnapshotInfo assertSuccessful(Logger logger, ActionFuture<CreateSnapshotResponse> future) throws Exception {
         logger.info("--> wait for snapshot to finish");
         final SnapshotInfo snapshotInfo = future.get().getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
         return snapshotInfo;
     }
 
-    private static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
+    public static final Settings SINGLE_SHARD_NO_REPLICA = indexSettingsNoReplicas(1).build();
 
     protected void createIndexWithContent(String indexName) {
         createIndexWithContent(indexName, SINGLE_SHARD_NO_REPLICA);
@@ -617,7 +650,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
         final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
         final List<String> snapshotNames = new ArrayList<>(count);
-        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        final String prefix = RANDOM_SNAPSHOT_NAME_PREFIX + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
@@ -639,5 +672,40 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 return FileVisitResult.CONTINUE;
             }
         });
+    }
+
+    public static void assertSnapshotListSorted(List<SnapshotInfo> snapshotInfos, @Nullable GetSnapshotsRequest.SortBy sort,
+                                                SortOrder sortOrder) {
+        final BiConsumer<SnapshotInfo, SnapshotInfo> assertion;
+        if (sort == null) {
+            assertion = (s1, s2) -> assertThat(s2, greaterThanOrEqualTo(s1));
+        } else {
+            switch (sort) {
+                case START_TIME:
+                    assertion = (s1, s2) -> assertThat(s2.startTime(), greaterThanOrEqualTo(s1.startTime()));
+                    break;
+                case NAME:
+                    assertion = (s1, s2) -> assertThat(s2.snapshotId().getName(), greaterThanOrEqualTo(s1.snapshotId().getName()));
+                    break;
+                case DURATION:
+                    assertion =
+                        (s1, s2) -> assertThat(s2.endTime() - s2.startTime(), greaterThanOrEqualTo(s1.endTime() - s1.startTime()));
+                    break;
+                case INDICES:
+                    assertion = (s1, s2) -> assertThat(s2.indices().size(), greaterThanOrEqualTo(s1.indices().size()));
+                    break;
+                default:
+                    throw new AssertionError("unknown sort column [" + sort + "]");
+            }
+        }
+        final BiConsumer<SnapshotInfo, SnapshotInfo> orderAssertion;
+        if (sortOrder == SortOrder.ASC) {
+            orderAssertion = assertion;
+        } else {
+            orderAssertion = (s1, s2) -> assertion.accept(s2, s1);
+        }
+        for (int i = 0; i < snapshotInfos.size() - 1; i++) {
+            orderAssertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
+        }
     }
 }

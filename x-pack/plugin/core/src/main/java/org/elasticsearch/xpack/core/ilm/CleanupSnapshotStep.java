@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 
@@ -50,8 +50,8 @@ public class CleanupSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             listener.onResponse(true);
             return;
         }
-        DeleteSnapshotRequest deleteSnapshotRequest = new DeleteSnapshotRequest(repositoryName, snapshotName);
-        getClient().admin().cluster().deleteSnapshot(deleteSnapshotRequest, new ActionListener<>() {
+        getClient().admin().cluster().prepareDeleteSnapshot(repositoryName, snapshotName).setMasterNodeTimeout(TimeValue.MAX_VALUE)
+                .execute(new ActionListener<>() {
 
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {

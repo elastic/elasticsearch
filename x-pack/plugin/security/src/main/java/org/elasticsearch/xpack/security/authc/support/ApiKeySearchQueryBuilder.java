@@ -7,18 +7,24 @@
 
 package org.elasticsearch.xpack.security.authc.support;
 
+import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.PrefixQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+
+import java.io.IOException;
+import java.util.Set;
 
 public class ApiKeySearchQueryBuilder {
 
@@ -49,7 +55,7 @@ public class ApiKeySearchQueryBuilder {
             finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
             finalQuery.filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
         }
-        return finalQuery;
+        return new ApiKeyBoolQueryBuilder(finalQuery);
     }
 
     private static QueryBuilder doProcess(QueryBuilder qb) {
@@ -106,6 +112,45 @@ public class ApiKeySearchQueryBuilder {
             return newQuery.boost(query.boost());
         } else {
             throw new IllegalArgumentException("Query type [" + qb.getClass() + "] is not supported for search");
+        }
+    }
+
+    private static class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
+
+        ApiKeyBoolQueryBuilder(BoolQueryBuilder boolQueryBuilder) {
+            super();
+            minimumShouldMatch(boolQueryBuilder.minimumShouldMatch());
+            adjustPureNegative(boolQueryBuilder.adjustPureNegative());
+            boolQueryBuilder.must().forEach(this::must);
+            boolQueryBuilder.should().forEach(this::should);
+            boolQueryBuilder.mustNot().forEach(this::mustNot);
+            boolQueryBuilder.filter().forEach(this::filter);
+        }
+
+        @Override
+        protected Query doToQuery(SearchExecutionContext context) throws IOException {
+            return super.doToQuery(context.withAllowedFieldNames(ApiKeyBoolQueryBuilder::isFieldNameAllowed));
+        }
+
+        @Override
+        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+            if (queryRewriteContext instanceof SearchExecutionContext) {
+                return super.doRewrite(
+                    ((SearchExecutionContext) queryRewriteContext).withAllowedFieldNames(ApiKeyBoolQueryBuilder::isFieldNameAllowed)
+                );
+            } else {
+                return super.doRewrite(queryRewriteContext);
+            }
+        }
+
+        static boolean isFieldNameAllowed(String fieldName) {
+            if (Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time").contains(fieldName)) {
+                return true;
+            } else if (fieldName.startsWith("metadata_flattened.") || fieldName.startsWith("creator.")) {
+                return true;
+            } else {
+                return false;
+            }
         }
     }
 

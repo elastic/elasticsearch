@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.security.rest.action.apikey;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.XPackLicenseState;

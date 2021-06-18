@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS "no_cols";
+CREATE TABLE "no_cols" ();
+
+INSERT INTO "no_cols" DEFAULT VALUES;

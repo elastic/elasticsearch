@@ -74,6 +74,17 @@ public class DataLoader {
         // frozen index
         loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
         freeze(client, "frozen_emp");
+        loadNoColsDatasetIntoEs(client, "no_cols");
+    }
+
+    private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {
+        createEmptyIndex(client, index);
+        Request request = new Request("POST", "/" + index + "/_doc");
+        XContentBuilder emptyDoc = JsonXContent.contentBuilder()
+            .startObject()
+            .endObject();
+        request.setJsonEntity(Strings.toString(emptyDoc));
+        client.performRequest(request);
     }
 
     public static void loadDocsDatasetIntoEs(RestClient client) throws Exception {

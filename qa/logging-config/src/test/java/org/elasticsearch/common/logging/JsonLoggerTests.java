@@ -14,6 +14,8 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.RestApiVersion;
@@ -22,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexingSlowLog;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -115,6 +119,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testCompatibleLog() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putTransient(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
             testLogger.deprecate(DeprecationCategory.OTHER,"someKey", "deprecated message1")
                 .compatibleApiWarning("compatibleKey","compatible API message");
@@ -143,6 +148,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "deprecated message1"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "someKey"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry("elasticsearch.event.category", "other")
                         ),
                         allOf(
@@ -159,6 +165,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "compatible API message"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "compatibleKey"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry("elasticsearch.event.category", "compatible_api")
                         )
                     )
@@ -172,6 +179,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testParseFieldEmittingDeprecatedLogs() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putTransient(Task.TRACE_ID, "someTraceId");
 
             ParseField deprecatedField = new ParseField("new_name", "deprecated_name");
             assertTrue(deprecatedField.match("deprecated_name", LoggingDeprecationHandler.INSTANCE));
@@ -208,6 +216,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry("elasticsearch.event.category", "api")
                         ),
                         // deprecation log for field deprecated_name2 (note it is not being throttled)
@@ -224,6 +233,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name2"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry("elasticsearch.event.category", "api")
                         ),
                         // compatible log line
@@ -240,6 +250,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("message", "Deprecated field [compatible_deprecated_name] used, expected [new_name] instead"),
                             hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_compatible_deprecated_name"),
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
                             hasEntry("elasticsearch.event.category", "compatible_api")
                         )
                     )
@@ -255,6 +266,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putTransient(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
             testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 

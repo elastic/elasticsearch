@@ -32,8 +32,6 @@ public class Task {
 
     public static final String TRACE_ID = "trace.id";
 
-    public static final String TRANSACTION_ID = "transaction.id";
-
     private final long id;
 
     private final String type;

@@ -56,7 +56,6 @@ public class ECSJsonLayout {
             return new KeyValuePair[] {
                 new KeyValuePair("event.dataset", dataset),
                 new KeyValuePair("trace.id", "%trace_id"),
-                new KeyValuePair("transaction.id", "%transaction_id"),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),

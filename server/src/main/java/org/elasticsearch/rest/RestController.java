@@ -354,7 +354,6 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     String[] tokens  = traceparent.split("-");
                     if (tokens.length == 4) {
                         threadContext.putTransient(Task.TRACE_ID, tokens[1]);
-                        threadContext.putTransient(Task.TRANSACTION_ID, tokens[2]);
                     }
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 } else {

@@ -166,13 +166,6 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         } else {
             expectedReplicas = 0;
         }
-        final String indexCheckOnStartup;
-        if (randomBoolean()) {
-            indexCheckOnStartup = randomFrom("false", "true", "checksum");
-            indexSettingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), indexCheckOnStartup);
-        } else {
-            indexCheckOnStartup = "false";
-        }
         final String expectedDataTiersPreference;
         expectedDataTiersPreference = getDataTiersPreference(MountSearchableSnapshotRequest.Storage.SHARED_CACHE);
 

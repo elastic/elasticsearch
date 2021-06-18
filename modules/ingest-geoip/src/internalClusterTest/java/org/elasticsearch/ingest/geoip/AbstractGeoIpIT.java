@@ -66,7 +66,7 @@ public abstract class AbstractGeoIpIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope),
+            return org.elasticsearch.core.List.of(Setting.simpleString("ingest.geoip.database_path", Setting.Property.NodeScope),
                 Setting.timeSetting("ingest.geoip.database_validity", TimeValue.timeValueDays(3), Setting.Property.NodeScope,
                     Setting.Property.Dynamic));
         }

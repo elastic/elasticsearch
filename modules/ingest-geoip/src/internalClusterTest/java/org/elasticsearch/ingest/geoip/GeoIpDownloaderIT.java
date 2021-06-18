@@ -16,7 +16,6 @@ import org.elasticsearch.action.ingest.SimulateDocumentBaseResult;
 import org.elasticsearch.action.ingest.SimulatePipelineRequest;
 import org.elasticsearch.action.ingest.SimulatePipelineResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.common.settings.Settings;
@@ -120,7 +119,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         assertBusy(() -> {
             for (Path geoIpTmpDir : geoIpTmpDirs) {
                 try (Stream<Path> files = Files.list(geoIpTmpDir)) {
-                    Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
+                    java.util.Set<String> names = files.map(f -> f.getFileName().toString()).collect(Collectors.toSet());
                     assertThat(names, not(hasItem("GeoLite2-ASN.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-City.mmdb")));
                     assertThat(names, not(hasItem("GeoLite2-Country.mmdb")));

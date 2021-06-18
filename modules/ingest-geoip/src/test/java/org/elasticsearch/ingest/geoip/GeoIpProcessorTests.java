@@ -313,7 +313,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         assertThat(ingestDocument.getSourceAndMetadata().containsKey("target_field"), is(false));
-        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", List.of("_geoip_expired_database")));
+        assertThat(ingestDocument.getSourceAndMetadata(), hasEntry("tags", org.elasticsearch.core.List.of("_geoip_expired_database")));
     }
 
     private CheckedSupplier<DatabaseReaderLazyLoader, IOException> loader(final String path) {

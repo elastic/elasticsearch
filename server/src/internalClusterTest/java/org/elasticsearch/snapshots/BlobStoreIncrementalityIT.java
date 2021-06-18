@@ -23,9 +23,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.MergeSchedulerConfig;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -39,9 +41,15 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
+    }
 
     public void testIncrementalBehaviorOnPrimaryFailover() throws InterruptedException, ExecutionException, IOException {
         internalCluster().startMasterOnlyNode();
@@ -175,21 +183,13 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
         assertThat(secondSnapshotShardStatus.getIncrementalFileCount(), greaterThan(0));
     }
 
-    public void testMergesHappening() throws Exception {
+    public void testRecordCorrectSegmentCountsWithBackgroundMerges() throws Exception {
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
 
         final String indexName = "test";
-        // just use one shard no replicas and slow down merges as much as possible
-        assertAcked(
-            prepareCreate(indexName).setSettings(
-                indexSettingsNoReplicas(1).put(MergePolicyConfig.INDEX_MERGE_POLICY_MAX_MERGE_AT_ONCE_SETTING.getKey(), "2")
-                    .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
-                    .put(MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING.getKey(), "1")
-                    .put(MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING.getKey(), "1")
-                    .build()
-            )
-        );
+        // disable merges
+        assertAcked(prepareCreate(indexName).setSettings(indexSettingsNoReplicas(1).put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")));
 
         // create an empty snapshot so that later snapshots run as quickly as possible
         createFullSnapshot(repoName, "empty");
@@ -207,18 +207,33 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
                         .source(jsonBuilder().startObject().field("l", randomLong()).endObject())
                 );
             }
-            BulkResponse response = request.execute().actionGet();
-            assertNoFailures(response);
+            assertNoFailures(request.get());
             refresh();
         }
 
-        // snapshot while merges are likely still running in the background
+        // snapshot with a bunch of unmerged segments
         final SnapshotInfo before = createFullSnapshot(repoName, "snapshot-before");
+        final SnapshotInfo.IndexSnapshotDetails beforeIndexDetails = before.indexSnapshotDetails().get(indexName);
+        final long beforeSegmentCount = beforeIndexDetails.getMaxSegmentsPerShard();
 
-        // wait for merges to settle down
+        // reactivate merges
+        assertAcked(admin().indices().prepareClose(indexName).get());
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(
+                    Settings.builder()
+                        .put(MergePolicyConfig.INDEX_MERGE_POLICY_SEGMENTS_PER_TIER_SETTING.getKey(), "2")
+                        .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "true")
+                )
+        );
+        assertAcked(admin().indices().prepareOpen(indexName).get());
+        assertEquals(0, admin().indices().prepareForceMerge(indexName).setFlush(true).get().getFailedShards());
+
+        // wait for merges to reduce segment count
         assertBusy(() -> {
-            IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).setMerge(true).get();
-            assertEquals(0L, stats.getIndex(indexName).getPrimaries().getMerge().getCurrent());
+            IndicesStatsResponse stats = client().admin().indices().prepareStats(indexName).setSegments(true).get();
+            assertThat(stats.getIndex(indexName).getPrimaries().getSegments().getCount(), lessThan(beforeSegmentCount));
         }, 30L, TimeUnit.SECONDS);
 
         final SnapshotInfo after = createFullSnapshot(repoName, "snapshot-after");
@@ -230,14 +245,10 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
             .get(0)
             .getStats()
             .getIncrementalFileCount();
-        if (incrementalFileCount == 0) {
-            final SnapshotInfo.IndexSnapshotDetails beforeIndexDetails = before.indexSnapshotDetails().get(indexName);
-            final SnapshotInfo.IndexSnapshotDetails afterIndexDetails = after.indexSnapshotDetails().get(indexName);
-            logger.info("--> no files have changed between snapshots, asserting that segment counts are constant as well");
-            assertEquals(beforeIndexDetails.getMaxSegmentsPerShard(), afterIndexDetails.getMaxSegmentsPerShard());
-        } else {
-            logger.info("--> files have changed between snapshots");
-        }
+        assertEquals(0, incrementalFileCount);
+        logger.info("--> no files have changed between snapshots, asserting that segment counts are constant as well");
+        final SnapshotInfo.IndexSnapshotDetails afterIndexDetails = after.indexSnapshotDetails().get(indexName);
+        assertEquals(beforeSegmentCount, afterIndexDetails.getMaxSegmentsPerShard());
     }
 
     private void assertCountInIndexThenDelete(String index, long expectedCount) {

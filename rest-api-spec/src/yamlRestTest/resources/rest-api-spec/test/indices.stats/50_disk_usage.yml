@@ -16,51 +16,30 @@ setup:
                 type: text
               quantity:
                 type: long
+                doc_values: false
+              genre:
+                type: keyword
+                doc_values: true
   - do:
       index:
         index: testindex
-        body: { "name": "foo", "quantity": 0 }
-
+        body: { "name": "foo", "quantity": 0, "genre": [ "rock", "pop" ] }
   - do:
       index:
         index: testindex
-        body: { "name": "bar", "quantity": 99 }
-
+        body: { "name": "bar", "quantity": 99, "genre": "pop" }
   - do:
       index:
         index: testindex
-        body: { "name": "baz", "quantity": 50 }
-
+        body: { "name": "baz", "quantity": 50, "genre": "jazz" }
   - do:
       index:
         index: testindex
-        body: { "name": "bar & baz", "quantity": 1000 }
-
+        body: { "name": "bar & baz", "quantity": 1000, "genre": "blue" }
   - do:
       index:
         index: testindex
-        body: { "name": "foo bar", "quantity": 50 }
-
-  - do:
-      index:
-        index: testindex
-        body: { "name": "foo baz", "quantity": 99 }
-
-  - do:
-      index:
-        index: testindex
-        body: { "name": "foobar", "quantity": 1000 }
-
-  - do:
-      index:
-        index: testindex
-        body: { "name": "foobaz", "quantity": 750 }
-
-  - do:
-      index:
-        index: testindex
-        body: { "name": "bazbar", "quantity": 299 }
-
+        body: { "name": "foobar", "quantity": 1000, "genre": "country" }
   - do:
       indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
 
@@ -74,6 +53,17 @@ setup:
   - gt: { $all.doc_values_in_bytes: 0 }
   - gt: { $all.points_in_bytes: 0 }
   - match: { $all.term_vectors_in_bytes: 0 }
+
+  # genre
+  - set: { testindex.fields.genre: genre }
+  - gt: { $genre.total_in_bytes: 0 }
+  - gt: { $genre.terms_in_bytes: 0 }
+  - match: { $genre.proximity_in_bytes: 0 }
+  - match: { $genre.stored_fields_in_bytes: 0 }
+  - gt: { $genre.doc_values_in_bytes: 0 }
+  - match: { $genre.points_in_bytes: 0 }
+  - match: { $genre.norms_in_bytes: 0 }
+  - match: { $genre.term_vectors_in_bytes: 0 }
 
   # name
   - set: { testindex.fields.name: name }
@@ -91,7 +81,7 @@ setup:
   - match: { $quantity.terms_in_bytes: 0 }
   - match: { $quantity.proximity_in_bytes: 0 }
   - match: { $quantity.stored_fields_in_bytes: 0 }
-  - gt: { $quantity.doc_values_in_bytes: 0 }
+  - match: { $quantity.doc_values_in_bytes: 0 }
   - gt: { $quantity.points_in_bytes: 0 }
   - match: { $quantity.norms_in_bytes: 0 }
   - match: { $quantity.term_vectors_in_bytes: 0 }
@@ -124,7 +114,6 @@ setup:
   - match: { $seqno.terms_in_bytes: 0 }
   - match: { $seqno.proximity_in_bytes: 0 }
   - match: { $seqno.stored_fields_in_bytes: 0 }
-  - gt: { $seqno.doc_values_in_bytes: 0 }
   - gt: { $seqno.points_in_bytes: 0 }
   - match: { $seqno.norms_in_bytes: 0 }
   - match: { $seqno.term_vectors_in_bytes: 0 }

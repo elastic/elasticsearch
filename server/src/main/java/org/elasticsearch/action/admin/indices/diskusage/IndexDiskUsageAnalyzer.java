@@ -198,14 +198,12 @@ import java.util.Map;
             }
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
-            long numericValues = 0;
             switch (dvType) {
                 case NUMERIC:
                     final NumericDocValues numeric = docValuesReader.getNumeric(field);
                     while (numeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         cancellationChecker.logEvent();
                         numeric.longValue();
-                        numericValues++;
                     }
                     break;
                 case SORTED_NUMERIC:
@@ -214,7 +212,6 @@ import java.util.Map;
                         for (int i = 0; i < sortedNumeric.docValueCount(); i++) {
                             cancellationChecker.logEvent();
                             sortedNumeric.nextValue();
-                            numericValues++;
                         }
                     }
                     break;
@@ -248,13 +245,7 @@ import java.util.Map;
                     assert false : "Unknown docValues type [" + dvType + "]";
                     throw new IllegalStateException("Unknown docValues type [" + dvType + "]");
             }
-            long bytesRead = directory.getBytesRead();
-            // A small NumericDV field can be loaded into memory when opening an index.
-            if (bytesRead == 0 && (dvType == DocValuesType.NUMERIC || dvType == DocValuesType.SORTED_NUMERIC)) {
-                assert numericValues <= 256 : "Too many numeric values [" + numericValues + "] are loaded into memory";
-                bytesRead = numericValues * Long.BYTES;
-            }
-            stats.addDocValues(field.name, bytesRead);
+            stats.addDocValues(field.name, directory.getBytesRead());
         }
     }
 

@@ -71,6 +71,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74282")
     public void testCreateAndRestorePartialSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

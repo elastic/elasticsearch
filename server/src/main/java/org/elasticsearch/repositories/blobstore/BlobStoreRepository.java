@@ -2315,9 +2315,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 afterWriteSnapBlob.run();
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
-                        indexGeneration,
-                        ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
-                        snapshotIndexCommit.getSegmentCount());
+                    indexGeneration,
+                    ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
+                    getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
+                );
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 listener.onResponse(shardSnapshotResult);
             }, listener::onFailure);

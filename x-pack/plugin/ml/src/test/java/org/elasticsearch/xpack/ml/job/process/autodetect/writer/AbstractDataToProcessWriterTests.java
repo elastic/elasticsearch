@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -34,15 +35,13 @@ import java.util.Set;
 public class AbstractDataToProcessWriterTests extends ESTestCase {
 
     private AnalysisRegistry analysisRegistry;
-    private Environment environment;
     private AutodetectProcess autodetectProcess;
     private DataCountsReporter dataCountsReporter;
 
     @Before
     public void setup() throws Exception {
         Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
-        environment = TestEnvironment.newEnvironment(settings);
-        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(environment);
+        analysisRegistry = CategorizationAnalyzerTests.buildTestAnalysisRegistry(TestEnvironment.newEnvironment(settings));
         autodetectProcess = Mockito.mock(AutodetectProcess.class);
         dataCountsReporter = Mockito.mock(DataCountsReporter.class);
     }
@@ -61,8 +60,8 @@ public class AbstractDataToProcessWriterTests extends ESTestCase {
         AnalysisConfig ac = new AnalysisConfig.Builder(Collections.singletonList(detector.build())).build();
 
         boolean includeTokensFields = randomBoolean();
-        AbstractDataToProcessWriter writer =
-                new CsvDataToProcessWriter(true, includeTokensFields, autodetectProcess, dd.build(), ac, dataCountsReporter);
+        AbstractDataToProcessWriter writer = new JsonDataToProcessWriter(true, includeTokensFields, autodetectProcess,
+            dd.build(), ac, dataCountsReporter, NamedXContentRegistry.EMPTY);
 
         writer.writeHeader();
 

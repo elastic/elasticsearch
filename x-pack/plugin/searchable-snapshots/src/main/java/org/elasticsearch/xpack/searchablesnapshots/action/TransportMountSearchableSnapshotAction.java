@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
@@ -228,9 +229,10 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 }
             }
 
-            Settings indexSettings = Settings.builder()
+            final Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
                 .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
                 .put(request.indexSettings())
                 .put(

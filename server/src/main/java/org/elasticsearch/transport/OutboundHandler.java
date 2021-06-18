@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -68,8 +69,17 @@ final class OutboundHandler {
         Version version = Version.min(this.version, channelVersion);
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressRequest);
-        ActionListener<Void> listener = ActionListener.wrap(() ->
-            messageListener.onRequestSent(node, requestId, action, request, options));
+        if (request.tryIncRef() == false) {
+            assert false : "request [" + request + "] has been released already";
+            throw new AlreadyClosedException("request [" + request + "] has been released already");
+        }
+        ActionListener<Void> listener = ActionListener.wrap(() -> {
+            try {
+                messageListener.onRequestSent(node, requestId, action, request, options);
+            } finally {
+                request.decRef();
+            }
+        });
         sendMessage(channel, message, listener);
     }
 

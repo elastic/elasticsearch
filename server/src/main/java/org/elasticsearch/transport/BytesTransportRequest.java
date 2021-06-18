@@ -67,7 +67,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
 
     @Override
     public boolean tryIncRef() {
-        return bytes.decRef();
+        return bytes.tryIncRef();
     }
 
     @Override

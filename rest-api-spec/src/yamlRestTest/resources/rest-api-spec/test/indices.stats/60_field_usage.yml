@@ -1,0 +1,131 @@
+---
+setup:
+  - skip:
+      version: " - 7.99.99"
+      reason: field usage stats API is introduced in 8.0
+
+---
+"Field usage stats":
+  - do:
+      indices.create:
+        index: testindex
+        body:
+          mappings:
+            properties:
+              name:
+                type: text
+              price:
+                type: double
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foo", "price": 100 }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar", "price": 120 }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "baz", "price": 100 }
+
+  - do:
+      index:
+        index: testindex
+        body: { "name": "bar & baz", "price": 220 }
+  - do:
+      index:
+        index: testindex
+        body: { "name": "foo bar", "price": 150 }
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            term:
+              name: foo
+          sort: [ "price" ]
+
+  - do:
+      indices.field_usage_stats: { index: "testindex" }
+
+  # all_fields
+  - set: { testindex.all_fields: stat }
+  - gt: { $stat.total: 0 }
+  - gt: { $stat.terms: 0 }
+  - match: { $stat.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - gt: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.frequencies: 0 }
+  - match: { $stat.positions: 0 }
+  - match: { $stat.offsets: 0 }
+  - match: { $stat.payloads: 0 }
+
+  # name
+  - set: { testindex.fields.name: stat }
+  - gt: { $stat.total: 0 }
+  - gt: { $stat.terms: 0 }
+  - match: { $stat.proximity: 0 }
+  - match: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.frequencies: 0 }
+  - match: { $stat.positions: 0 }
+  - match: { $stat.offsets: 0 }
+  - match: { $stat.payloads: 0 }
+
+  # price
+  - set: { testindex.fields.price: stat }
+  - gt: { $stat.total: 0 }
+  - match: { $stat.terms: 0 }
+  - match: { $stat.proximity: 0 }
+  - match: { $stat.stored_fields: 0 }
+  - gt: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.frequencies: 0 }
+  - match: { $stat.positions: 0 }
+  - match: { $stat.offsets: 0 }
+  - match: { $stat.payloads: 0 }
+
+  # _source
+  - set: { testindex.fields._source: stat }
+  - gt: { $stat.total: 0 }
+  - match: { $stat.terms: 0 }
+  - match: { $stat.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.frequencies: 0 }
+  - match: { $stat.positions: 0 }
+  - match: { $stat.offsets: 0 }
+  - match: { $stat.payloads: 0 }
+
+  # _id
+  - set: { testindex.fields._id: stat }
+  - gt: { $stat.total: 0 }
+  - match: { $stat.terms: 0 }
+  - match: { $stat.proximity: 0 }
+  - gt: { $stat.stored_fields: 0 }
+  - match: { $stat.doc_values: 0 }
+  - match: { $stat.points: 0 }
+  - match: { $stat.norms: 0 }
+  - match: { $stat.term_vectors: 0 }
+  - match: { $stat.frequencies: 0 }
+  - match: { $stat.positions: 0 }
+  - match: { $stat.offsets: 0 }
+  - match: { $stat.payloads: 0 }

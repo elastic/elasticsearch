@@ -44,6 +44,7 @@ public class Constants {
         "cluster:admin/logstash/pipeline/delete",
         "cluster:admin/logstash/pipeline/get",
         "cluster:admin/logstash/pipeline/put",
+        "cluster:admin/migrate_to_data_tiers",
         "cluster:admin/nodes/reload_secure_settings",
         "cluster:admin/persistent/completion",
         "cluster:admin/persistent/remove",

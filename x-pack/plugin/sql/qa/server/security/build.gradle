@@ -25,6 +25,7 @@ subprojects {
 
   dependencies {
     testImplementation project(":x-pack:plugin:core")
+    testImplementation(testArtifact(project(xpackModule('core'))))
     testArtifacts project(path: mainProject.path, configuration: 'testArtifacts')
   }
 

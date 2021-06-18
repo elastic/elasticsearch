@@ -20,11 +20,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -33,7 +30,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URLDecoder;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -211,12 +207,6 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 blobs.put(blobName, BytesArray.EMPTY);
 
                 byte[] response = requestBody.utf8ToString().getBytes(UTF_8);
-                final String name = Paths.get(blobName).getFileName().toString();
-                if (name.matches(BlobStoreRepository.INDEX_FILE_PREFIX + "\\d+") || name.equals(BlobStoreRepository.INDEX_LATEST_BLOB)) {
-                    final Map<String, Object> parsedBody = XContentHelper.convertToMap(requestBody, false, XContentType.JSON).v2();
-                    assert parsedBody.get("md5Hash") != null
-                        : "file [" + blobName + "] must be written atomically but did not come with a md5 checksum";
-                }
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.getResponseHeaders()
                     .add(

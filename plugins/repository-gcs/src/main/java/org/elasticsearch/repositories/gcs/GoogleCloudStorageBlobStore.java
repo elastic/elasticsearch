@@ -293,8 +293,8 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                                     }
 
                                     @Override
-                                    public void close() throws IOException {
-                                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
+                                    public void close() {
+                                        // noop
                                     }
                                 }
                         )
@@ -312,6 +312,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                     }
                 }) {
                     writer.accept(out);
+                    SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 }
                 stats.trackPutOperation();
                 return;

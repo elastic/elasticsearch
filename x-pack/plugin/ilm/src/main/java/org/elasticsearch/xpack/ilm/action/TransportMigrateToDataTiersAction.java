@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.cluster.action;
+package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +25,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 

@@ -249,7 +249,7 @@ PUT _transform/suspicious_client_ips
         },
       "error5xx" : {
          "filter": {
-            "range": { "response" : "gte": 500, "lt": 600}}
+            "range": { "response" : { "gte": 500, "lt": 600}}}
         },
       "timestamp.min": { "min": { "field": "timestamp" }},
       "timestamp.max": { "max": { "field": "timestamp" }},

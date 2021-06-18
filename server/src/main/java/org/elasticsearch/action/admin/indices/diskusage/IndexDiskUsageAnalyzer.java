@@ -562,8 +562,8 @@ import java.util.Map;
      * This would allow us to traverse only two ends of each partition.
      */
     private static class BytesReadTracker {
-        private long minPosition = Long.MAX_VALUE; // inclusive
-        private long maxPosition = Long.MIN_VALUE; // exclusive
+        private long minPosition = Long.MAX_VALUE;
+        private long maxPosition = Long.MIN_VALUE;
 
         BytesReadTracker createSliceTracker(long offset) {
             return this;
@@ -571,7 +571,7 @@ import java.util.Map;
 
         void trackPositions(long position, int length) {
             minPosition = Math.min(minPosition, position);
-            maxPosition = Math.max(maxPosition, position + length -1);
+            maxPosition = Math.max(maxPosition, position + length - 1);
         }
 
 
@@ -582,7 +582,7 @@ import java.util.Map;
 
         long getBytesRead() {
             if (minPosition <= maxPosition) {
-                return maxPosition - minPosition;
+                return maxPosition - minPosition + 1;
             } else {
                 return 0L;
             }

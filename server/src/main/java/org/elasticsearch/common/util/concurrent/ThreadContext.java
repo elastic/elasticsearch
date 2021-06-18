@@ -114,7 +114,8 @@ public final class ThreadContext implements Writeable {
             var map = new HashMap<>(Map.<String, String>of());
             if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
                 map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
-            } if (context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
+            }
+            if (context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
                 map.put(Task.TRACE_PARENT, context.requestHeaders.get(Task.TRACE_PARENT));
             }
             ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);

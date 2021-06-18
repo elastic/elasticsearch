@@ -44,7 +44,6 @@ public class JobBuilderTests extends AbstractWireSerializingTestCase<Job.Builder
         }
         if (randomBoolean()) {
             DataDescription.Builder dataDescription = new DataDescription.Builder();
-            dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
             builder.setDataDescription(dataDescription);
         }
         if (randomBoolean()) {

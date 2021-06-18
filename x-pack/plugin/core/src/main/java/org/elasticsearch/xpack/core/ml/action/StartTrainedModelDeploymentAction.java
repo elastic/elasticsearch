@@ -42,8 +42,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        private static final ParseField MODEL_ID = new ParseField("model_id");
-        private static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField MODEL_ID = new ParseField("model_id");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;

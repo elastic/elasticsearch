@@ -117,8 +117,7 @@ public class DeploymentManager {
                 NlpTaskConfig config = parseConfigDocLeniently(searchResponse.getHits().getAt(0));
                 NlpTask nlpTask = NlpTask.fromConfig(config);
                 processContext.nlpTask.set(nlpTask);
-                processContext.startProcess();
-                processContext.loadModel(modelLoadedListener);
+                startAndLoad(task, processContext, modelLoadedListener);
             },
             e -> failTask(task,
                 String.format(Locale.ROOT, "[%s] search for task config failed with error [%s]", task.getModelId(), e))
@@ -136,8 +135,7 @@ public class DeploymentManager {
             .request();
     }
 
-
-    public NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
+    NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
 
         try (InputStream stream = hit.getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -146,6 +144,18 @@ public class DeploymentManager {
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("failed to parse NLP task config [{}]", hit.getId()), e);
             throw e;
+        }
+    }
+
+    private void startAndLoad(TrainedModelDeploymentTask task,
+                              ProcessContext processContext,
+                              ActionListener<Boolean> loadedListener) {
+        try {
+            processContext.startProcess();
+            processContext.loadModel(loadedListener);
+        } catch (Exception e) {
+            failTask(task,
+                String.format(Locale.ROOT, "[%s] loading the model failed with error [%s]", task.getModelId(), e));
         }
     }
 

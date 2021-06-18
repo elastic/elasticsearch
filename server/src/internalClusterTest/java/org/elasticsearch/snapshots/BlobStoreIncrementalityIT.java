@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -196,10 +197,10 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
 
         // create a situation where we temporarily have a bunch of segments until the merges can catch up
         long id = 0;
-        final int rounds = scaledRandomIntBetween(50, 300);
+        final int rounds = scaledRandomIntBetween(3, 5);
         for (int i = 0; i < rounds; ++i) {
             final int numDocs = scaledRandomIntBetween(100, 1000);
-            BulkRequestBuilder request = client().prepareBulk();
+            BulkRequestBuilder request = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
             for (int j = 0; j < numDocs; ++j) {
                 request.add(
                     Requests.indexRequest(indexName)
@@ -208,7 +209,6 @@ public class BlobStoreIncrementalityIT extends AbstractSnapshotIntegTestCase {
                 );
             }
             assertNoFailures(request.get());
-            refresh();
         }
 
         // snapshot with a bunch of unmerged segments

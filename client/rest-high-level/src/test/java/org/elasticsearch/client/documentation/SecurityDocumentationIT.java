@@ -2614,7 +2614,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testCreateServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
@@ -2723,7 +2722,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =

@@ -1,0 +1,75 @@
+[role="xpack"]
+[testenv="basic"]
+[[cluster-migrate-to-data-tiers]]
+=== Migrate to data tiers routing API
+++++
+<titleabbrev>Migrate indices and ILM policies to data tiers routing</titleabbrev>
+++++
+
+Switches the indices and ILM policies from using custom node attributes and
+<<shard-allocation-filtering, attribute-based allocation filters>> to using <<data-tiers, data tiers>>, and
+optionally deletes one legacy index template.
+Using node roles enables {ilm-init} to <<data-tier-migration, automatically move the indices>> between
+data tiers.
+
+Migrating away from custom node attributes routing can be manually performed
+as indicated in the <<migrate-index-allocation-filters, Migrate index allocation
+filters to node roles>> page.
+
+This API provides an automated way of executing three out of the four manual steps listed
+in the <<data-tier-migration, migration guide>>:
+
+. <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute on new indices>>
+. <<remove-custom-allocation-settings, Remove custom allocation settings from existing {ilm-init} policies>>
+. <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<data-tier-shard-filtering,tier preference>>
+
+[[cluster-migrate-to-data-tiers-request]]
+==== {api-request-title}
+
+`POST /_migrate_to_data_tiers`
+
+The API accepts an optional body that allows you to specify:
+
+- The legacy index template name to delete. Defaults to none.
+- The name of the custom node attribute used for the indices and ILM policies allocation filtering.
+Defaults to `data`.
+
+[[cluster-migrate-to-data-tiers-prereqs]]
+==== {api-prereq-title}
+
+* {ilm-init} must be stopped before performing the migration. Use the <<ilm-stop-request, stop ILM API>>
+to stop {ilm-init} and <<ilm-get-status-request, get status API>> to wait until the
+reported operation mode is `STOPPED`.
+
+[[cluster-migrate-to-data-tiers-example]]
+==== {api-examples-title}
+
+The following example migrates the indices and ILM policies away from defining
+custom allocation filtering using the `data` node attribute, and deletes legacy template
+with name `cloud-hot-warm-allocation-0` if it exists in the system.
+
+[source,console]
+----------------------------------------------------------------
+POST /_migrate_to_data_tiers
+{
+  "legacy_template_to_delete": "cloud-hot-warm-allocation-0",
+  "node_attribute": "data"
+}
+----------------------------------------------------------------
+
+If the request succeeds, a response like the following will be received:
+
+[source,console-result]
+------------------------------------------------------------------------------
+{
+  "removed_legacy_template":"cloud-hot-warm-allocation-0", <1>
+  "migrated_ilm_policies":["policy-one","policy-two"], <2>
+  "migrated_indices":["logs-000001",".ds-.slm-history-5-2021.04.22-000002"] <3>
+}
+------------------------------------------------------------------------------
+
+<1> Shows the name of the legacy index template that was deleted. This will be missing
+if no legacy index template was deleted.
+<2> The ILM policies that were updated.
+<3> The indices that were migrated to <<data-tier-shard-filtering,tier preference>> routing.
+

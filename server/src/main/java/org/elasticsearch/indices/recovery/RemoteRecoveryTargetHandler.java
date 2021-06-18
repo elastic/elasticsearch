@@ -10,6 +10,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -243,8 +244,19 @@ public class RemoteRecoveryTargetHandler implements RecoveryTargetHandler {
 
             @Override
             public void tryAction(ActionListener<T> listener) {
-                transportService.sendRequest(targetNode, action, request, options,
-                    new ActionListenerResponseHandler<>(listener, reader, ThreadPool.Names.GENERIC));
+                if (request.tryIncRef()) {
+                    transportService.sendRequest(
+                        targetNode,
+                        action,
+                        request,
+                        options,
+                        new ActionListenerResponseHandler<>(
+                            ActionListener.runBefore(listener, request::decRef),
+                            reader,
+                            ThreadPool.Names.GENERIC));
+                } else {
+                    listener.onFailure(new AlreadyClosedException("already closed"));
+                }
             }
 
             @Override

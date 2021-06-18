@@ -57,13 +57,13 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
     public IndexDiskUsageStats(StreamInput in) throws IOException {
         this.fields = in.readMap(StreamInput::readString, PerFieldDiskUsage::new);
-        this.indexSizeInBytes = in.readZLong();
+        this.indexSizeInBytes = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeZLong(indexSizeInBytes);
+        out.writeVLong(indexSizeInBytes);
     }
 
     PerFieldDiskUsage total() {
@@ -181,14 +181,26 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         }
 
         private PerFieldDiskUsage(StreamInput in) throws IOException {
-            termsBytes = in.readZLong();
-            proximityBytes = in.readZLong();
-            storedFieldBytes = in.readZLong();
-            docValuesBytes = in.readZLong();
-            pointsBytes = in.readZLong();
-            normsBytes = in.readZLong();
-            termVectorsBytes = in.readZLong();
+            termsBytes = in.readVLong();
+            proximityBytes = in.readVLong();
+            storedFieldBytes = in.readVLong();
+            docValuesBytes = in.readVLong();
+            pointsBytes = in.readVLong();
+            normsBytes = in.readVLong();
+            termVectorsBytes = in.readVLong();
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(termsBytes);
+            out.writeVLong(proximityBytes);
+            out.writeVLong(storedFieldBytes);
+            out.writeVLong(docValuesBytes);
+            out.writeVLong(pointsBytes);
+            out.writeVLong(normsBytes);
+            out.writeVLong(termVectorsBytes);
+        }
+
 
         private void add(PerFieldDiskUsage other) {
             termsBytes += other.termsBytes;
@@ -198,17 +210,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             pointsBytes += other.pointsBytes;
             normsBytes += other.normsBytes;
             termVectorsBytes += other.termVectorsBytes;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeZLong(termsBytes);
-            out.writeZLong(proximityBytes);
-            out.writeZLong(storedFieldBytes);
-            out.writeZLong(docValuesBytes);
-            out.writeZLong(pointsBytes);
-            out.writeZLong(normsBytes);
-            out.writeZLong(termVectorsBytes);
         }
 
         public long getTermsBytes() {

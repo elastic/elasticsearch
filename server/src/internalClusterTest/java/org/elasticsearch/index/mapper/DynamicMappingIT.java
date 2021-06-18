@@ -341,7 +341,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeNoConflicts() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("{\"_doc\":{\"dynamic\":\"runtime\"}}").get());
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "{\"_doc\":{\"dynamic\":\"runtime\"}}").get());
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("one.two.three", new int[]{1, 2, 3}));
@@ -357,7 +357,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").sourceAsMap();
+        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").get("_doc").sourceAsMap();
         assertFalse(sourceAsMap.containsKey("properties"));
         @SuppressWarnings("unchecked")
         Map<String, Object> runtime = (Map<String, Object>)sourceAsMap.get("runtime");
@@ -366,7 +366,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeObjectFields() {
-        assertAcked(client().admin().indices().prepareCreate("test").setMapping("{\"_doc\":{\"properties\":{" +
+        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "{\"_doc\":{\"properties\":{" +
             "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}").get());
 
         List<IndexRequest> docs = new ArrayList<>();
@@ -384,7 +384,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
         MapperParsingException exception = expectThrows(MapperParsingException.class,
-            () -> client().prepareIndex("test").setSource("obj.runtime", "value").get());
+            () -> client().prepareIndex("test", "_doc").setSource("obj.runtime", "value").get());
         assertEquals("object mapping for [obj.runtime] tried to parse field [obj.runtime] as object, but found a concrete value",
             exception.getMessage());
 
@@ -398,9 +398,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().preparePutMapping("test").setSource("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":" +
             "{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}", XContentType.JSON));
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex("test").setSource("obj.runtime.dynamic.leaf", 1).get().status());
+        assertEquals(RestStatus.CREATED, client().prepareIndex("test", "_doc").setSource("obj.runtime.dynamic.leaf", 1).get().status());
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").sourceAsMap();
+        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").get("_doc").sourceAsMap();
         assertThat(
             XContentMapValues.extractRawValues("properties.obj.properties.runtime.properties.dynamic.properties.leaf.type", sourceAsMap),
             contains("long"));

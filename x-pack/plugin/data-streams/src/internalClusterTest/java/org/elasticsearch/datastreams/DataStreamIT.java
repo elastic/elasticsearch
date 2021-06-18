@@ -746,7 +746,7 @@ public class DataStreamIT extends ESIntegTestCase {
         assertThat(e.getMessage(), equalTo("expressions [metrics-*] that match with both data streams and regular indices are disallowed"));
     }
 
-    public void testRemoveStreamAliases() throws Exception {
+    public void testUpdateDataStreamsWithWildcards() throws Exception {
         putComposableIndexTemplate("id1", List.of("metrics-*"));
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);

@@ -11,11 +11,10 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import java.util.List;
 
 public abstract class DebugSqlSpec extends SqlSpecTestCase {
-
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {
         Parser parser = specParser();
-        return readScriptSpec("/debug/debug.sql-spec", parser);
+        return readScriptSpec("/datetime.sql-spec", parser);
     }
 
     public DebugSqlSpec(String fileName, String groupName, String testName, Integer lineNumber, String query) {

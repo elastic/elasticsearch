@@ -347,15 +347,10 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     return;
                 } else if (name.equals(Task.TRACE_PARENT)) {
                     String traceparent = distinctHeaderValues.get(0);
-                    // TODO rely on high performance `TraceContext` from apm-agent-java
-                    // This does little validation of the actual id values, since we only use them to persist in logging for now this
-                    // should be fine. Once we actually start instrumenting through apm-agent-java it will take care of validation.
-                    // Java has a fast path for single character regexes so this should not be as bad as its signature implies
-                    String[] tokens  = traceparent.split("-");
-                    if (tokens.length == 4) {
-                        threadContext.putTransient(Task.TRACE_ID, tokens[1]);
+                    if (traceparent.length() >= 55) {
+                        threadContext.putTransient(Task.TRACE_ID, traceparent.substring(3, 35));
                     }
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                    threadContext.putHeader(name, traceparent);
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }

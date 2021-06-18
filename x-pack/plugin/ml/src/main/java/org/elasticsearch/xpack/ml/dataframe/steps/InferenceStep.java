@@ -63,6 +63,16 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             return;
         }
 
+        if (config.getAnalysis().getTrainingPercent() == 100) {
+            // no need to run inference at all so let us skip
+            // loading the model in memory.
+            LOGGER.debug(() -> new ParameterizedMessage(
+                "[{}] Inference step completed immediately as training_percent is 100", config.getId()));
+            task.getStatsHolder().getProgressTracker().updateInferenceProgress(100);
+            listener.onResponse(new StepResponse(isTaskStopping()));
+            return;
+        }
+
         ActionListener<String> modelIdListener = ActionListener.wrap(
             modelId -> runInference(modelId, listener),
             listener::onFailure

@@ -130,10 +130,17 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
         es_opt="-E${envvar_key}=${envvar_value}"
         es_arg_array+=("${es_opt}")
       elif [[ "$envvar_key" =~ ^ES(_{1,2}[A-Z]+)+$ ]]; then
-        # The long-hand sed `y` command works in any sed variant.
-        envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
-        es_opt="-E${envvar_key}=${envvar_value}"
-        es_arg_array+=("${es_opt}")
+        case "$envvar_key" in
+         ES_JAVA_HOME|ES_PATH_CONF|ES_HOME|ES_JAVA_OPTS|ES_LOG_STYLE|ES_SD_NOTIFY|ES_KEYSTORE_PASSPHRASE_FILE|ES_TMPDIR)
+            # Do nothing
+         ;;
+          *)
+            # The long-hand sed `y` command works in any sed variant.
+            envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
+            es_opt="-E${envvar_key}=${envvar_value}"
+            es_arg_array+=("${es_opt}")
+            ;;
+        esac
       fi
     fi
   done <<< "$(env)"

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
@@ -103,8 +102,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             indexName = snapshotIndexName;
         }
 
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        final Settings.Builder settingsBuilder = Settings.builder();
         // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
         if (TimeseriesLifecycleType.HOT_PHASE.equals(this.getKey().getPhase())) {
             settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT);

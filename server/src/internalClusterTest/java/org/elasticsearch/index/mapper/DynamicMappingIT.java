@@ -341,7 +341,8 @@ public class DynamicMappingIT extends ESIntegTestCase {
     }
 
     public void testDynamicRuntimeNoConflicts() {
-        assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "{\"_doc\":{\"dynamic\":\"runtime\"}}").get());
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .addMapping("_doc", "{\"_doc\":{\"dynamic\":\"runtime\"}}", XContentType.JSON).get());
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("one.two.three", new int[]{1, 2, 3}));
@@ -367,7 +368,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
     public void testDynamicRuntimeObjectFields() {
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("_doc", "{\"_doc\":{\"properties\":{" +
-            "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}").get());
+            "\"obj\":{\"properties\":{\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}", XContentType.JSON).get());
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("obj.one", 1));
@@ -395,8 +396,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 "\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}}",
             Strings.toString(client().admin().indices().prepareGetMappings("test").get()));
 
-        assertAcked(client().admin().indices().preparePutMapping("test").setSource("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":" +
-            "{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}", XContentType.JSON));
+        assertAcked(client().admin().indices().preparePutMapping("test").setType("_doc").setSource("{\"_doc\":{\"properties\":" +
+            "{\"obj\":{\"properties\":{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}",
+            XContentType.JSON));
 
         assertEquals(RestStatus.CREATED, client().prepareIndex("test", "_doc").setSource("obj.runtime.dynamic.leaf", 1).get().status());
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();

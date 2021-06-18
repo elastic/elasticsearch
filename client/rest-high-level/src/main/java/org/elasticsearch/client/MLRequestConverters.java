@@ -65,6 +65,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.ResetJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
@@ -186,6 +187,23 @@ final class MLRequestConverters {
         }
         if (deleteJobRequest.getWaitForCompletion() != null) {
             params.putParam("wait_for_completion", Boolean.toString(deleteJobRequest.getWaitForCompletion()));
+        }
+        request.addParameters(params.asMap());
+        return request;
+    }
+
+    static Request resetJob(ResetJobRequest resetJobRequest) {
+        String endpoint = new EndpointBuilder()
+            .addPathPartAsIs("_ml")
+            .addPathPartAsIs("anomaly_detectors")
+            .addPathPart(resetJobRequest.getJobId())
+            .addPathPartAsIs("_reset")
+            .build();
+        Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        RequestConverters.Params params = new RequestConverters.Params();
+        if (resetJobRequest.getWaitForCompletion() != null) {
+            params.putParam("wait_for_completion", Boolean.toString(resetJobRequest.getWaitForCompletion()));
         }
         request.addParameters(params.asMap());
         return request;

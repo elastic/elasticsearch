@@ -1,18 +1,18 @@
 --
-:api: delete-job 
-:request: DeleteJobRequest
-:response: DeleteJobResponse
+:api: reset-job 
+:request: ResetJobRequest
+:response: ResetJobResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Delete {anomaly-jobs} API
+=== Reset {anomaly-jobs} API
 
-Deletes an {anomaly-job} that exists in the cluster.
+Resets an {anomaly-job} that exists in the cluster.
 
 [id="{upid}-{api}-request"]
-==== Delete {anomaly-jobs} request
+==== Reset {anomaly-jobs} request
 
-A +{request}+ object requires a non-null `jobId` and can optionally set `force`.
+A +{request}+ object requires a non-null `jobId`.
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
@@ -26,13 +26,6 @@ The following arguments are optional:
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
-include-tagged::{doc-tests-file}[{api}-request-force]
----------------------------------------------------
-<1> Use to forcefully delete an opened job. This method is quicker than closing
-and deleting the job. Defaults to `false`.
-
-["source","java",subs="attributes,callouts,macros"]
----------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-request-wait-for-completion]
 ---------------------------------------------------
 <1> Use to set whether the request should wait until the operation has completed
@@ -40,19 +33,19 @@ before returning. Defaults to `true`.
 
 
 [id="{upid}-{api}-response"]
-==== Delete {anomaly-jobs} response
+==== Reset {anomaly-jobs} response
 
 The returned +{response}+ object indicates the acknowledgement of the job
-deletion or the deletion task depending on whether the request was set to wait
+reset or the reset task depending on whether the request was set to wait
 for completion:
 
 ["source","java",subs="attributes,callouts,macros"]
 ---------------------------------------------------
 include-tagged::{doc-tests-file}[{api}-response]
 ---------------------------------------------------
-<1> Whether job deletion was acknowledged or not. It will be `null` when set
+<1> Whether job reset was acknowledged or not. It will be `null` when set
 to not wait for completion.
-<2> The ID of the job deletion task. It will be `null` when set to wait for
+<2> The ID of the job reset task. It will be `null` when set to wait for
 completion.
 
 include::../execution.asciidoc[]

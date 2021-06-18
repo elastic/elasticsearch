@@ -338,6 +338,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-put-filter>>
 * <<{upid}-put-trained-model>>
 * <<{upid}-put-trained-model-alias>>
+* <<{upid}-reset-job>>
 * <<{upid}-revert-model-snapshot>>
 * <<{upid}-set-upgrade-mode>>
 * <<{upid}-start-data-frame-analytics>>
@@ -411,6 +412,8 @@ include::ml/put-datafeed.asciidoc[]
 include::ml/put-filter.asciidoc[]
 include::ml/put-trained-model.asciidoc[]
 include::ml/put-trained-model-alias.asciidoc[]
+// RESET
+include::ml/reset-job.asciidoc[]
 // REVERT
 include::ml/revert-model-snapshot.asciidoc[]
 // SET

@@ -109,7 +109,9 @@ public abstract class AbstractFieldScript {
     protected abstract void emitFromObject(Object v);
 
     protected final void emitFromSource() {
+        System.out.println("emitFromSource");
         for (Object v : extractFromSource(fieldName)) {
+            System.out.println("value " + v + " - field: " + fieldName);
             emitFromObject(v);
         }
     }

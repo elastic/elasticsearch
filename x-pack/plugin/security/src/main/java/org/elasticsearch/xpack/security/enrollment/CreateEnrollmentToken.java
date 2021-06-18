@@ -59,10 +59,15 @@ public class CreateEnrollmentToken {
 
     // protected for testing
     protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) throws MalformedURLException {
-        this.environment = environment;
-        this.sslService = new SSLService(environment);
-        this.client = client;
-        this.defaultUrl = new URL(client.getDefaultURL());
+        try {
+            this.environment = environment;
+            this.sslService = new SSLService(environment);
+            this.client = client;
+            this.defaultUrl = new URL(client.getDefaultURL());
+        } catch (MalformedURLException e) {
+            logger.error(("Error generating enrollment token"), e);
+            throw new MalformedURLException("Error generating enrollment token: " + e.getMessage());
+        }
     }
 
     public String createNodeEnrollmentToken(String user, SecureString password) throws Exception {

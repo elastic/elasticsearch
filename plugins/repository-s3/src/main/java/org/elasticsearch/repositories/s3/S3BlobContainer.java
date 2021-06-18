@@ -159,6 +159,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                      if (buffer.size() == 0) {
                          return;
                      }
+                     assert lastPart == false || successful : "must only write last part if successful";
                      final UploadPartRequest uploadRequest = createPartUploadRequest(
                              buffer.bytes().streamInput(), uploadId.get(), parts.size() + 1, blobName, buffer.size(), lastPart);
                      final UploadPartResult uploadResponse =

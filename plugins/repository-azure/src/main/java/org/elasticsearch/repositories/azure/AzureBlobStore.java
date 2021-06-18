@@ -400,10 +400,6 @@ public class AzureBlobStore implements BlobStore {
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
             try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays) {
 
-                private final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
-
-                private final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
-
                 @Override
                 protected void maybeFlushBuffer() {
                     if (buffer.size() >= FLUSH_BUFFER_BYTES) {
@@ -415,9 +411,12 @@ public class AzureBlobStore implements BlobStore {
                     if (buffer.size() == 0) {
                         return;
                     }
-                    Flux<ByteBuffer> byteBufferFlux = Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes()));
-                    final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
-                    blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, buffer.size()).block();
+                    final String blockId = makeMultipartBlockId();
+                    blockBlobAsyncClient.stageBlock(
+                            blockId,
+                            Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes())),
+                            buffer.size()
+                    ).block();
                     finishPart(blockId);
                 }
 
@@ -499,19 +498,24 @@ public class AzureBlobStore implements BlobStore {
             assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
 
             final List<String> blockIds = new ArrayList<>(nbParts);
-            final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
-            final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
             for (int i = 0; i < nbParts; i++) {
                 final long length = i < nbParts - 1 ? partSize : lastPartSize;
                 Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
 
-                final String blockId = base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
+                final String blockId = makeMultipartBlockId();
                 blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
                 blockIds.add(blockId);
             }
 
             blockBlobAsyncClient.commitBlockList(blockIds, failIfAlreadyExists == false).block();
         });
+    }
+
+    private static final Base64.Encoder base64Encoder = Base64.getEncoder().withoutPadding();
+    private static final Base64.Decoder base64UrlDecoder = Base64.getUrlDecoder();
+
+    private String makeMultipartBlockId() {
+        return base64Encoder.encodeToString(base64UrlDecoder.decode(UUIDs.base64UUID()));
     }
 
     /**

@@ -56,7 +56,10 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         written += buffer.size();
         parts.add(partId);
         buffer.close();
-        buffer = new ReleasableBytesStreamOutput(bigArrays);
+        if (successful = false) {
+            // only need a new buffer if we're not done yet
+            buffer = new ReleasableBytesStreamOutput(bigArrays);
+        }
     }
 
     protected abstract void maybeFlushBuffer() throws IOException;

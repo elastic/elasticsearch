@@ -12,7 +12,7 @@ Allows a kibana instance to configure itself to communicate with a secured {es} 
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Enroll Client Response
+==== Enroll Kibana Response
 
 The returned +{response}+ allows to retrieve information about the
 executed operation as follows:

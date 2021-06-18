@@ -77,7 +77,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         final KeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             listener.onFailure(new ElasticsearchException(
-                "Unable to enroll client. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"));
+                "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration is not configured with a keystore"));
             return;
         }
         List<X509Certificate> caCertificates;
@@ -87,22 +87,23 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                 .filter(x509Certificate -> x509Certificate.getBasicConstraints() != -1)
                 .collect(Collectors.toList());
         } catch (Exception e) {
-            listener.onFailure(new ElasticsearchException("Unable to enroll client. Cannot retrieve CA certificate for the HTTP layer" +
-                "of the Elasticsearch node.", e));
+            listener.onFailure(new ElasticsearchException("Unable to enroll kibana instance. Cannot retrieve CA certificate " +
+                "for the HTTP layer of the Elasticsearch node.", e));
             return;
         }
         if (caCertificates.size() != 1) {
             listener.onFailure(new ElasticsearchException(
-                "Unable to enroll client. Elasticsearch node HTTP layer SSL configuration Keystore [xpack.security.http.ssl.keystore] " +
-                    "doesn't contain a single PrivateKey entry where the associated certificate is a CA certificate"));
-
+                "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration Keystore " +
+                "[xpack.security.http.ssl.keystore] doesn't contain a single PrivateKey entry where the associated " +
+                "certificate is a CA certificate"));
         } else {
             String httpCa;
             try {
                 httpCa = Base64.getUrlEncoder().encodeToString(caCertificates.get(0).getEncoded());
             } catch (CertificateEncodingException cee) {
                 listener.onFailure(new ElasticsearchException(
-                    "Unable to enroll client. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate", cee));
+                    "Unable to enroll kibana instance. Elasticsearch node HTTP layer SSL configuration uses a malformed CA certificate",
+                    cee));
                 return;
             }
             final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.HTTP.metricName());

@@ -21,6 +21,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -73,9 +74,11 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         httpCaPath = tempDir.resolve("httpCa.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         when(env.configFile()).thenReturn(tempDir);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("keystore.secure_password", "password");
         final Settings settings = Settings.builder()
             .put("keystore.path", "httpCa.p12")
-            .put("keystore.password", "password")
+            .setSecureSettings(secureSettings)
             .build();
         final SSLService sslService = mock(SSLService.class);
         final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
@@ -141,9 +144,6 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));
         assertThat(changePasswordRequests.size(), equalTo(1));
         assertThat(nodesInfoRequests.size(), equalTo(1));
-
-        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
     }
 
     public void testKibanaEnrollmentFailedPasswordChange() {
@@ -158,9 +158,6 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
         action.doExecute(mock(Task.class), request, future);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, future::actionGet);
         assertThat(e.getDetailedMessage(), containsString("Failed to set the password for user [kibana_system]"));
-
-        assertWarnings("[keystore.password] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-            "See the breaking changes documentation for the next major version.");
     }
 
     private DiscoveryNode node(final int id) {

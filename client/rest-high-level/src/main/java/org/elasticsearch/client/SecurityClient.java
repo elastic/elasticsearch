@@ -1173,7 +1173,7 @@ public final class SecurityClient {
     }
 
     /**
-     * Asynchronously allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Client API
+     * Asynchronously allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Kibana API
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
      * @param listener the listener to be notified upon request completion
      */

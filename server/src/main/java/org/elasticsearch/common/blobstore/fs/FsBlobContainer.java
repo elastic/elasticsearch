@@ -253,7 +253,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         if (atomic) {
             final String tempBlob = tempBlobName(blobName);
             try {
-                writeToPath(tempBlob, failIfAlreadyExists, writer);
+                writeToPath(tempBlob, true, writer);
                 moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
             } catch (IOException ex) {
                 try {
@@ -262,12 +262,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
                     ex.addSuppressed(e);
                 }
                 throw ex;
-            } finally {
-                IOUtils.fsync(path, true);
             }
         } else {
             writeToPath(blobName, failIfAlreadyExists, writer);
         }
+        IOUtils.fsync(path, true);
     }
 
     private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
@@ -286,6 +285,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 writer.accept(out);
             }
         }
+        IOUtils.fsync(file, false);
     }
 
     @Override
@@ -352,7 +352,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         return blobName.startsWith(TEMP_FILE_PREFIX);
     }
 
-    private class BlobOutputStream extends FilterOutputStream {
+    private static class BlobOutputStream extends FilterOutputStream {
 
         BlobOutputStream(Path file) throws IOException {
             super(Files.newOutputStream(file, StandardOpenOption.CREATE_NEW));
@@ -361,12 +361,6 @@ public class FsBlobContainer extends AbstractBlobContainer {
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
             out.write(b, off, len);
-        }
-
-        @Override
-        public void close() throws IOException {
-            super.close();
-            IOUtils.fsync(path, true);
         }
     }
 }

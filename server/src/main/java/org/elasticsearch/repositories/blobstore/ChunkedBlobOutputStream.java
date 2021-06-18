@@ -16,18 +16,44 @@ import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Base class for doing chunked writes to a blob store. Some blob stores require either up-front knowledge of the size of the blob that
+ * will be written or writing it in chunks that are then joined into the final blob at the end of the write. This class provides a basis
+ * on which to implement an output stream that encapsulates such a chunked write.
+ *
+ * @param <T> type of chunk identifier
+ */
 public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
+    /**
+     * Size of the write buffer above which it must be flushed to storage.
+     */
     protected final long maxBytesToBuffer;
 
+    /**
+     * List of identifiers of already written chunks.
+     */
     protected final List<T> parts = new ArrayList<>();
 
+    /**
+     * Big arrays to be able to allocate buffers from pooled bytes.
+     */
     private final BigArrays bigArrays;
 
+    /**
+     * Current write buffer.
+     */
     protected ReleasableBytesStreamOutput buffer;
 
+    /**
+     * Set to true once no more calls to {@link #write} are expected and the blob has been received by {@link #write} in full so that
+     * {@link #close()} knows whether to clean up existing chunks or finish a chunked write.
+     */
     protected boolean successful = false;
 
+    /**
+     * Number of bytes written to storage writeBlso far.
+     */
     protected long written = 0L;
 
     protected ChunkedBlobOutputStream(BigArrays bigArrays, long maxBytesToBuffer) {

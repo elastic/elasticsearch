@@ -12,6 +12,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.search.stats.FieldUsageStats.PerFieldUsageStats;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader.FieldUsageNotifier;
 
 import java.util.Collections;
@@ -21,14 +22,27 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
+/**
+ * Records and provides field usage stats
+ */
 public class ShardFieldUsageTracker {
 
     private final Map<String, InternalFieldStats> perFieldStats = new ConcurrentHashMap<>();
 
+    /**
+     * Returns a new session which can be passed to a {@link FieldUsageTrackingDirectoryReader}
+     * to track field usage of a shard. Fields tracked as part of a session are only counted
+     * as a single use. The stats are then recorded for this shard when the corresponding
+     * session is closed.
+     */
     public FieldUsageStatsTrackingSession createSession() {
         return new FieldUsageStatsTrackingSession();
     }
 
+    /**
+     * Returns field usage stats for the given fields. If no subset of fields is specified,
+     * returns information for all fields.
+     */
     public FieldUsageStats stats(String... fields) {
         final Map<String, PerFieldUsageStats> stats = new HashMap<>(perFieldStats.size());
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
@@ -64,20 +78,20 @@ public class ShardFieldUsageTracker {
         final LongAdder points = new LongAdder();
     }
 
-    public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
+    static class PerField {
+        boolean terms;
+        boolean freqs;
+        boolean positions;
+        boolean offsets;
+        boolean docValues;
+        boolean storedFields;
+        boolean norms;
+        boolean payloads;
+        boolean termVectors;
+        boolean points;
+    }
 
-        class PerField {
-            boolean terms;
-            boolean freqs;
-            boolean positions;
-            boolean offsets;
-            boolean docValues;
-            boolean storedFields;
-            boolean norms;
-            boolean payloads;
-            boolean termVectors;
-            boolean points;
-        }
+    public class FieldUsageStatsTrackingSession implements FieldUsageNotifier, Releasable {
 
         private final Map<String, PerField> usages = new HashMap<>();
 
@@ -130,7 +144,7 @@ public class ShardFieldUsageTracker {
         }
 
         @Override
-        public void onFreqsUsed(String field) {
+        public void onFrequenciesUsed(String field) {
             getOrAdd(field).freqs = true;
         }
 

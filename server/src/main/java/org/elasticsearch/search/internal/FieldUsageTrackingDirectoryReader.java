@@ -30,6 +30,10 @@ import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
 
+/**
+ * Wraps a DirectoryReader and tracks all access to fields, notifying a
+ * {@link FieldUsageNotifier} upon access.
+ */
 public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     private final FieldUsageNotifier notifier;
@@ -56,7 +60,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
-        void onFreqsUsed(String field);
+        void onFrequenciesUsed(String field);
         void onPositionsUsed(String field);
         void onOffsetsUsed(String field);
         void onDocValuesUsed(String field);
@@ -113,7 +117,9 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             Terms terms = super.terms(field);
             if (terms != null) {
                 notifier.onTermsUsed(field);
-                // we can't wrap CompletionTerms, as CompletionWeight does an instanceof check...
+                // we can't wrap CompletionTerms, as CompletionWeight does an instanceof check.
+                // we also can't create a subclass of CompletionTerms as it is a final class.
+                // TODO: fix in Lucene
                 if (terms instanceof CompletionTerms == false) {
                     terms = new FieldUsageTrackingTerms(field, terms);
                 }
@@ -198,7 +204,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long getSumTotalTermFreq() throws IOException {
                 long totalTermFreq = super.getSumTotalTermFreq();
-                notifier.onFreqsUsed(field);
+                notifier.onFrequenciesUsed(field);
                 return totalTermFreq;
             }
 
@@ -220,7 +226,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long totalTermFreq() throws IOException {
                 long totalTermFreq = super.totalTermFreq();
-                notifier.onFreqsUsed(field);
+                notifier.onFrequenciesUsed(field);
                 return totalTermFreq;
             }
 
@@ -244,7 +250,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
             private void checkPostingsFlags(int flags) {
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.FREQS)) {
-                    notifier.onFreqsUsed(field);
+                    notifier.onFrequenciesUsed(field);
                 }
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)) {
                     notifier.onPositionsUsed(field);

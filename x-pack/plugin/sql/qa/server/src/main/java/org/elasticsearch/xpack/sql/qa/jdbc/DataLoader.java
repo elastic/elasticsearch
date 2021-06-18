@@ -80,9 +80,7 @@ public class DataLoader {
     private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {
         createEmptyIndex(client, index);
         Request request = new Request("POST", "/" + index + "/_doc");
-        XContentBuilder emptyDoc = JsonXContent.contentBuilder()
-            .startObject()
-            .endObject();
+        XContentBuilder emptyDoc = JsonXContent.contentBuilder().startObject().endObject();
         request.setJsonEntity(Strings.toString(emptyDoc));
         client.performRequest(request);
     }

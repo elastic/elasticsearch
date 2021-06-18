@@ -98,7 +98,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
-                final FieldType fieldType = randomVectorFieldType();
+                final FieldType fieldType = randomTermVectorsFieldType();
                 final double ratio = randomDouble();
                 if (ratio <= 0.25) {
                     doc.add(new Field("v1", randomAlphaOfLength(5), fieldType));
@@ -235,7 +235,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static FieldType randomVectorFieldType() {
+    static FieldType randomTermVectorsFieldType() {
         FieldType fieldType = new FieldType(TextField.TYPE_NOT_STORED);
         fieldType.setStoreTermVectors(true);
         fieldType.setStoreTermVectorPositions(randomBoolean());
@@ -245,10 +245,10 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         return fieldType;
     }
 
-    static void addRandomVectors(Document doc) {
+    static void addRandomTermVectors(Document doc) {
         int numFields = randomFrom(1, 3);
         for (int f = 0; f < numFields; f++) {
-            doc.add(new Field("vector-" + f, randomAlphaOfLength(5), randomVectorFieldType()));
+            doc.add(new Field("vector-" + f, randomAlphaOfLength(5), randomTermVectorsFieldType()));
         }
     }
 
@@ -266,7 +266,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             addRandomStoredFields(doc, between(1, 3));
         }
         if (randomBoolean()) {
-            addRandomVectors(doc);
+            addRandomTermVectors(doc);
         }
     }
 

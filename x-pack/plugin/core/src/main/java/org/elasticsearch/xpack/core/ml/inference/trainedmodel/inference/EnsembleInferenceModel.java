@@ -11,9 +11,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
@@ -50,7 +50,6 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHe
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.AGGREGATE_OUTPUT;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_LABELS;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.CLASSIFICATION_WEIGHTS;
-import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TARGET_TYPE;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.ensemble.Ensemble.TRAINED_MODELS;
 
 public class EnsembleInferenceModel implements InferenceModel {
@@ -75,7 +74,7 @@ public class EnsembleInferenceModel implements InferenceModel {
         PARSER.declareNamedObject(constructorArg(),
             (p, c, n) -> p.namedObject(LenientlyParsedOutputAggregator.class, n, null),
             AGGREGATE_OUTPUT);
-        PARSER.declareString(constructorArg(), TARGET_TYPE);
+        PARSER.declareString(constructorArg(), TargetType.TARGET_TYPE);
         PARSER.declareStringArray(optionalConstructorArg(), CLASSIFICATION_LABELS);
         PARSER.declareDoubleArray(optionalConstructorArg(), CLASSIFICATION_WEIGHTS);
     }
@@ -99,7 +98,7 @@ public class EnsembleInferenceModel implements InferenceModel {
                                    List<Double> classificationWeights) {
         this.models = ExceptionsHelper.requireNonNull(models, TRAINED_MODELS);
         this.outputAggregator = ExceptionsHelper.requireNonNull(outputAggregator, AGGREGATE_OUTPUT);
-        this.targetType = ExceptionsHelper.requireNonNull(targetType, TARGET_TYPE);
+        this.targetType = ExceptionsHelper.requireNonNull(targetType, TargetType.TARGET_TYPE);
         this.classificationLabels = classificationLabels;
         this.classificationWeights = classificationWeights == null ?
             null :

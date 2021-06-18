@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
@@ -101,7 +102,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**

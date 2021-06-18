@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import static org.hamcrest.Matchers.is;
 
-public class AsyncActionBranchingStepTests extends AbstractStepMasterTimeoutTestCase<AsyncActionBranchingStep> {
+public class AsyncActionBranchingStepTests extends AbstractStepTestCase<AsyncActionBranchingStep> {
 
     @Override
     protected AsyncActionBranchingStep createRandomInstance() {

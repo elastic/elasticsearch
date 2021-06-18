@@ -48,7 +48,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
 
         project.getTasks().withType(Test.class).configureEach(test -> {
-            File testOutputDir = new File(test.getReports().getJunitXml().getDestination(), "output");
+            File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test.getTestLogging(), test.getLogger(), testOutputDir);
             test.getExtensions().add("errorReportingTestListener", listener);
@@ -92,7 +92,14 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.jvmArgs(
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
-                "--illegal-access=warn",
+                "--illegal-access=deny",
+                // TODO: only open these for mockito when it is modularized
+                "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                "--add-opens=java.base/java.net=ALL-UNNAMED",
+                "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
+                "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
+                "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "-XX:+HeapDumpOnOutOfMemoryError"
             );
 

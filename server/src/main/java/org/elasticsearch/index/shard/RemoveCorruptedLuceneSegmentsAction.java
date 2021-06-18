@@ -12,7 +12,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.io.PrintStream;

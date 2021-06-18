@@ -15,8 +15,6 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -33,16 +31,16 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.gateway.CorruptStateException;
-import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Locale;
-import java.util.Map;
 import java.util.zip.CRC32;
 
 /**
@@ -50,18 +48,12 @@ import java.util.zip.CRC32;
  */
 public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
-    // Serialization parameters to specify correct context for metadata serialization
-    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS;
-
-    static {
-        Map<String, String> snapshotOnlyParams = new HashMap<>();
-        // when metadata is serialized certain elements of the metadata shouldn't be included into snapshot
-        // exclusion of these elements is done by setting Metadata.CONTEXT_MODE_PARAM to Metadata.CONTEXT_MODE_SNAPSHOT
-        snapshotOnlyParams.put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_SNAPSHOT);
-        // serialize SnapshotInfo using the SNAPSHOT mode
-        snapshotOnlyParams.put(SnapshotInfo.CONTEXT_MODE_PARAM, SnapshotInfo.CONTEXT_MODE_SNAPSHOT);
-        SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(snapshotOnlyParams);
-    }
+    // Serialization parameters to specify correct context for metadata serialization.
+    // When metadata is serialized certain elements of the metadata shouldn't be included into snapshot
+    // exclusion of these elements is done by setting Metadata.CONTEXT_MODE_PARAM to Metadata.CONTEXT_MODE_SNAPSHOT
+    public static final ToXContent.Params SNAPSHOT_ONLY_FORMAT_PARAMS = new ToXContent.MapParams(
+        Collections.singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_SNAPSHOT)
+    );
 
     // The format version
     public static final int VERSION = 1;
@@ -114,8 +106,10 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                 wrappedStream = deserializeMetaBlobInputStream;
             }
             final T result;
-            try (XContentParser parser = XContentType.SMILE.xContent().createParser(
-                    namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)) {
+            try (
+                XContentParser parser = XContentType.SMILE.xContent()
+                    .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
+            ) {
                 result = reader.apply(parser);
             }
             deserializeMetaBlobInputStream.verifyFooter();
@@ -213,8 +207,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         void verifyFooter() throws CorruptStateException {
             if (bufferCount - bufferPos != CodecUtil.footerLength()) {
                 throw new CorruptStateException(
-                        "should have consumed all but 16 bytes from the buffer but saw buffer pos [" + bufferPos + "] and count ["
-                                + bufferCount + "]");
+                    "should have consumed all but 16 bytes from the buffer but saw buffer pos ["
+                        + bufferPos
+                        + "] and count ["
+                        + bufferCount
+                        + "]"
+                );
             }
             crc32.update(buffer, 0, bufferPos + 8);
             final int magicFound = Numbers.bytesToInt(buffer, bufferPos);
@@ -278,12 +276,22 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes, false));
     }
 
-    public void serialize(final T obj, final String blobName, final boolean compress, BigArrays bigArrays,
-                          CheckedConsumer<BytesReference, IOException> consumer) throws IOException {
+    public void serialize(
+        final T obj,
+        final String blobName,
+        final boolean compress,
+        BigArrays bigArrays,
+        CheckedConsumer<BytesReference, IOException> consumer
+    ) throws IOException {
         try (ReleasableBytesStreamOutput outputStream = new ReleasableBytesStreamOutput(bigArrays)) {
-            try (OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
-                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")", blobName,
-                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream), BUFFER_SIZE)) {
+            try (
+                OutputStreamIndexOutput indexOutput = new OutputStreamIndexOutput(
+                    "ChecksumBlobStoreFormat.writeBlob(blob=\"" + blobName + "\")",
+                    blobName,
+                    org.elasticsearch.common.io.Streams.noCloseStream(outputStream),
+                    BUFFER_SIZE
+                )
+            ) {
                 CodecUtil.writeHeader(indexOutput, codec, VERSION);
                 try (OutputStream indexOutputOutputStream = new IndexOutputOutputStream(indexOutput) {
                     @Override
@@ -291,9 +299,12 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                         // this is important since some of the XContentBuilders write bytes on close.
                         // in order to write the footer we need to prevent closing the actual index input.
                     }
-                }; XContentBuilder builder = XContentFactory.contentBuilder(XContentType.SMILE,
-                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream)
-                                : indexOutputOutputStream)) {
+                };
+                    XContentBuilder builder = XContentFactory.contentBuilder(
+                        XContentType.SMILE,
+                        compress ? CompressorFactory.COMPRESSOR.threadLocalOutputStream(indexOutputOutputStream) : indexOutputOutputStream
+                    )
+                ) {
                     builder.startObject();
                     obj.toXContent(builder, SNAPSHOT_ONLY_FORMAT_PARAMS);
                     builder.endObject();

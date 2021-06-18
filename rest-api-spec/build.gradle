@@ -65,6 +65,10 @@ def v7compatiblityNotSupportedTests = {
           'mget/16_basic_with_types/Basic multi-get',
           // asserting about type not found won't work as we ignore the type information
           'explain/40_mix_typeless_typeful/Explain with typeless API on an index that has types',
+          // translog settings removal is not supported under compatible api
+          'indices.stats/20_translog/Translog retention settings are deprecated',
+          'indices.stats/20_translog/Translog retention without soft_deletes',
+          'indices.stats/20_translog/Translog stats on closed indices without soft-deletes'
   ]
 }
 tasks.named("yamlRestCompatTest").configure {
@@ -86,16 +90,6 @@ tasks.named("yamlRestCompatTest").configure {
     'indices.put_template/11_basic_with_types/Put template with empty mappings',
     'indices.shrink/30_copy_settings/Copy settings during shrink index',
     'indices.split/30_copy_settings/Copy settings during split index',
-    'indices.stats/15_types/Types - _all metric',
-    'indices.stats/15_types/Types - indexing metric',
-    'indices.stats/15_types/Types - multi',
-    'indices.stats/15_types/Types - multi metric',
-    'indices.stats/15_types/Types - one',
-    'indices.stats/15_types/Types - pattern',
-    'indices.stats/15_types/Types - star',
-    'indices.stats/20_translog/Translog retention settings are deprecated',
-    'indices.stats/20_translog/Translog retention without soft_deletes',
-    'indices.stats/20_translog/Translog stats on closed indices without soft-deletes',
     'indices.upgrade/10_basic/Basic test for upgrade indices',
     'indices.upgrade/10_basic/Upgrade indices allow no indices',
     'indices.upgrade/10_basic/Upgrade indices disallow no indices',
@@ -236,6 +230,17 @@ tasks.named("transformV7RestTests").configure({ task ->
   task.replaceValueInMatch("docs.0._type", "_doc", "IDs")
   task.replaceValueInMatch("docs.1._type", "_doc", "IDs")
   task.replaceValueInMatch("docs.2._type", "_doc", "Routing")
+
+  //overrides for indices.stats
+  //TODO fix to remove the below match
+  task.replaceKeyInMatch("_all.primaries.indexing.types.baz.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceKeyInMatch("_all.primaries.indexing.types.bar.index_total",
+    "_all.primaries.indexing.types._doc.index_total"
+  )
+  task.replaceValueInMatch("_all.primaries.indexing.types._doc.index_total", 2)
+
 })
 
 tasks.register('enforceYamlTestConvention').configure {

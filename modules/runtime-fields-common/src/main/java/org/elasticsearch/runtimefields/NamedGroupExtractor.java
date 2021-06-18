@@ -9,8 +9,8 @@
 package org.elasticsearch.runtimefields;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.LazyInitializable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.grok.MatcherWatchdog;

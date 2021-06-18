@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.NodeVersionAllocatio
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -96,7 +97,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 Settings settings = Settings.builder()
                         .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id", nodeId.get()).build();
                 UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indexName)
-                        .masterNodeTimeout(getMasterTimeout(clusterState))
+                        .masterNodeTimeout(TimeValue.MAX_VALUE)
                         .settings(settings);
                 getClient().admin().indices().updateSettings(updateSettingsRequest,
                         ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));

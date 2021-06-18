@@ -118,7 +118,8 @@ public interface BlobContainer {
         writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
 
-    void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer) throws IOException;
+    void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
+                   CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 
     /**
      * Reads blob content from a {@link BytesReference} and writes it to the container in a new blob with the given name,

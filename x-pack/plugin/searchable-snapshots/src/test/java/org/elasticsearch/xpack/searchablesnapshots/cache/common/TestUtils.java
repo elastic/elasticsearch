@@ -272,7 +272,12 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer) {
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) {
             throw unsupportedException();
         }
 

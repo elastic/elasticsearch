@@ -457,11 +457,19 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
-            throws IOException {
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
             final BytesStreamOutput out = new BytesStreamOutput();
             writer.accept(out);
-            writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            if (atomic) {
+                writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+            } else {
+                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+            }
         }
 
         @Override

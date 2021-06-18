@@ -490,11 +490,7 @@ public class MockRepository extends FsRepository {
             @Override
             public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
                 throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
-                }
+                beforeWrite(blobName);
                 super.writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
@@ -506,13 +502,14 @@ public class MockRepository extends FsRepository {
             @Override
             public void writeBlob(String blobName,
                                   boolean failIfAlreadyExists,
+                                  boolean atomic,
                                   CheckedConsumer<OutputStream, IOException> writer) throws IOException {
-                maybeIOExceptionOrBlock(blobName);
-                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
-                        && path().equals(basePath()) == false) {
-                    blockExecutionAndMaybeWait(blobName);
+                if (atomic) {
+                    beforeAtomicWrite(blobName);
+                } else {
+                    beforeWrite(blobName);
                 }
-                super.writeBlob(blobName, failIfAlreadyExists, writer);
+                super.writeBlob(blobName, failIfAlreadyExists, atomic, writer);
                 if (RandomizedContext.current().getRandom().nextBoolean()) {
                     // for network based repositories, the blob may have been written but we may still
                     // get an error with the client connection, so an IOException here simulates this
@@ -520,20 +517,18 @@ public class MockRepository extends FsRepository {
                 }
             }
 
+            private void beforeWrite(String blobName) throws IOException {
+                maybeIOExceptionOrBlock(blobName);
+                if (blockOnWriteShardLevelMeta && blobName.startsWith(BlobStoreRepository.SNAPSHOT_PREFIX)
+                        && path().equals(basePath()) == false) {
+                    blockExecutionAndMaybeWait(blobName);
+                }
+            }
+
             @Override
             public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
-                final Random random = RandomizedContext.current().getRandom();
-                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
-                    throw new IOException("Random IOException");
-                }
-                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
-                    if (blockAndFailOnWriteIndexFile) {
-                        blockExecutionAndFail(blobName);
-                    } else if (blockOnWriteIndexFile) {
-                        blockExecutionAndMaybeWait(blobName);
-                    }
-                }
+                final Random random = beforeAtomicWrite(blobName);
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
@@ -547,6 +542,21 @@ public class MockRepository extends FsRepository {
                     maybeIOExceptionOrBlock(blobName);
                     super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
+            }
+
+            private Random beforeAtomicWrite(String blobName) throws IOException {
+                final Random random = RandomizedContext.current().getRandom();
+                if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
+                    throw new IOException("Random IOException");
+                }
+                if (blobName.startsWith(BlobStoreRepository.INDEX_FILE_PREFIX)) {
+                    if (blockAndFailOnWriteIndexFile) {
+                        blockExecutionAndFail(blobName);
+                    } else if (blockOnWriteIndexFile) {
+                        blockExecutionAndMaybeWait(blobName);
+                    }
+                }
+                return random;
             }
         }
     }

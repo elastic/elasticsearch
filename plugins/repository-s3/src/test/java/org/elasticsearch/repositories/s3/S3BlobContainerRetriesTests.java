@@ -43,6 +43,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.repositories.s3.S3ClientSettings.DISABLE_CHUNKED_ENCODING;
 import static org.elasticsearch.repositories.s3.S3ClientSettings.ENDPOINT_SETTING;
@@ -295,6 +296,105 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
         assertThat(countDownInitiate.isCountedDown(), is(true));
         assertThat(countDownUploads.get(), equalTo(0));
         assertThat(countDownComplete.isCountedDown(), is(true));
+    }
+
+    public void testWriteLargeBlobStreaming() throws Exception {
+        final boolean useTimeout = rarely();
+        final TimeValue readTimeout = useTimeout ? TimeValue.timeValueMillis(randomIntBetween(100, 500)) : null;
+        final ByteSizeValue bufferSize = new ByteSizeValue(5, ByteSizeUnit.MB);
+        final BlobContainer blobContainer = createBlobContainer(null, readTimeout, true, bufferSize);
+
+        final int parts = randomIntBetween(1, 5);
+        final long lastPartSize = randomLongBetween(10, 512);
+        final long blobSize = (parts * bufferSize.getBytes()) + lastPartSize;
+
+        final int nbErrors = 2; // we want all requests to fail at least once
+        final CountDown countDownInitiate = new CountDown(nbErrors);
+        final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
+        final AtomicLong bytesReceived = new AtomicLong(0L);
+        final CountDown countDownComplete = new CountDown(nbErrors);
+
+        httpServer.createContext("/bucket/write_large_blob", exchange -> {
+            final long contentLength = Long.parseLong(exchange.getRequestHeaders().getFirst("Content-Length"));
+
+            if ("POST".equals(exchange.getRequestMethod())
+                    && exchange.getRequestURI().getQuery().equals("uploads")) {
+                // initiate multipart upload request
+                if (countDownInitiate.countDown()) {
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                            "<InitiateMultipartUploadResult>\n" +
+                            "  <Bucket>bucket</Bucket>\n" +
+                            "  <Key>write_large_blob</Key>\n" +
+                            "  <UploadId>TEST</UploadId>\n" +
+                            "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
+                }
+            } else if ("PUT".equals(exchange.getRequestMethod())
+                    && exchange.getRequestURI().getQuery().contains("uploadId=TEST")
+                    && exchange.getRequestURI().getQuery().contains("partNumber=")) {
+                // upload part request
+                MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
+                BytesReference bytes = Streams.readFully(md5);
+
+                if (countDownUploads.decrementAndGet() % 2 == 0) {
+                    bytesReceived.addAndGet(bytes.length());
+                    exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);
+                    exchange.close();
+                    return;
+                }
+
+            } else if ("POST".equals(exchange.getRequestMethod())
+                    && exchange.getRequestURI().getQuery().equals("uploadId=TEST")) {
+                // complete multipart upload request
+                if (countDownComplete.countDown()) {
+                    Streams.readFully(exchange.getRequestBody());
+                    byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                            "<CompleteMultipartUploadResult>\n" +
+                            "  <Bucket>bucket</Bucket>\n" +
+                            "  <Key>write_large_blob</Key>\n" +
+                            "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
+                    exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                    exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
+                    exchange.getResponseBody().write(response);
+                    exchange.close();
+                    return;
+                }
+            }
+
+            // sends an error back or let the request time out
+            if (useTimeout == false) {
+                if (randomBoolean() && contentLength > 0) {
+                    Streams.readFully(exchange.getRequestBody(), new byte[randomIntBetween(1, Math.toIntExact(contentLength - 1))]);
+                } else {
+                    Streams.readFully(exchange.getRequestBody());
+                    exchange.sendResponseHeaders(randomFrom(HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_BAD_GATEWAY,
+                            HttpStatus.SC_SERVICE_UNAVAILABLE, HttpStatus.SC_GATEWAY_TIMEOUT), -1);
+                }
+                exchange.close();
+            }
+        });
+
+        blobContainer.writeBlob("write_large_blob", false, randomBoolean(), out -> {
+            final byte[] buffer = new byte[16 * 1024];
+            long outstanding = blobSize;
+            while (outstanding > 0) {
+                if (randomBoolean()) {
+                    int toWrite = Math.toIntExact(Math.min(randomIntBetween(64, buffer.length), outstanding));
+                    out.write(buffer, 0, toWrite);
+                    outstanding -= toWrite;
+                } else {
+                    out.write(0);
+                    outstanding--;
+                }
+            }
+        });
+
+        assertEquals(blobSize, bytesReceived.get());
     }
 
     /**

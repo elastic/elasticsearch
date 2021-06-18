@@ -104,6 +104,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
+                          boolean atomic,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         blobStore.writeBlob(buildKey(blobName), failIfAlreadyExists, writer);
     }

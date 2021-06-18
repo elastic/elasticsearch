@@ -8,8 +8,6 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasables;
 
@@ -20,10 +18,7 @@ import java.util.List;
 
 public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
-    /**
-     * We buffer 8MB before flushing to storage.
-     */
-    public static final long FLUSH_BUFFER_BYTES = new ByteSizeValue(8, ByteSizeUnit.MB).getBytes();
+    protected final long maxBytesToBuffer;
 
     protected final List<T> parts = new ArrayList<>();
 
@@ -35,8 +30,9 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
     protected long written = 0L;
 
-    protected ChunkedBlobOutputStream(BigArrays bigArrays) {
+    protected ChunkedBlobOutputStream(BigArrays bigArrays, long maxBytesToBuffer) {
         this.bigArrays = bigArrays;
+        this.maxBytesToBuffer = maxBytesToBuffer;
         buffer = new ReleasableBytesStreamOutput(bigArrays);
     }
 

@@ -625,12 +625,20 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void writeBlob(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
-            throws IOException {
+        public void writeBlob(
+            String blobName,
+            boolean failIfAlreadyExists,
+            boolean atomic,
+            CheckedConsumer<OutputStream, IOException> writer
+        ) throws IOException {
             // TODO: this is just a stop-gap solution for until we have an encrypted output stream wrapper
             try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
                 writer.accept(out);
-                writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                if (atomic) {
+                    writeBlobAtomic(blobName, out.bytes(), failIfAlreadyExists);
+                } else {
+                    writeBlob(blobName, out.bytes(), failIfAlreadyExists);
+                }
             }
         }
 

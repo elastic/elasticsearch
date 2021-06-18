@@ -248,7 +248,30 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
+                          boolean atomic,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
+        if (atomic) {
+            final String tempBlob = tempBlobName(blobName);
+            try {
+                writeToPath(tempBlob, failIfAlreadyExists, writer);
+                moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
+            } catch (IOException ex) {
+                try {
+                    deleteBlobsIgnoringIfNotExists(Iterators.single(tempBlob));
+                } catch (IOException e) {
+                    ex.addSuppressed(e);
+                }
+                throw ex;
+            } finally {
+                IOUtils.fsync(path, true);
+            }
+        } else {
+            writeToPath(blobName, failIfAlreadyExists, writer);
+        }
+    }
+
+    private void writeToPath(String blobName, boolean failIfAlreadyExists, CheckedConsumer<OutputStream, IOException> writer)
+            throws IOException {
         final Path file = path.resolve(blobName);
         try {
             try (OutputStream out = new BlobOutputStream(file)) {

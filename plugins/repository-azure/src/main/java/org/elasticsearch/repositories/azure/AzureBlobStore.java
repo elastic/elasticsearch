@@ -396,11 +396,11 @@ public class AzureBlobStore implements BlobStore {
         SocketAccess.doPrivilegedVoidException(() -> {
             final BlockBlobAsyncClient blockBlobAsyncClient = asyncClient().getBlobContainerAsyncClient(container)
                     .getBlobAsyncClient(blobName).getBlockBlobAsyncClient();
-            try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays) {
+            try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays, getUploadBlockSize()) {
 
                 @Override
                 protected void maybeFlushBuffer() {
-                    if (buffer.size() >= FLUSH_BUFFER_BYTES) {
+                    if (buffer.size() >= maxBytesToBuffer) {
                         flushBuffer();
                     }
                 }

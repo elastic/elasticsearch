@@ -135,15 +135,16 @@ class S3BlobContainer extends AbstractBlobContainer {
     @Override
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
+                          boolean atomic,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
         try (AmazonS3Reference clientReference = blobStore.clientReference();
-             ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<>(blobStore.bigArrays()) {
+             ChunkedBlobOutputStream<PartETag> out = new ChunkedBlobOutputStream<>(blobStore.bigArrays(), blobStore.bufferSizeInBytes()) {
 
                  private final SetOnce<String> uploadId = new SetOnce<>();
 
                  @Override
                  protected void maybeFlushBuffer() throws IOException {
-                     if (buffer.size() >= FLUSH_BUFFER_BYTES) {
+                     if (buffer.size() >= maxBytesToBuffer) {
                          flushBuffer(false);
                      }
                  }

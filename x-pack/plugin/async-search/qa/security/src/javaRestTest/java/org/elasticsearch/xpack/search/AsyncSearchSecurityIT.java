@@ -224,7 +224,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(requestBody));
             final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time"));
+            assertThat(exc.getMessage(), containsString("[indices] cannot be used with point in time. Do not specify any index with point in time."));
         } finally {
             closePointInTime(pitId, authorizedUser);
         }

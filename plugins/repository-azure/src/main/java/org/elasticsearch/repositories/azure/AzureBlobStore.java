@@ -393,44 +393,43 @@ public class AzureBlobStore implements BlobStore {
     public void writeBlob(String blobName,
                           boolean failIfAlreadyExists,
                           CheckedConsumer<OutputStream, IOException> writer) throws IOException {
-        SocketAccess.doPrivilegedVoidException(() -> {
-            final BlockBlobAsyncClient blockBlobAsyncClient = asyncClient().getBlobContainerAsyncClient(container)
-                    .getBlobAsyncClient(blobName).getBlockBlobAsyncClient();
-            try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays, getUploadBlockSize()) {
+        final BlockBlobAsyncClient blockBlobAsyncClient = asyncClient().getBlobContainerAsyncClient(container)
+                .getBlobAsyncClient(blobName).getBlockBlobAsyncClient();
+        try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays, getUploadBlockSize()) {
 
-                @Override
-                protected void flushBuffer() {
-                    if (buffer.size() == 0) {
-                        return;
-                    }
-                    final String blockId = makeMultipartBlockId();
-                    blockBlobAsyncClient.stageBlock(
-                            blockId,
-                            Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes())),
-                            buffer.size()
-                    ).block();
-                    finishPart(blockId);
+            @Override
+            protected void flushBuffer() {
+                if (buffer.size() == 0) {
+                    return;
                 }
-
-                @Override
-                protected void onAllPartsReady() {
-                    if (written == 0L) {
-                        writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                    } else {
-                        flushBuffer();
-                        blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
-                    }
-                }
-
-                @Override
-                protected void onFailure() {
-                    // TODO: here and in multi-part upload, should we clean up uploaded blobs?
-                }
-            }) {
-                writer.accept(out);
-                out.markSuccess();
+                final String blockId = makeMultipartBlockId();
+                SocketAccess.doPrivilegedVoidException(() -> blockBlobAsyncClient.stageBlock(
+                        blockId,
+                        Flux.fromArray(BytesReference.toByteBuffers(buffer.bytes())),
+                        buffer.size()
+                ).block());
+                finishPart(blockId);
             }
-        });
+
+            @Override
+            protected void onAllPartsReady() {
+                if (written == 0L) {
+                    writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                } else {
+                    flushBuffer();
+                    SocketAccess.doPrivilegedVoidException(
+                            () -> blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block());
+                }
+            }
+
+            @Override
+            protected void onFailure() {
+                // TODO: here and in multi-part upload, should we clean up uploaded blobs?
+            }
+        }) {
+            writer.accept(out);
+            out.markSuccess();
+        }
     }
 
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {

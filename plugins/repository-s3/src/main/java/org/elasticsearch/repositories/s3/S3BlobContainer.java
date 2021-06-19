@@ -143,10 +143,8 @@ class S3BlobContainer extends AbstractBlobContainer {
                  private final SetOnce<String> uploadId = new SetOnce<>();
 
                  @Override
-                 protected void maybeFlushBuffer() throws IOException {
-                     if (buffer.size() >= maxBytesToBuffer) {
-                         flushBuffer(false);
-                     }
+                 protected void flushBuffer() throws IOException {
+                     flushBuffer(false);
                  }
 
                  private void flushBuffer(boolean lastPart) throws IOException {

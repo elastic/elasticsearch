@@ -26,14 +26,14 @@ import java.util.List;
 public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
     /**
-     * Size of the write buffer above which it must be flushed to storage.
-     */
-    protected final long maxBytesToBuffer;
-
-    /**
      * List of identifiers of already written chunks.
      */
     protected final List<T> parts = new ArrayList<>();
+
+    /**
+     * Size of the write buffer above which it must be flushed to storage.
+     */
+    private final long maxBytesToBuffer;
 
     /**
      * Big arrays to be able to allocate buffers from pooled bytes.
@@ -108,7 +108,13 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         }
     }
 
-    protected abstract void maybeFlushBuffer() throws IOException;
-
     protected abstract void doClose() throws IOException;
+
+    protected abstract void flushBuffer() throws IOException;
+
+    private void maybeFlushBuffer() throws IOException {
+        if (buffer.size() >= maxBytesToBuffer) {
+            flushBuffer();
+        }
+    }
 }

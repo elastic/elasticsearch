@@ -399,13 +399,7 @@ public class AzureBlobStore implements BlobStore {
             try (ChunkedBlobOutputStream<String> out = new ChunkedBlobOutputStream<>(bigArrays, getUploadBlockSize()) {
 
                 @Override
-                protected void maybeFlushBuffer() {
-                    if (buffer.size() >= maxBytesToBuffer) {
-                        flushBuffer();
-                    }
-                }
-
-                private void flushBuffer() {
+                protected void flushBuffer() {
                     if (buffer.size() == 0) {
                         return;
                     }

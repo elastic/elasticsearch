@@ -284,18 +284,20 @@ import java.util.Map;
                     termsIndexLookup.seekExact(bytesRef);
                 }
                 termsEnum.totalTermFreq();
+                int docID = 0;
                 for (long idx = 0; idx <= 8; idx++) {
-                    cancellationChecker.logEvent();
                     final int skipDocID = Math.toIntExact(idx * reader.maxDoc() / 8);
-                    postings = termsEnum.postings(postings, PostingsEnum.NONE);
-                    if (postings.advance(skipDocID) != DocIdSetIterator.NO_MORE_DOCS) {
-                        postings.freq();
-                        postings.nextDoc();
-                    } else {
-                        break;
+                    if (skipDocID <= docID) {
+                        cancellationChecker.logEvent();
+                        postings = termsEnum.postings(postings, PostingsEnum.NONE);
+                        if ((docID = postings.advance(skipDocID)) != DocIdSetIterator.NO_MORE_DOCS) {
+                            postings.freq();
+                            postings.nextDoc();
+                        }
                     }
                 }
             }
+            termsIndexLookup.seekExact(terms.getMax());
             final long termsBytes = directory.getBytesRead();
             stats.addTerms(field.name, termsBytes);
 

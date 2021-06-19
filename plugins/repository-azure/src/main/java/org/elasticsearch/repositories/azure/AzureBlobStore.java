@@ -413,17 +413,18 @@ public class AzureBlobStore implements BlobStore {
                 }
 
                 @Override
-                protected void doClose() {
-                    if (successful) {
-                        if (written == 0L) {
-                            writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                        } else {
-                            flushBuffer();
-                            blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
-                        }
+                protected void onAllPartsReady() {
+                    if (written == 0L) {
+                        writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                     } else {
-                        // TODO: here and in multi-part upload, should we clean up uploaded blobs?
+                        flushBuffer();
+                        blockBlobAsyncClient.commitBlockList(parts, failIfAlreadyExists == false).block();
                     }
+                }
+
+                @Override
+                protected void onFailure() {
+                    // TODO: here and in multi-part upload, should we clean up uploaded blobs?
                 }
             }) {
                 writer.accept(out);

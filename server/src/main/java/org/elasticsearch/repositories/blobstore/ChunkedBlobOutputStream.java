@@ -63,21 +63,25 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     }
 
     @Override
-    public void write(int b) throws IOException {
+    public final void write(int b) throws IOException {
         buffer.write(b);
         maybeFlushBuffer();
     }
 
     @Override
-    public void write(byte[] b, int off, int len) throws IOException {
+    public final void write(byte[] b, int off, int len) throws IOException {
         buffer.write(b, off, len);
         maybeFlushBuffer();
     }
 
     @Override
-    public void close() throws IOException {
+    public final void close() throws IOException {
         try {
-            doClose();
+            if (successful) {
+                onAllPartsReady();
+            } else {
+                onFailure();
+            }
         } finally {
             Releasables.close(buffer);
         }
@@ -86,7 +90,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     /**
      * Mark all blob bytes as properly received by {@link #write}, indicating that {@link #close} may finalize the blob.
      */
-    public void markSuccess() {
+    public final void markSuccess() {
         this.successful = true;
     }
 
@@ -108,9 +112,23 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         }
     }
 
-    protected abstract void doClose() throws IOException;
-
+    /**
+     * Write the contents of {@link #buffer} to storage. Implementations should call {@link #finishPart} at the end to track the the chunk
+     * of data just written and ready {@link #buffer} for the next write.
+     */
     protected abstract void flushBuffer() throws IOException;
+
+    /**
+     * Invoked once all write chunks/parts are ready to be combined into the final blob. Implementations must invoke the necessary logic
+     * for combining the uploaded chunks into the final blob in this method.
+     */
+    protected abstract void onAllPartsReady() throws IOException;
+
+    /**
+     * Invoked in case writing all chunks of data to storage failed. Implementations should run any cleanup required for the already
+     * written data in this method.
+     */
+    protected abstract void onFailure();
 
     private void maybeFlushBuffer() throws IOException {
         if (buffer.size() >= maxBytesToBuffer) {

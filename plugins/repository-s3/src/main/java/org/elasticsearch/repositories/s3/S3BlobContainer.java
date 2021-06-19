@@ -168,18 +168,21 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
 
                  @Override
-                 protected void doClose() throws IOException {
-                     if (successful) {
-                         if (written == 0L) {
-                             writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
-                         } else {
-                             flushBuffer(true);
-                             final CompleteMultipartUploadRequest complRequest =
-                                     new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
-                             complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
-                             SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
-                         }
-                     } else if (Strings.hasText(uploadId.get())) {
+                 protected void onAllPartsReady() throws IOException {
+                     if (written == 0L) {
+                         writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
+                     } else {
+                         flushBuffer(true);
+                         final CompleteMultipartUploadRequest complRequest =
+                                 new CompleteMultipartUploadRequest(blobStore.bucket(), blobName, uploadId.get(), parts);
+                         complRequest.setRequestMetricCollector(blobStore.multiPartUploadMetricCollector);
+                         SocketAccess.doPrivilegedVoid(() -> clientReference.client().completeMultipartUpload(complRequest));
+                     }
+                 }
+
+                 @Override
+                 protected void onFailure() {
+                     if (Strings.hasText(uploadId.get())) {
                          abortMultiPartUpload(uploadId.get(), blobName);
                      }
                  }

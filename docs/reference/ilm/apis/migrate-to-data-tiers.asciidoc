@@ -45,15 +45,71 @@ reported operation mode is `STOPPED`.
 ==== {api-examples-title}
 
 The following example migrates the indices and ILM policies away from defining
-custom allocation filtering using the `data` node attribute, and deletes legacy template
-with name `cloud-hot-warm-allocation-0` if it exists in the system.
+custom allocation filtering using the `custom_attribute_name` node attribute, and
+deletes legacy template with name `global-template` if it exists in the system.
+
+////
+[source,console]
+----
+POST _ilm/stop
+
+PUT _template/global-template
+{
+  "index_patterns": ["migrate-to-tiers-*"],
+  "settings": {
+     "index.routing.allocation.require.custom_attribute_name": "hot"
+  }
+}
+
+PUT warm-index-to-migrate-000001
+{
+  "settings": {
+    "index.routing.allocation.require.custom_attribute_name": "warm"
+  }
+}
+
+PUT _ilm/policy/policy_with_allocate_action
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "allocate": {
+            "require": {
+              "custom_attribute_name": "warm"
+            }
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE warm-index-to-migrate-000001
+
+DELETE _ilm/policy/policy_with_allocate_action
+
+POST _ilm/start
+----
+// TEARDOWN
+////
 
 [source,console]
 ----------------------------------------------------------------
 POST /_migrate_to_data_tiers
 {
-  "legacy_template_to_delete": "cloud-hot-warm-allocation-0",
-  "node_attribute": "data"
+  "legacy_template_to_delete": "global-template",
+  "node_attribute": "custom_attribute_name"
 }
 ----------------------------------------------------------------
 
@@ -62,9 +118,9 @@ If the request succeeds, a response like the following will be received:
 [source,console-result]
 ------------------------------------------------------------------------------
 {
-  "removed_legacy_template":"cloud-hot-warm-allocation-0", <1>
-  "migrated_ilm_policies":["policy-one","policy-two"], <2>
-  "migrated_indices":["logs-000001",".ds-.slm-history-5-2021.04.22-000002"] <3>
+  "removed_legacy_template":"global-template", <1>
+  "migrated_ilm_policies":["policy_with_allocate_action"], <2>
+  "migrated_indices":["warm-index-to-migrate-000001"] <3>
 }
 ------------------------------------------------------------------------------
 
@@ -72,4 +128,3 @@ If the request succeeds, a response like the following will be received:
 if no legacy index template was deleted.
 <2> The ILM policies that were updated.
 <3> The indices that were migrated to <<data-tier-shard-filtering,tier preference>> routing.
-

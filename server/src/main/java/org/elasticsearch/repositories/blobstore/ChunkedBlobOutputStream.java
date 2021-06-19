@@ -83,10 +83,19 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
         }
     }
 
+    /**
+     * Mark all blob bytes as properly received by {@link #write}, indicating that {@link #close} may finalize the blob.
+     */
     public void markSuccess() {
         this.successful = true;
     }
 
+    /**
+     * Finish writing the current buffer contents to storage and track them by the given {@code partId}. Depending on whether all contents
+     * have already been written either prepare the write buffer for additional writes or release the buffer.
+     *
+     * @param partId part identifier to track for use when closing
+     */
     protected final void finishPart(T partId) {
         written += buffer.size();
         parts.add(partId);

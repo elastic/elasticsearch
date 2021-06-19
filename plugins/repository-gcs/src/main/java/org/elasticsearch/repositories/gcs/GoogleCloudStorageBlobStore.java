@@ -277,28 +277,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         for (int retry = 0; retry < 3; ++retry) {
             try {
                 final WriteChannel writeChannel = SocketAccess.doPrivilegedIOException(() -> client().writer(blobInfo, writeOptions));
-                try (OutputStream out = new FilterOutputStream(
-                        Channels.newOutputStream(
-                                new WritableByteChannel() {
-
-                                    @SuppressForbidden(reason = "channel is based on a socket")
-                                    @Override
-                                    public int write(final ByteBuffer src) throws IOException {
-                                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-                                    }
-
-                                    @Override
-                                    public boolean isOpen() {
-                                        return writeChannel.isOpen();
-                                    }
-
-                                    @Override
-                                    public void close() {
-                                        // noop
-                                    }
-                                }
-                        )
-                ) {
+                try (OutputStream out = new FilterOutputStream(Channels.newOutputStream(new WritableBlobChannel(writeChannel))) {
                     @Override
                     public void write(byte[] b, int off, int len) throws IOException {
                         int written = 0;
@@ -367,24 +346,9 @@ class GoogleCloudStorageBlobStore implements BlobStore {
                  * It is not enough to wrap the call to Streams#copy, we have to wrap the privileged calls too; this is because Streams#copy
                  * is in the stacktrace and is not granted the permissions needed to close and write the channel.
                  */
-                org.elasticsearch.core.internal.io.Streams.copy(inputStream, Channels.newOutputStream(new WritableByteChannel() {
-
-                    @SuppressForbidden(reason = "channel is based on a socket")
-                    @Override
-                    public int write(final ByteBuffer src) throws IOException {
-                        return SocketAccess.doPrivilegedIOException(() -> writeChannel.write(src));
-                    }
-
-                    @Override
-                    public boolean isOpen() {
-                        return writeChannel.isOpen();
-                    }
-
-                    @Override
-                    public void close() throws IOException {
-                        SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
-                    }
-                }), buffer);
+                org.elasticsearch.core.internal.io.Streams.copy(
+                        inputStream, Channels.newOutputStream(new WritableBlobChannel(writeChannel)), buffer);
+                SocketAccess.doPrivilegedVoidIOException(writeChannel::close);
                 // We don't track this operation on the http layer as
                 // we do with the GET/LIST operations since this operations
                 // can trigger multiple underlying http requests but only one
@@ -547,5 +511,30 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     @Override
     public Map<String, Long> stats() {
         return stats.toMap();
+    }
+
+    private static final class WritableBlobChannel implements WritableByteChannel {
+
+        private final WriteChannel channel;
+
+        WritableBlobChannel(WriteChannel writeChannel) {
+            this.channel = writeChannel;
+        }
+
+        @SuppressForbidden(reason = "channel is based on a socket")
+        @Override
+        public int write(final ByteBuffer src) throws IOException {
+            return SocketAccess.doPrivilegedIOException(() -> channel.write(src));
+        }
+
+        @Override
+        public boolean isOpen() {
+            return channel.isOpen();
+        }
+
+        @Override
+        public void close() {
+            // we manually close the channel later to have control over whether or not we want to finalize a blob
+        }
     }
 }

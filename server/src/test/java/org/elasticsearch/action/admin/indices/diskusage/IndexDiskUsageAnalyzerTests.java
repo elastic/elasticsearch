@@ -8,10 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene80.Lucene80DocValuesFormat;
@@ -20,6 +16,7 @@ import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldPostingsFormat;
 import org.apache.lucene.document.BinaryDocValuesField;
+import org.apache.lucene.document.BinaryPoint;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
@@ -41,17 +38,16 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.bkd.BKDWriter;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -119,6 +115,33 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 stats.getFields().get("v2").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 2 / 7, 0.01, 512);
             assertFieldStats("v3", "term vectors",
                 stats.getFields().get("v3").getTermVectorsBytes(), stats.total().getTermVectorsBytes() * 4 / 7, 0.01, 512);
+        }
+    }
+
+    public void testPoints() throws Exception {
+        try (Directory dir = newDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            indexRandomly(dir, codec, between(100, 1000), doc -> {
+                final double ratio = randomDouble();
+                if (ratio <= 0.25) {
+                    doc.add(new BinaryPoint("pt1", randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8)));
+                }
+                if (ratio <= 0.50) {
+                    doc.add(new BinaryPoint("pt2", randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8)));
+                }
+                doc.add(new BinaryPoint("pt3", randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8)));
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(lastCommit(dir), () -> {});
+            final IndexDiskUsageStats perField = collectPerFieldStats(dir);
+            logger.info("--> stats {} per field {}", stats, perField);
+            assertFieldStats("total", "points",
+                stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 1024);
+            assertFieldStats("pt1", "points",
+                stats.getFields().get("pt1").getPointsBytes(), stats.total().getPointsBytes() / 7, 0.01, 512);
+            assertFieldStats("pt2", "points",
+                stats.getFields().get("pt2").getPointsBytes(), stats.total().getPointsBytes() * 2 / 7, 0.01, 512);
+            assertFieldStats("pt3", "points",
+                stats.getFields().get("pt3").getPointsBytes(), stats.total().getPointsBytes() * 4 / 7, 0.01, 512);
         }
     }
 
@@ -403,11 +426,11 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     case PAY:
                         stats.addProximity(fieldLookup.getPostingsField(file), bytes);
                         break;
+                    case KDI:
+                    case KDD:
                     case KDM:
-                        // not a per-field file, but we can hackishly do this for the points case.
-                        for (ObjectLongCursor<String> e : readPointLengths(directory, file, sis, reader.getFieldInfos())) {
-                            stats.addPoints(e.key, e.value);
-                        }
+                    case DIM:
+                        stats.addPoints("_all_points_fields", bytes);
                         break;
                     case FDT:
                     case FDX:
@@ -434,51 +457,6 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    private static ObjectLongMap<String> readPointLengths(Directory dir, String fileName, SegmentInfo sis,
-                                                          FieldInfos fieldInfos) throws IOException {
-        assert LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.KDM;
-        final ObjectLongMap<String> pointLengths = new ObjectLongHashMap<>();
-        final long totalDataLength = dir.fileLength(fileName.substring(0, fileName.length() - 1) + "d");
-        try (ChecksumIndexInput in = dir.openChecksumInput(fileName, IOContext.READONCE)) {
-            // fail hard if its not exactly the version we do this hack for.
-            CodecUtil.checkIndexHeader(in, "Lucene86PointsFormatMeta", 0, 0, sis.getId(), "");
-            int lastFieldNum = -1;
-            long lastMinFP = 0;
-            while (true) {
-                int fieldNum = in.readInt();
-                if (fieldNum == -1) {
-                    break;
-                }
-                CodecUtil.checkHeader(in, BKDWriter.CODEC_NAME, BKDWriter.VERSION_CURRENT, BKDWriter.VERSION_CURRENT);
-                in.readVInt(); // total dims
-                int indexDims = in.readVInt(); // index dims
-                in.readVInt(); // max points in leaf node
-                int bytesPerDim = in.readVInt(); // bytes per dim
-                in.readVInt(); // num leaves
-                in.skipBytes(2L * indexDims * bytesPerDim); // min/max values
-                in.readVLong(); // point count
-                in.readVInt(); // num docs
-                int numIndexBytes = in.readVInt();
-                pointLengths.addTo(fieldInfos.fieldInfo(fieldNum).name, numIndexBytes);
-                long minFP = in.readLong();
-                if (minFP >= totalDataLength) {
-                    throw new AssertionError();
-                }
-                if (minFP < lastMinFP) {
-                    throw new AssertionError();
-                }
-                in.readLong(); // index start FP
-                if (lastFieldNum != -1) {
-                    pointLengths.addTo(fieldInfos.fieldInfo(lastFieldNum).name, minFP - lastMinFP);
-                }
-                lastFieldNum = fieldNum;
-                lastMinFP = minFP;
-            }
-            pointLengths.addTo(fieldInfos.fieldInfo(lastFieldNum).name, totalDataLength - lastMinFP);
-        }
-        return pointLengths;
-    }
-
     private static void assertStats(IndexDiskUsageStats actualStats, IndexDiskUsageStats perFieldStats) {
         final List<String> fields = actualStats.getFields().keySet().stream().sorted().collect(Collectors.toList());
         for (String field : fields) {
@@ -488,21 +466,20 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 assertThat(actualField.getDocValuesBytes(), equalTo(0L));
                 assertThat(actualField.getTermsBytes(), equalTo(0L));
                 assertThat(actualField.getProximityBytes(), equalTo(0L));
-                assertThat(actualField.getPointsBytes(), equalTo(0L));
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
             assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
-            assertFieldStats(field, "terms", actualField.getTermsBytes(), expectedField.getTermsBytes(), 0.02, 1024);
-            assertFieldStats(field, "proximity", actualField.getProximityBytes(), expectedField.getProximityBytes(), 0.02, 1024);
-            assertFieldStats(field, "points", actualField.getPointsBytes(), expectedField.getPointsBytes(), 0.02, 1024);
+            assertFieldStats(field, "terms", actualField.getTermsBytes(), expectedField.getTermsBytes(), 0.01, 1024);
+            assertFieldStats(field, "proximity", actualField.getProximityBytes(), expectedField.getProximityBytes(), 0.01, 1024);
         }
-        // We are not able to collect per field stats for stored, vector, and norms
+        // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();
         IndexDiskUsageStats.PerFieldDiskUsage expectedTotal = perFieldStats.total();
-        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.05, 1024);
-        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.05, 1024);
-        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.05, 1024);
+        assertFieldStats("total", "stored fields", actualTotal.getStoredFieldBytes(), expectedTotal.getStoredFieldBytes(), 0.01, 1024);
+        assertFieldStats("total", "points", actualTotal.getPointsBytes(), expectedTotal.getPointsBytes(), 0.01, 1024);
+        assertFieldStats("total", "term vectors", actualTotal.getTermVectorsBytes(), expectedTotal.getTermVectorsBytes(), 0.01, 1024);
+        assertFieldStats("total", "norms", actualTotal.getNormsBytes(), expectedTotal.getNormsBytes(), 0.01, 1024);
     }
 
     private static void assertFieldStats(String fieldName, String fieldType,

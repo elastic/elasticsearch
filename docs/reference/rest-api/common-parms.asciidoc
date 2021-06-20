@@ -1137,3 +1137,16 @@ Default: 1, the primary shard.
 See <<index-wait-for-active-shards>>.
 --
 end::wait_for_active_shards[]
+
+tag::wait_for_completion[]
+`wait_for_completion`::
+(Optional, boolean) If `true`, the request blocks until the operation is complete.
+Defaults to `true`.
+end::wait_for_completion[]
+
+
+tag::no_items_on_success[]
+`no_items_on_success`::
+(Optional, boolean) If `true`, will omit returning all the items in bulk response if all items
+are considered handled successfully. Defaults to `false`.
+end::no_items_on_success[]

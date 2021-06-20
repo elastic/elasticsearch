@@ -156,4 +156,13 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
         request.routing(globalRouting);
         return this;
     }
+
+    /**
+     * Instructs a bulk operation with no errors to not return any individual operation response under items
+     * As soon as there is a single error ALL items will still be returned.
+     */
+    public BulkRequestBuilder noItemsOnSuccess(Boolean noItemsOnSuccess) {
+        request.noItemsOnSuccess(noItemsOnSuccess);
+        return this;
+    }
 }

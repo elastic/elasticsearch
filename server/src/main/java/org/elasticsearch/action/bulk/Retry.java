@@ -184,7 +184,8 @@ public class Retry {
             }
             long stopTimestamp = System.nanoTime();
             long totalLatencyMs = TimeValue.timeValueNanos(stopTimestamp - startTimestampNanos).millis();
-            return new BulkResponse(itemResponses, totalLatencyMs);
+            Boolean noItemsOnSuccess = this.currentBulkRequest.noItemsOnSuccess();
+            return new BulkResponse(itemResponses, totalLatencyMs, noItemsOnSuccess);
         }
 
         public void execute(BulkRequest bulkRequest) {

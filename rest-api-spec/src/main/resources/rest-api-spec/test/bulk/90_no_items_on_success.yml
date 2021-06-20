@@ -1,0 +1,39 @@
+
+---
+"No items on success returns empty array":
+  - skip:
+      version: " - 7.99.99"
+      reason: "no_items_on_success currently only on 8.0"
+
+  - do:
+      bulk:
+        no_items_on_success: true
+        body:
+          - '{"index": {"_index": "test_index" }}'
+          - '{}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{}'
+
+  - match: { errors: false }
+  - match: { items: [] }
+  - match: { items_omitted: true }
+
+
+---
+"Specifying false for no_items_on_success returns items":
+  - skip:
+      version: " - 7.99.99"
+      reason: "no_items_on_success currently only on 8.0"
+
+  - do:
+      bulk:
+        no_items_on_success: false
+        body:
+          - '{"index": {"_index": "test_index"}}'
+          - '{}'
+          - '{"index": {"_index": "test_index"}}'
+          - '{}'
+
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+  - match: { items_omitted: false }

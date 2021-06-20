@@ -69,6 +69,8 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
     private String globalRouting;
     private String globalIndex;
     private Boolean globalRequireAlias;
+    @Nullable
+    private Boolean noItemsOnSuccess;
 
     private long sizeInBytes = 0;
 
@@ -80,6 +82,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         requests.addAll(in.readList(i -> DocWriteRequest.readDocumentRequest(null, i)));
         refreshPolicy = RefreshPolicy.readFrom(in);
         timeout = in.readTimeValue();
+        noItemsOnSuccess = in.readOptionalBoolean();
     }
 
     public BulkRequest(@Nullable String globalIndex) {
@@ -333,6 +336,16 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
+    /**
+     * Instructs a bulk operation with no errors to not return any individual operation response under items
+     * As soon as there is a single error ALL items will still be returned.
+     */
+    public final BulkRequest noItemsOnSuccess(Boolean noItemsOnSuccess) {
+        this.noItemsOnSuccess = noItemsOnSuccess;
+        return this;
+    }
+
+
     public TimeValue timeout() {
         return timeout;
     }
@@ -366,6 +379,10 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         return this;
     }
 
+    public Boolean noItemsOnSuccess() {
+        return noItemsOnSuccess;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -397,6 +414,7 @@ public class BulkRequest extends ActionRequest implements CompositeIndicesReques
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
+        out.writeOptionalBoolean(noItemsOnSuccess);
     }
 
     @Override

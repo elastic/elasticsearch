@@ -123,6 +123,7 @@ final class RequestConverters {
         parameters.withRefreshPolicy(bulkRequest.getRefreshPolicy());
         parameters.withPipeline(bulkRequest.pipeline());
         parameters.withRouting(bulkRequest.routing());
+        parameters.withNoItemsOnSuccess(bulkRequest.noItemsOnSuccess());
         // Bulk API only supports newline delimited JSON or Smile. Before executing
         // the bulk, we need to check that all requests have the same content-type
         // and this content-type is supported by the Bulk API.
@@ -846,6 +847,14 @@ final class RequestConverters {
             return this;
         }
 
+        Params putParam(String key, Boolean value) {
+            if (value != null) {
+                return putParam(key, value.toString());
+            }
+            return this;
+        }
+
+
         Map<String, String> asMap(){
             return parameters;
         }
@@ -963,6 +972,10 @@ final class RequestConverters {
 
         Params withRouting(String routing) {
             return putParam("routing", routing);
+        }
+
+        Params withNoItemsOnSuccess(Boolean noItemsOnSuccess) {
+            return putParam("no_items_on_success", noItemsOnSuccess);
         }
 
         Params withSlices(int slices) {

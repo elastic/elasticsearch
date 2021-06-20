@@ -33,11 +33,12 @@ public class TransportNoopBulkAction extends HandledTransportAction<BulkRequest,
     @Override
     protected void doExecute(Task task, BulkRequest request, ActionListener<BulkResponse> listener) {
         final int itemCount = request.requests().size();
+
         // simulate at least a realistic amount of data that gets serialized
         BulkItemResponse[] bulkItemResponses = new BulkItemResponse[itemCount];
         for (int idx = 0; idx < itemCount; idx++) {
             bulkItemResponses[idx] = ITEM_RESPONSE;
         }
-        listener.onResponse(new BulkResponse(bulkItemResponses, 0));
+        listener.onResponse(new BulkResponse(bulkItemResponses, 0, BulkResponse.NO_INGEST_TOOK, request.noItemsOnSuccess()));
     }
 }

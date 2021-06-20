@@ -480,7 +480,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
             if (requestsByShard.isEmpty()) {
                 listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                    buildTookInMillis(startTimeNanos)));
+                    buildTookInMillis(startTimeNanos), bulkRequest.noItemsOnSuccess()));
                 return;
             }
 
@@ -497,6 +497,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+                final Boolean noItemsOnSuccess = bulkRequest.noItemsOnSuccess();
                 client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
                     @Override
                     public void onResponse(BulkShardResponse bulkShardResponse) {
@@ -527,8 +528,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     }
 
                     private void finishHim() {
-                        listener.onResponse(new BulkResponse(responses.toArray(new BulkItemResponse[responses.length()]),
-                            buildTookInMillis(startTimeNanos)));
+                        BulkItemResponse[] bulkItemResponses = responses.toArray(new BulkItemResponse[responses.length()]);
+                        listener.onResponse(new BulkResponse(bulkItemResponses, buildTookInMillis(startTimeNanos), noItemsOnSuccess));
                     }
                 });
             }
@@ -687,7 +688,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // at this stage, the transport bulk action can't deal with a bulk request with no requests,
                         // so we stop and send an empty response back to the client.
                         // (this will happen if pre-processing all items in the bulk failed)
-                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0));
+                        actionListener.onResponse(new BulkResponse(new BulkItemResponse[0], 0, bulkRequest.noItemsOnSuccess()));
                     } else {
                         // If a processor went async and returned a response on a different thread then
                         // before we continue the bulk request we should fork back on a write thread:
@@ -770,7 +771,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionListener<BulkResponse> wrapActionListenerIfNeeded(long ingestTookInMillis, ActionListener<BulkResponse> actionListener) {
             if (itemResponses.isEmpty()) {
                 return actionListener.map(
-                    response -> new BulkResponse(response.getItems(), response.getTook().getMillis(), ingestTookInMillis));
+                    response -> new BulkResponse(response.getItems(), response.getTook().getMillis(),
+                        ingestTookInMillis, this.bulkRequest.noItemsOnSuccess()));
             } else {
                 return actionListener.map(response -> {
                     BulkItemResponse[] items = response.getItems();
@@ -778,7 +780,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         itemResponses.add(originalSlots.get(i), response.getItems()[i]);
                     }
                     return new BulkResponse(
-                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(), ingestTookInMillis);
+                            itemResponses.toArray(new BulkItemResponse[0]), response.getTook().getMillis(),
+                            ingestTookInMillis, this.bulkRequest.noItemsOnSuccess());
                 });
             }
         }

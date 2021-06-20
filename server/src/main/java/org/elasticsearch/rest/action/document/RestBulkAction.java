@@ -83,6 +83,10 @@ public class RestBulkAction extends BaseRestHandler {
         Boolean defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, null);
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
+        if (request.hasParam("no_items_on_success")) {
+            Boolean noItemsOnSuccess = request.paramAsBoolean("no_items_on_success", true);
+            bulkRequest.noItemsOnSuccess(noItemsOnSuccess);
+        }
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
             defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType(),
             request.getRestApiVersion());

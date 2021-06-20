@@ -29,18 +29,34 @@ public class LoggerMessageFormat {
         if (messagePattern == null) {
             return null;
         }
-        if (argArray == null || argArray.length == 0) {
-            if (prefix == null) {
-                return messagePattern;
-            } else {
-                return prefix + messagePattern;
-            }
-        }
+        
         int i = 0;
+        int prefixDelimStrIndex = -1; 
         int j;
         final StringBuilder sbuf = new StringBuilder(messagePattern.length() + 50);
         if (prefix != null) {
-            sbuf.append(prefix);
+            prefixDelimStrIndex = prefix.indexOf(DELIM_STR);
+            if(prefixDelimStrIndex == -1) {
+                sbuf.append(prefix);
+            } else {
+                // In this case, arguments passed to format were as follows:
+                // format("this is {}", "sparta") , so the prefix argument in this case
+                // is the messagePattern, and the messagePatter argument is the argArray.
+                sbuf.append(prefix.substring(0, prefixDelimStrIndex));
+            }
+            
+        }
+        
+        if (argArray == null || argArray.length == 0) {
+            if (prefix == null) {
+                return messagePattern;
+            } else if(prefixDelimStrIndex != -1){
+                deeplyAppendParameter(sbuf, messagePattern, new HashSet<Object[]>());
+                return sbuf.toString();
+            } else {
+                return prefix + messagePattern;
+            }
+            
         }
 
         for (int L = 0; L < argArray.length; L++) {

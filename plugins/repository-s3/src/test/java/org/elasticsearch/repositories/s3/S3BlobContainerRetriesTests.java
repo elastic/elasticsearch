@@ -310,7 +310,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
         final int nbErrors = 2; // we want all requests to fail at least once
         final CountDown countDownInitiate = new CountDown(nbErrors);
-        final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * (parts + 1));
+        final AtomicInteger counterUploads = new AtomicInteger(0);
         final AtomicLong bytesReceived = new AtomicLong(0L);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
@@ -340,7 +340,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                 MD5DigestCalculatingInputStream md5 = new MD5DigestCalculatingInputStream(exchange.getRequestBody());
                 BytesReference bytes = Streams.readFully(md5);
 
-                if (countDownUploads.decrementAndGet() % 2 == 0) {
+                if (counterUploads.incrementAndGet() % 2 == 0) {
                     bytesReceived.addAndGet(bytes.length());
                     exchange.getResponseHeaders().add("ETag", Base16.encodeAsString(md5.getMd5Digest()));
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, -1);

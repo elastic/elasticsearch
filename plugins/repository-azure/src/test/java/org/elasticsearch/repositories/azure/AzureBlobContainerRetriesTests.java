@@ -398,10 +398,9 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
         final int blobSize = (int) ByteSizeUnit.MB.toBytes(10);
         final byte[] data = randomBytes(blobSize);
-        int nbBlocks = (int) Math.ceil((double) data.length / (double) ByteSizeUnit.MB.toBytes(1));
 
         final int nbErrors = 2; // we want all requests to fail at least once
-        final AtomicInteger countDownUploads = new AtomicInteger(nbErrors * nbBlocks);
+        final AtomicInteger counterUploads = new AtomicInteger(0);
         final AtomicLong bytesReceived = new AtomicLong(0L);
         final CountDown countDownComplete = new CountDown(nbErrors);
 
@@ -415,7 +414,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 final String blockId = params.get("blockid");
                 assert Strings.hasText(blockId) == false || AzureFixtureHelper.assertValidBlockId(blockId);
 
-                if (Strings.hasText(blockId) && (countDownUploads.decrementAndGet() % 2 == 0)) {
+                if (Strings.hasText(blockId) && (counterUploads.incrementAndGet() % 2 == 0)) {
                     final BytesReference blockData = Streams.readFully(exchange.getRequestBody());
                     blocks.put(blockId, blockData);
                     bytesReceived.addAndGet(blockData.length());

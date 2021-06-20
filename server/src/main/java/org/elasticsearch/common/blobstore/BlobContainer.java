@@ -118,6 +118,15 @@ public interface BlobContainer {
         writeBlob(blobName, bytes.streamInput(), bytes.length(), failIfAlreadyExists);
     }
 
+    /**
+     * Write a blob by providing a consumer that will write its contents to an output stream. This method allows serializing a blob's
+     * contents directly to the blob store without having to materialize the serialized version in full before writing.
+     *
+     * @param blobName            the name of the blob to write
+     * @param failIfAlreadyExists whether to throw a FileAlreadyExistsException if the given blob already exists
+     * @param atomic              whether the write should be atomic in case the implementation supports it
+     * @param writer              consumer for an output stream that will write the blob contents to the stream
+     */
     void writeBlob(String blobName, boolean failIfAlreadyExists, boolean atomic,
                    CheckedConsumer<OutputStream, IOException> writer) throws IOException;
 

@@ -122,4 +122,8 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setSearch(@Nullable String search) {
+        request.search(search);
+        return this;
+    }
 }

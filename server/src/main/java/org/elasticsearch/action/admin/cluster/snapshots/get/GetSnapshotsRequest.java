@@ -338,6 +338,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             final String field;
             if (query.startsWith(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
                 field = SnapshotsService.POLICY_ID_METADATA_FIELD;
+            } else if (query.startsWith("name")) {
+                field = "name";
+            } else if (query.startsWith("repo")) {
+                field = "repo";
             } else {
                 throw new IllegalArgumentException("unknown field in query [" + query + "]");
             }
@@ -364,10 +368,27 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             this.value = value;
         }
 
+        public String field() {
+            return field;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public boolean exact() {
+            return exact;
+        }
+
+        public boolean not() {
+            return not;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(not);
             out.writeBoolean(exact);
+            out.writeString(field);
             out.writeString(value);
         }
     }

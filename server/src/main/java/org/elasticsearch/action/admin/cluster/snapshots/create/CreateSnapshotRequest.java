@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -74,6 +75,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
 
     private boolean waitForCompletion;
 
+    @Nullable
     private Map<String, Object> userMetadata;
 
     public CreateSnapshotRequest() {}
@@ -338,11 +340,19 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
         return includeGlobalState;
     }
 
+    /**
+     * @return user metadata map that should be stored with the snapshot or {@code null} if there is no user metadata to be associated with
+     *         this snapshot
+     */
+    @Nullable
     public Map<String, Object> userMetadata() {
         return userMetadata;
     }
 
-    public CreateSnapshotRequest userMetadata(Map<String, Object> userMetadata) {
+    /**
+     * @param userMetadata user metadata map that should be stored with the snapshot
+     */
+    public CreateSnapshotRequest userMetadata(@Nullable Map<String, Object> userMetadata) {
         this.userMetadata = userMetadata;
         return this;
     }

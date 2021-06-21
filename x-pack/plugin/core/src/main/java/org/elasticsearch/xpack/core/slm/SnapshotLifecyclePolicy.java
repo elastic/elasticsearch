@@ -194,7 +194,8 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
                 @SuppressWarnings("unchecked")
                 Map<String, Object> metadata = (Map<String, Object>) configuration.get(METADATA_FIELD_NAME);
                 if (metadata.containsKey(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
-                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME + ": field name [" + SnapshotsService.POLICY_ID_METADATA_FIELD +
+                    err.addValidationError("invalid configuration." + METADATA_FIELD_NAME
+                        + ": field name [" + SnapshotsService.POLICY_ID_METADATA_FIELD +
                         "] is reserved and will be added automatically");
                 } else {
                     Map<String, Object> metadataWithPolicyField = addPolicyNameToMetadata(metadata);

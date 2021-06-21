@@ -9,7 +9,11 @@ package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.snapshots.*;
+import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotShardFailure;
+import org.elasticsearch.snapshots.SnapshotState;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;

@@ -80,11 +80,6 @@ subprojects {
           'search.aggregation/22_terms_disable_opt/does not use optimization',
           'search.aggregation/170_cardinality_metric/profiler string',
           'search.aggregation/235_composite_sorted/*',
-          // These tests use dynamic mappings and expect a .keyword multifield as a result
-          'search.aggregation/380_global/profile',
-          'search.aggregation/380_global/simple',
-          'search.aggregation/370_doc_count_field/Test unmapped string terms agg with doc_count',
-          'search.aggregation/300_pipeline/deep cumulative sum'
           /////// NOT SUPPORTED ///////
         ].join(',')
     }

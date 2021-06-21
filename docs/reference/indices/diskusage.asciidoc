@@ -6,12 +6,10 @@
 
 experimental[]
 
-Analyzes the disk usage of each field of an index. This API
-might not support indices created in previous {es} versions.
-The result of a small index can be inaccurate as some parts
-of an index might not be analyzed by the API. It's recommended
-to execute this API with a single index (or the latest backing
-index of a data streams) as the API consumes resources significantly.
+Analyzes the disk usage of each field of an index or data stream.
+This API might not support indices created in previous {es} versions.
+The result of a small index can be inaccurate as some parts of an index
+might not be analyzed by the API.
 
 [source,console]
 --------------------------------------------------
@@ -28,12 +26,17 @@ POST /my-index-000001/_disk_usage?run_expensive_tasks=true
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `manage`
-<<privileges-list-indices,index privilege>> for the target index or index alias.
+<<privileges-list-indices,index privilege>> for the target index, data stream,
+or alias.
 
 [[analyze-index-disk-usage-api-path-params]]
 ==== {api-path-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index]
+`<target>`::
+(Required, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. It's recommended to execute this API with a single
+index (or the latest backing index of a data streams) as the API consumes
+resources significantly.
 
 [[analyze-index-disk-usage-api-query-params]]
 ==== {api-query-parms-title}
@@ -46,30 +49,23 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+`flush`::
+(Optional, Boolean) If `true`, the API performs a flush before analysis. If
+`false`, the response may not include uncommitted data. Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `run_expensive_tasks`::
-(Optional, Boolean)
-Since analyzing the per field disk usage of indices is expensive and resource-intensive,
-the parameter `run_expensive_tasks` must be set to `true` in order for the task to be
-performed.
-Defaults to `false`.
+(Required, Boolean) Analyzing field disk usage is resource-intensive. To use the
+API, this parameter must `true`. Defaults to `false`.
 
-`flush`::
-(Optional, Boolean)
-If `true`, the target index will be flushed before the analyzing process starts.
-If `false`, then uncommitted data might not be included in the result.
-Defaults to `true`.
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 
 [[analyze-index-disk-usage-api-example]]
 ==== {api-examples-title}
-
-The following request analyzes the disk usage of index `my-index-000001`.
 
 [source,console]
 --------------------------------------------------
@@ -77,7 +73,7 @@ POST /my-index-000001/_disk_usage?run_expensive_tasks=true
 --------------------------------------------------
 // TEST[setup:messages]
 
-The API returns the following response:
+The API returns:
 
 [source,console-response]
 --------------------------------------------------
@@ -186,9 +182,9 @@ snapshots or recoveries.
 is usually smaller than the index size specified in <1> as some small metadata
 files are ignored and some parts of data files might not be scanned by the API.
 
-<3> The stored size of the field `_id`
+<3> The stored size of the `_id` field
 
-<4> The stored size of the field `_source`. As stored fields are stored
+<4> The stored size of the `_source` field. As stored fields are stored
 together in a compressed format, the estimated sizes of stored fields are
-best efforts and can be inaccurate. The stored size of the field `_id`
-is likely underestimated while the field `_source` is overestimated.
+best efforts and can be inaccurate. The stored size of the `_id` field
+is likely underestimated while the `_source` field is overestimated.

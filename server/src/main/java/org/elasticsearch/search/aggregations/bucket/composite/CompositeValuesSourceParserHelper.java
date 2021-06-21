@@ -19,9 +19,11 @@ import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
 import java.io.IOException;
+import java.util.regex.Matcher;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -81,11 +83,16 @@ public class CompositeValuesSourceParserHelper {
     }
 
     public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
+        Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher("");
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String name = parser.currentName();
+        if (validAggMatcher.reset(name).matches() == false) {
+            throw new ParsingException(parser.getTokenLocation(), "Invalid source name [" + name
+                + "]. Source names can contain any character except '[', ']', and '>'");
+        }
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         token = parser.nextToken();

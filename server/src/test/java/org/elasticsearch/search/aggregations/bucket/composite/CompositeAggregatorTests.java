@@ -38,10 +38,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -100,6 +104,7 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
+    private static final char[] ILLEGAL_FIELD_NAME_CHARACTERS = {'[', ']', '>'};
     private List<ObjectMapper> objectMappers;
 
     @Override
@@ -2495,6 +2500,26 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                     assertEquals(1L, result.getBuckets().get(2).getDocCount());
                 }
             );
+        }
+    }
+
+    public void testInvalidCompositeValueSourceNames() throws IOException {
+        String invalidName = randomAlphaOfLengthBetween(0, 5)
+            + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]
+            + randomAlphaOfLengthBetween(0, 5);
+
+        XContentBuilder source = JsonXContent.contentBuilder()
+            .startObject()
+            .field(invalidName, "user")
+            .endObject();
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            parser.nextToken();
+            Exception e = expectThrows(ParsingException.class, () -> CompositeValuesSourceParserHelper.fromXContent(parser));
+
+
+            assertTrue(e.getMessage().startsWith("Invalid source name"));
         }
     }
 

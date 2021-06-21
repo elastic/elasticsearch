@@ -291,6 +291,8 @@ public class DecorationToXContent {
             builder.endArray();
         }
 
+        builder.field("factoryMethodDescriptor", ref.getFactoryMethodDescriptor());
+
         builder.endObject();
     }
 

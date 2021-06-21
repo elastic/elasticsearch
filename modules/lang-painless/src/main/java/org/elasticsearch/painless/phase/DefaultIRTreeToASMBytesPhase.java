@@ -1591,7 +1591,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
                 if (defInterfaceReferenceNode.hasCondition(IRCInstanceCapture.class)) {
                     capturedCount++;
-                    typeParameters.add($this.class);
+                    typeParameters.add(ScriptThis.class);
                 }
 
                 // the encoding uses a char to indicate the number of captures
@@ -1613,7 +1613,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         for (int index = 0; index < asmParameterTypes.length; ++index) {
             Class<?> typeParameter = typeParameters.get(index);
-            if (typeParameter.equals($this.class)) {
+            if (typeParameter.equals(ScriptThis.class)) {
                 asmParameterTypes[index] = CLASS_TYPE;
             } else {
                 asmParameterTypes[index] = MethodWriter.getType(typeParameters.get(index));
@@ -1786,5 +1786,5 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     // placeholder class referring to the script instance
-    private static final class $this {}
+    private static final class ScriptThis {}
 }

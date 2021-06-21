@@ -35,7 +35,8 @@ public final class ConnectionProfile {
         if (profile == null) {
             return fallbackProfile;
         } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
-            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null) {
+            && profile.getPingInterval() != null && profile.getCompressionEnabled() != null
+            && profile.getRawDataCompressionEnabled() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -50,6 +51,9 @@ public final class ConnectionProfile {
             }
             if (profile.getCompressionEnabled() == null) {
                 builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
+            }
+            if (profile.getRawDataCompressionEnabled() == null) {
+                builder.setRawDataCompressionEnabled(fallbackProfile.getRawDataCompressionEnabled());
             }
             return builder.build();
         }
@@ -116,15 +120,18 @@ public final class ConnectionProfile {
     private final TimeValue handshakeTimeout;
     private final TimeValue pingInterval;
     private final Boolean compressionEnabled;
+    private final Boolean rawDataCompressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
-                              TimeValue handshakeTimeout, TimeValue pingInterval, Boolean compressionEnabled) {
+                              TimeValue handshakeTimeout, TimeValue pingInterval, Boolean compressionEnabled,
+                              Boolean rawDataCompressionEnabled) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
+        this.rawDataCompressionEnabled = rawDataCompressionEnabled;
     }
 
     /**
@@ -137,6 +144,7 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
         private Boolean compressionEnabled;
+        private Boolean rawDataCompressionEnabled;
         private TimeValue pingInterval;
 
         /** create an empty builder */
@@ -151,6 +159,7 @@ public final class ConnectionProfile {
             connectTimeout = source.getConnectTimeout();
             handshakeTimeout = source.getHandshakeTimeout();
             compressionEnabled = source.getCompressionEnabled();
+            rawDataCompressionEnabled = source.getRawDataCompressionEnabled();
             pingInterval = source.getPingInterval();
         }
         /**
@@ -192,6 +201,14 @@ public final class ConnectionProfile {
         }
 
         /**
+         * Sets raw data compression enabled for this connection profile
+         */
+        public Builder setRawDataCompressionEnabled(boolean rawDataCompressionEnabled) {
+            this.rawDataCompressionEnabled = rawDataCompressionEnabled;
+            return this;
+        }
+
+        /**
          * Adds a number of connections for one or more types. Each type can only be added once.
          * @param numConnections the number of connections to use in the pool for the given connection types
          * @param types a set of types that should share the given number of connections
@@ -222,7 +239,7 @@ public final class ConnectionProfile {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
             return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
-                pingInterval, compressionEnabled);
+                pingInterval, compressionEnabled, rawDataCompressionEnabled);
         }
 
     }
@@ -254,6 +271,14 @@ public final class ConnectionProfile {
      */
     public Boolean getCompressionEnabled() {
         return compressionEnabled;
+    }
+
+    /**
+     * Returns boolean indicating if raw data compression is enabled or <code>null</code> if no explicit raw data compression
+     * is set on this profile.
+     */
+    public Boolean getRawDataCompressionEnabled() {
+        return rawDataCompressionEnabled;
     }
 
     /**

@@ -51,6 +51,8 @@ public final class TransportSettings {
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
     public static final Setting<Boolean> TRANSPORT_COMPRESS =
         boolSetting("transport.compress", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> TRANSPORT_COMPRESS_RAW_DATA =
+        boolSetting("transport.compress_raw_data", false, Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);

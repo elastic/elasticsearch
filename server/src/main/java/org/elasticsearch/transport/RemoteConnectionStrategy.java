@@ -354,7 +354,8 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
 
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
-            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false;
+            || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
+            || Objects.equals(oldProfile.getRawDataCompressionEnabled(), newProfile.getRawDataCompressionEnabled()) == false;
     }
 
     static class StrategyValidator<T> implements Setting.Validator<T> {

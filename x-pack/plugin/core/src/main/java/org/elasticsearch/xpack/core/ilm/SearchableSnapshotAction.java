@@ -92,6 +92,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        assert false;
         throw new UnsupportedOperationException();
     }
 

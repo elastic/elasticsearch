@@ -44,6 +44,25 @@ public class FeatureFactoryTests extends ESTestCase {
         }
     }
 
+    public void testIssue74341() {
+        int z = 1;
+        int x = 0;
+        int y = 0;
+        int extent = 1730;
+        double lon = -171.0;
+        double lat = 0.9999999403953552;
+        SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
+        FeatureFactory factory = new FeatureFactory(z, x, y, extent);
+        VectorTile.Tile.Feature.Builder featureBuilder = VectorTile.Tile.Feature.newBuilder();
+        builder.point(featureBuilder, lon, lat);
+        byte[] b1 = featureBuilder.build().toByteArray();
+        Point point = new Point(lon, lat);
+        List<VectorTile.Tile.Feature> features = factory.getFeatures(point, new UserDataIgnoreConverter());
+        assertThat(features.size(), Matchers.equalTo(1));
+        byte[] b2 = features.get(0).toByteArray();
+        assertArrayEquals(b1, b2);
+    }
+
     public void testRectangle() {
         int z = randomIntBetween(1, 10);
         int x = randomIntBetween(0, (1 << z) - 1);

@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -57,6 +58,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private String[] repositories;
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
+
+    @Nullable
+    private Search search;
 
     private boolean ignoreUnavailable;
 
@@ -99,6 +103,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             sort = in.readEnum(SortBy.class);
             size = in.readVInt();
             order = SortOrder.readFromStream(in);
+            search = in.readOptionalWriteable(Search::readFrom);
         }
     }
 
@@ -125,7 +130,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeEnum(sort);
             out.writeVInt(size);
             order.writeTo(out);
-        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC) {
+            out.writeOptionalWriteable(search);
+        } else if (sort != SortBy.START_TIME || size != NO_LIMIT || after != null || order != SortOrder.ASC || search != null) {
             throw new IllegalArgumentException("can't use paginated get snapshots request with node version [" + out.getVersion() + "]");
         }
     }
@@ -262,6 +268,16 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
+    public GetSnapshotsRequest search(@Nullable String search) {
+        this.search = search == null ? null : Search.parse(search);
+        return this;
+    }
+
+    @Nullable
+    public Search search() {
+        return search;
+    }
+
     /**
      * Returns whether the request will return a verbose response.
      */
@@ -304,6 +320,55 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 default:
                     throw new IllegalArgumentException("unknown sort order [" + value + "]");
             }
+        }
+    }
+
+    public static final class Search implements Writeable {
+
+        final boolean not;
+        final boolean exact;
+        final String value;
+        final String field;
+
+        static Search parse(String query) {
+            final boolean not = query.startsWith("-");
+            if (not) {
+                query = query.substring(1);
+            }
+            final String field;
+            if (query.startsWith(SnapshotsService.POLICY_ID_METADATA_FIELD)) {
+                field = SnapshotsService.POLICY_ID_METADATA_FIELD;
+            } else {
+                throw new IllegalArgumentException("unknown field in query [" + query + "]");
+            }
+            query = query.substring(field.length()).trim();
+            final boolean exact;
+            if (query.startsWith("=")) {
+                exact = true;
+            } else if (query.startsWith(":")) {
+                exact = false;
+            } else {
+                throw new IllegalArgumentException("only supporting '=' and ':' operators but saw query [" + query + "]");
+            }
+            return new Search(not, exact, field, query.substring(1));
+        }
+
+        static Search readFrom(StreamInput in) throws IOException {
+            return new Search(in.readBoolean(), in.readBoolean(), in.readString(), in.readString());
+        }
+
+        private Search(boolean not, boolean exact, String field, String value) {
+            this.not = not;
+            this.exact = exact;
+            this.field = field;
+            this.value = value;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeBoolean(not);
+            out.writeBoolean(exact);
+            out.writeString(value);
         }
     }
 

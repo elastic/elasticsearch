@@ -172,6 +172,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
+    public void testSearchParameter() throws Exception {
+        final String repoName = "tst-repo";
+        createRepository(repoName, "fs");
+
+
+    }
+
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort) {
         final SortOrder order = randomFrom(SortOrder.values());
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order);

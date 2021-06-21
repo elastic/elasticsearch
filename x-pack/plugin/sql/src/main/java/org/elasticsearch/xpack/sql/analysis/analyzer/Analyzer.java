@@ -419,11 +419,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     List<NamedExpression> expanded = expandStar((UnresolvedStar) ne, output);
 
                     // the field exists, but cannot be expanded (no sub-fields)
-                    if (expanded == null) {
-                        result.add(ne);
-                    } else {
-                        result.addAll(expanded);
-                    }
+                    result.addAll(expanded);
                 } else if (ne instanceof UnresolvedAlias) {
                     UnresolvedAlias ua = (UnresolvedAlias) ne;
                     if (ua.child() instanceof UnresolvedStar) {
@@ -458,7 +454,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
                 // qualifier resolves to a non-struct field and cannot be expanded
                 else if (DataTypes.isPrimitive(q.dataType())) {
-                    return null;
+                    return singletonList(us);
                 }
 
                 // now use the resolved 'qualifier' to match

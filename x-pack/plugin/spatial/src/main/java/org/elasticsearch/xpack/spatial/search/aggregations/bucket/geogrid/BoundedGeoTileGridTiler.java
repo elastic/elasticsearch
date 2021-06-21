@@ -91,14 +91,12 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
             for (int i = eastMinX; i < eastMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
                     assert validTile(i, j, precision);
-                    System.out.println(i + " / " + j);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
             for (int i = westMinX; i < westMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
                     assert validTile(i, j, precision);
-                    System.out.println(i + " / " + j);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }

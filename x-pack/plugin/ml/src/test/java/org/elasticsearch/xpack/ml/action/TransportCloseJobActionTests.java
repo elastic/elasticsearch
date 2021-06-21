@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction.Request;
+import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
@@ -60,6 +61,7 @@ import static org.mockito.Matchers.anyBoolean;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TransportCloseJobActionTests extends ESTestCase {
@@ -100,6 +102,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
         assertThat(closingJobIds, contains("closing-job"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testStopDatafeedsIfNecessary() {
         final PersistentTasksCustomMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
         String jobId = "job-with-started-df";
@@ -134,6 +137,47 @@ public class TransportCloseJobActionTests extends ESTestCase {
         closeJobAction.stopDatafeedsIfNecessary(openAndClosingIds, false, TimeValue.ZERO, datafeedNotStartedTaskBuilder.build(), listener);
         assertFalse(responseHolder.get());
         assertNull(exceptionHolder.get());
+        verify(client).execute(same(StopDatafeedAction.INSTANCE), any(StopDatafeedAction.Request.class), any(ActionListener.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testStopDatafeedsIfNecessaryWithForce() {
+        final PersistentTasksCustomMetadata.Builder datafeedStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        String jobId = "job-with-started-df";
+        String datafeedId = "df1";
+        addJobTask(jobId, null, JobState.OPENED, datafeedStartedTaskBuilder);
+        addTask(datafeedId, 0L, null, DatafeedState.STARTED, datafeedStartedTaskBuilder);
+
+        mockDatafeedConfigFindDatafeeds(Collections.singleton(datafeedId));
+        mockClientStopDatafeed();
+        mockClientIsolateDatafeed();
+
+        TransportCloseJobAction closeJobAction = createAction();
+
+        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
+        AtomicBoolean responseHolder = new AtomicBoolean();
+        ActionListener<Boolean> listener = ActionListener.wrap(responseHolder::set, exceptionHolder::set);
+
+        TransportCloseJobAction.OpenAndClosingIds openAndClosingIds = new TransportCloseJobAction.OpenAndClosingIds();
+        openAndClosingIds.openJobIds = Collections.singletonList(jobId);
+
+        closeJobAction.stopDatafeedsIfNecessary(openAndClosingIds, true, TimeValue.ZERO, datafeedStartedTaskBuilder.build(), listener);
+
+        assertTrue(responseHolder.get());
+        assertNull(exceptionHolder.get());
+
+        final PersistentTasksCustomMetadata.Builder datafeedNotStartedTaskBuilder = PersistentTasksCustomMetadata.builder();
+        addJobTask(jobId, null, JobState.OPENED, datafeedNotStartedTaskBuilder);
+        if (randomBoolean()) {
+            addTask(datafeedId, 0L, null, DatafeedState.STOPPED, datafeedNotStartedTaskBuilder);
+        }
+
+        exceptionHolder.set(null);
+        closeJobAction.stopDatafeedsIfNecessary(openAndClosingIds, false, TimeValue.ZERO, datafeedNotStartedTaskBuilder.build(), listener);
+        assertFalse(responseHolder.get());
+        assertNull(exceptionHolder.get());
+        verify(client).execute(same(IsolateDatafeedAction.INSTANCE), any(IsolateDatafeedAction.Request.class), any(ActionListener.class));
+        verify(client).execute(same(StopDatafeedAction.INSTANCE), any(StopDatafeedAction.Request.class), any(ActionListener.class));
     }
 
     public void testValidate_givenFailedJob() {
@@ -314,5 +358,16 @@ public class TransportCloseJobActionTests extends ESTestCase {
 
             return null;
         }).when(client).execute(same(StopDatafeedAction.INSTANCE), any(StopDatafeedAction.Request.class), any(ActionListener.class));
+    }
+
+    @SuppressWarnings("unchecked")
+    private void mockClientIsolateDatafeed() {
+        doAnswer(invocation -> {
+            ActionListener<IsolateDatafeedAction.Response> listener =
+                (ActionListener<IsolateDatafeedAction.Response>) invocation.getArguments()[2];
+            listener.onResponse(new IsolateDatafeedAction.Response(true));
+
+            return null;
+        }).when(client).execute(same(IsolateDatafeedAction.INSTANCE), any(IsolateDatafeedAction.Request.class), any(ActionListener.class));
     }
 }

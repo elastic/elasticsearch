@@ -19,8 +19,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -202,25 +203,31 @@ public final class DatabaseRegistry implements Closeable {
         // Empty state will purge stale entries in databases map.
         GeoIpTaskState taskState = task == null || task.getState() == null ? GeoIpTaskState.EMPTY : (GeoIpTaskState) task.getState();
 
-        taskState.getDatabases().forEach((name, metadata) -> {
-            DatabaseReaderLazyLoader reference = databases.get(name);
-            String remoteMd5 = metadata.getMd5();
-            String localMd5 = reference != null ? reference.getMd5() : null;
-            if (Objects.equals(localMd5, remoteMd5)) {
-                reference.setLastUpdate(metadata.getLastUpdate());
-                LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
-                return;
-            }
+        taskState.getDatabases().entrySet().stream()
+            .filter(e -> e.getValue().isValid(state.getMetadata().settings()))
+            .forEach(e -> {
+                String name = e.getKey();
+                GeoIpTaskState.Metadata metadata = e.getValue();
+                DatabaseReaderLazyLoader reference = databases.get(name);
+                String remoteMd5 = metadata.getMd5();
+                String localMd5 = reference != null ? reference.getMd5() : null;
+                if (Objects.equals(localMd5, remoteMd5)) {
+                    LOGGER.debug("Current reference of [{}] is up to date [{}] with was recorded in CS [{}]", name, localMd5, remoteMd5);
+                    return;
+                }
 
-            try {
-                retrieveAndUpdateDatabase(name, metadata);
-            } catch (Exception e) {
-                LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), e);
-            }
-        });
+                try {
+                    retrieveAndUpdateDatabase(name, metadata);
+                } catch (Exception ex) {
+                    LOGGER.error((Supplier<?>) () -> new ParameterizedMessage("attempt to download database [{}] failed", name), ex);
+                }
+            });
 
         List<String> staleEntries = new ArrayList<>(databases.keySet());
-        staleEntries.removeAll(taskState.getDatabases().keySet());
+        staleEntries.removeAll(taskState.getDatabases().entrySet().stream()
+            .filter(e->e.getValue().isValid(state.getMetadata().settings()))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toSet()));
         removeStaleEntries(staleEntries);
     }
 
@@ -284,7 +291,7 @@ public final class DatabaseRegistry implements Closeable {
 
                 LOGGER.debug("moving database from [{}] to [{}]", databaseTmpFile, databaseFile);
                 Files.move(databaseTmpFile, databaseFile, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-                updateDatabase(databaseName, recordedMd5, databaseFile, metadata.getLastUpdate());
+                updateDatabase(databaseName, recordedMd5, databaseFile);
                 Files.delete(databaseTmpGzFile);
             },
             failure -> {
@@ -299,11 +306,10 @@ public final class DatabaseRegistry implements Closeable {
             });
     }
 
-    void updateDatabase(String databaseFileName, String recordedMd5, Path file, long lastUpdate) {
+    void updateDatabase(String databaseFileName, String recordedMd5, Path file) {
         try {
             LOGGER.info("database file changed [{}], reload database...", file);
             DatabaseReaderLazyLoader loader = new DatabaseReaderLazyLoader(cache, file, recordedMd5);
-            loader.setLastUpdate(lastUpdate);
             DatabaseReaderLazyLoader existing = databases.put(databaseFileName, loader);
             if (existing != null) {
                 existing.close();

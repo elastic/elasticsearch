@@ -38,7 +38,7 @@ public class TestClasspathUtils {
     private static void generateJdkJarHellCheck(File projectRoot, Implementation mainImplementation) {
         DynamicType.Unloaded<?> dynamicType = new ByteBuddy()
                     .subclass(Object.class)
-                    .name("org.elasticsearch.bootstrap.JdkJarHellCheck")
+                    .name("org.elasticsearch.jdk.JdkJarHellCheck")
                 .defineMethod("main",   void.class, Visibility.PUBLIC, Ownership.STATIC)
                 .withParameters(String[].class)
                 .intercept(mainImplementation)

@@ -1,0 +1,35 @@
+---
+"Test start deployment":
+
+  - do:
+      ml.put_trained_model:
+        model_id: distilbert-finetuned-sst
+        body: >
+          {
+            "description": "distilbert-base-uncased-finetuned-sst-2-english.pt",
+            "model_type": "pytorch",
+            "inference_config": {
+              "classification": {
+                "num_top_classes": 1
+              }
+            },
+            "input": {
+                "field_names": ["text_field"]
+            },
+            "location": {
+              "index": {
+                "model_id": "distilbert-finetuned-sst",
+                "name": "big_model"
+              }
+            }
+          }
+
+  - do:
+      ml.get_trained_models:
+        model_id: distilbert-finetuned-sst
+  - match: { trained_model_configs.0.location.index.model_id: distilbert-finetuned-sst }
+
+#  - do:
+#      ml.start_deployment:
+#        model_id: distilbert-finetuned-sst
+

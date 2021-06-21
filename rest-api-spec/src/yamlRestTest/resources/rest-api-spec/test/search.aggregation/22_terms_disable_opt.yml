@@ -16,8 +16,8 @@ teardown:
 ---
 does not use optimization:
   - skip:
-      version: " - 7.99.99"
-      reason: setting to disable optimization added in 8.0.0 to be backported to 7.13.2
+      version: " - 7.13.1"
+      reason: setting to disable optimization added in 7.13.2
   - do:
       bulk:
         index: test

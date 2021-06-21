@@ -66,3 +66,5 @@ tasks.register("hello") {
     println "build plugin can be applied"
   }
 }
+// requires further classpath
+tasks.named("checkstyleMain").configure {enabled = false }

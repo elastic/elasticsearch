@@ -33,15 +33,15 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CharArrays;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -811,8 +811,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         Map<String, ?> indices = (Map<String, ?>) XContentMapValues.extractValue("metadata.indices", entityAsMap(response));
         if (indices != null) {
             for (String index : indices.keySet()) {
-                assertAcked("Failed to delete searchable snapshot index [" + index + ']',
-                    adminClient().performRequest(new Request("DELETE", index)));
+                try {
+                    assertAcked("Failed to delete searchable snapshot index [" + index + ']',
+                        adminClient().performRequest(new Request("DELETE", index)));
+                } catch (ResponseException e) {
+                    if (isNotFoundResponseException(e) == false) {
+                        throw e;
+                    }
+                }
             }
         }
     }
@@ -1764,5 +1770,13 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
         });
         request.setOptions(options);
+    }
+
+    protected static boolean isNotFoundResponseException(IOException ioe) {
+        if (ioe instanceof ResponseException) {
+            Response response = ((ResponseException) ioe).getResponse();
+            return response.getStatusLine().getStatusCode() == 404;
+        }
+        return false;
     }
 }

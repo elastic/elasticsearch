@@ -23,7 +23,7 @@ public class SnapshotInfoWriteableTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected Writeable.Reader<SnapshotInfo> instanceReader() {
-        return SnapshotInfo::new;
+        return SnapshotInfo::readFrom;
     }
 
     @Override

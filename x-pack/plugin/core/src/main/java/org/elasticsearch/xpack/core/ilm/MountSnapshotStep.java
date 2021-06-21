@@ -15,7 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
@@ -104,8 +104,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             indexName = snapshotIndexName;
         }
 
-        Settings.Builder settingsBuilder = Settings.builder();
-        settingsBuilder.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), Boolean.FALSE.toString());
+        final Settings.Builder settingsBuilder = Settings.builder();
 
         overrideTierPreference(this.getKey().getPhase())
             .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, override));
@@ -122,6 +121,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             // perform expensive operations (ie. clusterStateProcessed)
             false,
             storageType);
+        mountSearchableSnapshotRequest.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().execute(MountSearchableSnapshotAction.INSTANCE, mountSearchableSnapshotRequest,
             ActionListener.wrap(response -> {
                 if (response.status() != RestStatus.OK && response.status() != RestStatus.ACCEPTED) {

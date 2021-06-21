@@ -426,7 +426,7 @@ public class InternalComposite
         return formatted;
     }
 
-    private static Object formatObjectUnchecked (Object obj, DocValueFormat format) {
+    private static Object formatObjectUnchecked(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }

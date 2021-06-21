@@ -73,9 +73,12 @@ public class JsonLoggerTests extends ESTestCase {
         super.tearDown();
     }
 
-    public void testParseFieldEmittingLogs() throws Exception {
+
+
+    public void testParseFieldEmittingDeprecatedLogs() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(Task.TRACE_ID, "someTraceId");
 
             ParseField deprecatedField = new ParseField("new_name", "deprecated_name");
             assertTrue(deprecatedField.match("deprecated_name", LoggingDeprecationHandler.INSTANCE));
@@ -102,7 +105,10 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name] used, expected [new_name] instead"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
+                            hasEntry("elasticsearch.event.category", "api")
                         ),
                         allOf(
                             hasEntry("type", "deprecation.elasticsearch"),
@@ -111,7 +117,10 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "Deprecated field [deprecated_name2] used, expected [new_name] instead"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "deprecated_field_deprecated_name2"),
+                            hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "someId"),
+                            hasEntry(Task.TRACE_ID, "someTraceId"),
+                            hasEntry("elasticsearch.event.category", "api")
                         )
 
                     )
@@ -126,6 +135,7 @@ public class JsonLoggerTests extends ESTestCase {
     public void testDeprecatedMessage() throws Exception {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
+            threadContext.putHeader(Task.TRACE_ID, "someTraceId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");
             testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
@@ -147,7 +157,8 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry("cluster.name", "elasticsearch"),
                             hasEntry("node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry(DeprecatedMessage.KEY_FIELD_NAME, "a key"),
+                            not(hasKey(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME))
                         )
                     )
                 );
@@ -156,7 +167,6 @@ public class JsonLoggerTests extends ESTestCase {
             assertWarnings("deprecated message1");
         });
     }
-
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final DeprecationLogger testLogger = DeprecationLogger.getLogger("org.elasticsearch.test");

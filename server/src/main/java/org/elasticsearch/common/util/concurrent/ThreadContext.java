@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.OriginSettingClient;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -109,15 +108,21 @@ public final class ThreadContext implements Writeable {
         /**
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * The same is applied to Task.TRACE_ID.
          * Otherwise when context is stash, it should be empty.
          */
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
-            ThreadContextStruct threadContextStruct =
-                DEFAULT_CONTEXT.putHeaders(MapBuilder.<String, String>newMapBuilder()
-                    .put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID))
-                    .immutableMap());
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
+            Map<String, String> map = new HashMap<>(2, 1);
+            if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
+                map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
+            }
+            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
+                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
+            }
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);
-        } else {
+        }
+        else {
             threadLocal.set(DEFAULT_CONTEXT);
         }
         return () -> {

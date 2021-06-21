@@ -28,6 +28,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -309,28 +310,14 @@ public class RestController implements HttpServerTransport.Dispatcher {
     }
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
-        for (final RestHeaderDefinition restHeader : headersToCopy) {
-            final String name = restHeader.getName();
-            final List<String> headerValues = request.getAllHeaderValues(name);
-            if (headerValues != null && headerValues.isEmpty() == false) {
-                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
-                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
-                    channel.sendResponse(
-                        BytesRestResponse.
-                            createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
-                    return;
-                } else {
-                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
-                }
-            }
-        }
-        // error_trace cannot be used when we disable detailed errors
-        // we consume the error_trace parameter first to ensure that it is always consumed
-        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
-            channel.sendResponse(
-                BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, "error traces in responses are disabled."));
+        try {
+            copyRestHeaders(request, threadContext);
+            validateErrorTrace(request, channel);
+        } catch (IllegalArgumentException e) {
+            channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
             return;
         }
+
 
         final String rawPath = request.rawPath();
         final String uri = request.uri();
@@ -363,6 +350,34 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
         // If request has not been handled, fallback to a bad request error.
         handleBadRequest(uri, requestMethod, channel);
+    }
+
+    private void validateErrorTrace(RestRequest request, RestChannel channel) {
+        // error_trace cannot be used when we disable detailed errors
+        // we consume the error_trace parameter first to ensure that it is always consumed
+        if (request.paramAsBoolean("error_trace", false) && channel.detailedErrorsEnabled() == false) {
+            throw new IllegalArgumentException("error traces in responses are disabled.");
+        }
+    }
+
+    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) throws IOException {
+        for (final RestHeaderDefinition restHeader : headersToCopy) {
+            final String name = restHeader.getName();
+            final List<String> headerValues = request.getAllHeaderValues(name);
+            if (headerValues != null && headerValues.isEmpty() == false) {
+                final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
+                if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
+                    throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
+                } else if (name.equals(Task.TRACE_PARENT)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    if (traceparent.length() >= 55) {
+                        threadContext.putHeader(Task.TRACE_ID, traceparent.substring(3, 35));
+                    }
+                } else {
+                    threadContext.putHeader(name, String.join(",", distinctHeaderValues));
+                }
+            }
+        }
     }
 
     Iterator<MethodHandlers> getAllHandlers(@Nullable Map<String, String> requestParamsRef, String rawPath) {

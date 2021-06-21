@@ -25,13 +25,13 @@ import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 import java.io.IOException;
 import java.util.List;
 
-public class RestKibanaEnrollmentAction extends SecurityBaseRestHandler {
+public class RestKibanaEnrollAction extends SecurityBaseRestHandler {
 
     /**
      * @param settings the node's settings
      * @param licenseState the license state that will be used to determine if security is licensed
      */
-    public RestKibanaEnrollmentAction(Settings settings, XPackLicenseState licenseState) {
+    public RestKibanaEnrollAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 

@@ -80,6 +80,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             .put("keystore.path", "httpCa.p12")
             .setSecureSettings(secureSettings)
             .build();
+        when(env.settings()).thenReturn(settings);
         final SSLService sslService = mock(SSLService.class);
         final SSLConfiguration sslConfiguration = new SSLConfiguration(settings);
         when(sslService.getHttpTransportSSLConfiguration()).thenReturn(sslConfiguration);
@@ -130,7 +131,7 @@ public class TransportKibanaEnrollmentActionTests extends ESTestCase {
             x -> null,
             null,
             Collections.emptySet());
-        action = new TransportKibanaEnrollmentAction(transportService, client, settings, sslService, env, mock(ActionFilters.class));
+        action = new TransportKibanaEnrollmentAction(transportService, client, sslService, env, mock(ActionFilters.class));
     }
 
     public void testKibanaEnrollment() {

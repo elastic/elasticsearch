@@ -249,7 +249,7 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
-import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollmentAction;
+import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -958,7 +958,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
                 new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
                 new RestGetServiceAccountAction(settings, getLicenseState()),
-                new RestKibanaEnrollmentAction(settings, getLicenseState()),
+                new RestKibanaEnrollAction(settings, getLicenseState()),
                 new RestNodeEnrollmentAction(settings, getLicenseState())
         );
     }

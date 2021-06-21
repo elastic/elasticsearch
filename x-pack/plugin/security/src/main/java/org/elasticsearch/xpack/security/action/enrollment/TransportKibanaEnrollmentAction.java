@@ -20,7 +20,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.tasks.Task;
@@ -54,13 +53,11 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
 
     private final Environment environment;
     private final Client client;
-    private final Settings settings;
     private final SSLService sslService;
 
     @Inject public TransportKibanaEnrollmentAction(
         TransportService transportService,
         Client client,
-        Settings settings,
         SSLService sslService,
         Environment environment,
         ActionFilters actionFilters) {
@@ -68,7 +65,6 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
         this.environment = environment;
         // Should we use a specific origin for this ? Are we satisfied with the auditability of the change password request as-is ?
         this.client = new OriginSettingClient(client, SECURITY_ORIGIN);
-        this.settings = settings;
         this.sslService = sslService;
     }
 
@@ -116,7 +112,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                 final char[] password = generateKibanaSystemPassword();
                 final ChangePasswordRequest changePasswordRequest =
                     new ChangePasswordRequestBuilder(client).username("kibana_system")
-                        .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)))
+                        .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
                         .request();
                 try {
                     client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {

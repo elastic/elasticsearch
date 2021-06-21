@@ -21,7 +21,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ClientErnollmentResponseTests extends ESTestCase {
+public class KibanaErnollmentResponseTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         final String password = randomAlphaOfLength(14);
@@ -50,7 +50,7 @@ public class ClientErnollmentResponseTests extends ESTestCase {
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
             (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(), original.getNodesAddresses()),
-            ClientErnollmentResponseTests::mutateTestItem);
+            KibanaErnollmentResponseTests::mutateTestItem);
     }
 
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.search.stats.FieldUsageStats;
 
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -47,10 +48,11 @@ public class FieldUsageStatsResponse extends BroadcastResponse {
 
     @Override
     protected void addCustomXContentFields(XContentBuilder builder, Params params) throws IOException {
-        final List<String> indices = stats.keySet().stream().sorted().collect(Collectors.toList());
-        for (String index : indices) {
-            builder.startObject(index);
-            stats.get(index).toXContent(builder, params);
+        final List<Map.Entry<String, FieldUsageStats>> sortedEntries =
+            stats.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).collect(Collectors.toList());
+        for (Map.Entry<String, FieldUsageStats> entry : sortedEntries) {
+            builder.startObject(entry.getKey());
+            entry.getValue().toXContent(builder, params);
             builder.endObject();
         }
     }

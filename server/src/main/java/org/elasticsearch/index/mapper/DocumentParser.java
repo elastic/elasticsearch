@@ -47,12 +47,12 @@ import java.util.function.Function;
 public final class DocumentParser {
 
     private final NamedXContentRegistry xContentRegistry;
-    private final Function<DateFormatter, Mapper.TypeParser.ParserContext.DynamicTemplateParserContext> dateParserContext;
+    private final Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext;
     private final IndexSettings indexSettings;
     private final IndexAnalyzers indexAnalyzers;
 
     DocumentParser(NamedXContentRegistry xContentRegistry,
-                   Function<DateFormatter, Mapper.TypeParser.ParserContext.DynamicTemplateParserContext> dateParserContext,
+                   Function<DateFormatter, Mapper.TypeParser.ParserContext> dateParserContext,
                    IndexSettings indexSettings,
                    IndexAnalyzers indexAnalyzers) {
         this.xContentRegistry = xContentRegistry;

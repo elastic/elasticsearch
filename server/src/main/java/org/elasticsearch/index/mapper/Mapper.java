@@ -155,8 +155,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 public boolean isWithinMultiField() { return true; }
             }
 
-            public static class DynamicTemplateParserContext extends ParserContext {
-                public DynamicTemplateParserContext(ParserContext in) {
+            static class DynamicTemplateParserContext extends ParserContext {
+                DynamicTemplateParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
                         in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
                         in.idFieldDataEnabled);

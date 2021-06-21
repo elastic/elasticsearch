@@ -79,9 +79,11 @@ public class DataLoader {
 
     private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {
         createEmptyIndex(client, index);
-        Request request = new Request("POST", "/" + index + "/_doc");
-        XContentBuilder emptyDoc = JsonXContent.contentBuilder().startObject().endObject();
-        request.setJsonEntity(Strings.toString(emptyDoc));
+        Request request = new Request("POST", "/" + index + "/_bulk");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(
+            "{\"index\":{}\n{}\n" +
+                "{\"index\":{}\n{}\n");
         client.performRequest(request);
     }
 

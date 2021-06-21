@@ -1,9 +1,12 @@
+
+// the following queries all return no rows in H2
+
 selectConstAggregationWithGroupBy
 SELECT 1 a, COUNT(*) b, MAX(1) c FROM no_cols GROUP BY a;
 
        a:i     |       b:l     |       c:i
 ---------------+---------------+---------------
-1              |1              |1
+1              |2              |1
 ;
 
 subselectWithConst
@@ -12,6 +15,7 @@ SELECT 1, * FROM (SELECT * FROM no_cols) s;
        1:i
 ---------------
 1
+1
 ;
 
 subselectWithInnerConst
@@ -19,5 +23,6 @@ SELECT * FROM (SELECT 1, * FROM no_cols) s;
 
        1:i
 ---------------
+1
 1
 ;

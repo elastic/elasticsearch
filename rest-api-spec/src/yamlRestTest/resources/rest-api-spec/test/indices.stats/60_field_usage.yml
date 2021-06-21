@@ -14,8 +14,11 @@ setup:
             properties:
               name:
                 type: text
+                "index_options": "offsets"
+                "term_vector" : "with_positions_offsets"
               price:
                 type: double
+
   - do:
       index:
         index: testindex
@@ -38,6 +41,7 @@ setup:
   - do:
       index:
         index: testindex
+        id:    testid
         body: { "name": "foo bar", "price": 150, "day" : "2003/09/07" }
 
   - do:
@@ -58,7 +62,7 @@ setup:
           sort: [ "price" ]
 
   - do:
-      indices.field_usage_stats: { index: "testindex" }
+      indices.field_usage_stats: { index: testindex }
 
   # all_fields
   - set: { testindex.all_fields: stat }
@@ -149,3 +153,44 @@ setup:
   - match: { $stat.positions: 0 }
   - match: { $stat.offsets: 0 }
   - match: { $stat.payloads: 0 }
+
+  - do:
+      termvectors:
+        index: testindex
+        id:    testid
+        "term_statistics" : true
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.fields.name: stat }
+  - gt: { $stat.term_vectors: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            match_phrase:
+              name: "foo bar"
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.fields.name: stat }
+  - gt: { $stat.norms: 0 }
+
+  - do:
+      search:
+        body: {
+          "query" : { "match_phrase" : { "name" : "foo bar" } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+
+  - do:
+      indices.field_usage_stats: { index: testindex }
+
+  # name
+  - set: { testindex.fields.name: stat }
+  - gt: { $stat.offsets: 0 }

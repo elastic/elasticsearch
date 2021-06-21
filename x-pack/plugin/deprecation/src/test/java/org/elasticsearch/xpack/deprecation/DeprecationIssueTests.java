@@ -63,7 +63,7 @@ public class DeprecationIssueTests extends ESTestCase {
             assertTrue(toXContentMap.containsKey("details"));
         }
         String details = (String) toXContentMap.get("details");
-        boolean requiresRestart = (boolean) toXContentMap.get("requires_restart");
+        boolean requiresRestart = (boolean) toXContentMap.get("resolve_during_rolling_upgrade");
         DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, requiresRestart);
         assertThat(issue, equalTo(other));
     }

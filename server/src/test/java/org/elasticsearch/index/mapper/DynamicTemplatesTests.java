@@ -661,4 +661,298 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertThat(doc.rootDoc().getFields("foo"), arrayWithSize(2));
         assertThat(doc.rootDoc().getFields("bar"), arrayWithSize(1));
     }
+
+    public void testMixTemplateMultiFieldAndMappingReuse() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("template1");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping");
+                        {
+                            b.field("type", "text");
+                            b.startObject("fields");
+                            {
+                                b.startObject("raw").field("type", "keyword").endObject();
+                            }
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        assertNull(mapperService.documentMapper().mappers().getMapper("field.raw"));
+
+        ParsedDocument parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNotNull(parsed.dynamicMappingsUpdate());
+
+        merge(mapperService, dynamicMapping(parsed.dynamicMappingsUpdate()));
+        assertNotNull(mapperService.documentMapper().mappers().getMapper("field.raw"));
+        parsed = mapperService.documentMapper().parse(source(b -> b.field("field", "foo")));
+        assertNull(parsed.dynamicMappingsUpdate());
+    }
+
+    public void testDateDetectionInheritsFormat() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_date_formats").value("yyyy-MM-dd").endArray();
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    {
+                        b.field("match_mapping_type", "date");
+                        b.field("match", "*2");
+                        b.startObject("mapping").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("dates");
+                    {
+                        b.field("match_mapping_type", "date");
+                        b.field("match", "*3");
+                        b.startObject("mapping").field("format", "yyyy-MM-dd||epoch_millis").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("date1", "2016-11-20");
+            b.field("date2", "2016-11-20");
+            b.field("date3", "2016-11-20");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        DateFieldMapper dateMapper1 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date1");
+        DateFieldMapper dateMapper2 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date2");
+        DateFieldMapper dateMapper3 = (DateFieldMapper) mapperService.documentMapper().mappers().getMapper("date3");
+        // inherited from dynamic date format
+        assertEquals("yyyy-MM-dd", dateMapper1.fieldType().dateTimeFormatter().pattern());
+        // inherited from dynamic date format since the mapping in the template did not specify a format
+        assertEquals("yyyy-MM-dd", dateMapper2.fieldType().dateTimeFormatter().pattern());
+        // not inherited from the dynamic date format since the template defined an explicit format
+        assertEquals("yyyy-MM-dd||epoch_millis", dateMapper3.fieldType().dateTimeFormatter().pattern());
+    }
+
+    public void testDynamicTemplateOrder() throws IOException {
+        // https://github.com/elastic/elasticsearch/issues/18625
+        // elasticsearch used to apply templates that do not have a match_mapping_type first
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("type-based");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+                b.startObject();
+                {
+                    b.startObject("path-based");
+                    {
+                        b.field("path_match", "foo");
+                        b.startObject("mapping").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("foo", "abc")));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertThat(mapperService.fieldType("foo"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+    }
+
+    public void testDynamicTemplateRuntimeMatchMappingType() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").field("type", "long").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("s", "hello");
+            b.field("l", 1);
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{\"s\":{\"type\":\"long\"}},\"properties\":{\"l\":{\"type\":\"long\"}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicTemplateRuntimeMatch() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match", "field*");
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("field_string", "hello");
+            b.field("field_long", 1);
+            b.field("field_boolean", true);
+            b.field("concrete_string", "text");
+            b.startObject("field_object");
+            b.field("field_date", "2020-12-15");
+            b.field("concrete_date", "2020-12-15");
+            b.endObject();
+            b.startArray("field_array");
+            b.startObject();
+            b.field("field_double", 1.25);
+            b.field("concrete_double", 1.25);
+            b.endObject();
+            b.endArray();
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{" +
+                "\"field_array.field_double\":{\"type\":\"double\"}," +
+                "\"field_boolean\":{\"type\":\"boolean\"}," +
+                "\"field_long\":{\"type\":\"long\"}," +
+                "\"field_object.field_date\":{\"type\":\"date\"}," +
+                "\"field_string\":{\"type\":\"keyword\"}}," +
+                "\"properties\":" +
+                "{\"concrete_string\":{\"type\":\"text\",\"fields\":{\"keyword\":{\"type\":\"keyword\",\"ignore_above\":256}}}," +
+                "\"field_array\":{\"properties\":{\"concrete_double\":{\"type\":\"float\"}}}," +
+                "\"field_object\":{\"properties\":{\"concrete_date\":{\"type\":\"date\"}}}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicTemplateRuntimePathMatch() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("path_match", "object.*");
+                        b.field("path_unmatch", "*.concrete*");
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("double", 1.23);
+            b.startObject("object");
+            {
+                b.field("date", "2020-12-15");
+                b.field("long", 1);
+                b.startObject("object").field("string", "hello").field("concrete", false).endObject();
+            }
+            b.endObject();
+            b.startObject("concrete").field("boolean", true).endObject();
+        }));
+        assertEquals("{\"_doc\":{\"runtime\":{" +
+                "\"object.date\":{\"type\":\"date\"}," +
+                "\"object.long\":{\"type\":\"long\"}," +
+                "\"object.object.string\":{\"type\":\"keyword\"}}," +
+                "\"properties\":" + "{" +
+                "\"concrete\":{\"properties\":{\"boolean\":{\"type\":\"boolean\"}}}," +
+                "\"double\":{\"type\":\"float\"}," +
+                "\"object\":{\"properties\":{\"object\":{\"properties\":{\"concrete\":{\"type\":\"boolean\"}}}}}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+    }
+
+    public void testDynamicRuntimeWithDynamicTemplate() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.field("dynamic", "runtime");
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("concrete");
+                    {
+                        b.field("match", "concrete*");
+                        b.startObject("mapping").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("double", 1.23);
+            b.field("concrete_double", 1.23);
+        }));
+        assertEquals("{\"_doc\":{\"dynamic\":\"runtime\"," +
+                "\"runtime\":{" + "\"double\":{\"type\":\"double\"}}," +
+                "\"properties\":{\"concrete_double\":{\"type\":\"float\"}}}}",
+            Strings.toString(parsedDoc.dynamicMappingsUpdate()));
+
+        DocumentMapper documentMapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", ObjectMapper.Dynamic.RUNTIME);
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
+        ParsedDocument parsedDoc2 = documentMapper.parse(source(b -> {
+            b.field("s", "hello");
+            b.field("l", 1);
+        }));
+        assertEquals(
+            "{\"_doc\":{\"dynamic\":\"runtime\","
+                + "\"runtime\":{\"l\":{\"type\":\"long\"}},"
+                + "\"properties\":{\"s\":{\"type\":\"keyword\"}}}}",
+            Strings.toString(parsedDoc2.dynamicMappingsUpdate())
+        );
+    }
 }

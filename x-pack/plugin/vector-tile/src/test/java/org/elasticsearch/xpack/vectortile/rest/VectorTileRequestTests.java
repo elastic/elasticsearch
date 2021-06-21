@@ -161,6 +161,7 @@ public class VectorTileRequestTests extends ESTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74338")
     public void testWrongTile() {
         final int z = randomIntBetween(1, 10);
         final int x = -randomIntBetween(0, (1 << z) - 1);

@@ -10,10 +10,11 @@ package org.elasticsearch.common.settings;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
 
 import java.io.BufferedReader;

@@ -10,6 +10,8 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -30,6 +32,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
@@ -598,7 +602,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Map<String, ProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
-        assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
+        assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
         for (ProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
@@ -643,6 +647,90 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
             assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
             assertThat(queryDebug, hasEntry("query", "DocValuesFieldExistsQuery [field=date]"));
+        }
+    }
+
+    public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
+        );
+        try {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("date_filter_by_filter_disabled")
+                    .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                    .setMapping("date", "type=date", "keyword", "type=keyword")
+                    .get()
+            );
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
+                String date = Instant.ofEpochSecond(i).toString();
+                builders.add(
+                    client().prepareIndex("date_filter_by_filter_disabled")
+                        .setSource(
+                            jsonBuilder().startObject()
+                                .field("date", date)
+                                .endObject()
+                        )
+                );
+            }
+            indexRandom(true, false, builders);
+
+            SearchResponse response = client().prepareSearch("date_filter_by_filter_disabled")
+                .setProfile(true)
+                .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
+                .get();
+            assertSearchResponse(response);
+            Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+            assertThat(profileResults, notNullValue());
+            assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));
+            for (ProfileShardResult profileShardResult : profileResults.values()) {
+                assertThat(profileShardResult, notNullValue());
+                AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
+                assertThat(aggProfileResults, notNullValue());
+                List<ProfileResult> aggProfileResultsList = aggProfileResults.getProfileResults();
+                assertThat(aggProfileResultsList, notNullValue());
+                assertThat(aggProfileResultsList.size(), equalTo(1));
+                ProfileResult histoAggResult = aggProfileResultsList.get(0);
+                assertThat(histoAggResult, notNullValue());
+                assertThat(histoAggResult.getQueryName(), equalTo("DateHistogramAggregator.FromDateRange"));
+                assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
+                assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
+                assertThat(histoAggResult.getTime(), greaterThan(0L));
+                Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
+                assertMap(
+                    breakdown,
+                    matchesMap().entry(INITIALIZE, greaterThan(0L))
+                        .entry(INITIALIZE + "_count", greaterThan(0L))
+                        .entry(BUILD_LEAF_COLLECTOR, greaterThan(0L))
+                        .entry(BUILD_LEAF_COLLECTOR + "_count", greaterThan(0L))
+                        .entry(COLLECT, greaterThan(0L))
+                        .entry(COLLECT + "_count", greaterThan(0L))
+                        .entry(POST_COLLECTION, greaterThan(0L))
+                        .entry(POST_COLLECTION + "_count", 1L)
+                        .entry(BUILD_AGGREGATION, greaterThan(0L))
+                        .entry(BUILD_AGGREGATION + "_count", greaterThan(0L))
+                        .entry(REDUCE, 0L)
+                        .entry(REDUCE + "_count", 0L)
+                );
+                Map<String, Object> debug = histoAggResult.getDebugInfo();
+                assertMap(
+                    debug,
+                    matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
+                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                );
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
+            );
         }
     }
 }

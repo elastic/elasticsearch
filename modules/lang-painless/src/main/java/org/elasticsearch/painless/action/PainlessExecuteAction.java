@@ -34,12 +34,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.geo.GeoJsonGeometryFormat;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeometryFormat;
-import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -94,6 +92,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -589,10 +588,10 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     List<GeoPoint> points = new ArrayList<>();
                     geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    GeometryFormat<Geometry> gf = new GeometryParser(true, true, true).geometryFormat(GeoJsonGeometryFormat.NAME);
+                    Function<Geometry, Object> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
                     List<Object> objects = new ArrayList<>();
                     for (GeoPoint gp : points) {
-                        objects.add(gf.toXContentAsObject(new Point(gp.getLon(), gp.getLat())));
+                        objects.add(format.apply(new Point(gp.getLon(), gp.getLat())));
                     }
                     return new Response(objects);
                 }, indexService);

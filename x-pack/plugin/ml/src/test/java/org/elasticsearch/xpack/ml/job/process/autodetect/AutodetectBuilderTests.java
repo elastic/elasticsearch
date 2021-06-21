@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ml.job.process.autodetect;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -81,8 +81,6 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
-        dd.setFieldDelimiter('|');
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 

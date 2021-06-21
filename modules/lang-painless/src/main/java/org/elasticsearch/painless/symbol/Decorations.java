@@ -537,6 +537,10 @@ public class Decorations {
         }
     }
 
+    public interface CaptureBox extends Condition {
+
+    }
+
     public static class InstanceType implements Decoration {
 
         private final Class<?> instanceType;

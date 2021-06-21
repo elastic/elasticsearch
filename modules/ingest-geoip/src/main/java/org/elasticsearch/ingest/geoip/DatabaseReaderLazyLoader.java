@@ -20,11 +20,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
@@ -36,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -55,7 +53,6 @@ class DatabaseReaderLazyLoader implements Closeable {
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
-    private volatile long lastUpdate;
     final SetOnce<DatabaseReader> databaseReader;
 
     // cache the database type so that we do not re-read it on every pipeline execution
@@ -197,16 +194,6 @@ class DatabaseReaderLazyLoader implements Closeable {
     }
 
     DatabaseReader get() throws IOException {
-        //only downloaded databases will have lastUpdate != 0, we never update it for default databases or databases from config dir
-        if (lastUpdate != 0) {
-            Path fileName = databasePath.getFileName();
-            if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(30).toMillis()) {
-                throw new IllegalStateException("database [" + fileName + "] was not updated for 30 days and is disabled");
-            } else if (System.currentTimeMillis() - lastUpdate > Duration.ofDays(25).toMillis()) {
-                HeaderWarning.addWarning(
-                    "database [{}] was not updated for over 25 days, ingestion will fail if there is no update for 30 days", fileName);
-            }
-        }
         if (databaseReader.get() == null) {
             synchronized (databaseReader) {
                 if (databaseReader.get() == null) {
@@ -261,7 +248,4 @@ class DatabaseReaderLazyLoader implements Closeable {
         return new DatabaseReader.Builder(databasePath.toFile());
     }
 
-    void setLastUpdate(long lastUpdate) {
-        this.lastUpdate = lastUpdate;
-    }
 }

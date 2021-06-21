@@ -76,7 +76,7 @@ public class ReadOnlyEngine extends Engine {
     final boolean lazilyLoadSoftDeletes;
 
     protected volatile TranslogStats translogStats;
-    protected final String commitId;
+    private final String commitId;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -582,5 +582,9 @@ public class ReadOnlyEngine extends Engine {
                 return commitId;
             }
         };
+    }
+
+    public final String getCommitId() {
+        return commitId;
     }
 }

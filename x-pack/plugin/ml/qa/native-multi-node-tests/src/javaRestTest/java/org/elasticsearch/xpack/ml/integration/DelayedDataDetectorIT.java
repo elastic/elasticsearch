@@ -12,7 +12,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
-    private String index = "delayed-data";
-    private long now = System.currentTimeMillis();
+    private final String index = "delayed-data";
+    private final long now = System.currentTimeMillis();
     private long numDocs;
 
     @Before
@@ -197,7 +197,6 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

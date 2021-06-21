@@ -8,20 +8,18 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
-import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -105,22 +103,6 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
             checkDeniedWrite(otherIndex);
         } else {
             checkAllowedWrite(otherIndex);
-        }
-        checkSecurityDisabledWarning();
-    }
-
-    public void checkSecurityDisabledWarning() throws Exception {
-        final Request request = new Request("GET", "/_cat/indices");
-        Response response = client().performRequest(request);
-        List<String> warningHeaders = response.getWarnings();
-        if (securityExplicitlySet) {
-            assertThat (warningHeaders, Matchers.empty());
-        } else {
-            assertThat (warningHeaders, Matchers.hasSize(1));
-            assertThat (warningHeaders.get(0),
-                containsString("Elasticsearch built-in security features are not enabled. Without authentication, your cluster could be " +
-                    "accessible to anyone. See https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
-                    Version.CURRENT.minor + "/security-minimal-setup.html to enable security."));
         }
     }
 

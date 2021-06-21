@@ -157,7 +157,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
             Map<String,Object> map = new HashMap<>();
             map.put("elasticsearch.slowlog.message", index);
             map.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
-            map.put("elasticsearch.slowlog.took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
             map.put("elasticsearch.slowlog.id", doc.id());
             if (doc.routing() != null) {
                 map.put("elasticsearch.slowlog.routing", doc.routing());

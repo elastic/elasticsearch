@@ -43,6 +43,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.test.ESTestCase;
 
@@ -74,7 +75,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 doc.add(new StoredField("sf3", randomAlphaOfLength(5)));
             });
-            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(lastCommit(dir), () -> {});
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
             assertFieldStats("total", "stored field",
                 stats.total().getStoredFieldBytes(), perField.total().getStoredFieldBytes(), 0.01, 1024);
@@ -104,7 +105,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 doc.add(new Field("v3", randomAlphaOfLength(5), fieldType));
             });
-            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(lastCommit(dir), () -> {});
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
             logger.info("--> stats {} per field {}", stats, perField);
             assertFieldStats("total", "term vectors",
@@ -131,7 +132,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 }
                 doc.add(new BinaryPoint("pt3", randomAlphaOfLength(5).getBytes(StandardCharsets.UTF_8)));
             });
-            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(lastCommit(dir), () -> {});
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             final IndexDiskUsageStats perField = collectPerFieldStats(dir);
             logger.info("--> stats {} per field {}", stats, perField);
             assertFieldStats("total", "points",
@@ -149,13 +150,13 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (Directory dir = newDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), IndexDiskUsageAnalyzerTests::addRandomFields);
-            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(lastCommit(dir), () -> {});
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
             logger.info("--> stats {}", stats);
             try (Directory perFieldDir = newDirectory()) {
                 rewriteIndexWithPerFieldCodec(dir, codec, perFieldDir);
                 final IndexDiskUsageStats perFieldStats = collectPerFieldStats(perFieldDir);
                 assertStats(stats, perFieldStats);
-                assertStats(IndexDiskUsageAnalyzer.analyze(lastCommit(perFieldDir), () -> {}), perFieldStats);
+                assertStats(IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(perFieldDir), () -> {}), perFieldStats);
             }
         }
     }
@@ -500,5 +501,9 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         final List<IndexCommit> commits = DirectoryReader.listCommits(directory);
         assertThat(commits, not(empty()));
         return commits.get(commits.size() - 1);
+    }
+
+    private static ShardId testShardId() {
+        return new ShardId("test_index", "_na_", randomIntBetween(0, 3));
     }
 }

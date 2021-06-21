@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -41,9 +40,11 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
 
 import java.io.IOException;
@@ -54,13 +55,13 @@ import java.util.Map;
  * Analyze the disk usage of each field in the index.
  */
  final class IndexDiskUsageAnalyzer {
-    private static final Logger LOGGER = LogManager.getLogger(IndexDiskUsageAnalyzer.class);
-
+    private final Logger logger;
     private final IndexCommit commit;
     private final TrackingReadBytesDirectory directory;
     private final CancellationChecker cancellationChecker;
 
-    private IndexDiskUsageAnalyzer(IndexCommit commit, Runnable checkForCancellation) {
+    private IndexDiskUsageAnalyzer(ShardId shardId, IndexCommit commit, Runnable checkForCancellation) {
+        this.logger = Loggers.getLogger(IndexDiskUsageAnalyzer.class, shardId);
         this.directory = new TrackingReadBytesDirectory(commit.getDirectory());
         this.commit = new FilterIndexCommit(commit) {
             @Override
@@ -71,8 +72,8 @@ import java.util.Map;
         this.cancellationChecker = new CancellationChecker(checkForCancellation);
     }
 
-    static IndexDiskUsageStats analyze(IndexCommit commit, Runnable checkForCancellation) throws IOException {
-        final IndexDiskUsageAnalyzer analyzer = new IndexDiskUsageAnalyzer(commit, checkForCancellation);
+    static IndexDiskUsageStats analyze(ShardId shardId, IndexCommit commit, Runnable checkForCancellation) throws IOException {
+        final IndexDiskUsageAnalyzer analyzer = new IndexDiskUsageAnalyzer(shardId, commit, checkForCancellation);
         final IndexDiskUsageStats stats = new IndexDiskUsageStats(getIndexSize(commit));
         analyzer.doAnalyze(stats);
         return stats;
@@ -112,7 +113,7 @@ import java.util.Map;
                 executionTime.termVectorsTimeInNanos += System.nanoTime() - startTimeInNanos;
             }
         }
-        LOGGER.debug("analyzing the disk usage took {} \nstats: {}", executionTime, stats);
+        logger.debug("analyzing the disk usage took {} stats: {}", executionTime, stats);
     }
 
     void analyzeStoredFields(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {

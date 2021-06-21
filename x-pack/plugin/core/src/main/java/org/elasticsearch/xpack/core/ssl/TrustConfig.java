@@ -23,6 +23,7 @@ import java.security.GeneralSecurityException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -96,6 +97,17 @@ abstract class TrustConfig {
             try (InputStream in = Files.newInputStream(storePath)) {
                 KeyStore ks = KeyStore.getInstance(storeType);
                 ks.load(in, storePassword.getChars());
+                ArrayList<String> aliases = Collections.list(ks.aliases());
+                if (this instanceof StoreKeyConfig) {
+                    for (String alias : aliases) {
+                        Certificate certificate = ks.getCertificate(alias);
+                        if (certificate instanceof X509Certificate) {
+                            if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                                ks.deleteEntry(alias);
+                            }
+                        }
+                    }
+                }
                 return ks;
             }
         } else if (storeType.equalsIgnoreCase("pkcs11")) {

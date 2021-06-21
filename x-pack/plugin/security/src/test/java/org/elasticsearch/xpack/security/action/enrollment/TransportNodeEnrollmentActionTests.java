@@ -69,14 +69,14 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
 
         final Environment env = mock(Environment.class);
         Path tempDir = createTempDir();
-        Path httpCaPath = tempDir.resolve("elastic-certificates.p12");
+        Path httpCaPath = tempDir.resolve("httpCa.p12");
         Path transportPath = tempDir.resolve("transport.p12");
-        Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/elastic-certificates.p12"), httpCaPath);
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa.p12"), httpCaPath);
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), transportPath);
         when(env.configFile()).thenReturn(tempDir);
         final SSLService sslService = mock(SSLService.class);
         final Settings httpSettings = Settings.builder()
-            .put("keystore.path", "elastic-certificates.p12")
+            .put("keystore.path", "httpCa.p12")
             .put("keystore.password", "password")
             .build();
         final SSLConfiguration httpSslConfiguration = new SSLConfiguration(httpSettings);

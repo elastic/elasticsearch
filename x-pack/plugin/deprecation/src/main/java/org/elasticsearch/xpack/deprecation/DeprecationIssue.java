@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;

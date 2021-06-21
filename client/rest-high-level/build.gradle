@@ -67,7 +67,7 @@ tasks.named('forbiddenApisMain').configure {
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
 File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
-File httpCaKeystore = file("./elastic-certificates.p12");
+File httpCaKeystore = file("./httpCa.p12");
 File transportKeystore = file("./transport.p12");
 
 tasks.named("integTest").configure {
@@ -97,11 +97,11 @@ testClusters.all {
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.http.ssl.enabled', 'true'
   setting 'xpack.security.transport.ssl.enabled', 'true'
-  setting 'xpack.security.http.ssl.keystore.path', './elastic-certificates.p12'
+  setting 'xpack.security.http.ssl.keystore.path', './httpCa.p12'
   setting 'xpack.security.transport.ssl.keystore.path', './transport.p12'
   keystore 'xpack.security.http.ssl.keystore.secure_password', 'password'
-  keystore 'xpack.security.http.ssl.keystore.secure_key_password', 'password'
-  keystore 'xpack.security.http.ssl.secure_key_passphrase', 'password'
+  //keystore 'xpack.security.http.ssl.keystore.secure_key_password', 'password'
+  //keystore 'xpack.security.http.ssl.secure_key_passphrase', 'password'
   keystore 'xpack.security.transport.ssl.keystore.secure_password', 'password'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
   //setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'

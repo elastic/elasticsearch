@@ -76,6 +76,17 @@ public class StoreKeyConfig extends KeyConfig {
         Path ksPath = keyStorePath == null ? null : CertParsingUtils.resolvePath(keyStorePath, environment);
         try {
             KeyStore ks = getStore(ksPath, keyStoreType, keyStorePassword);
+            ArrayList<String> aliases = Collections.list(ks.aliases());
+            if (this instanceof StoreKeyConfig) {
+                for (String alias : aliases) {
+                    Certificate certificate = ks.getCertificate(alias);
+                    if (certificate instanceof X509Certificate) {
+                        if (((X509Certificate) certificate).getBasicConstraints() != -1) {
+                            ks.deleteEntry(alias);
+                        }
+                    }
+                }
+            }
             checkKeyStore(ks);
             return CertParsingUtils.keyManager(ks, keyPassword.getChars(), keyStoreAlgorithm);
         } catch (FileNotFoundException | NoSuchFileException e) {

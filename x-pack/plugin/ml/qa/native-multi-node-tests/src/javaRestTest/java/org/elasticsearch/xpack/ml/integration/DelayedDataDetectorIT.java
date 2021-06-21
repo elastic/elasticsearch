@@ -44,8 +44,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
-    private String index = "delayed-data";
-    private long now = System.currentTimeMillis();
+    private final String index = "delayed-data";
+    private final long now = System.currentTimeMillis();
     private long numDocs;
 
     @Before
@@ -197,7 +197,6 @@ public class DelayedDataDetectorIT extends MlNativeAutodetectIntegTestCase {
 
     private Job.Builder createJob(String id, TimeValue bucketSpan, String function, String field, String summaryCountField) {
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(DataDescription.DataFormat.XCONTENT);
         dataDescription.setTimeField("time");
         dataDescription.setTimeFormat(DataDescription.EPOCH_MS);
 

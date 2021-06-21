@@ -336,7 +336,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
 
     private void tryAllHandlers(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) throws Exception {
         try {
-            copyRestHeaders(request, channel, threadContext);
+            copyRestHeaders(request, threadContext);
             validateErrorTrace(request, channel);
         } catch (IllegalArgumentException e) {
             channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, BAD_REQUEST, e.getMessage()));
@@ -387,14 +387,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private void copyRestHeaders(RestRequest request, RestChannel channel, ThreadContext threadContext) throws IOException {
+    private void copyRestHeaders(RestRequest request, ThreadContext threadContext) throws IOException {
         for (final RestHeaderDefinition restHeader : headersToCopy) {
             final String name = restHeader.getName();
             final List<String> headerValues = request.getAllHeaderValues(name);
             if (headerValues != null && headerValues.isEmpty() == false) {
                 final List<String> distinctHeaderValues = headerValues.stream().distinct().collect(Collectors.toList());
                 if (restHeader.isMultiValueAllowed() == false && distinctHeaderValues.size() > 1) {
-
                     throw new IllegalArgumentException("multiple values for single-valued header [" + name + "].");
                 } else if (name.equals(Task.TRACE_PARENT)) {
                     String traceparent = distinctHeaderValues.get(0);

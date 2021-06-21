@@ -107,6 +107,7 @@ public final class ThreadContext implements Writeable {
         /**
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
+         * The same is applied to Task.TRACE_ID.
          * Otherwise when context is stash, it should be empty.
          */
 

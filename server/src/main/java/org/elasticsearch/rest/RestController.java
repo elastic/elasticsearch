@@ -29,6 +29,7 @@ import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.ByteArrayOutputStream;
@@ -344,6 +345,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         BytesRestResponse.
                             createSimpleErrorResponse(channel, BAD_REQUEST, "multiple values for single-valued header [" + name + "]."));
                     return;
+                } else if (name.equals(Task.TRACE_PARENT)) {
+                    String traceparent = distinctHeaderValues.get(0);
+                    if (traceparent.length() >= 55) {
+                        threadContext.putTransient(Task.TRACE_ID, traceparent.substring(3, 35));
+                    }
+                    threadContext.putHeader(name, traceparent);
                 } else {
                     threadContext.putHeader(name, String.join(",", distinctHeaderValues));
                 }

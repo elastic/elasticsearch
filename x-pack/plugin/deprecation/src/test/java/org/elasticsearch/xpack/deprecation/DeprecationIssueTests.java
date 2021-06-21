@@ -37,8 +37,8 @@ public class DeprecationIssueTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DeprecationIssue other =
-            new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(), issue.isResolveDuringRollingUpgrade());
+        DeprecationIssue other = new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(),
+            issue.isResolveDuringRollingUpgrade());
         assertThat(issue, equalTo(other));
         assertThat(other, equalTo(issue));
         assertThat(issue.hashCode(), equalTo(other.hashCode()));

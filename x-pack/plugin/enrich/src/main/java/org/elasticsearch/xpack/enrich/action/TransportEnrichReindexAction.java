@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.enrich.action;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
-
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.client.Client;
@@ -26,6 +24,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 /**
  * A specialized version of {@link TransportReindexAction} which performs the search part of the reindex in the security context of the

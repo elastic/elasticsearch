@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import io.github.nik9000.mapmatcher.MapMatcher;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -124,6 +126,8 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.Collections.singleton;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
@@ -132,8 +136,10 @@ import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.b
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 
@@ -1422,6 +1428,83 @@ public class TermsAggregatorTests extends AggregatorTestCase {
             nFt,
             strFt
         ));
+    }
+
+    public void topLevelProfileTestCase(
+        int count,
+        int extra,
+        IncludeExclude includeExclude,
+        Class<? extends Aggregator> expectedImpl,
+        Function<MapMatcher, MapMatcher> extraMatcher
+    ) throws IOException {
+        randomizeAggregatorImpl = false;
+        KeywordFieldType strFt = new KeywordFieldType("str", false, true, Collections.emptyMap());
+        AggregationBuilder builder = new TermsAggregationBuilder("str").field("str").includeExclude(includeExclude);
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < count; i++) {
+                iw.addDocument(List.of(new SortedDocValuesField("str", new BytesRef(Integer.toString(i)))));
+            }
+            for (int i = 0; i < extra; i++) {
+                iw.addDocument(List.of());
+            }
+        };
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (StringTerms result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(impl, equalTo(expectedImpl));
+                assertThat(result.getBuckets(), hasSize(10));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "str",
+                        extraMatcher.apply(
+                            matchesMap()
+                                .entry("result_strategy", "terms")
+                                .entry("total_buckets", (long) count)
+                                .entry("segments_with_single_valued_ords", greaterThan(0))
+                                .entry("segments_with_multi_valued_ords", 0)
+                        )
+                    )
+                );
+            },
+            strFt
+        );
+    }
+
+    public void testDenseProfile() throws IOException {
+        topLevelProfileTestCase(
+            between(3000, 4000),
+            0,
+            null,
+            GlobalOrdinalsStringTermsAggregator.class,
+            m -> m.entry("has_filter", false).entry("collection_strategy", "dense")
+        );
+    }
+
+    public void testRemapProfile() throws IOException {
+        topLevelProfileTestCase(
+            between(3000, 4000),
+            0,
+            new IncludeExclude(null, "missing"),
+            GlobalOrdinalsStringTermsAggregator.class,
+            m -> m.entry("has_filter", true).entry("collection_strategy", "remap using single bucket ords")
+        );
+    }
+
+    public void testLowCardinalityProfile() throws IOException {
+        int count = between(1000, 2000);
+        int extra = count * between(3, 5);
+        topLevelProfileTestCase(
+            count,
+            extra,
+            null,
+            GlobalOrdinalsStringTermsAggregator.LowCardinality.class,
+            m -> m.entry("has_filter", false)
+                .entry("collection_strategy", "dense")
+                .entry("segments_without_values", greaterThanOrEqualTo(0))
+        );
     }
 
     public void testNumberToStringValueScript() throws IOException {

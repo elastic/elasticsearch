@@ -210,7 +210,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
-     * @param licenseState
+     * @param licenseState The license state to use in actions and steps
      * @return The list of {@link Step} objects in order of their execution.
      */
     public List<Step> toSteps(Client client, XPackLicenseState licenseState) {

@@ -208,7 +208,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             throw new UnsupportedOperationException();
         });
         if (fromDynamicTemplate) {
-            pc = pc.createDynamicTemplateFieldContext(pc);
+            pc = pc.createDynamicTemplateFieldContext();
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)

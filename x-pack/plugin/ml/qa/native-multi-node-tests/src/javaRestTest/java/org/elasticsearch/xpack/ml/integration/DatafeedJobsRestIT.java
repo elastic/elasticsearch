@@ -518,7 +518,7 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
         Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
         createJobRequest.setJsonEntity("{\n"
             + "  \"description\": \"Aggs job\",\n"
-            + "  \"datafeed\": {\"indexes\": [\"airline-data-aggs\"]},\n"
+            + "  \"datafeed_config\": {\"indexes\": [\"airline-data-aggs\"]},\n"
             + "  \"analysis_config\": {\n"
             + "    \"bucket_span\": \"1h\",\n "
             + "    \"summary_count_field_name\": \"doc_count\",\n"

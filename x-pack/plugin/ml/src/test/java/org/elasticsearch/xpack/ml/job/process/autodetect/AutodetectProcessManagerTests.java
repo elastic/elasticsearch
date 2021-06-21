@@ -738,9 +738,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
 
     private Job createJobDetails(String jobId) {
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
         dd.setTimeFormat("epoch");
-        dd.setFieldDelimiter(',');
 
         Detector d = new Detector.Builder("metric", "value").build();
 

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.util.Locale;
@@ -65,7 +66,7 @@ public class CreateSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         // complete
         request.waitForCompletion(true);
         request.includeGlobalState(false);
-        request.masterNodeTimeout(getMasterTimeout(currentClusterState));
+        request.masterNodeTimeout(TimeValue.MAX_VALUE);
         getClient().admin().cluster().createSnapshot(request,
             ActionListener.wrap(response -> {
                 logger.debug("create snapshot response for policy [{}] and index [{}] is: {}", policyName, indexName,

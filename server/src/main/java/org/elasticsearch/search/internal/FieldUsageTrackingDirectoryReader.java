@@ -26,6 +26,8 @@ import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 
 import java.io.IOException;
@@ -195,6 +197,15 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public TermsEnum iterator() throws IOException {
                 TermsEnum termsEnum = in.iterator();
+                if (termsEnum != null) {
+                    termsEnum = new FieldUsageTrackingTermsEnum(field, termsEnum);
+                }
+                return termsEnum;
+            }
+
+            @Override
+            public TermsEnum intersect(CompiledAutomaton compiled, final BytesRef startTerm) throws IOException {
+                TermsEnum termsEnum = in.intersect(compiled, startTerm);
                 if (termsEnum != null) {
                     termsEnum = new FieldUsageTrackingTermsEnum(field, termsEnum);
                 }

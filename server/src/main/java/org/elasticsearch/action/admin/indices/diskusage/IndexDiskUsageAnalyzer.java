@@ -29,7 +29,6 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.Terms;
@@ -40,9 +39,11 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -184,14 +185,42 @@ import java.util.Map;
         }
     }
 
+    // The type bound should be DocValuesIterator instead of DocIdSetIterator.
+    private <DV extends DocIdSetIterator> DV iterateDocValues(int maxDocs,
+                                                              CheckedSupplier<DV, IOException> dvReader,
+                                                              CheckedConsumer<DV, IOException> valueAccessor) throws IOException {
+        // As we track the min/max positions of read bytes, we just visit the first and last values of the docValues iterator.
+        DV dv = dvReader.get();
+        int docID;
+        // Try to access the first value
+        if ((docID = dv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+            valueAccessor.accept(dv);
+            // Try to access the last value by advancing the last doc.
+            // If the last doc doesn't have value then fallback to access the entire iterator
+            if (dv.advance(maxDocs - 1) != DocIdSetIterator.NO_MORE_DOCS) { // TODO: replace `advance` with `advanceExact`
+                valueAccessor.accept(dv);
+            } else {
+                dv = dvReader.get();
+                if (dv.advance(docID + 1) != DocIdSetIterator.NO_MORE_DOCS) {
+                    valueAccessor.accept(dv);
+                    while (dv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        cancellationChecker.logEvent();
+                        valueAccessor.accept(dv);
+                    }
+                }
+            }
+        }
+        return dv;
+    }
+
     void analyzeDocValues(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
         // TODO: We can extract these stats from Lucene80DocValuesProducer without iterating all docValues
         // or track the new sliced IndexInputs.
-        DocValuesProducer docValuesReader = reader.getDocValuesReader();
-        if (docValuesReader == null) {
+        if (reader.getDocValuesReader() == null) {
             return;
         }
-        docValuesReader = reader.getDocValuesReader().getMergeInstance();
+        final DocValuesProducer docValuesReader = reader.getDocValuesReader().getMergeInstance();
+        final int maxDocs = reader.maxDoc();
         for (FieldInfo field : reader.getFieldInfos()) {
             final DocValuesType dvType = field.getDocValuesType();
             if (dvType == DocValuesType.NONE) {
@@ -201,44 +230,30 @@ import java.util.Map;
             directory.resetBytesRead();
             switch (dvType) {
                 case NUMERIC:
-                    final NumericDocValues numeric = docValuesReader.getNumeric(field);
-                    while (numeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
-                        numeric.longValue();
-                    }
+                    iterateDocValues(maxDocs, () -> docValuesReader.getNumeric(field), NumericDocValues::longValue);
                     break;
                 case SORTED_NUMERIC:
-                    final SortedNumericDocValues sortedNumeric = docValuesReader.getSortedNumeric(field);
-                    while (sortedNumeric.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        for (int i = 0; i < sortedNumeric.docValueCount(); i++) {
+                    iterateDocValues(maxDocs, () -> docValuesReader.getSortedNumeric(field), dv -> {
+                        for (int i = 0; i < dv.docValueCount(); i++) {
                             cancellationChecker.logEvent();
-                            sortedNumeric.nextValue();
+                            dv.nextValue();
                         }
-                    }
+                    });
                     break;
                 case BINARY:
-                    final BinaryDocValues binary = docValuesReader.getBinary(field);
-                    while (binary.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
-                        binary.binaryValue();
-                    }
+                    iterateDocValues(maxDocs, () -> docValuesReader.getBinary(field), BinaryDocValues::binaryValue);
                     break;
                 case SORTED:
-                    final SortedDocValues sorted = docValuesReader.getSorted(field);
-                    while (sorted.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
-                        sorted.ordValue();
-                    }
+                    SortedDocValues sorted = iterateDocValues(maxDocs, () -> docValuesReader.getSorted(field), SortedDocValues::ordValue);
                     sorted.lookupOrd(0);
                     sorted.lookupOrd(sorted.getValueCount() - 1);
                     break;
                 case SORTED_SET:
-                    final SortedSetDocValues sortedSet = docValuesReader.getSortedSet(field);
-                    while (sortedSet.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        while (sortedSet.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
+                    SortedSetDocValues sortedSet = iterateDocValues(maxDocs, () -> docValuesReader.getSortedSet(field), dv -> {
+                        while (dv.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
                             cancellationChecker.logEvent();
                         }
-                    }
+                    });
                     sortedSet.lookupOrd(0);
                     sortedSet.lookupOrd(sortedSet.getValueCount() - 1);
                     break;

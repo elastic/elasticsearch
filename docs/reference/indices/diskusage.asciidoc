@@ -22,7 +22,7 @@ POST /my-index-000001/_disk_usage?run_expensive_tasks=true
 [[analyze-index-disk-usage-api-request]]
 ==== {api-request-title}
 
-`POST /<index>/_disk_usage`
+`POST /<target>/_disk_usage`
 
 [[analyze-index-disk-usage-api-request-prereqs]]
 ==== {api-prereq-title}

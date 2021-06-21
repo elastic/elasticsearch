@@ -10,6 +10,9 @@ package org.elasticsearch.cli;
 
 /**
  * POSIX exit codes.
+ *
+ * @see <a href="https://en.wikipedia.org/wiki/POSIX">POSIX</a>
+ * @see <a href="https://www.freebsd.org/cgi/man.cgi?query=sysexits">Exit Codes</a>
  */
 public class ExitCodes {
     public static final int OK = 0;

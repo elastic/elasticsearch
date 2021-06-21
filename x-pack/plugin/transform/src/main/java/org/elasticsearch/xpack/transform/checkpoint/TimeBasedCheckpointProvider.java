@@ -123,11 +123,10 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
             return timestamp;
         }
         Map.Entry<String, SingleGroupSource> topLevelGroupEntry = groups.entrySet().iterator().next();
-        if (topLevelGroupEntry.getValue() instanceof DateHistogramGroupSource) {
-            DateHistogramGroupSource dateHistogramGroupSource = (DateHistogramGroupSource) topLevelGroupEntry.getValue();
-            long interval = dateHistogramGroupSource.getInterval().getInterval().estimateMillis();
-            timestamp -= timestamp % interval;
+        if ((topLevelGroupEntry.getValue() instanceof DateHistogramGroupSource) == false) {
+            return timestamp;
         }
-        return timestamp;
+        DateHistogramGroupSource dateHistogramGroupSource = (DateHistogramGroupSource) topLevelGroupEntry.getValue();
+        return dateHistogramGroupSource.getRounding().round(timestamp);
     }
 }

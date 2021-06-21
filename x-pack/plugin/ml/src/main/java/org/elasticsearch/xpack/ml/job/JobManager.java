@@ -227,8 +227,12 @@ public class JobManager {
      */
     public void expandJobs(String expression, boolean allowNoMatch, ActionListener<QueryPage<Job>> jobsListener) {
         expandJobBuilders(expression, allowNoMatch, ActionListener.wrap(
-            builders -> jobsListener.onResponse(
-                new QueryPage<>(builders.stream().map(Job.Builder::build).collect(Collectors.toList()), builders.size(), Job.RESULTS_FIELD)
+            jobBuilders -> jobsListener.onResponse(
+                new QueryPage<>(
+                    jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList()),
+                    jobBuilders.size(),
+                    Job.RESULTS_FIELD
+                )
             ),
             jobsListener::onFailure
         ));

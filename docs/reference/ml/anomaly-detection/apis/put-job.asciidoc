@@ -235,7 +235,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 (Optional, object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
-`datafeed`::
+`datafeed_config`::
 (object) The {dfeed} configured for the current {anomaly-job}
 +
 .Properties of `datafeed`

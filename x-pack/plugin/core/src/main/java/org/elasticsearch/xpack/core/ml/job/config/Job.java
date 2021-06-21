@@ -88,7 +88,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
     public static final ParseField DELETING = new ParseField("deleting");
     public static final ParseField ALLOW_LAZY_OPEN = new ParseField("allow_lazy_open");
     public static final ParseField BLOCKED = new ParseField("blocked");
-    public static final ParseField DATAFEED = new ParseField("datafeed");
+    public static final ParseField DATAFEED_CONFIG = new ParseField("datafeed_config");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("jobs");
@@ -145,7 +145,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         parser.declareObject(Builder::setBlocked, ignoreUnknownFields ? Blocked.LENIENT_PARSER : Blocked.STRICT_PARSER, BLOCKED);
         parser.declareObject(Builder::setDatafeed,
             ignoreUnknownFields ? DatafeedConfig.LENIENT_PARSER : DatafeedConfig.STRICT_PARSER,
-            DATAFEED);
+            DATAFEED_CONFIG);
         return parser;
     }
 
@@ -623,7 +623,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         }
         if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
             if (datafeedConfig != null) {
-                builder.field(DATAFEED.getPreferredName(), datafeedConfig, params);
+                builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
             }
         }
         return builder;

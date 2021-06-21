@@ -48,7 +48,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -86,17 +85,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
     protected NamedXContentRegistry xContentRegistry() {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         return new NamedXContentRegistry(searchModule.getNamedXContents());
-    }
-
-    public void testFromXContentLocal() throws IOException {
-        xContentTester(this::createParser, this::createXContextTestInstance, getToXContentParams(), this::doParseInstance)
-            .numberOfTestRuns(NUMBER_OF_TEST_RUNS)
-            .supportsUnknownFields(supportsUnknownFields())
-            .shuffleFieldsExceptions(getShuffleFieldsExceptions())
-            .randomFieldsExcludeFilter(getRandomFieldsExcludeFilter())
-            .assertEqualsConsumer(this::assertEqualInstances)
-            .assertToXContentEquivalence(assertToXContentEquivalence())
-            .test();
     }
 
     @Override

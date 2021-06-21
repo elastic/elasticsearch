@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -76,7 +77,7 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                     securityContext,
                     threadPool,
                     ActionListener.wrap(
-                        created -> listener.onResponse(jobCreated),
+                        createdDatafeed -> listener.onResponse(jobCreated),
                         failed -> jobManager.deleteJob(
                             new DeleteJobAction.Request(request.getJobBuilder().getId()),
                             state,
@@ -89,7 +90,12 @@ public class TransportPutJobAction extends TransportMasterNodeAction<PutJobActio
                                             request.getJobBuilder().getId()
                                         ),
                                         deleteFailed);
-                                    listener.onFailure(failed);
+                                    ElasticsearchException ex = new ElasticsearchException(
+                                        "failed to cleanup job after datafeed creation failure",
+                                        failed
+                                    );
+                                    ex.addSuppressed(deleteFailed);
+                                    listener.onFailure(ex);
                                 }
                             )
                         )

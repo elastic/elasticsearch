@@ -1009,22 +1009,22 @@
             "data_description" : {
                 "format":"xcontent"
             },
-            "datafeed": {
+            "datafeed_config": {
               "indexes":["index-foo"]
             }
           }
   - match: { job_id: "jobs-crud-put-with-datafeed" }
-  - is_true: datafeed
-  - match: { datafeed.job_id: "jobs-crud-put-with-datafeed" }
-  - match: { datafeed.datafeed_id: "jobs-crud-put-with-datafeed" }
+  - is_true: datafeed_config
+  - match: { datafeed_config.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
 
   - do:
       ml.get_datafeed:
         datafeed_id: "jobs-crud-put-with-datafeed"
 
   - match: { count: 1 }
-  - match: { datafeeds.0.job_id: "jobs-crud-datafeed-job" }
-  - match: { datafeeds.0.datafeed_id: "jobs-crud-datafeed-job" }
+  - match: { datafeeds.0.job_id: "jobs-crud-put-with-datafeed" }
+  - match: { datafeeds.0.datafeed_id: "jobs-crud-put-with-datafeed" }
 ---
 "Test get job with datafeed":
   - do:
@@ -1058,7 +1058,7 @@
         job_id: jobs-crud-get-with-datafeed
   - match: { count: 1 }
   - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
-  - match: { jobs.0.datafeed.datafeed_id: "jobs-crud-get-with-datafeed" }
+  - match: { jobs.0.datafeed_config.datafeed_id: "jobs-crud-get-with-datafeed" }
 ---
 "Test max model memory limit":
   - skip:

@@ -772,7 +772,6 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             runtimeMappings = in.readMap();
         }
 
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalString(id);
@@ -1127,6 +1126,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 checkNoMoreCompositeAggregations(agg.getSubAggregations());
             }
         }
+
         private void setDefaultChunkingConfig() {
             if (chunkingConfig == null) {
                 chunkingConfig = defaultChunkingConfig(aggProvider);

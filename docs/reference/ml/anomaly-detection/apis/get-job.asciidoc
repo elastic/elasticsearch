@@ -81,7 +81,7 @@ monitor progress.
 (string) The time the job was created. For example, `1491007356077`. This
 property is informational; you cannot change its value.
 
-`datafeed`::
+`datafeed_config`::
 (object) The {dfeed} configured for the current {anomaly-job}
 +
 .Properties of `datafeed`

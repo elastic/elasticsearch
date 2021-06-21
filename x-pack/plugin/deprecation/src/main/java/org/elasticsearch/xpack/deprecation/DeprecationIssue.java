@@ -67,7 +67,6 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final String details;
     private final Map<String, Object> meta;
 
-
     public DeprecationIssue(Level level, String message, String url, @Nullable String details, @Nullable Map<String, Object> meta) {
         this.level = level;
         this.message = message;
@@ -83,7 +82,6 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         details = in.readOptionalString();
         meta = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readMap() : null;
     }
-
 
     public Level getLevel() {
         return level;
@@ -101,6 +99,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return details;
     }
 
+    /**
+     * @return custom metadata, which allows the ui to display additional details
+     *         without parsing the deprecation message itself.
+     */
     public Map<String, Object> getMeta() {
         return meta;
     }

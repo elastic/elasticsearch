@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -40,6 +41,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
     }
 
     public void testShutdownAwarePlugin() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         // Start two nodes, one will be marked as shutting down
         Settings enabledSettings = Settings.builder().put(ShutdownPlugin.SHUTDOWN_FEATURE_ENABLED_FLAG, true).build();
         final String node1 = internalCluster().startNode(enabledSettings);

@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.ssl.SslUtil;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,13 +20,13 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.ssl.StoreKeyConfig;
 import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -45,9 +46,6 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class CreateEnrollmentToken {
-    private static final String nodeAction = "[cluster:admin/xpack/security/enroll/node]";
-    private static final String kibanaAction = "[cluster:admin/xpack/security/enroll/kibana]";
-
     protected static final String ENROLL_API_KEY_EXPIRATION = "30m";
 
     private static final Logger logger = LogManager.getLogger(CreateEnrollmentToken.class);
@@ -62,31 +60,28 @@ public class CreateEnrollmentToken {
 
     // protected for testing
     protected CreateEnrollmentToken(Environment environment, CommandLineHttpClient client) throws MalformedURLException {
-        try {
-            this.environment = environment;
-            this.sslService = new SSLService(environment);
-            this.client = client;
-            this.defaultUrl = new URL(client.getDefaultURL());
-        } catch (MalformedURLException e) {
-            logger.error(("Error generating enrollment token"), e);
-            throw new MalformedURLException("Error generating enrollment token: " + e.getMessage());
-        }
+        this.environment = environment;
+        this.sslService = new SSLService(environment);
+        this.client = client;
+        this.defaultUrl = new URL(client.getDefaultURL());
     }
 
     public String createNodeEnrollmentToken(String user, SecureString password) throws Exception {
-        return this.create(user, password, nodeAction);
+        return this.create(user, password, NodeEnrollmentAction.NAME);
     }
 
-    public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
-        return this.create(user, password, kibanaAction);
-    }
+    // TBD: Awaiting Enroll Kibana API to be merged
+    //
+    /*public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
+    //    return this.create(user, password, KibanaEnrollmentAction.NAME);
+    }*/
 
     protected String create(String user, SecureString password, String action) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {
             throw new IllegalStateException("[xpack.security.enrollment.enabled] must be set to `true` to create an enrollment token");
         }
         final String fingerprint = getCaFingerprint();
-        final String apiKey = getApiKey(user, password, action);
+        final String apiKey = getApiKeyCredentials(user, password, action);
         final Tuple<List<String>, String> httpInfo = getNodeInfo(user, password);
 
         try {
@@ -112,25 +107,13 @@ public class CreateEnrollmentToken {
     private HttpResponse.HttpResponseBuilder responseBuilder(InputStream is) throws IOException {
         final HttpResponse.HttpResponseBuilder httpResponseBuilder = new HttpResponse.HttpResponseBuilder();
         if (is != null) {
-            byte[] bytes = toByteArray(is);
-            String responseBody = new String(bytes, StandardCharsets.UTF_8);
+            String responseBody = Streams.readFully(is).utf8ToString();
             logger.debug(responseBody);
             httpResponseBuilder.withResponseBody(responseBody);
         } else {
-            logger.debug("<Empty response>");
+            logger.debug("Error building http response body: null response");
         }
         return httpResponseBuilder;
-    }
-
-    private byte[] toByteArray(InputStream is) throws IOException {
-        final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] internalBuffer = new byte[1024];
-        int read = is.read(internalBuffer);
-        while (read != -1) {
-            baos.write(internalBuffer, 0, read);
-            read = is.read(internalBuffer);
-        }
-        return baos.toByteArray();
     }
 
     protected URL createAPIKeyUrl() throws MalformedURLException, URISyntaxException {
@@ -150,11 +133,21 @@ public class CreateEnrollmentToken {
 
     static String getVersion(Map<?, ?> nodesInfo) {
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
-        Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
-        return nodeInfo.get("version").toString();
+        String version = "";
+        for (Map.Entry<?, ?> entry : nodesInfo.entrySet()) {
+            Map<?, ?> nodeInfo = (Map<?, ?>) entry.getValue();
+            if (version.isEmpty()) {
+                version = nodeInfo.get("version").toString();
+            }
+            if (!nodeInfo.get("version").toString().equals(version)) {
+                throw new IllegalStateException("Error generating enrollment token: the nodes in the cluster have different versions. " +
+                    "Enrolling in a mixed version cluster is not supported.");
+            }
+        }
+        return version;
     }
 
-    protected String getApiKey(String user, SecureString password, String action) throws Exception {
+    protected String getApiKeyCredentials(String user, SecureString password, String action) throws Exception {
         final CheckedSupplier<String, Exception> createApiKeyRequestBodySupplier = () -> {
             XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
             xContentBuilder.startObject()
@@ -162,43 +155,36 @@ public class CreateEnrollmentToken {
                 .field("expiration", ENROLL_API_KEY_EXPIRATION)
                 .startObject("role_descriptors")
                 .startObject("create_enrollment_token")
-                .field("cluster", action)
+                .array("cluster", action)
                 .endObject()
                 .endObject()
                 .endObject();
             return Strings.toString(xContentBuilder);
         };
 
-        final URL Url = createAPIKeyUrl();
-        final HttpResponse httpResponseApiKey = client.execute("POST", Url, user, password,
+        final URL url = createAPIKeyUrl();
+        final HttpResponse httpResponseApiKey = client.execute("POST", url, user, password,
             createApiKeyRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + Url + ". ResponseBody: " +
+            logger.error("Error " + httpCode + "when calling GET " + url + ". ResponseBody: " +
                 (httpResponseApiKey == null ? "" : httpResponseApiKey.getResponseBody()));
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
-                + Url);
+                + url);
         }
 
         final String apiKey = Objects.toString(httpResponseApiKey.getResponseBody().get("api_key"), "");
-        if (Strings.isNullOrEmpty(apiKey)) {
+        final String apiId = Objects.toString(httpResponseApiKey.getResponseBody().get("id"), "");
+        if (Strings.isNullOrEmpty(apiKey) || Strings.isNullOrEmpty(apiId)) {
             throw new IllegalStateException("Could not create an api key.");
         }
-        return apiKey;
+        return Base64.getEncoder().encodeToString((apiId + ":" + apiKey).getBytes());
     }
 
     protected Tuple<List<String>, String> getNodeInfo(String user, SecureString password) throws Exception {
-        final CheckedSupplier<String, Exception> getHttpInfoRequestBodySupplier = () -> {
-            XContentBuilder xContentBuilder = JsonXContent.contentBuilder();
-            xContentBuilder.startObject()
-                .endObject();
-            return Strings.toString(xContentBuilder);
-        };
-
         final URL Url = getHttpInfoUrl();
-        final HttpResponse httpResponseHttp = client.execute("GET", Url, user, password,
-            getHttpInfoRequestBodySupplier, is -> responseBuilder(is));
+        final HttpResponse httpResponseHttp = client.execute("GET", Url, user, password, () -> null, is -> responseBuilder(is));
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {

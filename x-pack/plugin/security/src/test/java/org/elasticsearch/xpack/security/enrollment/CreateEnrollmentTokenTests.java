@@ -102,18 +102,21 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
             builder.startObject()
                 .startObject("nodes")
-                .startObject("sxLDrFu8SnKepObrEOjPZQ")
-                .field("version", "8.0.0")
-                .startObject("http")
-                .startArray("bound_address")
-                .value("[::1]:9200")
-                .value("127.0.0.1:9200")
-                .value("192.168.0.1:9201")
-                .value("172.16.254.1:9202")
-                .value("[2001:db8:0:1234:0:567:8:1]:9203")
-                .endArray()
-                .field("publish_address", "127.0.0.1:9200")
-                .endObject().endObject().endObject().endObject();
+                    .startObject("sxLDrFu8SnKepObrEOjPZQ")
+                        .field("version", "8.0.0")
+                        .startObject("http")
+                            .startArray("bound_address")
+                                .value("[::1]:9200")
+                                .value("127.0.0.1:9200")
+                                .value("192.168.0.1:9201")
+                                .value("172.16.254.1:9202")
+                                .value("[2001:db8:0:1234:0:567:8:1]:9203")
+                            .endArray()
+                            .field("publish_address", "127.0.0.1:9200")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
             getHttpInfoResponseBody = Strings.toString(builder);
         }
         when(client.execute(eq("GET"), eq(getHttpInfoURL), eq(ElasticUser.NAME), any(SecureString.class),
@@ -126,7 +129,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("8.0.0", infoNode.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoNode.get("adr"));
         assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", infoNode.get("fgr"));
-        assertEquals("x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
+        assertEquals("RFI2Q3pYa0JEZjhhbVZfNDh5WVg6eDNZcVVfcnFRd20tRVNya0V4Y25PZw==", infoNode.get("key"));
 
         final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
 
@@ -134,7 +137,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("8.0.0", infoKibana.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoKibana.get("adr"));
         assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", infoKibana.get("fgr"));
-        assertEquals("x3YqU_rqQwm-ESrkExcnOg", infoKibana.get("key"));
+        assertEquals("RFI2Q3pYa0JEZjhhbVZfNDh5WVg6eDNZcVVfcnFRd20tRVNya0V4Y25PZw==", infoKibana.get("key"));
     }
 
     public void testFailedCreateApiKey() throws Exception {
@@ -259,6 +262,35 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
         assertThat(ex.getMessage(), Matchers.startsWith("nldfnbndflbnl:"));
+    }
+
+    public void testGetVersionMixedCluster() throws Exception {
+        String getHttpInfoResponseBody;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject()
+                .startObject("nodes")
+                    .startObject("sxLDrFu8SnKepObrEOjPZQ")
+                        .field("version", "8.0.0")
+                        .startObject("http")
+                            .startArray("bound_address")
+                                .value("[::1]:9200")
+                            .endArray()
+                            .field("publish_address", "127.0.0.1:9200")
+                        .endObject()
+                    .endObject()
+                    .startObject("vdcTFSJHblQLHJHbdgGkgY")
+                        .field("version", "7.13.0")
+                        .startObject("http")
+                            .startArray("bound_address")
+                                .value("192.168.0.1:9201")
+                            .endArray()
+                            .field("publish_address", "127.0.0.1:9200")
+                .endObject().endObject().endObject().endObject();
+            getHttpInfoResponseBody = Strings.toString(builder);
+        }
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+            CreateEnrollmentToken.getVersion(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody).getResponseBody()));
+
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

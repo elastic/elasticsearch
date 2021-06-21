@@ -128,7 +128,7 @@ public class DeprecationInfoResponse {
         private static final ParseField MESSAGE = new ParseField("message");
         private static final ParseField URL = new ParseField("url");
         private static final ParseField DETAILS = new ParseField("details");
-        private static final ParseField REQUIRES_RESTART = new ParseField("requires_restart");
+        private static final ParseField RESOLVE_DURING_ROLLING_UPGRADE = new ParseField("resolve_during_rolling_upgrade");
 
         static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
             new ConstructingObjectParser<>("deprecation_issue", true,
@@ -139,7 +139,7 @@ public class DeprecationInfoResponse {
             PARSER.declareString(ConstructingObjectParser.constructorArg(), MESSAGE);
             PARSER.declareString(ConstructingObjectParser.constructorArg(), URL);
             PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), DETAILS);
-            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), REQUIRES_RESTART);
+            PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), RESOLVE_DURING_ROLLING_UPGRADE);
         }
 
         public enum Level {
@@ -161,14 +161,14 @@ public class DeprecationInfoResponse {
         private final String message;
         private final String url;
         private final String details;
-        private final boolean requiresRestart;
+        private final boolean resolveDuringRollingUpgrade;
 
-        public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean requiresRestart) {
+        public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade) {
             this.level = level;
             this.message = message;
             this.url = url;
             this.details = details;
-            this.requiresRestart = requiresRestart;
+            this.resolveDuringRollingUpgrade = resolveDuringRollingUpgrade;
         }
 
         public Level getLevel() {
@@ -187,8 +187,8 @@ public class DeprecationInfoResponse {
             return details;
         }
 
-        public boolean isRequiresRestart() {
-            return requiresRestart;
+        public boolean isResolveDuringRollingUpgrade() {
+            return resolveDuringRollingUpgrade;
         }
 
         @Override
@@ -204,12 +204,12 @@ public class DeprecationInfoResponse {
                 Objects.equals(message, that.message) &&
                 Objects.equals(url, that.url) &&
                 Objects.equals(details, that.details) &&
-                Objects.equals(requiresRestart, that.requiresRestart);
+                Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(level, message, url, details, requiresRestart);
+            return Objects.hash(level, message, url, details, resolveDuringRollingUpgrade);
         }
     }
 }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
@@ -64,14 +63,14 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final String message;
     private final String url;
     private final String details;
-    private final boolean requiresRestart;
+    private final boolean resolveDuringRollingUpgrade;
 
-    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean requiresRestart) {
+    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade) {
         this.level = level;
         this.message = message;
         this.url = url;
         this.details = details;
-        this.requiresRestart = requiresRestart;
+        this.resolveDuringRollingUpgrade = resolveDuringRollingUpgrade;
     }
 
     public DeprecationIssue(StreamInput in) throws IOException {
@@ -79,9 +78,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         message = in.readString();
         url = in.readString();
         details = in.readOptionalString();
-        requiresRestart = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
+        resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
     }
-
 
     public Level getLevel() {
         return level;
@@ -100,10 +98,10 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     }
 
     /**
-     * @return whether a deprecation issue can only resolved during a rolling upgrade when a node is offline.
+     * @return whether a deprecation issue can only be resolved during a rolling upgrade when a node is offline.
      */
-    public boolean isRequiresRestart() {
-        return requiresRestart;
+    public boolean isResolveDuringRollingUpgrade() {
+        return resolveDuringRollingUpgrade;
     }
 
     @Override
@@ -113,7 +111,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         out.writeString(url);
         out.writeOptionalString(details);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeBoolean(requiresRestart);
+            out.writeBoolean(resolveDuringRollingUpgrade);
         }
     }
 
@@ -126,7 +124,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         if (details != null) {
             builder.field("details", details);
         }
-        builder.field("requires_restart", requiresRestart);
+        builder.field("resolve_during_rolling_upgrade", resolveDuringRollingUpgrade);
         return builder.endObject();
     }
 
@@ -143,12 +141,12 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             Objects.equals(message, that.message) &&
             Objects.equals(url, that.url) &&
             Objects.equals(details, that.details) &&
-            Objects.equals(requiresRestart, that.requiresRestart);
+            Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, message, url, details, requiresRestart);
+        return Objects.hash(level, message, url, details, resolveDuringRollingUpgrade);
     }
 
     @Override

@@ -109,22 +109,6 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         }
     }
 
-    /**
-     * Returns the preference for new searchable snapshot indices. When
-     * performing a full mount the preference is cold - warm - hot. When
-     * performing a partial mount the preference is only frozen
-     */
-    public static String getDataTiersPreference(Storage type) {
-        switch (type) {
-            case FULL_COPY:
-                return String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
-            case SHARED_CACHE:
-                return DataTier.DATA_FROZEN;
-            default:
-                throw new IllegalArgumentException("unknown searchable snapshot type [" + type + "]");
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -247,8 +231,23 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
      * Enumerates the different ways that nodes can use their local storage to accelerate searches of a snapshot.
      */
     public enum Storage implements Writeable {
-        FULL_COPY,
-        SHARED_CACHE;
+        FULL_COPY(String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT)),
+        SHARED_CACHE(DataTier.DATA_FROZEN);
+
+        private final String defaultDataTiersPreference;
+
+        Storage(String defaultDataTiersPreference) {
+            this.defaultDataTiersPreference = defaultDataTiersPreference;
+        }
+
+        /**
+         * Returns the default preference for new searchable snapshot indices. When
+         * performing a full mount the preference is cold - warm - hot. When
+         * performing a partial mount the preference is only frozen
+         */
+        public String defaultDataTiersPreference() {
+            return defaultDataTiersPreference;
+        }
 
         public static Storage fromString(String type) {
             if ("full_copy".equals(type)) {

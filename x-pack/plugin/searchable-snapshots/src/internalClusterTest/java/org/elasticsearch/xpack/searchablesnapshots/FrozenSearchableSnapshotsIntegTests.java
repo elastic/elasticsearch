@@ -173,9 +173,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             indexCheckOnStartup = "false";
         }
         final String expectedDataTiersPreference;
-        expectedDataTiersPreference = MountSearchableSnapshotRequest.getDataTiersPreference(
-            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
-        );
+        expectedDataTiersPreference = MountSearchableSnapshotRequest.Storage.SHARED_CACHE.defaultDataTiersPreference();
 
         indexSettingsBuilder.put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.ZERO);
         final AtomicBoolean statsWatcherRunning = new AtomicBoolean(true);

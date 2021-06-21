@@ -216,7 +216,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // can be used, it jumps directly here, skipping the snapshot generation steps above.
         WaitForDataTierStep waitForDataTierStep =
             new WaitForDataTierStep(waitForDataTierKey, mountSnapshotKey,
-                MountSnapshotStep.overrideTierPreference(phase).orElse(MountSearchableSnapshotRequest.getDataTiersPreference(storageType)));
+                MountSnapshotStep.overrideTierPreference(phase).orElse(storageType.defaultDataTiersPreference()));
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
             client, getRestoredIndexPrefix(mountSnapshotKey), storageType);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,

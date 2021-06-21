@@ -69,8 +69,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
             assertThat(waitForDataTierStep.tierPreference(), equalTo(DataTier.DATA_HOT));
         } else {
             MountSnapshotStep mountStep = (MountSnapshotStep) steps.get(mountStepIndex);
-            assertThat(waitForDataTierStep.tierPreference(),
-                equalTo(MountSearchableSnapshotRequest.getDataTiersPreference(mountStep.getStorage())));
+            assertThat(waitForDataTierStep.tierPreference(), equalTo(mountStep.getStorage().defaultDataTiersPreference()));
         }
     }
 

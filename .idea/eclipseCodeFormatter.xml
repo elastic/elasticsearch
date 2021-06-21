@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="EclipseCodeFormatterProjectSettings">
+    <option name="projectSpecificProfile">
+      <ProjectSpecificProfile>
+        <option name="formatter" value="ECLIPSE" />
+        <option name="importOrder" value="java;javax;com;org;" />
+        <option name="optimizeImports" value="false" />
+        <option name="pathToConfigFileJava" value="$PROJECT_DIR$/build-tools-internal/formatterConfig.xml" />
+        <option name="selectedJavaProfile" value="Elasticsearch" />
+      </ProjectSpecificProfile>
+    </option>
+  </component>
+</project>

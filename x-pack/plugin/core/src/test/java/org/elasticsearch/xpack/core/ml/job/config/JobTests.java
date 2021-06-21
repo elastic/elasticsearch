@@ -683,7 +683,6 @@ public class JobTests extends AbstractSerializingTestCase<Job> {
                 AnalysisLimits.DEFAULT_MODEL_MEMORY_LIMIT_MB));
 
         DataDescription.Builder dataDescription = new DataDescription.Builder();
-        dataDescription.setFormat(randomFrom(DataDescription.DataFormat.values()));
         builder.setDataDescription(dataDescription);
 
         if (randomBoolean()) {

@@ -169,7 +169,7 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     private void startDeployment() throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start");
+        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start?timeout=40s");
         Response response = client().performRequest(request);
         logger.info("Start response: " + EntityUtils.toString(response.getEntity()));
     }

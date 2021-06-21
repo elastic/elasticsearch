@@ -277,6 +277,12 @@ Process of combining a <<glossary-shard,shard>>'s smaller Lucene
 automatically.
 // end::merge-def[]
 
+[[glossary-multi-field]] multi-field::
+// tag::multi-field-def[]
+A <<glossary-field,field>> that's <<glossary-mapping,mapped>> in multiple ways.
+See the {ref}/multi-fields.html[`fields` mapping parameter].
+// end::multi-field-def[]
+
 [[glossary-node]] node::
 // tag::node-def[]
 A single {es} server. One or more nodes can form a <<glossary-cluster,cluster>>.

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -931,6 +932,19 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
 
         public Builder setDatafeed(DatafeedConfig.Builder datafeed) {
             this.datafeedConfig = datafeed;
+            return this;
+        }
+
+        /**
+         * This is used for parsing. If the datafeed_config exists AND its indices options are `null`, we set them to these options
+         *
+         * @param indicesOptions To set if the datafeed indices options are null
+         * @return The job builder.
+         */
+        public Builder setDatafeedIndicesOptionsIfRequired(IndicesOptions indicesOptions) {
+            if (this.datafeedConfig != null && this.datafeedConfig.getIndicesOptions() == null) {
+                this.datafeedConfig.setIndicesOptions(indicesOptions);
+            }
             return this;
         }
 

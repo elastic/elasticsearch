@@ -714,7 +714,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
         private Map<String, String> headers = Collections.emptyMap();
         private DelayedDataCheckConfig delayedDataCheckConfig = DelayedDataCheckConfig.defaultDelayedDataCheckConfig();
         private Integer maxEmptySearches;
-        private IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
+        private IndicesOptions indicesOptions;
         private Map<String, Object> runtimeMappings = Collections.emptyMap();
 
         public Builder() { }
@@ -768,7 +768,9 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             this.headers = Collections.unmodifiableMap(in.readMap(StreamInput::readString, StreamInput::readString));
             delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
             maxEmptySearches = in.readOptionalVInt();
-            indicesOptions = IndicesOptions.readIndicesOptions(in);
+            if (in.readBoolean()) {
+                indicesOptions = IndicesOptions.readIndicesOptions(in);
+            }
             runtimeMappings = in.readMap();
         }
 
@@ -801,7 +803,10 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
             out.writeOptionalWriteable(delayedDataCheckConfig);
             out.writeOptionalVInt(maxEmptySearches);
-            indicesOptions.writeIndicesOptions(out);
+            out.writeBoolean(indicesOptions != null);
+            if (indicesOptions != null) {
+                indicesOptions.writeIndicesOptions(out);
+            }
             out.writeMap(runtimeMappings);
         }
 

@@ -1060,6 +1060,38 @@
   - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
   - match: { jobs.0.datafeed_config.datafeed_id: "jobs-crud-get-with-datafeed" }
 ---
+"Test put job with datafeed with indices options in params":
+  - do:
+      ml.put_job:
+        job_id: jobs-crud-put-with-datafeed-with-indices-options
+        ignore_throttled: false
+        body: >
+          {
+            "description":"Analysis of response time by airline",
+            "analysis_config" : {
+                "detectors" :[{"function":"count"}]
+            },
+            "analysis_limits" : {
+                "model_memory_limit": "20mb"
+            },
+            "data_description" : {
+                "format":"xcontent"
+            },
+            "datafeed_config": {
+              "indexes":["index-foo"]
+            }
+          }
+  - match: { job_id: "jobs-crud-put-with-datafeed-with-indices-options" }
+  - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed-with-indices-options" }
+  - match: { datafeed_config.indices_options.ignore_throttled: false }
+
+  - do:
+      ml.get_datafeeds:
+        datafeed_id: jobs-crud-put-with-datafeed-with-indices-options
+
+  - match: { datafeeds.0.indices_options.ignore_throttled: false }
+
+---
 "Test max model memory limit":
   - skip:
       features: headers

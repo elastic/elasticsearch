@@ -56,6 +56,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
+import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
@@ -82,6 +83,7 @@ import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
@@ -126,6 +128,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.LongStream;
 
 import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
@@ -308,9 +311,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
     public void testManyTerms() throws Exception {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
-            .executionHint(randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString())
-            .field("string");
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint()).field("string");
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             /*
              * index all of the fields into a single segment so our
@@ -335,6 +336,81 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 )
             );
         }, fieldType);
+    }
+
+    public void testManyTermsOrderBySubAgg() throws Exception {
+        MappedFieldType kft = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType lft = new NumberFieldType("long", NumberType.LONG);
+
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name")
+            .executionHint(randomHint())
+            .order(BucketOrder.aggregation("max", false))
+            .field("string")
+            .subAggregation(new MaxAggregationBuilder("max").field("long"));
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            /*
+             * index all of the fields into a single segment so the
+             * collector picks up all the docs.
+             */
+            List<List<? extends IndexableField>> docs = new ArrayList<>();
+            for (int i = 0; i < TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200; i++) {
+                String s = String.format(Locale.ROOT, "b%03d", i);
+                List<IndexableField> doc = doc(kft, s);
+                doc.add(new SortedNumericDocValuesField("long", i));
+                docs.add(doc);
+            }
+            iw.addDocuments(docs);
+        }, (StringTerms result) -> {
+            List<String> expected = LongStream.range(
+                TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 210,
+                TermsAggregatorFactory.MAX_ORDS_TO_TRY_FILTERS - 200
+            ).mapToObj(l -> String.format(Locale.ROOT, "b%03d", l)).collect(toList());
+            Collections.reverse(expected);
+            assertThat(result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()), equalTo(expected));
+        }, kft, lft);
+    }
+
+    /**
+     * Tests that we don't eagerly evaluate every sub agg. It would throw
+     * a {@link TooManyBucketsException} if we built the sub-aggs eagerly.
+     */
+    public void testDelaysSubAggs() throws Exception {
+        MappedFieldType s1ft = new KeywordFieldMapper.KeywordFieldType("string1", randomBoolean(), true, Collections.emptyMap());
+        MappedFieldType s2ft = new KeywordFieldMapper.KeywordFieldType("string2", randomBoolean(), true, Collections.emptyMap());
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").executionHint(randomHint())
+            .field("string1")
+            .shardSize(1000)
+            .size(11)
+            .subAggregation(new TermsAggregationBuilder("sub").field("string2").shardSize(500));
+        withIndex(iw -> {
+            for (int i1 = 0; i1 < 1000; i1++) {
+                String s1 = String.format(Locale.ROOT, "b%03d", i1);
+                for (int i2 = 0; i2 < 50; i2++) {
+                    String s2 = String.format(Locale.ROOT, "b%03d", i2);
+                    List<IndexableField> doc = new ArrayList<>();
+                    doc.addAll(doc(s1ft, s1));
+                    doc.addAll(doc(s2ft, s2));
+                    iw.addDocument(doc);
+                    if (i1 % 100 == 7) {
+                        iw.addDocument(doc);
+                    }
+                }
+            }
+        }, searcher -> {
+            /*
+             * Use 200 max buckets rather than the default so we bump into it
+             * really fast if we eagerly create the child buckets. It also
+             * lets us create a fairly small test index.
+             */
+            int maxBuckets = 200;
+            StringTerms result = searchAndReduce(searcher, new MatchAllDocsQuery(), aggregationBuilder, maxBuckets, s1ft, s2ft);
+            assertThat(
+                result.getBuckets().stream().map(StringTerms.Bucket::getKey).collect(toList()),
+                equalTo(
+                    org.elasticsearch.core.List.of("b007", "b107", "b207", "b307", "b407", "b507", "b607", "b707", "b807", "b907", "b000")
+                )
+            );
+        });
     }
 
     private List<IndexableField> doc(MappedFieldType ft, String... values) {
@@ -2047,5 +2123,9 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ObjectMapper> objectMappers() {
         return org.elasticsearch.core.List.of(NestedAggregatorTests.nestedObject("nested_object"));
+    }
+
+    private String randomHint() {
+        return randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 }

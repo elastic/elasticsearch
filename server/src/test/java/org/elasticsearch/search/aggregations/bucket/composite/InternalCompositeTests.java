@@ -379,6 +379,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
 
     public void testFormatObjectChecked() {
         DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
             DateFormatter.forPattern("YYYY-MM-dd"),
             ZoneOffset.UTC,
             DateFieldMapper.Resolution.MILLISECONDS

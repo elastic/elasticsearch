@@ -32,6 +32,7 @@ public class ConnectionProfileTests extends ESTestCase {
         TimeValue handshakeTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         TimeValue pingInterval = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         boolean compressionEnabled = randomBoolean();
+        boolean rawDataCompressionEnabled = randomBoolean();
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
             builder.setConnectTimeout(connectTimeout);
@@ -43,6 +44,10 @@ public class ConnectionProfileTests extends ESTestCase {
         final boolean setCompress = randomBoolean();
         if (setCompress) {
             builder.setCompressionEnabled(compressionEnabled);
+        }
+        final boolean setRawDataCompress = randomBoolean();
+        if (setRawDataCompress) {
+            builder.setRawDataCompressionEnabled(rawDataCompressionEnabled);
         }
         final boolean setPingInterval = randomBoolean();
         if (setPingInterval) {
@@ -79,6 +84,12 @@ public class ConnectionProfileTests extends ESTestCase {
             assertEquals(compressionEnabled, build.getCompressionEnabled());
         } else {
             assertNull(build.getCompressionEnabled());
+        }
+
+        if (setRawDataCompress) {
+            assertEquals(rawDataCompressionEnabled, build.getRawDataCompressionEnabled());
+        } else {
+            assertNull(build.getRawDataCompressionEnabled());
         }
 
         if (setPingInterval) {
@@ -173,6 +184,10 @@ public class ConnectionProfileTests extends ESTestCase {
         if (connectionCompressSet) {
             builder.setCompressionEnabled(randomBoolean());
         }
+        final boolean connectionRawDataCompressSet = randomBoolean();
+        if (connectionRawDataCompressSet) {
+            builder.setRawDataCompressionEnabled(randomBoolean());
+        }
 
         final ConnectionProfile profile = builder.build();
         final ConnectionProfile resolved = ConnectionProfile.resolveConnectionProfile(profile, defaultProfile);
@@ -188,6 +203,8 @@ public class ConnectionProfileTests extends ESTestCase {
             equalTo(pingIntervalSet ? profile.getPingInterval() : defaultProfile.getPingInterval()));
         assertThat(resolved.getCompressionEnabled(),
             equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
+        assertThat(resolved.getRawDataCompressionEnabled(),
+            equalTo(connectionRawDataCompressSet ? profile.getRawDataCompressionEnabled() : defaultProfile.getRawDataCompressionEnabled()));
     }
 
     public void testDefaultConnectionProfile() {
@@ -201,6 +218,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
+        assertEquals(TransportSettings.TRANSPORT_COMPRESS_RAW_DATA.get(Settings.EMPTY), profile.getRawDataCompressionEnabled());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());

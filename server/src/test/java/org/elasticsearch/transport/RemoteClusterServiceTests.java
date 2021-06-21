@@ -369,8 +369,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     Settings.Builder settingsChange = Settings.builder();
                     TimeValue pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(6, 8));
                     settingsChange.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule);
-                    boolean compressionEnabled = true;
-                    settingsChange.put("cluster.remote.cluster_1.transport.compress", compressionEnabled);
+                    boolean rawDataOption = randomBoolean();
+                    if (rawDataOption) {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compress_raw_data", true);
+                    } else {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compress", true);
+                    }
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                     service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
                     assertBusy(remoteClusterConnection::isClosed);
@@ -378,7 +382,13 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     ConnectionProfile connectionProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
                     assertEquals(pingSchedule, connectionProfile.getPingInterval());
-                    assertEquals(compressionEnabled, connectionProfile.getCompressionEnabled());
+                    if (rawDataOption) {
+                        assertEquals(false, connectionProfile.getCompressionEnabled());
+                        assertEquals(true, connectionProfile.getRawDataCompressionEnabled());
+                    } else {
+                        assertEquals(true, connectionProfile.getCompressionEnabled());
+                        assertEquals(false, connectionProfile.getRawDataCompressionEnabled());
+                    }
                 }
             }
         }

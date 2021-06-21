@@ -46,6 +46,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
+        assertEquals(false, connectionManager.getConnectionProfile().getRawDataCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -53,11 +54,20 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         Settings.Builder newBuilder = Settings.builder();
         newBuilder.put(RemoteConnectionStrategy.REMOTE_CONNECTION_MODE.getConcreteSettingForNamespace("cluster-alias").getKey(), "proxy");
         newBuilder.put(ProxyConnectionStrategy.PROXY_ADDRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), "127.0.0.1:9300");
-        if (randomBoolean()) {
+        String ping = "ping";
+        String compress = "compress";
+        String rawDataCompress = "raw_data_compress";
+        String change = randomFrom(ping, compress, rawDataCompress);
+        if (change.equals(ping)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace("cluster-alias").getKey(),
                 TimeValue.timeValueSeconds(5));
-        } else {
+        } else if (change.equals(compress)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
+        } else if (change.equals(rawDataCompress)) {
+            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS_RAW_DATA.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                true);
+        } else {
+            throw new AssertionError("Unexpected option: " + change);
         }
         assertTrue(first.shouldRebuildConnection(newBuilder.build()));
     }

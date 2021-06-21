@@ -76,6 +76,7 @@ public final class ConnectionProfile {
         builder.setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings));
         builder.setPingInterval(TransportSettings.PING_SCHEDULE.get(settings));
         builder.setCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS.get(settings));
+        builder.setRawDataCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS_RAW_DATA.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -93,7 +94,7 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
                                                               @Nullable TimeValue handshakeTimeout, @Nullable TimeValue pingInterval,
-                                                              @Nullable Boolean compressionEnabled) {
+                                                              @Nullable Boolean compressionEnabled, @Nullable Boolean rawDataCompressionEnabled) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);
@@ -110,6 +111,9 @@ public final class ConnectionProfile {
         }
         if (compressionEnabled != null) {
             builder.setCompressionEnabled(compressionEnabled);
+        }
+        if (rawDataCompressionEnabled != null) {
+            builder.setRawDataCompressionEnabled(rawDataCompressionEnabled);
         }
         return builder.build();
     }

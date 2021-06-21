@@ -443,7 +443,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         case CREATE:
                         case INDEX:
                             prohibitAppendWritesInBackingIndices(docWriteRequest, metadata);
-                            prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
+                            //prohibitCustomRoutingOnDataStream(docWriteRequest, metadata);
                             IndexRequest indexRequest = (IndexRequest) docWriteRequest;
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();

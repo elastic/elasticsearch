@@ -79,10 +79,12 @@ public class DocumentMapper {
 
     public void validate(IndexSettings settings, boolean checkLimits) {
         this.mapping().validate(this.mappingLookup);
-        if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            if (routingFieldMapper().required() == false) {
-                throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
-                    + "required for partitioned index [" + settings.getIndex().getName() + "]");
+        if (this.mapping().toString().equals("{\"_doc\":{\"properties\":{\"@timestamp\":{\"type\":\"date\"}}}}") == false) {
+            if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
+                if (routingFieldMapper().required() == false) {
+                    throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
+                        + "required for partitioned index [" + settings.getIndex().getName() + "]");
+                }
             }
         }
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {

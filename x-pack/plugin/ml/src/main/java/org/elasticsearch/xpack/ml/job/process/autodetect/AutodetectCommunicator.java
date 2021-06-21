@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -38,7 +38,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.ForecastParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriter;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DataToProcessWriterFactory;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.JsonDataToProcessWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -92,9 +92,8 @@ public class AutodetectCommunicator implements Closeable {
     }
 
     private DataToProcessWriter createProcessWriter(DataDescription dataDescription) {
-        return DataToProcessWriterFactory.create(true, includeTokensField, autodetectProcess,
-                dataDescription, job.getAnalysisConfig(),
-                dataCountsReporter, xContentRegistry);
+        return new JsonDataToProcessWriter(true, includeTokensField, autodetectProcess,
+            dataDescription, job.getAnalysisConfig(), dataCountsReporter, xContentRegistry);
     }
 
     /**

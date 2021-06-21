@@ -18,3 +18,12 @@ restResources {
     include '_common', 'indices', 'cluster', 'index', 'search', 'nodes'
   }
 }
+
+tasks.named('splitPackagesAudit').configure {
+  // search should be owned by server, this should be renamed to aggsmatrix
+  ignoreClasses 'org.elasticsearch.search.aggregations.support.ArrayValuesSource',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregationBuilder',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory',
+    'org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser',
+    'org.elasticsearch.search.aggregations.MatrixStatsAggregationBuilders'
+}

@@ -8,7 +8,7 @@
 package org.elasticsearch.common.geo;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -30,7 +30,6 @@ import java.util.Objects;
  * that deal with extents/rectangles representing rectangular areas of interest.
  */
 public class GeoBoundingBox implements ToXContentFragment, Writeable {
-    private static final WellKnownText WKT_PARSER = new WellKnownText(true, new StandardValidator(true));
     static final ParseField TOP_RIGHT_FIELD = new ParseField("top_right");
     static final ParseField BOTTOM_LEFT_FIELD = new ParseField("bottom_left");
     static final ParseField TOP_FIELD = new ParseField("top");
@@ -183,7 +182,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                 token = parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
-                        Geometry geometry = WKT_PARSER.fromWKT(parser.text());
+                        Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
                             throw new ElasticsearchParseException("failed to parse WKT bounding box. ["
                                 + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]");

@@ -10,7 +10,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;

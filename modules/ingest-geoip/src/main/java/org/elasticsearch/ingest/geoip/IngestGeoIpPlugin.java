@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -91,7 +91,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
         GeoIpCache geoIpCache = new GeoIpCache(cacheSize);
         DatabaseRegistry registry = new DatabaseRegistry(parameters.env, parameters.client, geoIpCache, parameters.genericExecutor);
         databaseRegistry.set(registry);
-        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry));
+        return Map.of(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory(registry, parameters.ingestService.getClusterService()));
     }
 
     @Override
@@ -113,7 +113,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             throw new UncheckedIOException(e);
         }
 
-        if(GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false){
+        if (GeoIpDownloaderTaskExecutor.ENABLED_DEFAULT == false) {
             return List.of(databaseRegistry.get());
         }
 

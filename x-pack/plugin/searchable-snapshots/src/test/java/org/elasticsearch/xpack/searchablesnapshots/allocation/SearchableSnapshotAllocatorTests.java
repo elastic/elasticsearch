@@ -39,7 +39,7 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.client.NoOpNodeClient;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheInfoService;
 
@@ -54,7 +54,7 @@ import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.empty;
 
 public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
@@ -120,7 +120,11 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
         assertEquals(1, reroutesTriggered.get());
         if (existingCacheSizes.values().stream().allMatch(size -> size == 0L)) {
-            assertFalse("If there are no existing caches the allocator should not take a decision", allocation.routingNodesChanged());
+            assertThat(
+                "If there are no existing caches the allocator should not take a decision",
+                allocation.routingNodes().assignedShards(shardId),
+                empty()
+            );
         } else {
             assertTrue(allocation.routingNodesChanged());
             final long bestCacheSize = existingCacheSizes.values().stream().mapToLong(l -> l).max().orElseThrow();
@@ -211,7 +215,6 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             testFrozenCacheSizeService()
         );
         allocateAllUnassigned(allocation, allocator);
-        assertFalse(allocation.routingNodesChanged());
         assertThat(allocation.routingNodes().assignedShards(shardId), empty());
         assertTrue(allocation.routingTable().index(shardId.getIndex()).allPrimaryShardsUnassigned());
     }

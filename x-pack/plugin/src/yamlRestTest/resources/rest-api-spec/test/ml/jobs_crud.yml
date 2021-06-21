@@ -1019,7 +1019,7 @@
   - match: { datafeed_config.datafeed_id: "jobs-crud-put-with-datafeed" }
 
   - do:
-      ml.get_datafeed:
+      ml.get_datafeeds:
         datafeed_id: "jobs-crud-put-with-datafeed"
 
   - match: { count: 1 }

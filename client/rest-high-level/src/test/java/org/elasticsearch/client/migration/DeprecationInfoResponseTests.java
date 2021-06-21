@@ -72,7 +72,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
         if (issue.getDetails()!= null) {
             builder.field("details", issue.getDetails());
         }
-        builder.field("requires_restart", issue.isResolveDuringRollingUpgrade());
+        builder.field("resolve_during_rolling_upgrade", issue.isResolveDuringRollingUpgrade());
         builder.endObject();
     }
 

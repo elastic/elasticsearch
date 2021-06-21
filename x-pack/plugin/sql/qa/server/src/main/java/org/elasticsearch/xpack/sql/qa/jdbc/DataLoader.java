@@ -74,7 +74,7 @@ public class DataLoader {
         // frozen index
         loadEmpDatasetIntoEs(client, "frozen_emp", "employees");
         freeze(client, "frozen_emp");
-        loadNoColsDatasetIntoEs(client, "no_cols");
+        loadNoColsDatasetIntoEs(client, "empty_mapping");
     }
 
     private static void loadNoColsDatasetIntoEs(RestClient client, String index) throws Exception {

@@ -224,9 +224,9 @@ showTables
 SHOW TABLES;
 
        name    |  type |  kind
+empty_mapping  |TABLE  |INDEX
 logs           |TABLE  |INDEX
 logs_nanos     |TABLE  |INDEX
-no_cols        |TABLE  |INDEX
 test_alias     |VIEW   |ALIAS
 test_alias_emp |VIEW   |ALIAS
 test_emp       |TABLE  |INDEX
@@ -386,7 +386,7 @@ salary              |INTEGER        |integer
 
 
 describeNoCols
-DESCRIBE "no_cols";
+DESCRIBE "empty_mapping";
 
         column:s      |     type:s    |    mapping:s
 ----------------------+---------------+---------------
@@ -394,7 +394,7 @@ DESCRIBE "no_cols";
 
 
 showColumnsInNoCols
-SHOW COLUMNS IN "no_cols";
+SHOW COLUMNS IN "empty_mapping";
 
         column:s      |     type:s    |    mapping:s
 ----------------------+---------------+---------------

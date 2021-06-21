@@ -1,22 +1,22 @@
 selectStar
-SELECT * FROM no_cols;
+SELECT * FROM empty_mapping;
 selectStarWithFilter
-SELECT * FROM no_cols WHERE 2 > 1;
+SELECT * FROM empty_mapping WHERE 2 > 1;
 selectStarWithFilterAndLimit
-SELECT * FROM no_cols WHERE 1 > 2 LIMIT 10;
+SELECT * FROM empty_mapping WHERE 1 > 2 LIMIT 10;
 
 selectCount
-SELECT COUNT(*) FROM no_cols;
+SELECT COUNT(*) FROM empty_mapping;
 // awaits fix: https://github.com/elastic/elasticsearch/issues/74311
 // selectCountWithWhere
-// SELECT COUNT(*) FROM no_cols WHERE 1 + 1 = 3;
+// SELECT COUNT(*) FROM empty_mapping WHERE 1 + 1 = 3;
 
 selectConst
-SELECT 1, 2, 3 FROM no_cols;
+SELECT 1, 2, 3 FROM empty_mapping;
 selectConstAggregation
-SELECT MAX(1), SUM(2) FROM no_cols;
+SELECT MAX(1), SUM(2) FROM empty_mapping;
 
 // fails in H2 with a syntax error but cannot be tested in CSV spec because datasets without columns cannot be parsed
 // awaits fix: https://github.com/elastic/elasticsearch/issues/39895 (latest H2 version can run the query)
 // subselect
-// SELECT * FROM (SELECT * FROM no_cols) s;
+// SELECT * FROM (SELECT * FROM empty_mapping) s;

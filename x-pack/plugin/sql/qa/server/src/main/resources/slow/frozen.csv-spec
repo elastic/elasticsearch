@@ -8,10 +8,10 @@ showTables
 SHOW TABLES INCLUDE FROZEN;
 
        name        | type  |  kind
+empty_mapping      |TABLE  |INDEX
 frozen_emp         |TABLE  |FROZEN INDEX
 logs               |TABLE  |INDEX
 logs_nanos         |TABLE  |INDEX
-no_cols            |TABLE  |INDEX
 test_alias         |VIEW   |ALIAS
 test_alias_emp     |VIEW   |ALIAS
 test_emp           |TABLE  |INDEX

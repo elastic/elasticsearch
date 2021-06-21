@@ -84,18 +84,21 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
         // Do the same for the X dimension taking into account that the bounding box might cross the dateline.
         if (crossesDateline) {
             final int eastMinX = xTile * splits;
-            final int eastMaxX = Math.min(this.maxX, xTile * splits + splits);
             final int westMinX = Math.max(this.minX, xTile * splits);
+            // when the left and right box land in the same tile, we need to make sure we don't count then twice
+            final int eastMaxX = Math.min(westMinX, Math.min(this.maxX, xTile * splits + splits));
             final int westMaxX = xTile * splits + splits;
             for (int i = eastMinX; i < eastMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
                     assert validTile(i, j, precision);
+                    System.out.println(i + " / " + j);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
             for (int i = westMinX; i < westMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
                     assert validTile(i, j, precision);
+                    System.out.println(i + " / " + j);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }

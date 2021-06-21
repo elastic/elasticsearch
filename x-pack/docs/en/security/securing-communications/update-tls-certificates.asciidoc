@@ -1,7 +1,7 @@
 [[update-node-certs]]
 == Updating node security certificates
 If your cluster certificates expired or you have a new Certificate Authority
-(CA), then you'll need to update the security certificates for both the
+(CA), then you'll need to update the certificates for both the
 transport and HTTP layers. When updating your node security certificates, there
 are two main scenarios that you'll encounter:
 
@@ -70,7 +70,7 @@ certificate.
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS keystores.
 
 . Open the `ES_PATH_CONF/elasticsearch.yml` file and check the names of the
-security certificates that are currently in use. You'll use the same names
+keystores that are currently in use. You'll use the same names
 for your new certificate.
 +
 In this example, the keystore and truststore are pointing to different files.
@@ -98,17 +98,17 @@ in use.
 [%collapsible%open]
 .Command parameters
 ====
-   `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
+   `--ca <ca_file>`:: Name of the CA keystore used to sign your certificates. The
    default file name from the `elasticsearch-certutil` tool is
    `elastic-stack-ca.p12`.
 ====
 +
-    a. Enter the password for your CA when prompted.
+    a. Enter the password for your CA keystore when prompted.
 
-    b. Enter the name for your certificate, which must match the name of the
-    certificate currently in use.
+    b. Enter the name for your keystore, which must match the name of the
+    keystore currently in use.
 
-    c. (Optional) Enter a password for your certificate. 
+    c. (Optional) Enter a password for your keystore. 
 
 . If you entered a password when creating the node certificate, run the following commands to store the password in the {es} keystore:
 +
@@ -124,7 +124,7 @@ in use.
 ----
 --
 
-. [[cert-password-updates]] If your certificate is password protected, the password is stored in the {es} keystore, _and_ the password needs to change, then you must perform a <<restart-cluster-rolling,rolling restart>> on your cluster. Complete the steps until the step that indicates *Perform any needed changes*, and then continue to the next step to replace your existing certificates.
+. [[cert-password-updates]] If your keystore is password protected, the password is stored in the {es} keystore, _and_ the password needs to change, then you must perform a <<restart-cluster-rolling,rolling restart>> on your cluster. Complete the steps until the step that indicates *Perform any needed changes*, and then continue to the next step to replace your existing certificates.
 
 . Replace your existing certificate with the new certificate, ensuring that the
 file names match.

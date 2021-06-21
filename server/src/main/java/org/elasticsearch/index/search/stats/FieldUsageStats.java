@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
@@ -66,7 +65,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         builder.startObject("fields");
         {
             final List<Map.Entry<String, PerFieldUsageStats>> sortedEntries =
-                stats.entrySet().stream().sorted(Comparator.comparing(Map.Entry::getKey)).collect(Collectors.toList());
+                stats.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(Collectors.toList());
             for (Map.Entry<String, PerFieldUsageStats> entry : sortedEntries) {
                 builder.startObject(entry.getKey());
                 entry.getValue().toXContent(builder, params);

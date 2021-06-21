@@ -31,11 +31,15 @@ import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInjectMigrateStepForPhase;
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -67,7 +71,11 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
             List<IndexLifecycleFeatureSetUsage.PolicyStats> policyStats = lifecycleMetadata.getPolicies().values().stream().map(policy -> {
                 Map<String, IndexLifecycleFeatureSetUsage.PhaseStats> phaseStats = policy.getPhases().values().stream().map(phase -> {
                     ActionConfigStats.Builder configurations = ActionConfigStats.builder();
-                    String[] actionNames = phase.getActions().keySet().toArray(new String[phase.getActions().size()]);
+                    Stream<String> actionStream = phase.getActions().keySet().stream();
+                    if (policy.getType() instanceof TimeseriesLifecycleType && shouldInjectMigrateStepForPhase(phase)) {
+                        actionStream = Stream.concat(actionStream, Stream.of("migrate"));
+                    }
+                    String[] actionNames = actionStream.toArray(String[]::new);
                     phase.getActions().forEach((k, v) -> collectActionConfigurations(k, v, configurations));
                     return new Tuple<>(phase.getName(), new IndexLifecycleFeatureSetUsage.PhaseStats(phase.getMinimumAge(), actionNames,
                         configurations.build()));

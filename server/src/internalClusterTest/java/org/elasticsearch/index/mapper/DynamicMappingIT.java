@@ -20,15 +20,14 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.GeoBoundingBoxQueryBuilder;
+import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -48,8 +47,6 @@ import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_L
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -338,8 +335,9 @@ public class DynamicMappingIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("test").setMapping("{\"_doc\":{\"dynamic\":\"runtime\"}}").get());
 
         List<IndexRequest> docs = new ArrayList<>();
+        //the root is mapped dynamic:runtime hence there are no type conflicts
         docs.add(new IndexRequest("test").source("one.two.three", new int[]{1, 2, 3}));
-        docs.add(new IndexRequest("test").source("one.two", 1.2));
+        docs.add(new IndexRequest("test").source("one.two", 3.5));
         docs.add(new IndexRequest("test").source("one", "one"));
         docs.add(new IndexRequest("test").source("{\"one\":{\"two\": { \"three\": \"three\"}}}", XContentType.JSON));
         Collections.shuffle(docs, random());
@@ -347,16 +345,22 @@ public class DynamicMappingIT extends ESIntegTestCase {
         for (IndexRequest doc : docs) {
             bulkRequest.add(doc);
         }
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
 
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").sourceAsMap();
-        assertFalse(sourceAsMap.containsKey("properties"));
-        @SuppressWarnings("unchecked")
-        Map<String, Object> runtime = (Map<String, Object>)sourceAsMap.get("runtime");
-        //depending on the order of the documents field types may differ, but there are no mapping conflicts
-        assertThat(runtime.keySet(), containsInAnyOrder("one", "one.two", "one.two.three"));
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one", "one")).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two", 3.5)).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("one.two.three", "1")).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
     }
 
     public void testDynamicRuntimeObjectFields() {
@@ -365,46 +369,60 @@ public class DynamicMappingIT extends ESIntegTestCase {
 
         List<IndexRequest> docs = new ArrayList<>();
         docs.add(new IndexRequest("test").source("obj.one", 1));
-        docs.add(new IndexRequest("test").source("anything", 1));
+        docs.add(new IndexRequest("test").source("anything", "anything"));
+        //obj.runtime is mapped dynamic:runtime hence there are no type conflicts
         docs.add(new IndexRequest("test").source("obj.runtime.one.two", "test"));
         docs.add(new IndexRequest("test").source("obj.runtime.one", "one"));
-        docs.add(new IndexRequest("test").source("{\"obj\":{\"runtime\":{\"one\":{\"two\": \"test\"}}}}", XContentType.JSON));
+        docs.add(new IndexRequest("test").source("{\"obj\":{\"runtime\":{\"one\":{\"two\": 1}}}}", XContentType.JSON));
         Collections.shuffle(docs, random());
         BulkRequest bulkRequest = new BulkRequest();
         for (IndexRequest doc : docs) {
             bulkRequest.add(doc);
         }
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         BulkResponse bulkItemResponses = client().bulk(bulkRequest).actionGet();
         assertFalse(bulkItemResponses.buildFailureMessage(), bulkItemResponses.hasFailures());
+
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.one", 1)).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("anything", "anything")).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test").setQuery(new MatchQueryBuilder("obj.runtime.one", "one")).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+        {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(new MatchQueryBuilder("obj.runtime.one.two", "1")).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
 
         MapperParsingException exception = expectThrows(MapperParsingException.class,
             () -> client().prepareIndex("test").setSource("obj.runtime", "value").get());
         assertEquals("object mapping for [obj.runtime] tried to parse field [obj.runtime] as object, but found a concrete value",
             exception.getMessage());
 
-        assertEquals("{\"test\":{\"mappings\":" +
-                "{\"runtime\":{\"obj.runtime.one\":{\"type\":\"keyword\"},\"obj.runtime.one.two\":{\"type\":\"keyword\"}}," +
-                "\"properties\":{\"anything\":{\"type\":\"long\"}," +
-                "\"obj\":{\"properties\":{\"one\":{\"type\":\"long\"}," +
-                "\"runtime\":{\"type\":\"object\",\"dynamic\":\"runtime\"}}}}}}}",
-            Strings.toString(client().admin().indices().prepareGetMappings("test").get()));
-
         assertAcked(client().admin().indices().preparePutMapping("test").setSource("{\"_doc\":{\"properties\":{\"obj\":{\"properties\":" +
             "{\"runtime\":{\"properties\":{\"dynamic\":{\"type\":\"object\", \"dynamic\":true}}}}}}}}", XContentType.JSON));
 
-        assertEquals(RestStatus.CREATED, client().prepareIndex("test").setSource("obj.runtime.dynamic.leaf", 1).get().status());
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("test").sourceAsMap();
-        assertThat(
-            XContentMapValues.extractRawValues("properties.obj.properties.runtime.properties.dynamic.properties.leaf.type", sourceAsMap),
-            contains("long"));
-    }
+        //the parent object has been mapped dynamic:true, hence the field gets indexed
+        assertEquals(RestStatus.CREATED, client().prepareIndex("test").setSource("obj.runtime.dynamic.number", 1)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get().status());
 
-    private static Map<String, Object> getMappedField(Map<String, Object> sourceAsMap, String name) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> properties = (Map<String, Object>)sourceAsMap.get("properties");
-        @SuppressWarnings("unchecked")
-        Map<String, Object> mappedField = (Map<String, Object>)properties.get(name);
-        return mappedField;
+        {
+            SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(new MatchQueryBuilder("obj.runtime.dynamic.number", 1)).get();
+            assertEquals(1, searchResponse.getHits().getTotalHits().value);
+        }
+
+        //a doc with the same field but a different type causes a conflict
+        MapperParsingException e = expectThrows(MapperParsingException.class,
+            () -> client().prepareIndex("test").setId("id").setSource("obj.runtime.dynamic.number", "string").get());
+        assertEquals("failed to parse field [obj.runtime.dynamic.number] of type [long] in document with id 'id'. " +
+            "Preview of field's value: 'string'", e.getMessage());
     }
 }

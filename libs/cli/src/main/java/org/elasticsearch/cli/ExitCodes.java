@@ -13,6 +13,7 @@ package org.elasticsearch.cli;
  *
  * @see <a href="https://en.wikipedia.org/wiki/POSIX">POSIX</a>
  * @see <a href="https://www.freebsd.org/cgi/man.cgi?query=sysexits">Exit Codes</a>
+ * @see Command
  */
 public class ExitCodes {
     public static final int OK = 0;

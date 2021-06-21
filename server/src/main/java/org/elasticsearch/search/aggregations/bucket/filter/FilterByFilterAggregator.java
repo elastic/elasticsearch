@@ -177,6 +177,11 @@ public class FilterByFilterAggregator extends FiltersAggregator {
      */
     private int segmentsCounted;
 
+    /**
+     * Build the aggregation. Private to force callers to go through the
+     * {@link AdapterBuilder} which centralizes the logic to decide if this
+     * aggregator would be faster than the native implementation.
+     */
     private FilterByFilterAggregator(
         String name,
         AggregatorFactories factories,

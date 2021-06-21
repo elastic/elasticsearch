@@ -110,13 +110,13 @@ public final class ThreadContext implements Writeable {
          * Otherwise when context is stash, it should be empty.
          */
 
-        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
+        if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID) || context.requestHeaders.containsKey(Task.TRACE_ID)) {
             Map<String, String> map = new HashMap<>(2, 1);
             if (context.requestHeaders.containsKey(Task.X_OPAQUE_ID)) {
                 map.put(Task.X_OPAQUE_ID, context.requestHeaders.get(Task.X_OPAQUE_ID));
             }
-            if (context.requestHeaders.containsKey(Task.TRACE_PARENT)) {
-                map.put(Task.TRACE_PARENT, context.requestHeaders.get(Task.TRACE_PARENT));
+            if (context.requestHeaders.containsKey(Task.TRACE_ID)) {
+                map.put(Task.TRACE_ID, context.requestHeaders.get(Task.TRACE_ID));
             }
             ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
             threadLocal.set(threadContextStruct);

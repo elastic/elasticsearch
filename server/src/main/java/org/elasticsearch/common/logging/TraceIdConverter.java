@@ -36,7 +36,7 @@ public final class TraceIdConverter extends LogEventPatternConverter {
 
     public static String getTraceId() {
         return HeaderWarning.THREAD_CONTEXT.stream()
-            .map(t -> t.<String>getTransient(Task.TRACE_ID))
+            .map(t -> t.<String>getHeader(Task.TRACE_ID))
             .filter(Objects::nonNull)
             .findFirst()
             .orElse(null);

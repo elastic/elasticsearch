@@ -124,7 +124,7 @@ public final class PhaseCacheManagement {
     public static boolean updateIndicesForPolicy(final Metadata.Builder mb, final ClusterState currentState,
                                                  final NamedXContentRegistry xContentRegistry, final Client client,
                                                  final LifecyclePolicy oldPolicy, final LifecyclePolicyMetadata newPolicy,
-                                                 XPackLicenseState licenseState) {
+                                                 final XPackLicenseState licenseState) {
         assert oldPolicy.getName().equals(newPolicy.getName()) : "expected both policies to have the same id but they were: [" +
             oldPolicy.getName() + "] vs. [" + newPolicy.getName() + "]";
 
@@ -225,7 +225,7 @@ public final class PhaseCacheManagement {
      */
     @Nullable
     static Set<Step.StepKey> readStepKeys(final NamedXContentRegistry xContentRegistry, final Client client,
-                                          final String phaseDef, final String currentPhase, XPackLicenseState licenseState) {
+                                          final String phaseDef, final String currentPhase, final XPackLicenseState licenseState) {
         final PhaseExecutionInfo phaseExecutionInfo;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(xContentRegistry,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, phaseDef)) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
@@ -128,9 +129,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformIndexer(
         ThreadPool threadPool,
-        TransformConfigManager transformsConfigManager,
+        TransformServices transformServices,
         CheckpointProvider checkpointProvider,
-        TransformAuditor auditor,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
         AtomicReference<IndexerState> initialState,
@@ -142,16 +142,16 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformContext context
     ) {
         super(threadPool, initialState, initialPosition, jobStats);
-        this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
+        ExceptionsHelper.requireNonNull(transformServices, "transformServices");
+        this.transformsConfigManager = transformServices.getConfigManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
+        this.auditor = transformServices.getAuditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.fieldMappings = ExceptionsHelper.requireNonNull(fieldMappings, "fieldMappings");
         this.progress = transformProgress;
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");
         this.nextCheckpoint = ExceptionsHelper.requireNonNull(nextCheckpoint, "nextCheckpoint");
         this.context = ExceptionsHelper.requireNonNull(context, "context");
-
         // give runState a default
         this.runState = RunState.APPLY_RESULTS;
 

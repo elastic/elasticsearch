@@ -11,11 +11,14 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
+import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
+import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -39,12 +42,16 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         ClientTransformIndexer indexer = new ClientTransformIndexer(
             mock(ThreadPool.class),
-            mock(IndexBasedTransformConfigManager.class),
+            new TransformServices(
+                mock(IndexBasedTransformConfigManager.class),
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                mock(SchedulerEngine.class)
+            ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),
-            mock(TransformAuditor.class),
             mock(TransformIndexerStats.class),
             mock(TransformConfig.class),
             Collections.emptyMap(),

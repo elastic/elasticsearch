@@ -164,10 +164,9 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         //
         // We want the rest of the state to be populated in the task when it is loaded on the node so that users can force start it again
         // later if they want.
-        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder().setAuditor(auditor)
+        final ClientTransformIndexerBuilder indexerBuilder = new ClientTransformIndexerBuilder()
             .setClient(buildTask.getParentTaskClient())
-            .setTransformsCheckpointService(transformServices.getCheckpointService())
-            .setTransformsConfigManager(transformServices.getConfigManager());
+            .setTransformServices(transformServices);
 
         final SetOnce<TransformState> stateHolder = new SetOnce<>();
 

@@ -19,17 +19,23 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -42,10 +48,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
 import org.elasticsearch.xpack.core.transform.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
-import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
-import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.util.Collection;
@@ -57,21 +62,23 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexer extends TransformIndexer {
 
+    private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(30);
     private static final Logger logger = LogManager.getLogger(ClientTransformIndexer.class);
 
     private final Client client;
     private final AtomicBoolean oldStatsCleanedUp = new AtomicBoolean(false);
 
     private final AtomicReference<SeqNoPrimaryTermAndIndex> seqNoPrimaryTermAndIndex;
+    private PointInTimeBuilder pit;
+    private long pitCheckpoint;
 
     ClientTransformIndexer(
         ThreadPool threadPool,
-        TransformConfigManager transformsConfigManager,
+        TransformServices transformServices,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
         TransformIndexerPosition initialPosition,
         Client client,
-        TransformAuditor auditor,
         TransformIndexerStats initialStats,
         TransformConfig transformConfig,
         Map<String, String> fieldMappings,
@@ -84,9 +91,8 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         super(
             ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
-            transformsConfigManager,
+            transformServices,
             checkpointProvider,
-            auditor,
             transformConfig,
             fieldMappings,
             ExceptionsHelper.requireNonNull(initialState, "initialState"),
@@ -111,13 +117,14 @@ class ClientTransformIndexer extends TransformIndexer {
             nextPhase.onFailure(new ElasticsearchException("Attempted to do a search request for failed transform [{}].", getJobId()));
             return;
         }
-        ClientHelper.executeWithHeadersAsync(
-            transformConfig.getHeaders(),
-            ClientHelper.TRANSFORM_ORIGIN,
-            client,
-            SearchAction.INSTANCE,
+
+        if (getNextCheckpoint().getCheckpoint() != pitCheckpoint) {
+            closePointInTime();
+        }
+
+        injectPointInTimeIfNeeded(
             buildSearchRequest(),
-            nextPhase
+            ActionListener.wrap(pitSearchRequest -> { doSearch(pitSearchRequest, nextPhase); }, nextPhase::onFailure)
         );
     }
 
@@ -438,6 +445,97 @@ class ClientTransformIndexer extends TransformIndexer {
     @Nullable
     SeqNoPrimaryTermAndIndex getSeqNoPrimaryTermAndIndex() {
         return seqNoPrimaryTermAndIndex.get();
+    }
+
+    @Override
+    protected void afterFinishOrFailure() {
+        closePointInTime();
+        super.afterFinishOrFailure();
+    }
+
+    private void closePointInTime() {
+        if (pit != null) {
+            String oldPit = pit.getEncodedId();
+            pit = null;
+            ClosePointInTimeRequest closePitRequest = new ClosePointInTimeRequest(oldPit);
+            ClientHelper.executeWithHeadersAsync(
+                transformConfig.getHeaders(),
+                ClientHelper.TRANSFORM_ORIGIN,
+                client,
+                ClosePointInTimeAction.INSTANCE,
+                closePitRequest,
+                ActionListener.wrap(response -> {
+                    logger.trace("closed pit");
+                }, e -> {
+                    // todo: what if the pit already timed out
+                    logger.warn("failed to close point in time handle");
+                })
+            );
+        }
+    }
+
+    private void injectPointInTimeIfNeeded(SearchRequest searchRequest, ActionListener<SearchRequest> listener) {
+        if (pit != null) {
+            searchRequest.source().pointInTimeBuilder(pit);
+            listener.onResponse(searchRequest);
+            return;
+        }
+
+        // todo: check pit is supported on all nodes
+
+        // no pit, create a new one
+        OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(transformConfig.getSource().getIndex()).keepAlive(PIT_KEEP_ALIVE);
+
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            OpenPointInTimeAction.INSTANCE,
+            pitRequest,
+            ActionListener.wrap(response -> {
+                pit = new PointInTimeBuilder(response.getPointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
+                searchRequest.source().pointInTimeBuilder(pit);
+                pitCheckpoint = getNextCheckpoint().getCheckpoint();
+                logger.info("using pit searcher");
+
+                listener.onResponse(searchRequest);
+            },
+                e -> {
+                    // todo: failed to open pit, warn and continue with ordinary search
+                    logger.error(
+                        new ParameterizedMessage("[{}] Failed to create a point in time reader, falling back to normal search.", getJobId()),
+                        e
+                    );
+                    listener.onResponse(searchRequest);
+                }
+            )
+        );
+    }
+
+    private void doSearch(SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
+        logger.trace("searchRequest: {}", searchRequest);
+
+
+        ClientHelper.executeWithHeadersAsync(
+            transformConfig.getHeaders(),
+            ClientHelper.TRANSFORM_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequest,
+            ActionListener.wrap(response -> {
+                // did the pit change?
+                if (response.pointInTimeId() != null && (pit == null || response.pointInTimeId() != pit.getEncodedId())) {
+                    pit = new PointInTimeBuilder(response.pointInTimeId()).setKeepAlive(PIT_KEEP_ALIVE);
+
+                    logger.trace("updated point in time");
+                }
+
+                listener.onResponse(response);
+            }, e -> {
+                // todo: handle search phase execution exception due to pit timeout, retry once
+                listener.onFailure(e);
+            })
+        );
     }
 
     private static String getBulkIndexDetailedFailureMessage(String prefix, Map<String, BulkItemResponse> failures) {

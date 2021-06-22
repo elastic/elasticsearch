@@ -59,6 +59,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -130,6 +131,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -139,6 +141,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.core.TimeValue.timeValueHours;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.core.TimeValue.timeValueMinutes;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public class SearchService extends AbstractLifecycleComponent implements IndexEventListener {
     private static final Logger logger = LogManager.getLogger(SearchService.class);
@@ -424,22 +427,55 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private <T> void ensureAfterSeqNoRefreshed(IndexShard shard, ShardSearchRequest request, CheckedSupplier<T, Exception> executable,
                                                ActionListener<T> listener) {
         final Executor executor = getExecutor(shard);
+        // We must dispatch as it is possible that adding a refresh listener can force a synchronous refresh
         executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                if (request.waitForCheckpoint() > SequenceNumbers.NO_OPS_PERFORMED) {
+                Thread thread = Thread.currentThread();
+                final TimeValue timeout = request.getWaitForCheckpointsTimeout();
+                final long waitForCheckpoint = request.waitForCheckpoint();
+                if (waitForCheckpoint > SequenceNumbers.NO_OPS_PERFORMED) {
+                    if (shard.indexSettings().getRefreshInterval().getMillis() < 0) {
+                        listener.onFailure(
+                            new IllegalArgumentException("Cannot use wait_for_checkpoints with [index.refresh_interval=-1]")
+                        );
+                        return;
+                    }
+
                     final AtomicBoolean isDone = new AtomicBoolean(false);
                     final AtomicReference<Scheduler.ScheduledCancellable> timeoutTask = new AtomicReference<>();
                     final ActionListener<Void> readyListener = new ActionListener<>() {
-
                         @Override
                         public void onResponse(Void unused) {
-                            if (isDone.compareAndSet(false, true)) {
-                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
-                                if (localTimeoutTask != null) {
-                                    localTimeoutTask.cancel();
-                                }
-                                runAsync(executor, executable, listener);
+                            if (shard.getLastKnownGlobalCheckpoint() < waitForCheckpoint) {
+                                TimeValue gclTimeout = NO_TIMEOUT.equals(timeout) == false ? null : timeout;
+                                shard.addGlobalCheckpointListener(
+                                    waitForCheckpoint,
+                                    new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                                        @Override
+                                        public Executor executor() {
+                                            return threadPool.executor(Names.SAME);
+                                        }
+
+                                        @Override
+                                        public void accept(long g, Exception e) {
+                                            if (g != UNASSIGNED_SEQ_NO) {
+                                                assert waitForCheckpoint <= g :
+                                                    shard.shardId() + " only advanced to [" + g + "] while waiting for ["
+                                                        + waitForCheckpoint + "]";
+                                                searchReady();
+                                            } else {
+                                                assert e != null;
+                                                // Ignore TimeoutException, our scheduled timeout task will handle this
+                                                if (e instanceof TimeoutException == false) {
+                                                    onFailure(e);
+                                                }
+                                            }
+                                        }
+                                    },
+                                    gclTimeout);
+                            } else {
+                                searchReady();
                             }
                         }
 
@@ -453,15 +489,29 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                                 listener.onFailure(e);
                             }
                         }
+
+                        private void searchReady() {
+                            if (isDone.compareAndSet(false, true)) {
+                                Scheduler.ScheduledCancellable localTimeoutTask = timeoutTask.get();
+                                if (localTimeoutTask != null) {
+                                    localTimeoutTask.cancel();
+                                }
+                                // If the listener was completed immediately, we do not need to dispatch.
+                                if (Thread.currentThread() != thread) {
+                                    runAsync(executor, executable, listener);
+                                } else {
+                                    runAsync(threadPool.executor(Names.SAME), executable, listener);
+                                }
+                            }
+                        }
                     };
-                    shard.addRefreshListener(request.waitForCheckpoint(), readyListener);
-                    final TimeValue timeout = request.getWaitForCheckpointsTimeout();
+                    shard.addRefreshListener(waitForCheckpoint, readyListener);
                     if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
                         Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() ->
                             readyListener.onFailure(
                                 new ElasticsearchTimeoutException(
                                     "Wait for seq_no [{}] refreshed timed out [{}]",
-                                    request.waitForCheckpoint(),
+                                    waitForCheckpoint,
                                     timeout)
                             ), timeout, Names.SAME);
                         timeoutTask.set(scheduled);
@@ -1310,7 +1360,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
-                hasRefreshPending = indexShard.hasRefreshPending() && checkRefreshPending;
+                boolean needsWaitForRefresh = request.waitForCheckpoint() != SequenceNumbers.NO_OPS_PERFORMED;
+                // If this request requests wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
+                // this can be improved in the future by manually checking that the requested checkpoint has already been refresh.
+                // However, this will request modifying the engine to surface that information.
+                hasRefreshPending = checkRefreshPending && (indexShard.hasRefreshPending() || needsWaitForRefresh);
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
             try (canMatchSearcher) {

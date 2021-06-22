@@ -1,7 +1,7 @@
 setup:
   - do:
       indices.create:
-        index: test-timeout
+        index: test-refresh-disabled
         body:
           settings:
             number_of_shards: "1"
@@ -60,27 +60,12 @@ setup:
         body: { query: { match_all: {} } }
 
 ---
-"After refresh timeout":
+"Cannot wait_for_checkpoints with refresh disabled":
   - do:
+      catch: bad_request
       fleet.search:
-        index: "test-timeout"
-        allow_partial_search_results: true
+        index: "test-refresh-disabled"
         wait_for_checkpoints: [0]
-        wait_for_checkpoints_timeout: "50ms"
-        body: { query: { match_all: { } } }
-
-  - do:
-      index:
-        index: test-timeout
-        body: {}
-
-  - do:
-      catch: request
-      fleet.search:
-        index: "test-timeout"
-        allow_partial_search_results: true
-        wait_for_checkpoints: [ 1 ]
-        wait_for_checkpoints_timeout: "50ms"
         body: { query: { match_all: { } } }
 
 ---

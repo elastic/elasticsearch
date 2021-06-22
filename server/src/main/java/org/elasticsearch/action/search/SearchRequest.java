@@ -331,6 +331,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     + "shard version", validationException);
             }
         }
+        if (pointInTimeBuilder() != null && waitForCheckpoints.isEmpty() == false) {
+            validationException = addValidationError("using [point in time] is not allowed with wait_for_checkpoints", validationException);
+
+        }
         return validationException;
     }
 

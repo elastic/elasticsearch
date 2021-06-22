@@ -9,6 +9,7 @@ package org.elasticsearch.search;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -77,11 +78,8 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchModuleTests extends ESTestCase {
 
@@ -301,43 +299,15 @@ public class SearchModuleTests extends ESTestCase {
                 hasSize(1));
     }
 
-    public void testRegisterDefaultRequestCacheKeyProvider() {
-        final SearchModule module = new SearchModule(Settings.EMPTY, List.of());
-        assertThat(module.getRequestCacheKeyProvider(), notNullValue());
-        assertThat(module.getRequestCacheKeyProvider().getClass(), is(ShardSearchRequest.RequestCacheKeyProvider.class));
-    }
-
-    public void testRegisterRequestCacheKeyProvider() {
-        final ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider = new ShardSearchRequest.RequestCacheKeyProvider() {
-        };
+    public void testRegisterRequestCacheKeyDifferentiator() {
+        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator = (r, o) -> { };
         final SearchModule module = new SearchModule(Settings.EMPTY, List.of(new SearchPlugin() {
             @Override
-            public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
-                return requestCacheKeyProvider;
+            public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
+                return List.of(requestCacheKeyDifferentiator);
             }
         }));
-        assertThat(module.getRequestCacheKeyProvider(), equalTo(requestCacheKeyProvider));
-    }
-
-    public void testCannotRegisterMultipleRequestCacheKeyProvider() {
-        final ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider1 = new ShardSearchRequest.RequestCacheKeyProvider() {
-        };
-        final ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider2 = new ShardSearchRequest.RequestCacheKeyProvider() {
-        };
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, List.of(
-            new SearchPlugin() {
-                @Override
-                public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
-                    return requestCacheKeyProvider1;
-                }
-            },
-            new SearchPlugin() {
-                @Override
-                public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
-                    return requestCacheKeyProvider2;
-                }
-            })));
-        assertThat(e.getMessage(), containsString("Cannot have more than one plugin providing a RequestCacheKeyProvider"));
+        assertThat(module.getRequestCacheKeyDifferentiators(), equalTo(List.of(requestCacheKeyDifferentiator)));
     }
 
     private static final String[] NON_DEPRECATED_QUERIES = new String[] {

@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
@@ -47,6 +48,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -393,6 +395,24 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         return keepAlive;
     }
 
+    /**
+     * Returns the cache key for this shard search request, based on its content
+     */
+    public BytesReference cacheKey(
+        List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators) throws IOException {
+        BytesStreamOutput out = scratch.get();
+        try {
+            this.innerWriteTo(out, true);
+            for (CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> c : differentiators) {
+                c.accept(this, out);
+            }
+            // copy it over since we don't want to share the thread-local bytes in #scratch
+            return out.copyBytes();
+        } finally {
+            out.reset();
+        }
+    }
+
     public String getClusterAlias() {
         return clusterAlias;
     }
@@ -520,30 +540,5 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
      */
     public Version getChannelVersion() {
         return channelVersion;
-    }
-
-    public static class RequestCacheKeyProvider {
-
-        /**
-         * Returns the cache key for the shard search request, based on its content
-         */
-        public final BytesReference cacheKey(ShardSearchRequest request) throws IOException {
-            BytesStreamOutput out = scratch.get();
-            try {
-                request.innerWriteTo(out, true);
-                differentiate(request, out);
-                // copy it over since we don't want to share the thread-local bytes in #scratch
-                return out.copyBytes();
-            } finally {
-                out.reset();
-            }
-        }
-
-        /**
-         * An extension point to differentiate between otherwise identical cache keys by appending
-         * more bytes to the cache key.
-         */
-        protected void differentiate(ShardSearchRequest request, StreamOutput out) throws IOException {
-        }
     }
 }

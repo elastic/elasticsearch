@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -570,18 +572,10 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public ShardSearchRequest.RequestCacheKeyProvider getRequestCacheKeyProvider() {
-        List<ShardSearchRequest.RequestCacheKeyProvider> providers = filterPlugins(SearchPlugin.class).stream()
-            .map(SearchPlugin::getRequestCacheKeyProvider)
-            .filter(Objects::nonNull)
+    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
+        return filterPlugins(SearchPlugin.class).stream()
+            .map(SearchPlugin::getRequestCacheKeyDifferentiators)
+            .flatMap(Collection::stream)
             .collect(Collectors.toUnmodifiableList());
-
-        if (providers.size() > 1) {
-            throw new UnsupportedOperationException("Only the security SearchPlugin should provide RequestCacheKeyProvider");
-        } else if (providers.size() == 1) {
-            return providers.get(0);
-        } else {
-            return null;
-        }
     }
 }

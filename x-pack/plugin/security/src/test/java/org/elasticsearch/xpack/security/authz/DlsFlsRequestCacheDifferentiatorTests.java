@@ -33,12 +33,12 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DlsFlsRequestCacheKeyProviderTests extends ESTestCase {
+public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
 
     private XPackLicenseState licenseState;
     private ThreadContext threadContext;
     private StreamOutput out;
-    private DlsFlsRequestCacheKeyProvider requestCacheKeyProvider;
+    private DlsFlsRequestCacheDifferentiator differentiator;
     private ShardSearchRequest shardSearchRequest;
     private String indexName;
     private String dlsIndexName;
@@ -52,7 +52,7 @@ public class DlsFlsRequestCacheKeyProviderTests extends ESTestCase {
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         out = new BytesStreamOutput();
-        requestCacheKeyProvider = new DlsFlsRequestCacheKeyProvider(licenseState, new SetOnce<>(threadContext));
+        differentiator = new DlsFlsRequestCacheDifferentiator(licenseState, new SetOnce<>(threadContext));
         shardSearchRequest = mock(ShardSearchRequest.class);
         indexName = randomAlphaOfLengthBetween(3, 8);
         dlsIndexName = "dls-" + randomAlphaOfLengthBetween(3, 8);
@@ -78,23 +78,23 @@ public class DlsFlsRequestCacheKeyProviderTests extends ESTestCase {
             ));
     }
 
-    public void testWillDifferentiateForAnyDlsOrFls() throws IOException {
+    public void testWillWriteCacheKeyForAnyDlsOrFls() throws IOException {
         when(shardSearchRequest.shardId()).thenReturn(
             new ShardId(randomFrom(dlsIndexName, flsIndexName, dlsFlsIndexName), randomAlphaOfLength(10), randomIntBetween(0, 3)));
-        requestCacheKeyProvider.differentiate(shardSearchRequest, out);
+        differentiator.accept(shardSearchRequest, out);
         assertThat(out.position(), greaterThan(0L));
     }
 
     public void testWillDoNothingIfNoDlsFls() throws IOException {
         when(shardSearchRequest.shardId()).thenReturn(new ShardId(indexName, randomAlphaOfLength(10), randomIntBetween(0, 3)));
-        requestCacheKeyProvider.differentiate(shardSearchRequest, out);
+        differentiator.accept(shardSearchRequest, out);
         assertThat(out.position(), equalTo(0L));
     }
 
     public void testWillDoNothingIfSecurityIsNotEnabled() throws IOException {
         when(licenseState.isSecurityEnabled()).thenReturn(false);
         when(shardSearchRequest.shardId()).thenReturn(new ShardId(dlsFlsIndexName, randomAlphaOfLength(10), randomIntBetween(0, 3)));
-        requestCacheKeyProvider.differentiate(shardSearchRequest, out);
+        differentiator.accept(shardSearchRequest, out);
         assertThat(out.position(), equalTo(0L));
     }
 }

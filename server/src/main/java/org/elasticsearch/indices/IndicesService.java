@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.CheckedSupplier;
@@ -227,7 +228,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final boolean nodeWriteDanglingIndicesInfo;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
-    private final ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider;
+    private final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators;
 
     @Override
     protected void doStart() {
@@ -248,7 +249,7 @@ public class IndicesService extends AbstractLifecycleComponent
                           Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
                           List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
                           Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers,
-                          ShardSearchRequest.RequestCacheKeyProvider requestCacheKeyProvider) {
+                          List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -297,7 +298,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
         this.snapshotCommitSuppliers = snapshotCommitSuppliers;
-        this.requestCacheKeyProvider = requestCacheKeyProvider;
+        this.requestCacheKeyDifferentiators = List.copyOf(requestCacheKeyDifferentiators);
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -1402,7 +1403,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference cacheKey = requestCacheKeyProvider.cacheKey(request);
+        BytesReference cacheKey = request.cacheKey(requestCacheKeyDifferentiators);
         BytesReference bytesReference = cacheShardLevelResult(
             context.indexShard(),
             context.getSearchExecutionContext().mappingCacheKey(),

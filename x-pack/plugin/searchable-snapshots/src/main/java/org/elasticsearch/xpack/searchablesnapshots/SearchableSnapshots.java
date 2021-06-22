@@ -74,7 +74,6 @@ import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeci
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
-import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsFeatureSet;
 import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.action.RepositoryStatsAction;
@@ -231,22 +230,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
      * This affects the system searchable snapshot cache index (not the searchable snapshot index itself)
      */
     public static final String DATA_TIERS_CACHE_INDEX_PREFERENCE = String.join(",", DataTier.DATA_CONTENT, DataTier.DATA_HOT);
-
-    /**
-     * Returns the preference for new searchable snapshot indices. When
-     * performing a full mount the preference is cold - warm - hot. When
-     * performing a partial mount the preference is only frozen
-     */
-    public static String getDataTiersPreference(MountSearchableSnapshotRequest.Storage type) {
-        switch (type) {
-            case FULL_COPY:
-                return String.join(",", DataTier.DATA_COLD, DataTier.DATA_WARM, DataTier.DATA_HOT);
-            case SHARED_CACHE:
-                return DataTier.DATA_FROZEN;
-            default:
-                throw new IllegalArgumentException("unknown searchable snapshot type [" + type + "]");
-        }
-    }
 
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();

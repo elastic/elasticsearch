@@ -20,6 +20,7 @@ import java.io.IOException;
 public class ResetFeatureStateRequest extends MasterNodeRequest<ResetFeatureStateRequest> {
 
     private static final Version FEATURE_RESET_ON_MASTER = Version.V_7_14_0;
+
     public static ResetFeatureStateRequest fromStream(StreamInput in) throws IOException {
         if (in.getVersion().before(FEATURE_RESET_ON_MASTER)) {
             throw new IllegalStateException(

@@ -38,11 +38,9 @@ public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
         new ObjectParser<>("saml_invalidate_session", SamlInvalidateSessionRequest::new);
 
     static {
-        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString,
-            new ParseField("queryString").withAllDeprecated("query_string"));
+        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("query_string", "queryString"));
         PARSER.declareString(SamlInvalidateSessionRequest::setAssertionConsumerServiceURL, new ParseField("acs"));
         PARSER.declareString(SamlInvalidateSessionRequest::setRealmName, new ParseField("realm"));
-        PARSER.declareString(SamlInvalidateSessionRequest::setQueryString, new ParseField("query_string"));
     }
 
     public RestSamlInvalidateSessionAction(Settings settings, XPackLicenseState licenseState) {

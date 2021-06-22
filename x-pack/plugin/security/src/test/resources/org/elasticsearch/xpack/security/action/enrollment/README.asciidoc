@@ -1,4 +1,4 @@
-== Instructions for gerating needed keystores
+== Instructions for generating needed keystores
 The keystores in this directory are supposed to mimic the PKCS12 keystores that the elasticsearch
 startup script will auto-generate for a node. The transport.p12 contain a single PrivateKeyEntry for the
 nodes key and certificate for the transport layer.

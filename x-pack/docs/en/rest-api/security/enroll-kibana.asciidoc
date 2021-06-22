@@ -1,10 +1,10 @@
 [[security-api-kibana-enrollment]]
-=== Enroll Kibana API
+=== Enroll {kib} API
 ++++
-<titleabbrev>Enroll Kibana</titleabbrev>
+<titleabbrev>Enroll {kib}</titleabbrev>
 ++++
 
-Allows a kibana instance to configure itself to communicate with a secured {es} cluster.
+Enables a {kib} instance to configure itself for communication with a secured {es} cluster.
 
 [[security-api-kibana-enrollment-request]]
 ==== {api-request-title}
@@ -25,27 +25,28 @@ enabled.
 [[security-api-client-enrollment-examples]]
 ==== {api-examples-title}
 
-
-==== Example of enrolling a kibana instance
+The following example shows how to enroll a {kib} instance.
 
 [source,console]
---------------------------------------------------
+----
 GET /_security/enroll/kibana
---------------------------------------------------
+----
 // TEST[skip:we need to enable HTTP TLS for the docs cluster]
 
+The API returns the following response:
+
 [source,console_result]
---------------------------------------------------
+----
 {
   "password" : "longsecurepassword", <1>
-  "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3DQEHAaCCCUsEgglHMIIJQzCCA98GCSqGSIb3DQ....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
+  "http_ca" : "MIIJlAIBAzCCCVoGCSqGSIb3....vsDfsA3UZBAjEPfhubpQysAICCAA=", <2>
   "nodes_addresses" : [                                                                                          <3>
     "192.168.1.2:9203"
   ]
 }
---------------------------------------------------
-<1> The password for the `kibana_system` user
-<2> The CA certificate that is used to sign the certificates that {es}
-nodes use for TLS on the HTTP layer as a Base64 encoded string of the ASN.1 DER encoding of the certificate
+----
+<1> The password for the `kibana_system` user.
+<2> The CA certificate used to sign the node certificates that {es} uses for TLS on the HTTP layer.
+The certificate is returned as a Base64 encoded string of the ASN.1 DER encoding of the certificate
 <3> The list of addresses and ports for the HTTP layer for all nodes that are
 members of the {es} cluster.

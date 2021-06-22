@@ -615,7 +615,6 @@ public class IndexStatsIT extends ESIntegTestCase {
 
         assertThat(stats.getTotal().getSegments(), notNullValue());
         assertThat(stats.getTotal().getSegments().getCount(), equalTo((long) test1.totalNumShards));
-        assertThat(stats.getTotal().getSegments().getMemoryInBytes(), greaterThan(0L));
         if (includeSegmentFileSizes) {
             assertThat(stats.getTotal().getSegments().getFiles().size(), greaterThan(0));
             for (ObjectObjectCursor<String, SegmentsStats.FileStats> cursor : stats.getTotal().getSegments().getFiles()) {

@@ -189,59 +189,6 @@ public class FrozenEngineTests extends EngineTestCase {
         }
     }
 
-    public void testCircuitBreakerAccounting() throws IOException {
-        IOUtils.close(engine, store);
-        final AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
-        try (Store store = createStore()) {
-            CountingRefreshListener listener = new CountingRefreshListener();
-            EngineConfig config = config(
-                defaultSettings,
-                store,
-                createTempDir(),
-                NoMergePolicy.INSTANCE, // we don't merge we want no background merges to happen to ensure we have consistent breaker stats
-                null,
-                listener,
-                null,
-                globalCheckpoint::get,
-                new HierarchyCircuitBreakerService(
-                    defaultSettings.getSettings(),
-                    Collections.emptyList(),
-                    new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
-                )
-            );
-            CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
-            final int docs;
-            try (InternalEngine engine = createEngine(config)) {
-                docs = addDocuments(globalCheckpoint, engine);
-                engine.flush(false, true); // first flush to make sure we have a commit that we open in the frozen engine blow.
-                engine.refresh("test"); // pull the reader to account for RAM in the breaker.
-            }
-            final long expectedUse;
-            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, i -> i, true, randomBoolean())) {
-                expectedUse = breaker.getUsed();
-                DocsStats docsStats = readOnlyEngine.docStats();
-                assertEquals(docs, docsStats.getCount());
-            }
-            assertTrue(expectedUse > 0);
-            assertEquals(0, breaker.getUsed());
-            listener.reset();
-            try (FrozenEngine frozenEngine = new FrozenEngine(config, true, randomBoolean())) {
-                try (Engine.SearcherSupplier reader = frozenEngine.acquireSearcherSupplier(Function.identity())) {
-                    try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        assertEquals(expectedUse, breaker.getUsed());
-                    }
-                    assertEquals(1, listener.afterRefresh.get());
-                    assertEquals(0, breaker.getUsed());
-                    assertFalse(frozenEngine.isReaderOpen());
-                    try (Engine.Searcher searcher = reader.acquireSearcher("test")) {
-                        assertEquals(expectedUse, breaker.getUsed());
-                    }
-                    assertEquals(0, breaker.getUsed());
-                }
-            }
-        }
-    }
-
     private int addDocuments(AtomicLong globalCheckpoint, InternalEngine engine) throws IOException {
         int numDocs = scaledRandomIntBetween(10, 1000);
         int numDocsAdded = 0;
@@ -293,7 +240,6 @@ public class FrozenEngineTests extends EngineTestCase {
                     new ClusterSettings(defaultSettings.getNodeSettings(), ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
                 )
             );
-            CircuitBreaker breaker = config.getCircuitBreakerService().getBreaker(CircuitBreaker.ACCOUNTING);
             try (InternalEngine engine = createEngine(config)) {
                 int numDocsAdded = addDocuments(globalCheckpoint, engine);
                 engine.flushAndClose();
@@ -330,7 +276,6 @@ public class FrozenEngineTests extends EngineTestCase {
                         t.join();
                     }
                     assertFalse(frozenEngine.isReaderOpen());
-                    assertEquals(0, breaker.getUsed());
                 }
             }
         }

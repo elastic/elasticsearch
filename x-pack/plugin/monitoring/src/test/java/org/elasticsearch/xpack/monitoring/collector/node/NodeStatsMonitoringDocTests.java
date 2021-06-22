@@ -313,13 +313,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         indicesCommonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();
-        segmentsStats.add(++iota, ++iota);
-        segmentsStats.addTermsMemoryInBytes(++iota);
-        segmentsStats.addStoredFieldsMemoryInBytes(++iota);
-        segmentsStats.addTermVectorsMemoryInBytes(++iota);
-        segmentsStats.addNormsMemoryInBytes(++iota);
-        segmentsStats.addPointsMemoryInBytes(++iota);
-        segmentsStats.addDocValuesMemoryInBytes(++iota);
+        segmentsStats.add(++iota);
         segmentsStats.addIndexWriterMemoryInBytes(++iota);
         segmentsStats.addVersionMapMemoryInBytes(++iota);
         segmentsStats.addBitsetMemoryInBytes(++iota);

@@ -62,7 +62,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
-            .put( "xpack.security.authc.api_key.enabled", true)
+            .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.http.ssl.truststore.path", "httpCa.p12")
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
@@ -189,6 +189,112 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
     }
 
+    public void testFailedRetrieveHttpInfoNoCaInKeystore() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path httpNoCaPath = tempDir.resolve("transport.p12");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), httpNoCaPath);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.http.ssl.truststore.secure_password", "password");
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "password");
+        secureSettings.setString("bootstrap.password", "password");
+        final Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("xpack.http.ssl.enabled", true)
+            .put("xpack.security.authc.api_key.enabled", true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.keystore.path", "transport.p12")
+            .put("xpack.security.enrollment.enabled", "true")
+            .setSecureSettings(secureSettings)
+            .put("path.home", tempDir)
+            .build();
+        environment = new Environment(settings, tempDir);
+        final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
+        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
+        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
+        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+
+        String createApiKeyResponseBody;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject()
+                .field("id", "DR6CzXkBDf8amV_48yYX")
+                .field("name", "enrollment_token_API_key_VuaCfGcBCdbkQm")
+                .field("expiration", "1622652381786")
+                .field("api_key", "x3YqU_rqQwm-ESrkExcnOg")
+                .endObject();
+            createApiKeyResponseBody = Strings.toString(builder);
+        }
+        when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
+            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
+
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
+        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+        assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer " +
+            "SSL configuration Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"));
+    }
+
+    public void testFailedRetrieveHttpInfoManyCaInKeystore() throws Exception {
+        final Path tempDir = createTempDir();
+        final Path httpNoCaPath = tempDir.resolve("httpCa2.p12");
+        Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa2.p12"), httpNoCaPath);
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString("xpack.http.ssl.truststore.secure_password", "password");
+        secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "password");
+        secureSettings.setString("bootstrap.password", "password");
+        final Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("xpack.http.ssl.enabled", true)
+            .put("xpack.security.authc.api_key.enabled", true)
+            .put("xpack.security.http.ssl.enabled", true)
+            .put("xpack.security.http.ssl.keystore.path", "httpCa2.p12")
+            .put("xpack.security.enrollment.enabled", "true")
+            .setSecureSettings(secureSettings)
+            .put("path.home", tempDir)
+            .build();
+        environment = new Environment(settings, tempDir);
+        final CommandLineHttpClient client = mock(CommandLineHttpClient.class);
+        when(client.getDefaultURL()).thenReturn("http://localhost:9200");
+        final CreateEnrollmentToken createEnrollmentToken = new CreateEnrollmentToken(environment, client);
+        final URL createAPIKeyURL = createEnrollmentToken.createAPIKeyUrl();
+        final URL getHttpInfoURL = createEnrollmentToken.getHttpInfoUrl();
+
+        final HttpResponse httpResponseOK = new HttpResponse(HttpURLConnection.HTTP_OK, new HashMap<String, Object>());
+        when(client.execute(anyString(), eq(createAPIKeyURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(httpResponseOK);
+
+        String createApiKeyResponseBody;
+        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
+            builder.startObject()
+                .field("id", "DR6CzXkBDf8amV_48yYX")
+                .field("name", "enrollment_token_API_key_VuaCfGcBCdbkQm")
+                .field("expiration", "1622652381786")
+                .field("api_key", "x3YqU_rqQwm-ESrkExcnOg")
+                .endObject();
+            createApiKeyResponseBody = Strings.toString(builder);
+        }
+        when(client.execute(eq("POST"), eq(createAPIKeyURL), eq(ElasticUser.NAME), any(SecureString.class),
+            any(CheckedSupplier.class), any(CheckedFunction.class)))
+            .thenReturn(createHttpResponse(HttpURLConnection.HTTP_OK, createApiKeyResponseBody));
+
+        final HttpResponse httpResponseNotOK = new HttpResponse(HttpURLConnection.HTTP_BAD_REQUEST, new HashMap<String, Object>());
+        when(client.execute(anyString(), eq(getHttpInfoURL), anyString(), any(SecureString.class), any(CheckedSupplier.class),
+            any(CheckedFunction.class))).thenReturn(httpResponseNotOK);
+
+        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
+            createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic")));
+        assertThat(ex.getMessage(), Matchers.equalTo("Unable to create an enrollment token. Elasticsearch node HTTP layer SSL " +
+            "configuration Keystore contains multiple PrivateKey entries where the associated certificate is a CA certificate"));
+    }
+
     public void testNoKeyStore() throws Exception{
         final Path tempDir = createTempDir();
         final Settings settings = Settings.builder()
@@ -217,7 +323,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final Settings settings = Settings.builder()
             .put("xpack.security.enabled", true)
             .put("xpack.http.ssl.enabled", true)
-            .put( "xpack.security.authc.api_key.enabled", true)
+            .put("xpack.security.authc.api_key.enabled", true)
             .put("xpack.http.ssl.truststore.path", "httpCa.p12")
             .put("xpack.security.http.ssl.enabled", true)
             .put("xpack.security.http.ssl.keystore.path", "httpCa.p12")
@@ -262,35 +368,6 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
         assertThat(ex.getMessage(), Matchers.startsWith("nldfnbndflbnl:"));
-    }
-
-    public void testGetVersionMixedCluster() throws Exception {
-        String getHttpInfoResponseBody;
-        try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {
-            builder.startObject()
-                .startObject("nodes")
-                    .startObject("sxLDrFu8SnKepObrEOjPZQ")
-                        .field("version", "8.0.0")
-                        .startObject("http")
-                            .startArray("bound_address")
-                                .value("[::1]:9200")
-                            .endArray()
-                            .field("publish_address", "127.0.0.1:9200")
-                        .endObject()
-                    .endObject()
-                    .startObject("vdcTFSJHblQLHJHbdgGkgY")
-                        .field("version", "7.13.0")
-                        .startObject("http")
-                            .startArray("bound_address")
-                                .value("192.168.0.1:9201")
-                            .endArray()
-                            .field("publish_address", "127.0.0.1:9200")
-                .endObject().endObject().endObject().endObject();
-            getHttpInfoResponseBody = Strings.toString(builder);
-        }
-        IllegalStateException ex = expectThrows(IllegalStateException.class, () ->
-            CreateEnrollmentToken.getVersion(createHttpResponse(HttpURLConnection.HTTP_OK, getHttpInfoResponseBody).getResponseBody()));
-
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

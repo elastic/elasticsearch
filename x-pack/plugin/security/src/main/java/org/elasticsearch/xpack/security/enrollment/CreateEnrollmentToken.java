@@ -121,7 +121,7 @@ public class CreateEnrollmentToken {
     }
 
     protected URL getHttpInfoUrl() throws MalformedURLException, URISyntaxException {
-        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/http").replaceAll("/+", "/"));
+        return new URL(defaultUrl, (defaultUrl.toURI().getPath() + "/_nodes/_local/http").replaceAll("/+", "/"));
     }
 
     protected static List<String> getBoundAddresses(Map<?, ?> nodesInfo) {
@@ -133,18 +133,8 @@ public class CreateEnrollmentToken {
 
     static String getVersion(Map<?, ?> nodesInfo) {
         nodesInfo = (Map<?, ?>) nodesInfo.get("nodes");
-        String version = "";
-        for (Map.Entry<?, ?> entry : nodesInfo.entrySet()) {
-            Map<?, ?> nodeInfo = (Map<?, ?>) entry.getValue();
-            if (version.isEmpty()) {
-                version = nodeInfo.get("version").toString();
-            }
-            if (!nodeInfo.get("version").toString().equals(version)) {
-                throw new IllegalStateException("Error generating enrollment token: the nodes in the cluster have different versions. " +
-                    "Enrolling in a mixed version cluster is not supported.");
-            }
-        }
-        return version;
+        Map<?, ?> nodeInfo = (Map<?, ?>) nodesInfo.values().iterator().next();
+        return nodeInfo.get("version").toString();
     }
 
     protected String getApiKeyCredentials(String user, SecureString password, String action) throws Exception {
@@ -162,16 +152,16 @@ public class CreateEnrollmentToken {
             return Strings.toString(xContentBuilder);
         };
 
-        final URL url = createAPIKeyUrl();
-        final HttpResponse httpResponseApiKey = client.execute("POST", url, user, password,
+        final URL createApiKeyUrl = createAPIKeyUrl();
+        final HttpResponse httpResponseApiKey = client.execute("POST", createApiKeyUrl, user, password,
             createApiKeyRequestBodySupplier, is -> responseBuilder(is));
         final int httpCode = httpResponseApiKey.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + url + ". ResponseBody: " +
-                (httpResponseApiKey == null ? "" : httpResponseApiKey.getResponseBody()));
+            logger.error("Error " + httpCode + "when calling GET " + createApiKeyUrl + ". ResponseBody: " +
+                httpResponseApiKey.getResponseBody());
             throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling POST "
-                + url);
+                + createApiKeyUrl);
         }
 
         final String apiKey = Objects.toString(httpResponseApiKey.getResponseBody().get("api_key"), "");
@@ -183,21 +173,21 @@ public class CreateEnrollmentToken {
     }
 
     protected Tuple<List<String>, String> getNodeInfo(String user, SecureString password) throws Exception {
-        final URL Url = getHttpInfoUrl();
-        final HttpResponse httpResponseHttp = client.execute("GET", Url, user, password, () -> null, is -> responseBuilder(is));
+        final URL httpInfoUrl = getHttpInfoUrl();
+        final HttpResponse httpResponseHttp = client.execute("GET", httpInfoUrl, user, password, () -> null, is -> responseBuilder(is));
         final int httpCode = httpResponseHttp.getHttpStatus();
 
         if (httpCode != HttpURLConnection.HTTP_OK) {
-            logger.error("Error " + httpCode + "when calling GET " + Url + ". ResponseBody: " +
-                (httpResponseHttp == null ? "" : httpResponseHttp.getResponseBody()));
-            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + Url);
+            logger.error("Error " + httpCode + "when calling GET " + httpInfoUrl + ". ResponseBody: " +
+                httpResponseHttp.getResponseBody());
+            throw new IllegalStateException("Unexpected response code [" + httpCode + "] from calling GET " + httpInfoUrl);
         }
 
         final List<String> addresses = getBoundAddresses(httpResponseHttp.getResponseBody());
         if (addresses == null || addresses.isEmpty()) {
-            logger.error("No bound addresses found in response from calling GET " + Url + ". ResponseBody: " +
+            logger.error("No bound addresses found in response from calling GET " + httpInfoUrl + ". ResponseBody: " +
                 httpResponseHttp.getResponseBody());
-            throw new IllegalStateException("No bound addresses found in response from calling GET " + Url);
+            throw new IllegalStateException("No bound addresses found in response from calling GET " + httpInfoUrl);
         }
         final List<String> filtered_addresses = getFilteredAddresses(addresses);
 

@@ -969,7 +969,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, new Explicit<>(true, false), Nested.NO, Dynamic.RUNTIME, Collections.emptyMap(), Version.CURRENT);
+            super(name, fullPath, new Explicit<>(true, false), Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 }

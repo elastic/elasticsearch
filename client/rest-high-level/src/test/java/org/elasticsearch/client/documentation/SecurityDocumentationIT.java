@@ -2786,8 +2786,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token2", "index")));
+            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                contains("token2"));
         }
     }
 

@@ -142,7 +142,7 @@ public class RootObjectMapper extends ObjectMapper {
     static final class TypeParser extends ObjectMapper.TypeParser {
 
         @Override
-        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext)
+        public RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext)
             throws MapperParsingException {
             RootObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
@@ -159,7 +159,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, ParserContext parserContext) {
+        private boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, MappingsParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();
@@ -382,7 +382,7 @@ public class RootObjectMapper extends ObjectMapper {
         }
     }
 
-    private static void validateDynamicTemplate(Mapper.TypeParser.ParserContext parserContext,
+    private static void validateDynamicTemplate(MappingsParserContext parserContext,
                                                 DynamicTemplate template) {
 
         if (containsSnippet(template.getMapping(), "{name}")) {

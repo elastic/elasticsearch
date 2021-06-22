@@ -537,7 +537,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         boolean useForce = randomBoolean();
 
         client().admin().indices().prepareCreate("data")
-            .setMapping("time", "type=date")
+            .addMapping("type", "time", "type=date")
             .get();
         long numDocs = randomIntBetween(1024, 2048);
         long now = System.currentTimeMillis();

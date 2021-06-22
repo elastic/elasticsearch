@@ -25,7 +25,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
@@ -55,6 +59,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -163,14 +168,22 @@ public class IndexResolver {
     private final String clusterName;
     private final DataTypeRegistry typeRegistry;
 
-    public IndexResolver(Client client, String clusterName, DataTypeRegistry typeRegistry) {
+    private final RemoteClusterResolver remoteClusters;
+
+    public IndexResolver(Client client, String clusterName, Settings settings, ClusterSettings clusterSettings,
+                         DataTypeRegistry typeRegistry) {
         this.client = client;
         this.clusterName = clusterName;
         this.typeRegistry = typeRegistry;
+        this.remoteClusters = new RemoteClusterResolver(settings, clusterSettings);
     }
 
     public String clusterName() {
         return clusterName;
+    }
+
+    public Set<String> clusters() {
+        return new TreeSet<>(remoteClusters.clusters);
     }
 
     /**
@@ -794,5 +807,25 @@ public class IndexResolver {
         }
         // everything checks
         return emptyMap();
+    }
+
+    private class RemoteClusterResolver extends RemoteClusterAware {
+
+        private final CopyOnWriteArraySet<String> clusters;
+
+        private RemoteClusterResolver(Settings settings, ClusterSettings clusterSettings) {
+            super(settings);
+            clusters = new CopyOnWriteArraySet<>(getEnabledRemoteClusters(settings));
+            listenForUpdates(clusterSettings);
+        }
+
+        @Override
+        protected void updateRemoteCluster(String clusterAlias, Settings settings) {
+            if (RemoteConnectionStrategy.isConnectionEnabled(clusterAlias, settings)) {
+                clusters.add(clusterAlias);
+            } else {
+                clusters.remove(clusterAlias);
+            }
+        }
     }
 }

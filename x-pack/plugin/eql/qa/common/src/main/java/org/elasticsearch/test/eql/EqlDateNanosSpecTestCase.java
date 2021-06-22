@@ -22,7 +22,15 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds) {
-        super(DATE_NANOS_INDEX, query, name, eventIds);
+        super(indexName(), query, name, eventIds);
+    }
+
+    public EqlDateNanosSpecTestCase(String index, String query, String name, long[] eventIds) {
+        super(index, query, name, eventIds);
+    }
+
+    protected static String indexName() {
+        return DATE_NANOS_INDEX;
     }
 
     @Override

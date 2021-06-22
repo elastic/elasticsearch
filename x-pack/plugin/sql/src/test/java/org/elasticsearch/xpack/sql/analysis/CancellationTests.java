@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -59,7 +61,7 @@ public class CancellationTests extends ESTestCase {
         when(task.isCancelled()).thenReturn(true);
         ClusterService mockClusterService = mockClusterService();
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
         SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE).query("SELECT foo FROM bar").request();
@@ -122,7 +124,7 @@ public class CancellationTests extends ESTestCase {
         }).when(client).fieldCaps(any(), any());
 
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         CountDownLatch countDownLatch = new CountDownLatch(1);
         SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
@@ -188,7 +190,7 @@ public class CancellationTests extends ESTestCase {
             return null;
         }).when(client).execute(any(), searchRequestCaptor.capture(), any());
 
-        IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
+        IndexResolver indexResolver = indexResolver(client);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NamedWriteableRegistry(Collections.emptyList()));
         SqlQueryRequest request = new SqlQueryRequestBuilder(client, SqlQueryAction.INSTANCE)
             .query("SELECT foo FROM " + indices[0]).request();
@@ -230,5 +232,10 @@ public class CancellationTests extends ESTestCase {
         when(mockClusterName.value()).thenReturn(randomAlphaOfLength(10));
         when(mockClusterService.getClusterName()).thenReturn(mockClusterName);
         return mockClusterService;
+    }
+
+    private static IndexResolver indexResolver(Client client) {
+        return new IndexResolver(client, randomAlphaOfLength(10), Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), DefaultDataTypeRegistry.INSTANCE);
     }
 }

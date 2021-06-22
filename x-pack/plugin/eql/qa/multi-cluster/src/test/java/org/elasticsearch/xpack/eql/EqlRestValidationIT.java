@@ -11,11 +11,13 @@ import org.elasticsearch.test.eql.EqlRestValidationTestCase;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.eql.RemoteClusterUtils.qualifiedPattern;
+
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
     @Override
     protected String getInexistentIndexErrorMessage() {
-        return "\"root_cause\":[{\"type\":\"verification_exception\",\"reason\":\"Found 1 problem\\nline -1:-1: Unknown index ";
+        return "\"caused_by\":{\"type\":\"verification_exception\",\"reason\":\"Found 1 problem\\nline -1:-1: Unknown index ";
     }
 
     protected void assertErrorMessageWhenAllowNoIndicesIsFalse(String reqParameter) throws IOException {
@@ -30,5 +32,10 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
         //TODO: revisit after https://github.com/elastic/elasticsearch/issues/64197 is closed
         assertErrorMessage("inexistent1,inexistent2", reqParameter, "\"root_cause\":[{\"type\":\"index_not_found_exception\","
             + "\"reason\":\"no such index [null]\"");
+    }
+
+    @Override
+    protected String indexPattern(String pattern) {
+        return qualifiedPattern(pattern);
     }
 }

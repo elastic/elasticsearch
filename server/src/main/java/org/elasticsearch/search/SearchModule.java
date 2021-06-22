@@ -843,7 +843,8 @@ public class SearchModule {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
 
-    private CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(List<SearchPlugin> plugins) {
+    private CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(
+        List<SearchPlugin> plugins) {
         CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = null;
         for (SearchPlugin plugin : plugins) {
             final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> d = plugin.getRequestCacheKeyDifferentiator();

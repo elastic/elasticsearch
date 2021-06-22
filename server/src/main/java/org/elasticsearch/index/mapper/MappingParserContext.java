@@ -25,7 +25,7 @@ import java.util.function.Supplier;
  * Holds everything that is needed to parse mappings. This is carried around while parsing mappings whether that
  * be from a dynamic template or from index mappings themselves.
  */
-public class MappingsParserContext {
+public class MappingParserContext {
 
     private final Function<String, SimilarityProvider> similarityLookupService;
     private final Function<String, Mapper.TypeParser> typeParsers;
@@ -38,16 +38,16 @@ public class MappingsParserContext {
     private final IndexSettings indexSettings;
     private final BooleanSupplier idFieldDataEnabled;
 
-    public MappingsParserContext(Function<String, SimilarityProvider> similarityLookupService,
-                                 Function<String, Mapper.TypeParser> typeParsers,
-                                 Function<String, RuntimeField.Parser> runtimeFieldParsers,
-                                 Version indexVersionCreated,
-                                 Supplier<SearchExecutionContext> searchExecutionContextSupplier,
-                                 DateFormatter dateFormatter,
-                                 ScriptCompiler scriptCompiler,
-                                 IndexAnalyzers indexAnalyzers,
-                                 IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
+    public MappingParserContext(Function<String, SimilarityProvider> similarityLookupService,
+                                Function<String, Mapper.TypeParser> typeParsers,
+                                Function<String, RuntimeField.Parser> runtimeFieldParsers,
+                                Version indexVersionCreated,
+                                Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+                                DateFormatter dateFormatter,
+                                ScriptCompiler scriptCompiler,
+                                IndexAnalyzers indexAnalyzers,
+                                IndexSettings indexSettings,
+                                BooleanSupplier idFieldDataEnabled) {
         this.similarityLookupService = similarityLookupService;
         this.typeParsers = typeParsers;
         this.runtimeFieldParsers = runtimeFieldParsers;
@@ -127,12 +127,12 @@ public class MappingsParserContext {
         return scriptCompiler;
     }
 
-    MappingsParserContext createMultiFieldContext(MappingsParserContext in) {
+    MappingParserContext createMultiFieldContext(MappingParserContext in) {
         return new MultiFieldParserContext(in);
     }
 
-    private static class MultiFieldParserContext extends MappingsParserContext {
-        MultiFieldParserContext(MappingsParserContext in) {
+    private static class MultiFieldParserContext extends MappingParserContext {
+        MultiFieldParserContext(MappingParserContext in) {
             super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
                 in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
                 in.idFieldDataEnabled);
@@ -144,8 +144,8 @@ public class MappingsParserContext {
         }
     }
 
-    static class DynamicTemplateParserContext extends MappingsParserContext {
-        DynamicTemplateParserContext(MappingsParserContext in) {
+    static class DynamicTemplateParserContext extends MappingParserContext {
+        DynamicTemplateParserContext(MappingParserContext in) {
             super(in.similarityLookupService, in.typeParsers, in.runtimeFieldParsers, in.indexVersionCreated,
                 in.searchExecutionContextSupplier, in.dateFormatter, in.scriptCompiler, in.indexAnalyzers, in.indexSettings,
                 in.idFieldDataEnabled);

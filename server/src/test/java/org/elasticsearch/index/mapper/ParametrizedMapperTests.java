@@ -138,7 +138,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         @Override
         public Mapper.Builder parse(String name,
                                     Map<String, Object> node,
-                                    MappingsParserContext parserContext) throws MapperParsingException {
+                                    MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;
@@ -197,7 +197,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        MappingsParserContext pc = new MappingsParserContext(s -> null, s -> {
+        MappingParserContext pc = new MappingParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -210,7 +210,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             throw new UnsupportedOperationException();
         });
         if (fromDynamicTemplate) {
-            pc = new MappingsParserContext.DynamicTemplateParserContext(pc);
+            pc = new MappingParserContext.DynamicTemplateParserContext(pc);
         }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)

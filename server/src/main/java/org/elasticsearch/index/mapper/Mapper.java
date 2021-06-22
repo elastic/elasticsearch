@@ -32,7 +32,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     }
 
     public interface TypeParser {
-        Mapper.Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext) throws MapperParsingException;
+        Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
     }
 
     private final String simpleName;

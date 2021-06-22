@@ -581,7 +581,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         public final String name;
         private final List<String> deprecatedNames = new ArrayList<>();
         private final Supplier<T> defaultValue;
-        private final TriFunction<String, MappingsParserContext, Object, T> parser;
+        private final TriFunction<String, MappingParserContext, Object, T> parser;
         private final Function<FieldMapper, T> initializer;
         private boolean acceptsNull = false;
         private Consumer<T> validator = null;
@@ -604,7 +604,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param initializer   a function that reads a parameter value from an existing mapper
          */
         public Parameter(String name, boolean updateable, Supplier<T> defaultValue,
-                         TriFunction<String, MappingsParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
+                         TriFunction<String, MappingParserContext, Object, T> parser, Function<FieldMapper, T> initializer) {
             this.name = name;
             this.defaultValue = Objects.requireNonNull(defaultValue);
             this.value = null;
@@ -766,7 +766,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param context   the parser context
          * @param in        the object
          */
-        public void parse(String field, MappingsParserContext context, Object in) {
+        public void parse(String field, MappingParserContext context, Object in) {
             setValue(parser.apply(field, context, in));
         }
 
@@ -1106,7 +1106,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * @param parserContext     the parser context
          * @param fieldNode         the root node of the map of mappings for this field
          */
-        public final void parse(String name, MappingsParserContext parserContext, Map<String, Object> fieldNode) {
+        public final void parse(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             Map<String, Parameter<?>> paramsMap = new HashMap<>();
             Map<String, Parameter<?>> deprecatedParamsMap = new HashMap<>();
             for (Parameter<?> param : getParameters()) {
@@ -1210,7 +1210,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
     }
 
-    public static BiConsumer<String, MappingsParserContext> notInMultiFields(String type) {
+    public static BiConsumer<String, MappingParserContext> notInMultiFields(String type) {
         return (n, c) -> {
             if (c.isWithinMultiField()) {
                 throw new MapperParsingException("Field [" + n + "] of type [" + type + "] can't be used in multifields");
@@ -1223,27 +1223,27 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
      */
     public static final class TypeParser implements Mapper.TypeParser {
 
-        private final BiFunction<String, MappingsParserContext, Builder> builderFunction;
-        private final BiConsumer<String, MappingsParserContext> contextValidator;
+        private final BiFunction<String, MappingParserContext, Builder> builderFunction;
+        private final BiConsumer<String, MappingParserContext> contextValidator;
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
-        public TypeParser(BiFunction<String, MappingsParserContext, Builder> builderFunction) {
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
             this(builderFunction, (n, c) -> {});
         }
 
         public TypeParser(
-            BiFunction<String, MappingsParserContext, Builder> builderFunction,
-            BiConsumer<String, MappingsParserContext> contextValidator
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
+            BiConsumer<String, MappingParserContext> contextValidator
         ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             contextValidator.accept(name, parserContext);
             Builder builder = builderFunction.apply(name, parserContext);
             builder.parse(name, parserContext, node);

@@ -52,7 +52,7 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingsParserContext;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -446,7 +446,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        when(mapperService.parserContext()).thenReturn(new MappingsParserContext(
+        when(mapperService.parserContext()).thenReturn(new MappingParserContext(
             null,
             mapperRegistry.getMapperParsers()::get,
             mapperRegistry.getRuntimeFieldParsers()::get,

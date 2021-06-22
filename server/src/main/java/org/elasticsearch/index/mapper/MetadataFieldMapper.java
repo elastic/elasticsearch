@@ -27,14 +27,14 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
         @Override
         MetadataFieldMapper.Builder parse(String name, Map<String, Object> node,
-                                               MappingsParserContext parserContext) throws MapperParsingException;
+                                               MappingParserContext parserContext) throws MapperParsingException;
 
         /**
          * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
          *
          * @param parserContext context that may be useful to build the field like analyzers
          */
-        MetadataFieldMapper getDefault(MappingsParserContext parserContext);
+        MetadataFieldMapper getDefault(MappingParserContext parserContext);
     }
 
     /**
@@ -61,43 +61,43 @@ public abstract class MetadataFieldMapper extends FieldMapper {
      */
     public static class FixedTypeParser implements TypeParser {
 
-        final Function<MappingsParserContext, MetadataFieldMapper> mapperParser;
+        final Function<MappingParserContext, MetadataFieldMapper> mapperParser;
 
-        public FixedTypeParser(Function<MappingsParserContext, MetadataFieldMapper> mapperParser) {
+        public FixedTypeParser(Function<MappingParserContext, MetadataFieldMapper> mapperParser) {
             this.mapperParser = mapperParser;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             throw new MapperParsingException(name + " is not configurable");
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingsParserContext parserContext) {
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
 
-        final Function<MappingsParserContext, MetadataFieldMapper> defaultMapperParser;
-        final Function<MappingsParserContext, Builder> builderFunction;
+        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
+        final Function<MappingParserContext, Builder> builderFunction;
 
-        public ConfigurableTypeParser(Function<MappingsParserContext, MetadataFieldMapper> defaultMapperParser,
-                                      Function<MappingsParserContext, Builder> builderFunction) {
+        public ConfigurableTypeParser(Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
+                                      Function<MappingParserContext, Builder> builderFunction) {
             this.defaultMapperParser = defaultMapperParser;
             this.builderFunction = builderFunction;
         }
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             Builder builder = builderFunction.apply(parserContext);
             builder.parse(name, parserContext, node);
             return builder;
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingsParserContext parserContext) {
+        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
     }

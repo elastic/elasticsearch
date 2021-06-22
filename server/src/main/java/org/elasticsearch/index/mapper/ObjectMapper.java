@@ -199,7 +199,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @Override
         public Mapper.Builder parse(String name,
                                     Map<String, Object> node,
-                                    MappingsParserContext parserContext)
+                                    MappingParserContext parserContext)
             throws MapperParsingException {
             ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
             parseNested(name, node, builder);
@@ -217,7 +217,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         @SuppressWarnings({"unchecked", "rawtypes"})
         protected static boolean parseObjectOrDocumentTypeProperties(String fieldName,
                                                                      Object fieldNode,
-                                                                     MappingsParserContext parserContext,
+                                                                     MappingParserContext parserContext,
                                                                      ObjectMapper.Builder builder) {
             if (fieldName.equals("dynamic")) {
                 String value = fieldNode.toString();
@@ -285,7 +285,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected static void parseProperties(ObjectMapper.Builder objBuilder,
                                               Map<String, Object> propsNode,
-                                              MappingsParserContext parserContext) {
+                                              MappingParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();

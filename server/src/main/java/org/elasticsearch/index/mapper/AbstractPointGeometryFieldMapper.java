@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeometryFieldMapper<T> {
 
     public static <T> Parameter<T> nullValueParam(Function<FieldMapper, T> initializer,
-                                                  TriFunction<String, MappingsParserContext, Object, T> parser,
+                                                  TriFunction<String, MappingParserContext, Object, T> parser,
                                                   Supplier<T> def) {
         return new Parameter<T>("null_value", false, def, parser, initializer);
     }

@@ -157,7 +157,7 @@ public class TextFieldMapper extends FieldMapper {
         }
     }
 
-    private static PrefixConfig parsePrefixConfig(String propName, MappingsParserContext parserContext, Object propNode) {
+    private static PrefixConfig parsePrefixConfig(String propName, MappingParserContext parserContext, Object propNode) {
         if (propNode == null) {
             return null;
         }
@@ -216,7 +216,7 @@ public class TextFieldMapper extends FieldMapper {
         Defaults.FIELDDATA_MIN_FREQUENCY, Defaults.FIELDDATA_MAX_FREQUENCY, Defaults.FIELDDATA_MIN_SEGMENT_SIZE
     );
 
-    private static FielddataFrequencyFilter parseFrequencyFilter(String name, MappingsParserContext parserContext, Object node) {
+    private static FielddataFrequencyFilter parseFrequencyFilter(String name, MappingParserContext parserContext, Object node) {
         Map<?,?> frequencyFilter = (Map<?, ?>) node;
         double minFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("min"), 0);
         double maxFrequency = XContentMapValues.nodeDoubleValue(frequencyFilter.remove("max"), Integer.MAX_VALUE);

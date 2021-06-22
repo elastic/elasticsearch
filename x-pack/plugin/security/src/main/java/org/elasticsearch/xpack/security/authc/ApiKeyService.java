@@ -34,7 +34,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.cache.RemovalNotification;
+import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -118,6 +118,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -193,6 +195,11 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
+    private static final long EVICTION_CHECKING_INTERVAL = 600_000L; // 600K ms = 10 minutes
+    private static final long EVICTION_WARNING_THRESHOLD = 15 * EVICTION_CHECKING_INTERVAL / 1000; // 15 eviction per sec = 9000 in 10 min
+    private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
+    private final LongAdder evictionCounter = new LongAdder();
+
     public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
@@ -214,10 +221,20 @@ public class ApiKeyService {
                 .setExpireAfterAccess(ttl)
                 .setMaximumWeight(maximumWeight)
                 .removalListener(notification -> {
-                    if (RemovalNotification.RemovalReason.EVICTED == notification.getRemovalReason()) {
-                        if (getApiKeyAuthCache().count() >= maximumWeight) {
-                            logger.trace("API key with ID [{}] was evicted from the authentication cache, " +
-                                    "possibly due to cache size limit", notification.getKey());
+                    if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
+                        evictionCounter.increment();
+                        logger.trace("API key with ID [{}] was evicted from the authentication cache, " +
+                                "possibly due to cache size limit", notification.getKey());
+                        final long previousCheck = lastEvictionCheckedAt.get();
+                        final long now = clock.instant().toEpochMilli();
+                        if (now - previousCheck >= EVICTION_CHECKING_INTERVAL && lastEvictionCheckedAt.compareAndSet(previousCheck, now)) {
+                            final long sum = evictionCounter.sum();
+                            evictionCounter.add(-sum); // reset by decrease
+                            if (sum >= EVICTION_WARNING_THRESHOLD) {
+                                logger.warn("Possible thrashing for API key authentication cache, " +
+                                    "[{}] eviction due to cache size within last [{}] seconds",
+                                    sum, EVICTION_CHECKING_INTERVAL / 1000);
+                            }
                         }
                     }
                 })

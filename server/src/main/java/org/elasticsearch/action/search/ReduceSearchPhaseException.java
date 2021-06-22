@@ -27,4 +27,15 @@ public class ReduceSearchPhaseException extends SearchPhaseExecutionException {
     public ReduceSearchPhaseException(StreamInput in) throws IOException {
         super(in);
     }
+
+    @Override
+    public RestStatus status() {
+        ShardSearchFailure[] shardFailures = super.shardFailures();
+        if (shardFailures.length == 0) {
+            // if no successful shards, the failure can be during reduce phase
+            // on coordinator node. so return an INTERNAL_SERVER_ERROR blindly
+            return RestStatus.INTERNAL_SERVER_ERROR;
+        }
+        return super.status();
+    }
 }

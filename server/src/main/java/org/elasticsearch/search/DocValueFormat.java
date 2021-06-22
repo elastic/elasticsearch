@@ -237,10 +237,11 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         public DateTime(StreamInput in) throws IOException {
-            this.formatter = DateFormatter.forPattern(in.readString());
-            this.parser = formatter.toDateMathParser();
+            String formatterPattern = in.readString();
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
+            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone);
+            this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             if (in.getVersion().onOrAfter(Version.V_7_7_0) && in.getVersion().before(Version.V_8_0_0)) {
                 /* when deserialising from 7.7+ nodes expect a flag indicating if a pattern is of joda style

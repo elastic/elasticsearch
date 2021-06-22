@@ -66,9 +66,10 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
         WaitForDataTierStep step = new WaitForDataTierStep(randomStepKey(), randomStepKey(), tierPreference);
 
         verify (step, ClusterState.EMPTY_STATE, false, "no nodes for tiers [" + tierPreference + "] available");
-        verify(step, state(List.of(notIncludedTier)), false, "no nodes for tiers [" + tierPreference + "] available");
+        verify(step, state(org.elasticsearch.core.List.of(notIncludedTier)), false,
+            "no nodes for tiers [" + tierPreference + "] available");
         verify(step, state(includedTiers), true, null);
-        verify(step, state(List.of(DiscoveryNodeRole.DATA_ROLE.roleName())), true, null);
+        verify(step, state(org.elasticsearch.core.List.of(DiscoveryNodeRole.DATA_ROLE.roleName())), true, null);
     }
 
     private void verify(WaitForDataTierStep step, ClusterState state, boolean complete, String message) {
@@ -89,9 +90,9 @@ public class WaitForDataTierStepTests extends AbstractStepTestCase<WaitForDataTi
                     "node_" + i,
                     UUIDs.randomBase64UUID(),
                     buildNewFakeTransportAddress(),
-                    Map.of(),
+                    org.elasticsearch.core.Map.of(),
                     randomSubsetOf(between(1, roles.size()), roles).stream()
-                        .map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet()),
+                        .map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet()),
                     Version.CURRENT
                 )
             ).forEach(builder::add);

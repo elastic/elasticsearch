@@ -73,7 +73,7 @@ public class FrozenExistenceDeciderService implements AutoscalingDeciderService 
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
+        return org.elasticsearch.core.List.of(DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE);
     }
 
     public static class FrozenExistenceReason implements AutoscalingDeciderResult.Reason {

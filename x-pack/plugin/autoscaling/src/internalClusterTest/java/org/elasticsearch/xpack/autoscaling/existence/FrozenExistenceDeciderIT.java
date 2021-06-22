@@ -31,8 +31,6 @@ import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
-import java.util.Map;
 
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
@@ -70,7 +68,7 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
+        return org.elasticsearch.core.List.of(LocalStateAutoscalingAndSearchableSnapshotsAndIndexLifecycle.class);
     }
 
     public void testZeroToOne() throws Exception {
@@ -88,7 +86,10 @@ public class FrozenExistenceDeciderIT extends AbstractFrozenAutoscalingIntegTest
             TimeValue.ZERO,
             singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(fsRepoName, randomBoolean()))
         );
-        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("policy", Map.of("hot", hotPhase, "frozen", frozenPhase));
+        LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(
+            "policy",
+            org.elasticsearch.core.Map.of("hot", hotPhase, "frozen", frozenPhase)
+        );
         PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
         assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
 

@@ -63,7 +63,7 @@ public final class FieldAndFormat implements Writeable, ToXContentObject {
                 return null;
             } else {
                 String text = p.text();
-                if (text.equals("use_field_mapping")) {
+                if (text.equals(USE_DEFAULT_FORMAT)) {
                     DEPRECATION_LOGGER.compatibleApiWarning("explicit_default_format",
                         "[" + USE_DEFAULT_FORMAT + "] is a special format that was only used to " +
                             "ease the transition to 7.x. It has become the default and shouldn't be set explicitly anymore.");

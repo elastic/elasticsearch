@@ -493,7 +493,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private void indexValue(ParseContext context, String value) {
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 
@@ -550,4 +555,5 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
+
 }

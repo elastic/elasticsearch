@@ -284,7 +284,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, indexSettings.inTimeSeriesMode());
         newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;

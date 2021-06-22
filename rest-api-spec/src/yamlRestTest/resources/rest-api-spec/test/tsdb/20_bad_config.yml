@@ -1,0 +1,139 @@
+---
+"no timestamp":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /unknown index sort field:\[@timestamp\] required by \[index\.time_series_mode\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                metricset:
+                  type: keyword
+                  dimension: true
+
+---
+"no dimenions":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /Index configured with \[index.time_series_mode\] requires at least one field configured with \[dimension:true\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+
+---
+"dimension with ignore_above":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /Field \[ignore_above\] cannot be set in conjunction with field \[dimension\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                  ignore_above: 1024
+
+---
+"dimension with normalizer":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /Field \[normalizer\] cannot be set in conjunction with field \[dimension\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                  normalizer: lowercase
+
+---
+"dimension with super long name":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /Dimension name must be less than \[512\] bytes but \[.+\..+\..+\..+\..+\] was \[524\]/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                superduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperlong:
+                  properties:
+                    superduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperlong:
+                      properties:
+                        superduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperlong:
+                          properties:
+                            superduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperlong:
+                              properties:
+                                superduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperduperlong:
+                                  type: keyword
+                                  dimension: true
+
+---
+"provide sort in time series mode":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /Can't set \[index\.sort\.field\] in time series mode/
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                sort:
+                  field: "@timestamp"
+                  order: desc
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true

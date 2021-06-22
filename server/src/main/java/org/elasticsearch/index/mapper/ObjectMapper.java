@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
@@ -429,5 +430,21 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
+    }
+
+    @Override
+    protected TimeSeriesIdGenerator.ObjectComponent selectTimeSeriesIdComponents() {
+        Map<String, TimeSeriesIdGenerator.Component> components = null;
+        for (Mapper mapper : this) {
+            TimeSeriesIdGenerator.Component sub = mapper.selectTimeSeriesIdComponents();
+            if (sub == null) {
+                continue;
+            }
+            if (components == null) {
+                components = new HashMap<>();
+            }
+            components.put(mapper.simpleName(), sub);
+        }
+        return components == null ? null : new TimeSeriesIdGenerator.ObjectComponent(components);
     }
 }

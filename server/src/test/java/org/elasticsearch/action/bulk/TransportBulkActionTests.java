@@ -30,9 +30,10 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -61,7 +62,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class TransportBulkActionTests extends ESTestCase {
-
     /** Services needed by bulk action */
     private TransportService transportService;
     private ClusterService clusterService;
@@ -75,9 +75,19 @@ public class TransportBulkActionTests extends ESTestCase {
         boolean indexCreated = false; // set when the "real" index is created
 
         TestTransportBulkAction() {
-            super(TransportBulkActionTests.this.threadPool, transportService, clusterService, null,
-                    null, new ActionFilters(Collections.emptySet()), new Resolver(),
-                    new IndexingPressure(Settings.EMPTY), EmptySystemIndices.INSTANCE);
+            super(
+                TransportBulkActionTests.this.threadPool,
+                transportService,
+                clusterService,
+                null,
+                null,
+                new ActionFilters(Collections.emptySet()),
+                new Resolver(),
+                new IndexingPressure(Settings.EMPTY),
+                EmptySystemIndices.INSTANCE,
+                meta -> null,
+                System::nanoTime
+            );
         }
 
         @Override
@@ -235,6 +245,39 @@ public class TransportBulkActionTests extends ESTestCase {
             new IndexRequest(DataStream.getDefaultBackingIndexName(dataStreamName, 1L)).opType(DocWriteRequest.OpType.INDEX)
             .routing("custom");
         prohibitCustomRoutingOnDataStream(writeRequestAgainstIndex, metadata);
+    }
+
+    public void testProhibitedInTimeSeriesModeWithoutATarget() throws Exception {
+        // Doesn't throw
+        TransportBulkAction.prohibitInTimeSeriesMode(prohibitedInTimeSeriesMode(), null);
+    }
+
+    public void testProhibitedInTimeSeriesModeNotInTimeSeriesMode() throws Exception {
+        Settings settings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        IndexMetadata writeIndex = IndexMetadata.builder("idx").settings(settings).numberOfReplicas(0).numberOfShards(1).build();
+        // Doesn't throw
+        TransportBulkAction.prohibitInTimeSeriesMode(prohibitedInTimeSeriesMode(), new IndexAbstraction.Index(writeIndex));
+    }
+
+    public void testProhibitedInTimeSeriesMode() throws Exception {
+        Settings settings = Settings.builder()
+            .put("index.version.created", Version.CURRENT)
+            .put(IndexSettings.TIME_SERIES_MODE.getKey(), true)
+            .build();
+        IndexMetadata writeIndex = IndexMetadata.builder("idx").settings(settings).numberOfReplicas(0).numberOfShards(1).build();
+        DocWriteRequest<?> prohibited = prohibitedInTimeSeriesMode();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportBulkAction.prohibitInTimeSeriesMode(prohibited, new IndexAbstraction.Index(writeIndex))
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("[" + prohibited.opType() + "] is not supported because the destination index [idx] is in time series mode")
+        );
+    }
+
+    private DocWriteRequest<?> prohibitedInTimeSeriesMode() {
+        return randomBoolean() ? new UpdateRequest("idx", "0") : new DeleteRequest("idx").id("0");
     }
 
     public void testOnlySystem() {

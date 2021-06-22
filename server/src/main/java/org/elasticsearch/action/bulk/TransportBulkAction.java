@@ -50,10 +50,12 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.NodeClosedException;
@@ -74,6 +76,7 @@ import java.util.SortedMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
@@ -99,20 +102,22 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private static final String DROPPED_ITEM_WITH_AUTO_GENERATED_ID = "auto-generated";
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+    private final Function<IndexMetadata, TimeSeriesIdGenerator> timeSeriesIdGeneratorLookup;
 
     @Inject
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                               IndexingPressure indexingPressure, SystemIndices systemIndices) {
+                               IndexingPressure indexingPressure, SystemIndices systemIndices, IndicesService indicesService) {
         this(threadPool, transportService, clusterService, ingestService, client, actionFilters,
-            indexNameExpressionResolver, indexingPressure, systemIndices, System::nanoTime);
+            indexNameExpressionResolver, indexingPressure, systemIndices, indicesService.getTimeSeriesGeneratorLookup(), System::nanoTime);
     }
 
     public TransportBulkAction(ThreadPool threadPool, TransportService transportService,
                                ClusterService clusterService, IngestService ingestService,
                                NodeClient client, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                IndexingPressure indexingPressure, SystemIndices systemIndices,
+                               Function<IndexMetadata, TimeSeriesIdGenerator> timeSeriesIdGeneratorLookup,
                                LongSupplier relativeTimeProvider) {
         super(BulkAction.NAME, transportService, actionFilters, BulkRequest::new, ThreadPool.Names.SAME);
         Objects.requireNonNull(relativeTimeProvider);
@@ -125,6 +130,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
+        this.timeSeriesIdGeneratorLookup = timeSeriesIdGeneratorLookup;
         clusterService.addStateApplier(this.ingestForwarder);
     }
 
@@ -341,6 +347,21 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
+    static void prohibitInTimeSeriesMode(DocWriteRequest<?> writeRequest, IndexAbstraction abstraction) {
+        if (abstraction == null || abstraction.getWriteIndex() == null) {
+            return;
+        }
+        if (abstraction.getWriteIndex().inTimeSeriesMode()) {
+            throw new IllegalArgumentException(
+                "["
+                    + writeRequest.opType()
+                    + "] is not supported because the destination index ["
+                    + abstraction.getName()
+                    + "] is in time series mode"
+            );
+        }
+    }
+
     boolean isOnlySystem(BulkRequest request, SortedMap<String, IndexAbstraction> indicesLookup, SystemIndices systemIndices) {
         return request.getIndices().stream().allMatch(indexName -> isSystemIndex(indicesLookup, systemIndices, indexName));
     }
@@ -448,14 +469,16 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                             final IndexMetadata indexMetadata = metadata.index(concreteIndex);
                             MappingMetadata mappingMd = indexMetadata.mapping();
                             Version indexCreated = indexMetadata.getCreationVersion();
-                            indexRequest.resolveRouting(metadata);
+                            indexRequest.resolveRouting(metadata, indexAbstraction, timeSeriesIdGeneratorLookup);
                             indexRequest.process(indexCreated, mappingMd, concreteIndex.getName());
                             break;
                         case UPDATE:
+                            prohibitInTimeSeriesMode(docWriteRequest, indexAbstraction);
                             TransportUpdateAction.resolveAndValidateRouting(metadata, concreteIndex.getName(),
                                 (UpdateRequest) docWriteRequest);
                             break;
                         case DELETE:
+                            prohibitInTimeSeriesMode(docWriteRequest, indexAbstraction);
                             docWriteRequest.routing(metadata.resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
                             // check if routing is required, if so, throw error if routing wasn't specified
                             if (docWriteRequest.routing() == null && metadata.routingRequired(concreteIndex.getName())) {

@@ -80,6 +80,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -233,15 +234,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final TimestampFieldMapperService timestampFieldMapperService;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
-
-    @Override
-    protected void doStart() {
-        // Start thread that will manage cleaning the field data cache periodically
-        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
-
-        // Start watching for timestamp fields
-        clusterService.addStateApplier(timestampFieldMapperService);
-    }
+    private final TimeSeriesIdGeneratorService timeSeriesIdGeneratorService;
 
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NamedXContentRegistry xContentRegistry,
                           AnalysisRegistry analysisRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
@@ -340,6 +333,17 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
+        this.timeSeriesIdGeneratorService = TimeSeriesIdGeneratorService.build(settings, threadPool, this);
+    }
+
+    @Override
+    protected void doStart() {
+        // Start thread that will manage cleaning the field data cache periodically
+        threadPool.schedule(this.cacheCleaner, this.cleanInterval, ThreadPool.Names.SAME);
+
+        // Start watching for mapping changes
+        clusterService.addStateApplier(timestampFieldMapperService);
+        clusterService.addStateApplier(timeSeriesIdGeneratorService);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -352,6 +356,8 @@ public class IndicesService extends AbstractLifecycleComponent
     protected void doStop() {
         clusterService.removeApplier(timestampFieldMapperService);
         timestampFieldMapperService.doStop();
+        clusterService.removeApplier(timeSeriesIdGeneratorService);
+        timeSeriesIdGeneratorService.doStop();
 
         ThreadPool.terminate(danglingIndicesThreadPoolExecutor, 10, TimeUnit.SECONDS);
 
@@ -513,7 +519,10 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Returns an IndexService for the specified index if exists otherwise returns <code>null</code>.
+     * Returns an IndexService for the specified index if exists
+     * <strong>locally</strong> otherwise returns <code>null</code>.
+     * If the index exists in the cluster state but not locally this will
+     * return <code>null</code>.
      */
     @Override
     @Nullable
@@ -1702,4 +1711,7 @@ public class IndicesService extends AbstractLifecycleComponent
         return timestampFieldMapperService.getTimestampFieldType(index);
     }
 
+    public Function<IndexMetadata, TimeSeriesIdGenerator> getTimeSeriesGeneratorLookup() {
+        return timeSeriesIdGeneratorService;
+    }
 }

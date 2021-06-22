@@ -1,0 +1,131 @@
+# Test the time_series_mode properly groups by _tsid. If we could put this in
+# rest-api-spec we would, but it requires painless.
+
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:53:34.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:53:34.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+
+---
+"each shard has unique _tsids":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            check:
+              scripted_metric:
+                init_script: "state.timeSeries = new HashSet()"
+                map_script: "state.timeSeries.add(doc._tsid.value)"
+                combine_script: "return state.timeSeries"
+                reduce_script: |
+                  Set timeSeries = new TreeSet();
+                  for (s in states) {
+                    for (ts in s) {
+                      boolean newTs = timeSeries.add(ts);
+                      if (false == newTs) {
+                        throw new IllegalArgumentException(ts + " appeared in two shards");
+                      }
+                    }
+                  }
+                  return timeSeries;
+
+  - match: {hits.total.value: 8}
+  - length: {aggregations.check.value: 2}
+
+
+---
+"segments are sorted":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            check:
+              scripted_metric:
+                init_script: "state.timeSeries = new HashMap()"
+                map_script: |
+                  String ts = doc._tsid.value;
+                  long time = doc["@timestamp"].value.toInstant().toEpochMilli();
+                  Long prevTime = state.timeSeries.put(ts, time);
+                  if (prevTime == null) {
+                    return; // First time seeing
+                  }
+                  if (prevTime.longValue() > time) {
+                    throw new IllegalArgumentException(ts + " appeared out of order. " + prevTime + " was before " + time);
+                  }
+                combine_script: "return state.timeSeries"
+                reduce_script: |
+                  Map timeSeries = new TreeMap();
+                  for (s in states) {
+                    for (ts in s.entrySet()) {
+                      Long prev = timeSeries.put(ts.key, ts.value);
+                      if (prev != null) {
+                        throw new IllegalArgumentException(ts.key + " appeared in two shards");
+                      }
+                    }
+                  }
+                  return timeSeries;
+
+  - match: {hits.total.value: 8}
+  - length: {aggregations.check.value: 2}

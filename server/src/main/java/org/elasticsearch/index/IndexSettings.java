@@ -10,6 +10,7 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.Loggers;
@@ -19,7 +20,9 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.node.Node;
@@ -317,6 +320,29 @@ public final class IndexSettings {
     public static final Setting<Double> FILE_BASED_RECOVERY_THRESHOLD_SETTING
         = Setting.doubleSetting("index.recovery.file_based_threshold", 0.1d, 0.0d, Setting.Property.IndexScope);
 
+    private static final Boolean TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED;
+
+    static {
+        final String property = System.getProperty("es.time_series_mode_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.time_series_mode_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
+    }
+
+    public static boolean isTimeSeriesModeEnabled() {
+        return Build.CURRENT.isSnapshot() || (TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED != null && TIME_SERIES_MODE_FEATURE_FLAG_REGISTERED);
+    }
+
+    /**
+     * Is the index in time series mode? Time series mode indices are
+     * automatically routed and sorted on a the
+     * {@link TimeSeriesIdFieldMapper _tsid} field. {@code _tsid} itself
+     * is automatically {@link TimeSeriesIdGenerator generated} using
+     * the fields marked as "dimensions".
+     */
+    public static final Setting<Boolean> TIME_SERIES_MODE = Setting.boolSetting("index.time_series_mode", false, Property.IndexScope);
+
     private final Index index;
     private final Version version;
     private final Logger logger;
@@ -395,6 +421,15 @@ public final class IndexSettings {
      * The maximum length of regex string allowed in a regexp query.
      */
     private volatile int maxRegexLength;
+
+    /**
+     * Is the index in time series mode? Time series mode indices are
+     * automatically routed and sorted on a the
+     * {@link TimeSeriesIdFieldMapper _tsid} field. {@code _tsid} itself
+     * is automatically {@link TimeSeriesIdGenerator generated} using
+     * the fields marked as "dimensions".
+     */
+    private final boolean timeSeriesMode;
 
     /**
      * Returns the default search fields for this index.
@@ -497,6 +532,7 @@ public final class IndexSettings {
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
+        timeSeriesMode = scopedSettings.get(TIME_SERIES_MODE);
         this.indexSortConfig = new IndexSortConfig(this);
         searchIdleAfter = scopedSettings.get(INDEX_SEARCH_IDLE_AFTER);
         defaultPipeline = scopedSettings.get(DEFAULT_PIPELINE);
@@ -1032,5 +1068,9 @@ public final class IndexSettings {
 
     private void setMappingDimensionFieldsLimit(long value) {
         this.mappingDimensionFieldsLimit = value;
+    }
+
+    public boolean inTimeSeriesMode() {
+        return timeSeriesMode;
     }
 }

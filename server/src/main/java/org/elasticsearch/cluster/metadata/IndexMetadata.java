@@ -12,6 +12,7 @@ import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -23,14 +24,6 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.allocation.IndexMetadataUpdater;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenIntMap;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -41,8 +34,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -389,6 +391,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final boolean isSystem;
 
     private final IndexLongFieldRange timestampRange;
+    private final boolean timeSeriesMode;
 
     private IndexMetadata(
             final Index index,
@@ -415,7 +418,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
-            final IndexLongFieldRange timestampRange) {
+            final IndexLongFieldRange timestampRange,
+            final boolean inTimeSeriesMode) {
 
         this.index = index;
         this.version = version;
@@ -448,6 +452,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
         this.timestampRange = timestampRange;
+        this.timeSeriesMode = inTimeSeriesMode;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -1281,6 +1286,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
 
             final String uuid = settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+            final boolean inTimeSeriesMode = IndexSettings.TIME_SERIES_MODE.get(settings);
 
             return new IndexMetadata(
                     new Index(index, uuid),
@@ -1307,7 +1313,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                timestampRange);
+                    timestampRange,
+                    inTimeSeriesMode);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1637,6 +1644,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      */
     public int getRoutingFactor() {
         return routingFactor;
+    }
+
+    public boolean inTimeSeriesMode() {
+        return timeSeriesMode;
     }
 
     /**

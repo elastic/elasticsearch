@@ -102,6 +102,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     @Override
     public void preParse(DocumentParserContext context) {
         String routing = context.sourceToParse().routing();
+        if (context.indexSettings().inTimeSeriesMode()) {
+            // TODO when we stop storing the tsid in the routing fail any request with routing in time series mode
+            // the routing will always come from the time series id.
+            return;
+        }
         if (routing != null) {
             context.doc().add(new Field(fieldType().name(), routing, Defaults.FIELD_TYPE));
             context.addToFieldNames(fieldType().name());

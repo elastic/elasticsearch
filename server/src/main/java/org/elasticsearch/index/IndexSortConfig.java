@@ -112,12 +112,31 @@ public final class IndexSortConfig {
     final FieldSortSpec[] sortSpecs;
     private final Version indexCreatedVersion;
     private final String indexName;
+    private final boolean timeSeriesMode;
 
     public IndexSortConfig(IndexSettings indexSettings) {
         final Settings settings = indexSettings.getSettings();
         this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
         this.indexName = indexSettings.getIndex().getName();
+        this.timeSeriesMode = indexSettings.inTimeSeriesMode();
+
         List<String> fields = INDEX_SORT_FIELD_SETTING.get(settings);
+        if (timeSeriesMode) {
+            if (false == fields.isEmpty()) {
+                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_FIELD_SETTING.getKey() + "] in time series mode");
+            }
+            if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_ORDER_SETTING.getKey() + "] in time series mode");
+            }
+            if (INDEX_SORT_MODE_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_MODE_SETTING.getKey() + "] in time series mode");
+            }
+            if (INDEX_SORT_MISSING_SETTING.exists(settings)) {
+                throw new IllegalArgumentException("Can't set [" + INDEX_SORT_MISSING_SETTING.getKey() + "] in time series mode");
+            }
+            this.sortSpecs = new FieldSortSpec[] { new FieldSortSpec("_tsid"), new FieldSortSpec("@timestamp") };
+            return;
+        }
         this.sortSpecs = fields.stream()
             .map((name) -> new FieldSortSpec(name))
             .toArray(FieldSortSpec[]::new);
@@ -184,7 +203,11 @@ public final class IndexSortConfig {
             FieldSortSpec sortSpec = sortSpecs[i];
             final MappedFieldType ft = fieldTypeLookup.apply(sortSpec.field);
             if (ft == null) {
-                throw new IllegalArgumentException("unknown index sort field:[" + sortSpec.field + "]");
+                String err = "unknown index sort field:[" + sortSpec.field + "]";
+                if (timeSeriesMode) {
+                    err += " required by [" + IndexSettings.TIME_SERIES_MODE.getKey() + "]";
+                }
+                throw new IllegalArgumentException(err);
             }
             if (Objects.equals(ft.name(), sortSpec.field) == false) {
                 if (this.indexCreatedVersion.onOrAfter(Version.V_7_13_0)) {

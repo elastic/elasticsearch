@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -67,10 +68,18 @@ public class IndicesModuleTests extends ESTestCase {
         }
     });
 
-    private static final String[] EXPECTED_METADATA_FIELDS = new String[]{ IgnoredFieldMapper.NAME, IdFieldMapper.NAME,
-            RoutingFieldMapper.NAME, IndexFieldMapper.NAME, SourceFieldMapper.NAME,
-            NestedPathFieldMapper.NAME, VersionFieldMapper.NAME, SeqNoFieldMapper.NAME, DocCountFieldMapper.NAME,
-            FieldNamesFieldMapper.NAME };
+    private static final String[] EXPECTED_METADATA_FIELDS = new String[] {
+        IgnoredFieldMapper.NAME,
+        IdFieldMapper.NAME,
+        RoutingFieldMapper.NAME,
+        TimeSeriesIdFieldMapper.NAME,
+        IndexFieldMapper.NAME,
+        SourceFieldMapper.NAME,
+        NestedPathFieldMapper.NAME,
+        VersionFieldMapper.NAME,
+        SeqNoFieldMapper.NAME,
+        DocCountFieldMapper.NAME,
+        FieldNamesFieldMapper.NAME };
 
     public void testBuiltinMappers() {
         IndicesModule module = new IndicesModule(Collections.emptyList());

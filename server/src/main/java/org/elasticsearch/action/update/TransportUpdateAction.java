@@ -32,12 +32,12 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -176,6 +176,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     protected void shardOperation(final UpdateRequest request, final ActionListener<UpdateResponse> listener, final int retryCount) {
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
+        if (indexService.getMetadata().inTimeSeriesMode()) {
+            throw new IllegalArgumentException(
+                "[UPDATE] is not supported because the destination index [" + shardId.getIndexName() + "] is in time series mode"
+            );
+        }
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
         switch (result.getResponseResult()) {

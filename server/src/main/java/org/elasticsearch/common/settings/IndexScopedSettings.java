@@ -36,6 +36,7 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.ShardLimitValidator;
 
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -48,7 +49,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
 
     public static final Predicate<String> INDEX_SETTINGS_KEY_PREDICATE = (s) -> s.startsWith(IndexMetadata.INDEX_SETTING_PREFIX);
 
-    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = Set.of(
+    private static final Set<Setting<?>> ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS = Set.of(
             MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY,
             MergeSchedulerConfig.AUTO_THROTTLE_SETTING,
             MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
@@ -175,6 +176,17 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                     },
                     Property.IndexScope), // this allows similarity settings to be passed
             Setting.groupSetting("index.analysis.", Property.IndexScope)); // this allows analysis settings to be passed
+
+    public static final Set<Setting<?>> BUILT_IN_INDEX_SETTINGS = builtInIndexSettings();
+
+    private static Set<Setting<?>> builtInIndexSettings() {
+        if (false == IndexSettings.isTimeSeriesModeEnabled()) {
+            return ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS;
+        }
+        Set<Setting<?>> result = new HashSet<>(ALWAYS_ENABLED_BUILT_IN_INDEX_SETTINGS);
+        result.add(IndexSettings.TIME_SERIES_MODE);
+        return Set.copyOf(result);
+    }
 
     public static final IndexScopedSettings DEFAULT_SCOPED_SETTINGS = new IndexScopedSettings(Settings.EMPTY, BUILT_IN_INDEX_SETTINGS);
 

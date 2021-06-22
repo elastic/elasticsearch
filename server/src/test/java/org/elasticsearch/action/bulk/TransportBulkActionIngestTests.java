@@ -31,12 +31,12 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
@@ -132,7 +132,9 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 null, new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                meta -> null,
+                System::currentTimeMillis
             );
         }
 
@@ -163,6 +165,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         // initialize captors, which must be members to use @Capture because of generics
         threadPool = mock(ThreadPool.class);
         when(threadPool.executor(anyString())).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
         MockitoAnnotations.initMocks(this);
         // setup services that will be called by action
         transportService = mock(TransportService.class);

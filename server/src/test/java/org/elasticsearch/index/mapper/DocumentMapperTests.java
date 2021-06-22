@@ -16,18 +16,29 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.MapXContentParser;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -58,7 +69,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
         // but merged should
         DocumentParser documentParser = new DocumentParser(null, null, null, null);
-        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged);
+        DocumentMapper mergedMapper = new DocumentMapper(documentParser, merged, false);
         assertThat(mergedMapper.mappers().getMapper("age"), notNullValue());
         assertThat(mergedMapper.mappers().getMapper("obj1.prop1"), notNullValue());
     }
@@ -284,8 +295,59 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertNotNull(documentMapper.idFieldMapper());
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
-        assertEquals(10, documentMapper.mappers().getMapping().getMetadataMappersMap().size());
-        assertEquals(10, documentMapper.mappers().getMatchingFieldNames("*").size());
+        List<Class<?>> metadataMappers = new ArrayList<>(documentMapper.mappers().getMapping().getMetadataMappersMap().keySet());
+        Collections.sort(metadataMappers, Comparator.comparing(c -> c.getSimpleName()));
+        assertMap(
+            metadataMappers,
+            matchesList().item(DocCountFieldMapper.class)
+                .item(FieldNamesFieldMapper.class)
+                .item(IdFieldMapper.class)
+                .item(IgnoredFieldMapper.class)
+                .item(IndexFieldMapper.class)
+                .item(NestedPathFieldMapper.class)
+                .item(RoutingFieldMapper.class)
+                .item(SeqNoFieldMapper.class)
+                .item(SourceFieldMapper.class)
+                .item(TimeSeriesIdFieldMapper.class)
+                .item(VersionFieldMapper.class)
+        );
+        List<String> matching = new ArrayList<>(documentMapper.mappers().getMatchingFieldNames("*"));
+        Collections.sort(matching);
+        assertMap(
+            matching,
+            matchesList().item(DocCountFieldMapper.CONTENT_TYPE)
+                .item(FieldNamesFieldMapper.CONTENT_TYPE)
+                .item(IdFieldMapper.CONTENT_TYPE)
+                .item(IgnoredFieldMapper.CONTENT_TYPE)
+                .item(IndexFieldMapper.CONTENT_TYPE)
+                .item(NestedPathFieldMapper.NAME)
+                .item(RoutingFieldMapper.CONTENT_TYPE)
+                .item(SeqNoFieldMapper.CONTENT_TYPE)
+                .item(SourceFieldMapper.CONTENT_TYPE)
+                .item(TimeSeriesIdFieldMapper.CONTENT_TYPE)
+                .item(VersionFieldMapper.CONTENT_TYPE)
+        );
+    }
+
+    public void testContainsTimeSeriesGenerator() throws IOException {
+        DocumentMapper documentMapper = createMapperService(
+            Version.CURRENT,
+            Settings.builder().put(IndexSettings.TIME_SERIES_MODE.getKey(), true).build(),
+            () -> false,
+            mapping(b -> b.startObject("dim").field("type", "keyword").field("dimension", true).endObject())
+        ).documentMapper();
+        assertThat(
+            TimeSeriesIdGenerator.parse(documentMapper.getTimeSeriesIdGenerator()
+                .generate(
+                    new MapXContentParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.IGNORE_DEPRECATIONS,
+                        Map.of("dim", "foo"),
+                        randomFrom(XContentType.values())
+                    )
+                ).streamInput()),
+            equalTo(Map.of("dim", "foo"))
+        );
     }
 
     public void testTooManyDimensionFields() {

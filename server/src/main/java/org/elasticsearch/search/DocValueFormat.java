@@ -11,6 +11,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
@@ -653,6 +655,37 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public double parseDouble(String value, boolean roundUp, LongSupplier now) {
             return Double.parseDouble(value);
+        }
+    };
+
+    DocValueFormat TIME_SERIES_ID = new TimeSeriesIdDocValueFormat();
+
+    /**
+     * DocValues format for time series id.
+     */
+    class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private TimeSeriesIdDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "tsid";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "tsid";
+        }
+
+        @Override
+        public Object format(BytesRef value) {
+            try {
+                return TimeSeriesIdGenerator.parse(new BytesArray(value).streamInput());
+            } catch (IOException e) {
+                throw new IllegalArgumentException("error formatting tsid: " + e.getMessage(), e);
+            }
         }
     };
 }

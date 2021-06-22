@@ -710,6 +710,7 @@ public class SearchModule {
         registerValueFormat(DocValueFormat.RAW.getWriteableName(), in -> DocValueFormat.RAW);
         registerValueFormat(DocValueFormat.BINARY.getWriteableName(), in -> DocValueFormat.BINARY);
         registerValueFormat(DocValueFormat.UNSIGNED_LONG_SHIFTED.getWriteableName(), in -> DocValueFormat.UNSIGNED_LONG_SHIFTED);
+        registerValueFormat(DocValueFormat.TIME_SERIES_ID.getWriteableName(), in -> DocValueFormat.TIME_SERIES_ID);
     }
 
     /**

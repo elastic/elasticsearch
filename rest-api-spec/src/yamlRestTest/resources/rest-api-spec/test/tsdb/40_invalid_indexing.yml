@@ -1,0 +1,209 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+
+---
+"index without dimensions":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: "/Error building time series id: Document must contain one of the dimensions \\[k8s.pod.uid, metricset\\]/"
+      index:
+        index: test
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+
+---
+"index over bulk without dimensions":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      bulk:
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z"}'
+  - match: {items.0.index.error.reason: "Error building time series id: Document must contain one of the dimensions [k8s.pod.uid, metricset]"}
+
+---
+"index with invalid ip":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.create:
+          index: bad_ip
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                ip:
+                  type: ip
+                  dimension: true
+
+  - do:
+      catch: "/Error building time series id: error extracting dimension \\[ip\\]: 'not an ip' is not an IP string literal./"
+      index:
+        index: bad_ip
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          ip: not an ip
+
+---
+"index with invalid number":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.create:
+          index: bad_ip
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                n:
+                  type: long
+                  dimension: true
+
+  - do:
+      catch: "/Error building time series id: error extracting dimension \\[n\\]: For input string: \"not a number\"/"
+      index:
+        index: bad_ip
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          n: not a number
+
+
+---
+"index with routing":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /routing cannot be set because the destination index \[test\] is in time series mode/
+      index:
+        index: test
+        routing: cat
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: "pod"
+          k8s:
+            pod:
+              name: "cat"
+              uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+              ip: "10.10.55.1"
+              network:
+                tx: 2001818691
+                rx: 802133794
+
+---
+"index over bulk with routing":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      bulk:
+        index: test
+        body:
+          - '{"index": {"routing": "cat"}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+  - match: {items.0.index.error.reason: "routing cannot be set because the destination index [test] is in time series mode"}
+
+---
+"index into routed alias":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  alias_with_routing
+        body:
+          index_routing:  ir
+
+  - do:
+      catch: /alias routing incompatible the destination index \[test\] because it is in time series mode/
+      index:
+        index: alias_with_routing
+        body:
+          "@timestamp": "2021-04-28T18:35:24.467Z"
+          metricset: "pod"
+          k8s:
+            pod:
+              name: "cat"
+              uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+              ip: "10.10.55.1"
+              network:
+                tx: 2001818691
+                rx: 802133794
+
+---
+"index over bulk into routed alias":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  alias_with_routing
+        body:
+          index_routing:  ir
+
+  - do:
+      bulk:
+        index: alias_with_routing
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+  - match: {items.0.index.error.reason: "alias routing incompatible the destination index [test] because it is in time series mode"}
+
+# TODO should indexing with an id fail too?
+# TODO should indexing without a @timestamp fail too?
+# TODO should an alias with search_routing fail?

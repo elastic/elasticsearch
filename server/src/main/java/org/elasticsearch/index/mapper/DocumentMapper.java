@@ -10,12 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 
 public class DocumentMapper {
     private final String type;
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
+    private final TimeSeriesIdGenerator timeSeriesIdGenerator;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -26,14 +28,15 @@ public class DocumentMapper {
         RootObjectMapper root = new RootObjectMapper.Builder(MapperService.SINGLE_MAPPING_NAME).build(new ContentPath(1));
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping);
+        return new DocumentMapper(mapperService.documentParser(), mapping, mapperService.getIndexSettings().inTimeSeriesMode());
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping) {
+    DocumentMapper(DocumentParser documentParser, Mapping mapping, boolean inTimeSeriesMode) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = mapping.toCompressedXContent();
+        timeSeriesIdGenerator = inTimeSeriesMode ? mapping.buildTimeSeriesIdGenerator() : null;
     }
 
     public Mapping mapping() {
@@ -66,6 +69,10 @@ public class DocumentMapper {
 
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
+    }
+
+    public TimeSeriesIdGenerator getTimeSeriesIdGenerator() {
+        return timeSeriesIdGenerator;
     }
 
     public MappingLookup mappers() {

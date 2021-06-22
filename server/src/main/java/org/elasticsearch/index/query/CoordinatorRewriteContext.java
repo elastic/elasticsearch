@@ -58,6 +58,7 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
 
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
+        // TODO use time series id generation?
         if (fieldName.equals(timestampFieldType.name()) == false) {
             return null;
         }

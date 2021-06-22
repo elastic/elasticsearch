@@ -9,6 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 
 import java.util.Map;
 import java.util.Objects;
@@ -66,4 +67,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      */
     public abstract void validate(MappingLookup mappers);
 
+    protected TimeSeriesIdGenerator.Component selectTimeSeriesIdComponents() {
+        return null;
+    }
 }

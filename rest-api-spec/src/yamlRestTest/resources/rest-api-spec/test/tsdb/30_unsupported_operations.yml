@@ -1,0 +1,152 @@
+setup:
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                time_series_mode: true
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:53:34.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:35:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T19:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T17:53:34.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+---
+"delete":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      catch: /\[DELETE\] is not supported because the destination index \[test\] is in time series mode/
+      delete:
+        index:   test
+        id:      1
+
+---
+"delete over _bulk":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      bulk:
+        index:   test
+        body:
+          - '{"delete": {"_id": 1}}'
+          - '{"delete": {"_id": 2}}'
+  - match: {items.0.delete.error.reason: "[DELETE] is not supported because the destination index [test] is in time series mode"}
+
+---
+"update":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  # We fail even though the document isn't found.
+  - do:
+      catch: /\[UPDATE\] is not supported because the destination index \[test\] is in time series mode/
+      update:
+        index:   test
+        id:      1
+        body:
+          doc:
+            "@timestamp": "2021-04-28T18:35:24.467Z"
+            metricset: "pod"
+            k8s:
+              pod:
+                name: "cat"
+                uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+                ip: "10.10.55.1"
+                network:
+                  tx: 2001818691
+                  rx: 802133794
+
+---
+"noop update":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: k8s.pod.uid
+          query:
+            query_string:
+              query: '+@timestamp:"2021-04-28T18:03:24.467Z" +k8s.pod.name:cat'
+
+  - do:
+      catch: /\[UPDATE\] is not supported because the destination index \[test\] is in time series mode/
+      update:
+        index:   test
+        id:      $body.hits.hits.0._id
+        body:
+          doc:
+            "@timestamp": "2021-04-28T18:35:24.467Z"
+            metricset: "pod"
+            k8s:
+              pod:
+                name: "cat"
+                uid: "947e4ced-1786-4e53-9e0c-5c447e959507"
+                ip: "10.10.55.1"
+                network:
+                  tx: 2001818691
+                  rx: 802133794
+
+---
+"update over _bulk":
+  - skip:
+      version: " - 7.99.99"
+      reason: introduced in 8.0.0 to be backported to 7.15.0
+
+  - do:
+      bulk:
+        index:   test
+        body:
+          - '{"update": {"_id": 1}}'
+          - '{"doc":{"@timestamp": "2021-04-28T18:03:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}}'
+  - match: {items.0.update.error.reason: "[UPDATE] is not supported because the destination index [test] is in time series mode"}

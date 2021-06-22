@@ -180,7 +180,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     private final SortedMap<String, IndexAbstraction> indicesLookup;
 
-    Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
+    private Metadata(String clusterUUID, boolean clusterUUIDCommitted, long version, CoordinationMetadata coordinationMetadata,
              Settings transientSettings, Settings persistentSettings, DiffableStringMap hashesOfConsistentSettings,
              ImmutableOpenMap<String, IndexMetadata> indices, ImmutableOpenMap<String, IndexTemplateMetadata> templates,
              ImmutableOpenMap<String, Custom> customs, String[] allIndices, String[] visibleIndices, String[] allOpenIndices,
@@ -558,6 +558,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return routing;
         }
 
+        // TODO this is the same sort of code we have in bulk action already. we should share
         IndexAbstraction result = getIndicesLookup().get(aliasOrIndex);
         if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;

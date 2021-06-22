@@ -19,9 +19,10 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -29,19 +30,26 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.TimeSeriesIdGenerator;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -605,8 +613,56 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     /* resolve the routing if needed */
-    public void resolveRouting(Metadata metadata) {
-        routing(metadata.resolveWriteIndexRouting(routing, index));
+    public void resolveRouting(
+        Metadata metadata,
+        IndexAbstraction abstraction,
+        Function<IndexMetadata, TimeSeriesIdGenerator> timeSeriesGeneratorLookup
+    ) {
+        // TODO clean this up once we tsid is its own field
+        String routingFromAliasOrRequest = metadata.resolveWriteIndexRouting(routing(), index);
+        boolean inTimeSeriesMode = abstraction == null || abstraction.getWriteIndex() == null
+            ? false
+            : abstraction.getWriteIndex().inTimeSeriesMode();
+        if (inTimeSeriesMode) {
+            if (routing() != null) {
+                throw new IllegalArgumentException(
+                    "routing cannot be set because the destination index [" + abstraction.getName() + "] is in time series mode"
+                );
+            }
+            if (routingFromAliasOrRequest != null) {
+                throw new IllegalArgumentException(
+                    "alias routing incompatible the destination index [" + abstraction.getName() + "] because it is in time series mode"
+                );
+            }
+            routing(routingFromTimeSeries(abstraction, timeSeriesGeneratorLookup));
+        } else {
+            // Update the routing on the request with information from the alias.
+            routing(routingFromAliasOrRequest);
+        }
+    }
+
+    private String routingFromTimeSeries(
+        IndexAbstraction abstraction,
+        Function<IndexMetadata, TimeSeriesIdGenerator> timeSeriesGeneratorLookup
+    ) {
+        if (abstraction == null || abstraction.getWriteIndex() == null) {
+            return null;
+        }
+        TimeSeriesIdGenerator gen = timeSeriesGeneratorLookup.apply(abstraction.getWriteIndex());
+        if (gen == null) {
+            return null;
+        }
+        try {
+            try (
+                XContentParser parser = contentType.xContent()
+                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, source.streamInput())
+            ) {
+                // TODO switch to native BytesRef over the wire
+                return Base64.getEncoder().encodeToString(BytesReference.toBytes(gen.generate(parser)));
+            }
+        } catch (IOException | IllegalArgumentException e) {
+            throw new IllegalArgumentException("Error building time series id: " + e.getMessage(), e);
+        }
     }
 
     public void checkAutoIdWithOpTypeCreateSupportedByVersion(Version version) {

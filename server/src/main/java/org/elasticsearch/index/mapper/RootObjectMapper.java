@@ -159,7 +159,10 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @SuppressWarnings("unchecked")
-        private boolean processField(RootObjectMapper.Builder builder, String fieldName, Object fieldNode, MappingsParserContext parserContext) {
+        private boolean processField(RootObjectMapper.Builder builder,
+                                     String fieldName,
+                                     Object fieldNode,
+                                     MappingsParserContext parserContext) {
             if (fieldName.equals("date_formats") || fieldName.equals("dynamic_date_formats")) {
                 if (fieldNode instanceof List) {
                     List<DateFormatter> formatters = new ArrayList<>();

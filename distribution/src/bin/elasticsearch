@@ -17,6 +17,7 @@ source "`dirname "$0"`"/elasticsearch-env
 
 CHECK_KEYSTORE=true
 DAEMONIZE=false
+QUIET=false
 for option in "$@"; do
   case "$option" in
     -h|--help|-V|--version)
@@ -24,6 +25,9 @@ for option in "$@"; do
       ;;
     -d|--daemonize)
       DAEMONIZE=true
+      ;;
+    -q|--quiet)
+      QUIET=true
       ;;
   esac
 done
@@ -56,6 +60,12 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
+  if [[ "$QUIET" = false ]]; then
+    exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner <(echo -ne "TEST BANNER\nTEST BANNER2"))
+    #exec > >(while read line; do
+    #  printf "%s\nTEST BOTTOM BANNER\r" "$line"
+    #  done)
+  fi
   exec \
     "$JAVA" \
     "$XSHARE" \

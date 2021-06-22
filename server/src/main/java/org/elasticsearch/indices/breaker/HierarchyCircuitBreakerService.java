@@ -11,7 +11,7 @@ package org.elasticsearch.indices.breaker;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -22,7 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.monitor.jvm.GcNames;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -119,26 +119,26 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 FIELDDATA_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.PERMANENT
-            )));
+        )));
         childCircuitBreakers.put(CircuitBreaker.IN_FLIGHT_REQUESTS, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.IN_FLIGHT_REQUESTS,
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
-            )));
+        )));
         childCircuitBreakers.put(CircuitBreaker.REQUEST, validateAndCreateBreaker(
             new BreakerSettings(CircuitBreaker.REQUEST,
                 REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
                 REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
                 REQUEST_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
                 CircuitBreaker.Durability.TRANSIENT
-            )));
+        )));
         childCircuitBreakers.put(CircuitBreaker.ACCOUNTING, validateAndCreateBreaker(new BreakerSettings(CircuitBreaker.ACCOUNTING,
-            ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
-            ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
-            ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
-            CircuitBreaker.Durability.PERMANENT
+                ACCOUNTING_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(),
+                ACCOUNTING_CIRCUIT_BREAKER_OVERHEAD_SETTING.get(settings),
+                ACCOUNTING_CIRCUIT_BREAKER_TYPE_SETTING.get(settings),
+                CircuitBreaker.Durability.PERMANENT
         )));
         for (BreakerSettings breakerSettings : customBreakers) {
             if (childCircuitBreakers.containsKey(breakerSettings.getName())) {
@@ -150,8 +150,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
         this.breakers = Collections.unmodifiableMap(childCircuitBreakers);
         this.parentSettings = new BreakerSettings(CircuitBreaker.PARENT,
-            TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
-            CircuitBreaker.Type.PARENT, null);
+                TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.get(settings).getBytes(), 1.0,
+                CircuitBreaker.Type.PARENT, null);
         logger.trace(() -> new ParameterizedMessage("parent circuit breaker with settings {}", this.parentSettings));
 
         this.trackRealMemoryUsage = USE_REAL_MEMORY_USAGE_SETTING.get(settings);

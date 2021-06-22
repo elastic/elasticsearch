@@ -125,9 +125,9 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
     }
 
     // tests that bounding boxes that crosses the dateline and cover all longitude values are correctly wrapped
-    public void testGeoGridSetValuesBoundingBoxes_coversAlllongitudeValues() throws Exception {
+    public void testGeoGridSetValuesBoundingBoxes_coversAllLongitudeValues() throws Exception {
         int precision = 3;
-        Geometry geometry = new Rectangle(-92, 180, 0.99, -89);//GeometryTestUtils.randomRectangle();
+        Geometry geometry = new Rectangle(-92, 180, 0.99, -89);
         GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(5, 0.6), new GeoPoint(-5, 0.5));
         GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
         GeoShapeCellValues cellValues =

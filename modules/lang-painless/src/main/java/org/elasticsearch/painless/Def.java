@@ -24,7 +24,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -252,10 +251,17 @@ public final class Def {
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
-                 Def.Encoding defEncoding = Def.Encoding.parse((String) args[upTo++]);
+                 // decode signature of form 'type.call,2'
+                 String signature = (String) args[upTo++];
+                 int separator = signature.lastIndexOf('.');
+                 int separator2 = signature.indexOf(',');
+                 String type = signature.substring(2, separator);
+                 boolean needsScriptInstance = signature.charAt(1) == 't';
+                 String call = signature.substring(separator+1, separator2);
+                 int numCaptures = Integer.parseInt(signature.substring(separator2+1));
                  MethodHandle filter;
-                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (defEncoding.needsInstance ? 1 : 0));
-                 if (defEncoding.isStatic) {
+                 Class<?> interfaceType = method.typeParameters.get(i - 1 - replaced - (needsScriptInstance ? 1 : 0));
+                 if (signature.charAt(0) == 'S') {
                      // the implementation is strongly typed, now that we know the interface type,
                      // we have everything.
                      filter = lookupReferenceInternal(painlessLookup,
@@ -263,16 +269,16 @@ public final class Def {
                                                       constants,
                                                       methodHandlesLookup,
                                                       interfaceType,
-                                                      defEncoding.symbol,
-                                                      defEncoding.methodName,
-                                                      defEncoding.numCaptures,
-                                                      defEncoding.needsInstance
+                                                      type,
+                                                      call,
+                                                      numCaptures,
+                                                      needsScriptInstance
                      );
-                 } else {
+                 } else if (signature.charAt(0) == 'D') {
                      // the interface type is now known, but we need to get the implementation.
                      // this is dynamically based on the receiver type (and cached separately, underneath
                      // this cache). It won't blow up since we never nest here (just references)
-                     Class<?>[] captures = new Class<?>[defEncoding.numCaptures];
+                     Class<?>[] captures = new Class<?>[numCaptures];
                      for (int capture = 0; capture < captures.length; capture++) {
                          captures[capture] = callSiteType.parameterType(i + 1 + capture);
                      }
@@ -281,18 +287,20 @@ public final class Def {
                                                               functions,
                                                               constants,
                                                               methodHandlesLookup,
-                                                              defEncoding.methodName,
+                                                              call,
                                                               nestedType,
                                                               0,
                                                               DefBootstrap.REFERENCE,
                                                               PainlessLookupUtility.typeToCanonicalTypeName(interfaceType));
                      filter = nested.dynamicInvoker();
+                 } else {
+                     throw new AssertionError();
                  }
                  // the filter now ignores the signature (placeholder) on the stack
                  filter = MethodHandles.dropArguments(filter, 0, String.class);
-                 handle = MethodHandles.collectArguments(handle, i - (defEncoding.needsInstance ? 1 : 0), filter);
-                 i += defEncoding.numCaptures;
-                 replaced += defEncoding.numCaptures;
+                 handle = MethodHandles.collectArguments(handle, i - (needsScriptInstance ? 1 : 0), filter);
+                 i += numCaptures;
+                 replaced += numCaptures;
              }
          }
 
@@ -1278,154 +1286,21 @@ public final class Def {
         public final int numCaptures;
         public final String encoding;
 
-        private static final String FORMAT = "[SD][tf]symbol.methodName,numCaptures";
-
         public Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures) {
             this.isStatic = isStatic;
             this.needsInstance = needsInstance;
-            this.symbol = Objects.requireNonNull(symbol);
-            this.methodName = Objects.requireNonNull(methodName);
+            this.symbol = symbol;
+            this.methodName = methodName;
             this.numCaptures = numCaptures;
-            this.encoding = encoding();
-            validate();
-        }
-
-        private Encoding(boolean isStatic, boolean needsInstance, String symbol, String methodName, int numCaptures, String encoding) {
-            this.isStatic = isStatic;
-            this.needsInstance = needsInstance;
-            this.symbol = Objects.requireNonNull(symbol);
-            this.methodName = Objects.requireNonNull(methodName);
-            this.numCaptures = numCaptures;
-            this.encoding = Objects.requireNonNull(encoding);
-            validate();
-        }
-
-        public static Encoding parse(String encoding) {
-            Objects.requireNonNull(encoding);
-            if (encoding.length() < 6) {
-                throw new IllegalArgumentException("Encoding too short. Minimum 6, given [" + encoding.length() + "]," +
-                    " encoding: [" + encoding + "], format: " + FORMAT + "");
-            }
-
-            Encoding parsed = new Encoding(isStatic(encoding), needsInstance(encoding), symbol(encoding), methodName(encoding),
-                    numCaptures(encoding), encoding);
-
-            String generatedEncoding = parsed.encoding();
-            if (parsed.encoding.equals(generatedEncoding) == false) {
-                throw new IllegalStateException("generated encoding [" + generatedEncoding + "] must equal given encoding" +
-                    " [" + encoding + "]");
-            }
-
-            return parsed;
-        }
-
-        private void validate() {
-            if ("this".equals(symbol)) {
-                if (isStatic == false) {
-                    throw new IllegalArgumentException("Def.Encoding must be static if symbol is 'this', encoding [" + encoding + "]");
-                }
-            } else {
-                if (needsInstance) {
-                    throw new IllegalArgumentException("Def.Encoding symbol must be 'this', not [" + symbol + "] if needsInstance," +
-                        " encoding [" + encoding + "]");
-                }
-            }
-
-            if (methodName.isEmpty()) {
-                throw new IllegalArgumentException("methodName must be non-empty, encoding [" + encoding + "]");
-            }
-
-            checkNumCaptures(numCaptures, encoding);
-        }
-
-        private String encoding() {
-            return (isStatic ? "S" : "D") + (needsInstance ? "t" : "f") +
-                    symbol + "." +
-                    methodName + "," +
-                    numCaptures;
-        }
-
-        public static boolean isStatic(String encoding) {
-            char isStaticChar = encoding.charAt(0);
-            if (isStaticChar != 'S' && isStaticChar != 'D') {
-                throw new IllegalArgumentException("Invalid static specifier at position 0, expected 'S' or 'D'," +
-                    " not [" + isStaticChar + "], format: " + FORMAT + "");
-            }
-            return isStaticChar == 'S';
-        }
-
-        public static boolean needsInstance(String encoding) {
-            char needsInstanceChar = encoding.charAt(1);
-            if (needsInstanceChar != 't' && needsInstanceChar != 'f') {
-                throw new IllegalArgumentException("Invalid needsInstance specifier at position 1, expected 't' or 'f'," +
-                    " not [" + needsInstanceChar + "], encoding: [" + encoding + "], format: " + FORMAT);
-            }
-            return needsInstanceChar == 't';
-        }
-
-        public static String symbol(String encoding) {
-            return encoding.substring(2, dotIndex(encoding));
-        }
-
-        public static String methodName(String encoding) {
-            int dotIndex = dotIndex(encoding);
-            int commaIndex = encoding.indexOf(',');
-            if (commaIndex <= dotIndex) {
-                throw new IllegalArgumentException("Invalid symbol, could not find ',' at expected position after '.' at" +
-                    " [" + dotIndex + "], instead found index [" + commaIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
-            }
-            return encoding.substring(dotIndex + 1, commaIndex);
-        }
-
-        private static int dotIndex(String encoding) {
-            int dotIndex = encoding.lastIndexOf('.');
-            if (dotIndex < 2) {
-                throw new IllegalArgumentException("Invalid symbol, could not find '.' at expected position after index 1, instead found" +
-                    " index [" + dotIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
-            }
-            return dotIndex;
-        }
-
-        public static int numCaptures(String encoding) {
-            int commaIndex = encoding.indexOf(',');
-            int encodingLength = encoding.length();
-            if (commaIndex == -1 || commaIndex == encodingLength - 1) {
-                throw new IllegalArgumentException("Invalid symbol, could not find ',' at expected position, instead found" +
-                    " index [" + commaIndex + "], encoding: [" + encoding + "], format: " + FORMAT);
-            }
-
-            int numCaptures = Integer.parseInt(encoding.substring(commaIndex + 1, encodingLength));
-
-            checkNumCaptures(numCaptures, encoding);
-
-            return numCaptures;
-        }
-
-        private static void checkNumCaptures(int numCaptures, String encoding) {
-            if (numCaptures < 0) {
-                throw new IllegalArgumentException("numCaptures must be non-negative, not [" + numCaptures + "]," +
-                    " encoding: [" + encoding + "]");
-            }
+            this.encoding = (isStatic ? "S" : "D") + (needsInstance ? "t" : "f") +
+                            symbol + "." +
+                            methodName + "," +
+                            numCaptures;
         }
 
         @Override
         public String toString() {
             return encoding;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if ((o instanceof Encoding) == false) return false;
-            Encoding encoding1 = (Encoding) o;
-            return isStatic == encoding1.isStatic && needsInstance == encoding1.needsInstance && numCaptures == encoding1.numCaptures
-                    && Objects.equals(symbol, encoding1.symbol) && Objects.equals(methodName, encoding1.methodName)
-                    && Objects.equals(encoding, encoding1.encoding);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(isStatic, needsInstance, symbol, methodName, numCaptures, encoding);
         }
     }
 }

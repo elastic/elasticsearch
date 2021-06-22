@@ -15,6 +15,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -53,6 +54,23 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         GetSnapshotsRequest getSnapshotsRequest = getSnapshotsRequest(repositories).snapshots(snapshots);
         getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
         getSnapshotsRequest.verbose(request.paramAsBoolean("verbose", getSnapshotsRequest.verbose()));
+        final GetSnapshotsRequest.SortBy sort = GetSnapshotsRequest.SortBy.of(request.param("sort", getSnapshotsRequest.sort().toString()));
+        getSnapshotsRequest.sort(sort);
+        final int size = request.paramAsInt("size", getSnapshotsRequest.size());
+        getSnapshotsRequest.size(size);
+        final String[] afterString = request.paramAsStringArray("after", Strings.EMPTY_ARRAY);
+        final GetSnapshotsRequest.After after;
+        if (afterString.length == 0) {
+            after = null;
+        } else if (afterString.length == 2) {
+            after = new GetSnapshotsRequest.After(afterString[0], afterString[1]);
+        } else {
+            throw new IllegalArgumentException("illegal ?after value [" + Strings.arrayToCommaDelimitedString(afterString) +
+                    "] must be of the form '${sort_value},${snapshot_name}'");
+        }
+        getSnapshotsRequest.after(after);
+        final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
+        getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
                 .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));

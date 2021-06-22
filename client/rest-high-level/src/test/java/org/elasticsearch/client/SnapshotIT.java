@@ -33,12 +33,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.mockito.internal.util.collections.Sets;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -149,7 +149,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         boolean waitForCompletion = randomBoolean();
         request.waitForCompletion(waitForCompletion);
         if (randomBoolean()) {
-            request.userMetadata(randomUserMetadata());
+            request.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
@@ -193,7 +193,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotResponse putSnapshotResponse1 = createTestSnapshot(createSnapshotRequest1);
         CreateSnapshotRequest createSnapshotRequest2 = new CreateSnapshotRequest(repository2, snapshot2);
         createSnapshotRequest2.waitForCompletion(true);
-        Map<String, Object> originalMetadata = randomUserMetadata();
+        Map<String, Object> originalMetadata = AbstractSnapshotIntegTestCase.randomUserMetadata();
         createSnapshotRequest2.userMetadata(originalMetadata);
         CreateSnapshotResponse putSnapshotResponse2 = createTestSnapshot(createSnapshotRequest2);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
@@ -264,7 +264,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         createSnapshotRequest.indices(testIndex);
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -311,7 +311,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         createSnapshotRequest.indices("*");
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         assertEquals(RestStatus.OK, createSnapshotResponse.status());
@@ -344,7 +344,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
         createSnapshotRequest.waitForCompletion(true);
         if (randomBoolean()) {
-            createSnapshotRequest.userMetadata(randomUserMetadata());
+            createSnapshotRequest.userMetadata(AbstractSnapshotIntegTestCase.randomUserMetadata());
         }
         CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
         // check that the request went ok without parsing JSON here. When using the high level client, check acknowledgement instead.
@@ -380,27 +380,4 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertTrue(response.isAcknowledged());
     }
 
-    private static Map<String, Object> randomUserMetadata() {
-        if (randomBoolean()) {
-            return null;
-        }
-
-        Map<String, Object> metadata = new HashMap<>();
-        long fields = randomLongBetween(0, 4);
-        for (int i = 0; i < fields; i++) {
-            if (randomBoolean()) {
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                        randomAlphaOfLengthBetween(5, 5));
-            } else {
-                Map<String, Object> nested = new HashMap<>();
-                long nestedFields = randomLongBetween(0, 4);
-                for (int j = 0; j < nestedFields; j++) {
-                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2,10)),
-                            randomAlphaOfLengthBetween(5, 5));
-                }
-                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2,10)), nested);
-            }
-        }
-        return metadata;
-    }
 }

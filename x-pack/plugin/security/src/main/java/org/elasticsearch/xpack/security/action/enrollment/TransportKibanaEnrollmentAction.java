@@ -114,14 +114,10 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                     new ChangePasswordRequestBuilder(client).username("kibana_system")
                         .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
                         .request();
-                try {
-                    client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
-                        logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
-                        listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa, nodeList));
-                    }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
-                } finally {
-                    Arrays.fill(password, '\0');
-                }
+                client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
+                    logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
+                    listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa, nodeList));
+                }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
             }, e -> {
                 logger.debug("Failed to enroll kibana instance. Error was [{}]", e.getMessage());
                 listener.onFailure(new ElasticsearchException("Failed to enroll kibana instance. Error was [" + e.getMessage() + "]", e));

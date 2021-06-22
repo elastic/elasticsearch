@@ -78,7 +78,6 @@ public class CopyExecutionStateStep extends ClusterStateActionStep {
         String phase = targetNextStepKey.getPhase();
         String action = targetNextStepKey.getAction();
         String step = targetNextStepKey.getName();
-        long lifecycleDate = lifecycleState.getLifecycleDate();
 
         LifecycleExecutionState.Builder relevantTargetCustomData = LifecycleExecutionState.builder(lifecycleState);
         // Override the phase, action, and step for the target next StepKey

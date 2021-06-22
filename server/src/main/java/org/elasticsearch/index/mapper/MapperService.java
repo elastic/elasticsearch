@@ -111,7 +111,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
                 scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
-        this.documentParser = new DocumentParser(xContentRegistry, parserContextFunction, indexSettings, indexAnalyzers);
+        this.documentParser = new DocumentParser(xContentRegistry,
+            dateFormatter -> new Mapper.TypeParser.ParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
+            indexSettings, indexAnalyzers);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
         this.parserContextSupplier = () -> parserContextFunction.apply(null);
@@ -280,6 +282,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason) {
         DocumentMapper newMapper = new DocumentMapper(documentParser, mapping);
+        newMapper.mapping().getRoot().fixRedundantIncludes();
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }

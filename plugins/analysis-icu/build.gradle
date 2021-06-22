@@ -40,7 +40,6 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("yamlRestCompatTest").configure {
   systemProperty 'tests.rest.blacklist', [
     'analysis_icu/10_basic/Normalization with deprecated unicodeSetFilter'
-
   ].join(',')
 }
 

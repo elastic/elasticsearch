@@ -70,6 +70,21 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 },
                 m -> assertThat((m).onScriptError, equalTo("continue")));
         }
+
+        // dimension can be set from false to true, but not vice versa
+        checker.registerUpdateCheck(b -> b.field("dimension", true),
+            m -> assertEquals(true, ((NumberFieldMapper)m).fieldType().isDimension()));
+        checker.registerUpdateCheck(b -> b.field("dimension", false),
+            m -> assertEquals(false, ((NumberFieldMapper)m).fieldType().isDimension()));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }));
     }
 
     @Override

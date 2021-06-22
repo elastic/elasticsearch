@@ -26,6 +26,7 @@ import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -47,6 +48,21 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
             m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
+
+        // dimension can be set from false to true, but not vice versa
+        checker.registerUpdateCheck(b -> b.field("dimension", true),
+            m -> assertEquals(true, ((IpFieldMapper)m).fieldType().isDimension()));
+        checker.registerUpdateCheck(b -> b.field("dimension", false),
+            m -> assertEquals(false, ((IpFieldMapper)m).fieldType().isDimension()));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }));
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -203,6 +219,25 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    public void testEnableDimension() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "ip").endObject();
+            b.startObject("field_with_dimension").field("type", "ip").field("dimension", true).endObject();
+        }));
+        {
+            MappedFieldType fieldType = mapperService.fieldType("field");
+            assertThat(fieldType, instanceOf(IpFieldMapper.IpFieldType.class));
+            IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) fieldType;
+            assertFalse(ft.isDimension());
+        }
+        {
+            MappedFieldType fieldType = mapperService.fieldType("field_with_dimension");
+            assertThat(fieldType, instanceOf(IpFieldMapper.IpFieldType.class));
+            IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) fieldType;
+            assertTrue(ft.isDimension());
+        }
     }
 
     @Override

@@ -12,6 +12,8 @@ import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
     protected void testDecimalCoerce() throws IOException {
@@ -20,6 +22,18 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         IndexableField[] fields = doc.rootDoc().getFields("field");
         IndexableField pointField = fields[0];
         assertEquals(7, pointField.numericValue().doubleValue(), 0d);
+    }
+
+    public void testDimension() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        }));
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(NumberFieldMapper.NumberFieldType.class));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        assertTrue(ft.isDimension());
     }
 
 }

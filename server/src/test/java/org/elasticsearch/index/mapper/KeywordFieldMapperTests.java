@@ -101,6 +101,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertParseMinimalWarnings();
     }
 
+
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return singletonList(new MockAnalysisPlugin());
@@ -167,15 +168,30 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
         checker.registerUpdateCheck(
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", true);
             },
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", false);
             },
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
+
+        // dimension can be set from false to true, but not vice versa
+        checker.registerUpdateCheck(b -> b.field("dimension", true),
+            m -> assertEquals(true, ((KeywordFieldMapper)m).fieldType().isDimension()));
+        checker.registerUpdateCheck(b -> b.field("dimension", false),
+            m -> assertEquals(false, ((KeywordFieldMapper)m).fieldType().isDimension()));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                b.field("type", "keyword");
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                b.field("type", "keyword");
+                b.field("dimension", false);
+            }));
     }
 
     public void testDefaults() throws Exception {
@@ -290,6 +306,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.length);
+    }
+
+    public void testEnableDimension() throws IOException {
+        MapperService mapperService = createMapperService(mapping(b -> {
+            b.startObject("field").field("type", "keyword").endObject();
+            b.startObject("field_with_dimension").field("type", "keyword").field("dimension", true).endObject();
+        }));
+        {
+            MappedFieldType fieldType = mapperService.fieldType("field");
+            assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+            assertFalse(ft.isDimension());
+        }
+        {
+            MappedFieldType fieldType = mapperService.fieldType("field_with_dimension");
+            assertThat(fieldType, instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+            KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) fieldType;
+            assertTrue(ft.isDimension());
+        }
     }
 
     public void testConfigureSimilarity() throws IOException {

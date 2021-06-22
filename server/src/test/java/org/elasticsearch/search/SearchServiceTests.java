@@ -1352,8 +1352,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0);
-        request.source(SearchSourceBuilder.searchSource().timeout(TimeValue.timeValueSeconds(30)));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0, TimeValue.timeValueSeconds(30));
         service.executeQueryPhase(request, task, future);
         SearchPhaseResult searchPhaseResult = future.actionGet();
         assertEquals(1, searchPhaseResult.queryResult().getTotalHits().value);
@@ -1373,8 +1372,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
         PlainActionFuture<SearchPhaseResult> future = PlainActionFuture.newFuture();
         ShardSearchRequest request = new ShardSearchRequest(OriginalIndices.NONE, searchRequest, indexShard.shardId(), 0, 1,
-            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0);
-        request.source(SearchSourceBuilder.searchSource().timeout(TimeValue.timeValueMillis(randomIntBetween(10, 100))));
+            new AliasFilter(null, Strings.EMPTY_ARRAY), 1.0f, -1, null, null, null, 0,
+            TimeValue.timeValueMillis(randomIntBetween(10, 100)));
         service.executeQueryPhase(request, task, future);
 
         ElasticsearchTimeoutException ex = expectThrows(ElasticsearchTimeoutException.class, future::actionGet);

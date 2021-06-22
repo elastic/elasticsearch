@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
@@ -66,6 +67,9 @@ public class RestFleetSearchAction extends BaseRestHandler {
             );
         }
         searchRequest.setWaitForCheckpoints(Collections.singletonMap(indices[0], waitForCheckpoints));
+
+        final TimeValue waitForCheckpointsTimeout = request.paramAsTime("wait_for_checkpoints_timeout", TimeValue.timeValueSeconds(30));
+        searchRequest.setWaitForCheckpointsTimeout(waitForCheckpointsTimeout);
 
         return channel -> {
             RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

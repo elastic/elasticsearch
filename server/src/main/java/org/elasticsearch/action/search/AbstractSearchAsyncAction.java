@@ -26,6 +26,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchContextMissingException;
@@ -726,6 +727,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
         final Map<String, long[]> indexToWaitForCheckpoints = request.getWaitForCheckpoints();
+        final TimeValue waitForCheckpointsTimeout = request.getWaitForCheckpointsTimeout();
         long[] waitForCheckpoints = indexToWaitForCheckpoints.getOrDefault(shardIt.shardId().getIndex().getName(), EMPTY_LONG_ARRAY);
 
         long waitForCheckpoint;
@@ -737,7 +739,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
             getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
-            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), waitForCheckpoint);
+            shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive(), waitForCheckpoint, waitForCheckpointsTimeout);
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
         // than creating an empty response in the search thread pool.

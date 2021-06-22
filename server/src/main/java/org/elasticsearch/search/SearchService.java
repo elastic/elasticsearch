@@ -455,13 +455,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         }
                     };
                     shard.addRefreshListener(request.waitForCheckpoint(), readyListener);
-                    SearchSourceBuilder source = request.source();
-                    final TimeValue timeout;
-                    if (source == null) {
-                        timeout = defaultSearchTimeout;
-                    } else {
-                        timeout = source.timeout() == null ? defaultSearchTimeout : source.timeout();
-                    }
+                    final TimeValue timeout = request.getWaitForCheckpointsTimeout();
                     if (NO_TIMEOUT.equals(timeout) == false && isDone.get() == false) {
                         Scheduler.ScheduledCancellable scheduled = threadPool.schedule(() ->
                             readyListener.onFailure(

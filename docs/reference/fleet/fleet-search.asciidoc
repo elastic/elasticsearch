@@ -34,7 +34,7 @@ The fleet search API only supports searches against a single index.
 By default, the Elasticsearch search api will allow <<search-partial-responses,partial search results>>.
 With this fleet API, it is common to configure this to be `false` or to check in the response
 to ensure each shard search was successful. If these precautions are not taken, it is
-possible for search results to be successfully returned even if a one or more shards
+possible for search results to be successfully returned even if one or more shards
 timed out.
 
 [[fleet-search-api-request]]

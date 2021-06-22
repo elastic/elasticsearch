@@ -14,14 +14,24 @@ import java.util.Locale;
 
 public enum TaskType {
 
-    TOKEN_CLASSIFICATION {
+    TOKEN_CLASSIFICATION { // TODO rename to NER. This is specifically a NER task
         public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new NerProcessor(tokenizer);
+        }
+    },
+    SENTIMENT_ANALYSIS {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+            return new SentimentAnalysisProcessor(tokenizer);
         }
     },
     FILL_MASK {
         public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new FillMaskProcessor(tokenizer);
+        }
+    },
+    BERT_PASS_THROUGH {
+        public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
+            return new PassThroughProcessor(tokenizer);
         }
     };
 

@@ -99,8 +99,13 @@ public class FlushIT extends ESIntegTestCase {
 
     public void testFlushOnInactive() throws Exception {
         final String indexName = "flush_on_inactive";
-        List<String> dataNodes = internalCluster().startDataOnlyNodes(2, Settings.builder()
-            .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms")).build());
+        List<String> dataNodes = internalCluster().startDataOnlyNodes(
+            2,
+            Settings.builder()
+                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
+                .put(IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), randomTimeValue(10, 1000, "ms"))
+                .build()
+        );
         assertAcked(client().admin().indices().prepareCreate(indexName).setSettings(Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .put(IndexSettings.INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.getKey(), randomTimeValue(200, 500, "ms"))

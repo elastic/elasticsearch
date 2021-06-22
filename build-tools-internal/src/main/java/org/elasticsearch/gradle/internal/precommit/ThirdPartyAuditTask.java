@@ -64,7 +64,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
         CliMain.EXIT_VIOLATION,
         CliMain.EXIT_UNSUPPORTED_JDK
     );
-    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.elasticsearch.bootstrap.JdkJarHellCheck";
+    private static final String JDK_JAR_HELL_MAIN_CLASS = "org.elasticsearch.jdk.JdkJarHellCheck";
 
     private Set<String> missingClassExcludes = new TreeSet<>();
 
@@ -334,7 +334,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
             spec.jvmArgs("-Xmx1g");
-            spec.setMain("de.thetaphi.forbiddenapis.cli.CliMain");
+            spec.getMainClass().set("de.thetaphi.forbiddenapis.cli.CliMain");
             spec.args("-f", getSignatureFile().getAbsolutePath(), "-d", getJarExpandDir(), "--allowmissingclasses");
             spec.setErrorOutput(errorOut);
             if (getLogger().isInfoEnabled() == false) {
@@ -364,7 +364,7 @@ public class ThirdPartyAuditTask extends DefaultTask {
                 getProject().getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME)
             );
 
-            spec.setMain(JDK_JAR_HELL_MAIN_CLASS);
+            spec.getMainClass().set(JDK_JAR_HELL_MAIN_CLASS);
             spec.args(getJarExpandDir());
             spec.setIgnoreExitValue(true);
             if (javaHome != null) {

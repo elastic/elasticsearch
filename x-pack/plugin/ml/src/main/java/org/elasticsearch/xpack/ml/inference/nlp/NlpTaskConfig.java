@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -23,6 +23,7 @@ public class NlpTaskConfig implements ToXContentObject {
     public static final ParseField VOCAB = new ParseField("vocab");
     public static final ParseField TASK_TYPE = new ParseField("task_type");
     public static final ParseField LOWER_CASE = new ParseField("do_lower_case");
+    public static final ParseField WITH_SPECIAL_TOKENS = new ParseField("with_special_tokens");
 
     private static final ObjectParser<NlpTaskConfig.Builder, Void> STRICT_PARSER = createParser(false);
     private static final ObjectParser<NlpTaskConfig.Builder, Void> LENIENT_PARSER = createParser(true);
@@ -35,6 +36,7 @@ public class NlpTaskConfig implements ToXContentObject {
         parser.declareStringArray(Builder::setVocabulary, VOCAB);
         parser.declareString(Builder::setTaskType, TASK_TYPE);
         parser.declareBoolean(Builder::setDoLowerCase, LOWER_CASE);
+        parser.declareBoolean(Builder::setWithSpecialTokens, WITH_SPECIAL_TOKENS);
         return parser;
     }
 
@@ -49,11 +51,13 @@ public class NlpTaskConfig implements ToXContentObject {
     private final TaskType taskType;
     private final List<String> vocabulary;
     private final boolean doLowerCase;
+    private final boolean withSpecialTokens;
 
-    NlpTaskConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase) {
+    NlpTaskConfig(TaskType taskType, List<String> vocabulary, boolean doLowerCase, boolean withSpecialTokens) {
         this.taskType = taskType;
         this.vocabulary = vocabulary;
         this.doLowerCase = doLowerCase;
+        this.withSpecialTokens = withSpecialTokens;
     }
 
     public TaskType getTaskType() {
@@ -61,7 +65,17 @@ public class NlpTaskConfig implements ToXContentObject {
     }
 
     public BertTokenizer buildTokenizer() {
-        return BertTokenizer.builder(vocabulary).setDoLowerCase(doLowerCase).build();
+        return BertTokenizer.builder(vocabulary)
+            .setWithSpecialTokens(withSpecialTokens)
+            .setDoLowerCase(doLowerCase).build();
+    }
+
+    public boolean isDoLowerCase() {
+        return doLowerCase;
+    }
+
+    public boolean isWithSpecialTokens() {
+        return withSpecialTokens;
     }
 
     @Override
@@ -69,6 +83,8 @@ public class NlpTaskConfig implements ToXContentObject {
         builder.startObject();
         builder.field(TASK_TYPE.getPreferredName(), taskType.toString());
         builder.field(VOCAB.getPreferredName(), vocabulary);
+        builder.field(LOWER_CASE.getPreferredName(), doLowerCase);
+        builder.field(WITH_SPECIAL_TOKENS.getPreferredName(), withSpecialTokens);
         builder.endObject();
         return builder;
     }
@@ -80,12 +96,13 @@ public class NlpTaskConfig implements ToXContentObject {
         NlpTaskConfig that = (NlpTaskConfig) o;
         return taskType == that.taskType &&
             doLowerCase == that.doLowerCase &&
+            withSpecialTokens == that.withSpecialTokens &&
             Objects.equals(vocabulary, that.vocabulary);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(taskType, vocabulary, doLowerCase);
+        return Objects.hash(taskType, vocabulary, doLowerCase, withSpecialTokens);
     }
 
     public static Builder builder() {
@@ -97,6 +114,7 @@ public class NlpTaskConfig implements ToXContentObject {
         private TaskType taskType;
         private List<String> vocabulary;
         private boolean doLowerCase = false;
+        private boolean withSpecialTokens = true;
 
         public Builder setTaskType(TaskType taskType) {
             this.taskType = taskType;
@@ -118,8 +136,13 @@ public class NlpTaskConfig implements ToXContentObject {
             return this;
         }
 
+        public Builder setWithSpecialTokens(boolean withSpecialTokens) {
+            this.withSpecialTokens = withSpecialTokens;
+            return this;
+        }
+
         public NlpTaskConfig build() {
-            return new NlpTaskConfig(taskType, vocabulary, doLowerCase);
+            return new NlpTaskConfig(taskType, vocabulary, doLowerCase, withSpecialTokens);
         }
     }
 }

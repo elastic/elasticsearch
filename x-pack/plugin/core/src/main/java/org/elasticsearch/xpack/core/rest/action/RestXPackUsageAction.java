@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.rest.BaseRestHandler;

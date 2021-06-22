@@ -88,7 +88,7 @@ if (System.getProperty('idea.active') == 'true') {
   tasks.register('buildDependencyArtifacts') {
     group = 'ide'
     description = 'Builds artifacts needed as dependency for IDE modules'
-    dependsOn ':client:rest-high-level:shadowJar', ':plugins:repository-hdfs:hadoop-common:shadowJar'
+    dependsOn ':client:rest-high-level:shadowJar', ':plugins:repository-hdfs:hadoop-common:shadowJar', ':plugins:repository-azure:azure-storage-blob:shadowJar'
   }
 
   idea {
@@ -103,11 +103,6 @@ if (System.getProperty('idea.active') == 'true') {
         }
         taskTriggers {
           afterSync tasks.named('configureIdeCheckstyle'), tasks.named('configureIdeaGradleJvm'), tasks.named('buildDependencyArtifacts')
-        }
-        codeStyle {
-          java {
-            classCountToUseImportOnDemand = 999
-          }
         }
         encodings {
           encoding = 'UTF-8'

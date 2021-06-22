@@ -36,7 +36,7 @@ public class BertRequestBuilder implements NlpTask.RequestBuilder {
 
     @Override
     public BytesReference buildRequest(String input, String requestId) throws IOException {
-        tokenization = tokenizer.tokenize(input, true);
+        tokenization = tokenizer.tokenize(input);
         return jsonRequest(tokenization.getTokenIds(), requestId);
     }
 

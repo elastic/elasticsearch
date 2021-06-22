@@ -1386,9 +1386,11 @@ public class MetadataTests extends ESTestCase {
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), equalTo("logs-postgres-replicated"));
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getDataStreams(), containsInAnyOrder("logs-postgres-replicated"));
 
-        // Unset write flag
         mdBuilder = Metadata.builder(metadata);
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", randomBoolean() ? null : false), is(true));
+        // Side check: null value isn't changing anything:
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", null), is(false));
+        // Unset write flag
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", false), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());
         assertThat(metadata.dataStreamAliases().get("logs-postgres").getWriteDataStream(), nullValue());
@@ -1410,7 +1412,7 @@ public class MetadataTests extends ESTestCase {
 
         // change write flag:
         mdBuilder = Metadata.builder(metadata);
-        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", randomBoolean() ? null : false), is(true));
+        assertThat(mdBuilder.put("logs-postgres", "logs-postgres-primary", false), is(true));
         assertThat(mdBuilder.put("logs-postgres", "logs-postgres-replicated", true), is(true));
         metadata = mdBuilder.build();
         assertThat(metadata.dataStreamAliases().get("logs-postgres"), notNullValue());

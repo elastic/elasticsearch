@@ -4,7 +4,8 @@ setup:
         index: test-timeout
         body:
           settings:
-            number_of_shards: "2"
+            number_of_shards: "1"
+            refresh_interval: "-1"
 
   - do:
       indices.create:
@@ -64,13 +65,23 @@ setup:
       fleet.search:
         index: "test-timeout"
         allow_partial_search_results: true
-        wait_for_checkpoints: [0,0]
-        timeout: "50ms"
+        wait_for_checkpoints: [0]
+        wait_for_checkpoints_timeout: "50ms"
         body: { query: { match_all: { } } }
 
-  - match: { _shards.successful: 1 }
-  - match: { _shards.failed: 1 }
-  - match: { hits.total.value: 1 }
+  - do:
+      index:
+        index: test-timeout
+        body: {}
+
+  - do:
+      catch: request
+      fleet.search:
+        index: "test-timeout"
+        allow_partial_search_results: true
+        wait_for_checkpoints: [ 1 ]
+        wait_for_checkpoints_timeout: "50ms"
+        body: { query: { match_all: { } } }
 
 ---
 "Wait for unprocessed checkpoint fails":

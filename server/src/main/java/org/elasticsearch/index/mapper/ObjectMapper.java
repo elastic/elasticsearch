@@ -283,7 +283,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        protected static void parseProperties(ObjectMapper.Builder objBuilder, Map<String, Object> propsNode, MappingsParserContext parserContext) {
+        protected static void parseProperties(ObjectMapper.Builder objBuilder,
+                                              Map<String, Object> propsNode,
+                                              MappingsParserContext parserContext) {
             Iterator<Map.Entry<String, Object>> iterator = propsNode.entrySet().iterator();
             while (iterator.hasNext()) {
                 Map.Entry<String, Object> entry = iterator.next();

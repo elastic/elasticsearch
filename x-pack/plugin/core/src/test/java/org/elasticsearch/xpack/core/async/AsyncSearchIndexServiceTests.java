@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -29,6 +31,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -221,7 +225,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             TestAsyncResponse initialResponse = new TestAsyncResponse(testMessage, expirationTime);
             PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
             indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
-            expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            CircuitBreakingException e = expectThrows(CircuitBreakingException.class, createFuture::actionGet);
+            assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
             assertThat(circuitBreaker.getUsed(), equalTo(0L));
         }
         {
@@ -253,7 +258,8 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
                 TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(100), randomLong());
                 indexService.updateResponse(executionId.getDocId(), Map.of(), updateResponse, updateFuture);
-                expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                CircuitBreakingException e = expectThrows(CircuitBreakingException.class, updateFuture::actionGet);
+                assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
                 assertThat(circuitBreaker.getUsed(), equalTo(0L));
             }
             if (randomBoolean()) {
@@ -263,5 +269,39 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
                 assertThat(getFuture.actionGet().expirationTimeMillis, equalTo(expirationTime));
             }
         }
+    }
+
+    public void testMaxAsyncSearchResponseSize() throws Exception {
+        // setting very small limit for the max size of async search response
+        int limit = randomIntBetween(1, 125);
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+
+        AsyncExecutionId executionId = new AsyncExecutionId(Long.toString(randomNonNegativeLong()),
+            new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()));
+
+        PlainActionFuture<IndexResponse> createFuture = new PlainActionFuture<>();
+        TestAsyncResponse initialResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+        indexService.createResponse(executionId.getDocId(), Map.of(), initialResponse, createFuture);
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertEquals("Can't store an async search response larger than ["+ limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
+            e.getMessage());
+        assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
+
+        PlainActionFuture<UpdateResponse> updateFuture = new PlainActionFuture<>();
+        TestAsyncResponse updateResponse = new TestAsyncResponse(randomAlphaOfLength(130), randomLong());
+        indexService.updateResponse(executionId.getDocId(), Map.of(), updateResponse, updateFuture);
+        e = expectThrows(IllegalArgumentException.class, createFuture::actionGet);
+        assertEquals("Can't store an async search response larger than ["+ limit + "] bytes. " +
+                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
+            e.getMessage());
+        assertEquals(0, e.getSuppressed().length); // no other suppressed exceptions
+
+        // restoring limit
+        updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
+        assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
     }
 }

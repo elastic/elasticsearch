@@ -58,6 +58,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.search.SearchService.MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
 
@@ -139,6 +140,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
+    private long maxResponseSize;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -155,6 +157,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.registry = registry;
         this.reader = reader;
         this.bigArrays = bigArrays;
+        this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(
+            MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
     }
 
     /**
@@ -187,15 +192,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                R response,
                                ActionListener<IndexResponse> listener) throws IOException {
         try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
+                0, bigArrays.withCircuitBreaking(), maxResponseSize);
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            listener = ActionListener.runBefore(listener, source::close);
+            listener = ActionListener.runBefore(listener, buffer::close);
             source
                 .startObject()
                 .field(HEADERS_FIELD, headers)
                 .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                 .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                 .endObject();
+
             // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
             // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
             source.flush();
@@ -217,9 +224,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                R response,
                                ActionListener<UpdateResponse> listener) {
         try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
+                0, bigArrays.withCircuitBreaking(), maxResponseSize);
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
-            listener = ActionListener.runBefore(listener, source::close);
+            listener = ActionListener.runBefore(listener, buffer::close);
             source
                 .startObject()
                 .field(RESPONSE_HEADERS_FIELD, responseHeaders)
@@ -504,6 +512,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             for (String value : entry.getValue()) {
                 threadContext.addResponseHeader(entry.getKey(), value);
             }
+        }
+    }
+
+    private static class ReleasableBytesStreamOutputWithLimit extends ReleasableBytesStreamOutput {
+        private final long limit;
+
+        ReleasableBytesStreamOutputWithLimit(int expectedSize, BigArrays bigArrays, long limit) {
+            super(expectedSize, bigArrays);
+            this.limit = limit;
+        }
+
+        @Override
+        protected void ensureCapacity(long offset) {
+            if (offset > limit) {
+                throw new IllegalArgumentException("Can't store an async search response larger than [" + limit + "] bytes. " +
+                    "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.");
+            }
+            super.ensureCapacity(offset);
         }
     }
 }

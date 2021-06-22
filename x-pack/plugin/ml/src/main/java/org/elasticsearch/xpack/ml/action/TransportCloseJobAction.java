@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -262,6 +263,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                             // on this.
                             isolateDatafeeds(jobIds.openJobIds, runningDatafeedIds, ActionListener.wrap(
                                 r -> stopDatafeeds(runningDatafeedIds, true, timeout, listener),
+                                // As things stand this will never be called - see the comment in isolateDatafeeds() for why
                                 listener::onFailure
                             ));
                         } else {
@@ -295,9 +297,33 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
 
     void isolateDatafeeds(List<String> openJobs, List<String> runningDatafeedIds, ActionListener<Void> listener) {
 
-        final int numberOfDatafeeds = runningDatafeedIds.size();
-        assert numberOfDatafeeds > 0;
-        final AtomicInteger counter = new AtomicInteger();
+        GroupedActionListener<IsolateDatafeedAction.Response> groupedListener = new GroupedActionListener<IsolateDatafeedAction.Response>(
+            ActionListener.wrap(
+                c -> listener.onResponse(null),
+                e -> {
+                    // This is deliberately NOT an error.  The reasoning is as follows:
+                    // - Isolate datafeed just sets a flag on the datafeed, so cannot fail IF it reaches the running datafeed code
+                    // - If the request fails because it cannot get to a node running the datafeed then that will be because either:
+                    //   1. The datafeed isn't assigned to a node
+                    //   2. There's no master node
+                    // - But because close job runs on the master node, it cannot be option 2 - this code is running there
+                    // - In the case where a datafeed isn't assigned to a node, stop and force stop, with and without isolation, are
+                    //   all the same
+                    // - So we might as well move onto the next step, which is to force stop these same datafeeds (we know this because
+                    //   this is a specialist internal method of closing a job, not a generic isolation method)
+                    // - Force stopping the datafeeds operates purely on the master node (i.e. the current node where this code is
+                    //   running), and is a simple cluster state update, so will not fail in the same way
+                    // Unfortunately there is still a race condition here, which is that the datafeed could get assigned to a node
+                    // after the isolation request fails but before we follow up with the force close.  In this case force stopping
+                    // the datafeed will gracefully close the associated job if the datafeed has an end time, which is not what we
+                    // want.  But this will be a rare edge case.  Hopefully the loopholes can be closed during the job/datafeed
+                    // unification project.  In the meantime we'll log at a level that is usually enabled, to make diagnosing the
+                    // race condition easier.
+                    logger.info("could not isolate all datafeeds while force closing jobs " + openJobs, e);
+                    listener.onResponse(null);
+                }
+            ),
+            runningDatafeedIds.size());
 
         for (String runningDatafeedId : runningDatafeedIds) {
             IsolateDatafeedAction.Request request = new IsolateDatafeedAction.Request(runningDatafeedId);
@@ -306,38 +332,7 @@ public class TransportCloseJobAction extends TransportTasksAction<JobTask, Close
                 ClientHelper.ML_ORIGIN,
                 IsolateDatafeedAction.INSTANCE,
                 request,
-                ActionListener.wrap(
-                    r -> {
-                        if (counter.incrementAndGet() == numberOfDatafeeds) {
-                            listener.onResponse(null);
-                        }
-                    },
-                    e -> {
-                        // This is deliberately NOT an error.  The reasoning is as follows:
-                        // - Isolate datafeed just sets a flag on the datafeed, so cannot fail IF it reaches the running datafeed code
-                        // - If the request fails because it cannot get to a node running the datafeed then that will be because either:
-                        //   1. The datafeed isn't assigned to a node
-                        //   2. There's no master node
-                        // - But because close job runs on the master node, it cannot be option 2 - this code is running there
-                        // - In the case where a datafeed isn't assigned to a node, stop and force stop, with and without isolation, are
-                        //   all the same
-                        // - So we might as well move onto the next step, which is to force stop these same datafeeds (we know this because
-                        //   this is a specialist internal method of closing a job, not a generic isolation method)
-                        // - Force stopping the datafeeds operates purely on the master node (i.e. the current node where this code is
-                        //   running), and is a simple cluster state update, so will not fail in the same way
-                        // Unfortunately there is still a race condition here, which is that the datafeed could get assigned to a node
-                        // after the isolation request fails but before we follow up with the force close.  In this case force stopping
-                        // the datafeed will gracefully close the associated job if the datafeed has an end time, which is not what we
-                        // want.  But this will be a rare edge case.  Hopefully the loopholes can be closed during the job/datafeed
-                        // unification project.  In the meantime we'll log at a level that is usually enabled, to make diagnosing the
-                        // race condition easier.
-                        logger.info("could not isolate datafeed [" + request.getDatafeedId() + "] while force closing jobs " + openJobs, e);
-                        if (counter.incrementAndGet() == numberOfDatafeeds) {
-                            listener.onResponse(null);
-                        }
-                    }
-                )
-            );
+                groupedListener);
         }
     }
 

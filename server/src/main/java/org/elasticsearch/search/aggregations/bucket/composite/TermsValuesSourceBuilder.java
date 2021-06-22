@@ -165,7 +165,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                         return new GlobalOrdinalValuesSource(
                             bigArrays,
                             compositeValuesSourceConfig.fieldType(),
-                            vs::globalOrdinalsValues,
+                            vs::ordinalsValues,
                             compositeValuesSourceConfig.format(),
                             compositeValuesSourceConfig.missingBucket(),
                             size,

@@ -26,12 +26,10 @@ public class SimpleFeatureFactory {
     public SimpleFeatureFactory(int z, int x, int y, int extent) {
         this.extent = extent;
         final Rectangle rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
-        // This calculation mimics what mapbox vector tile library is doing. It avoids numerical
-        // errors during testing.
         final double xDiff = rectangle.getMaxLon() - rectangle.getMinLon();
-        pointXScale = 1d / (xDiff / (double) extent);
+        pointXScale = (double) extent / xDiff;
         final double yDiff = rectangle.getMaxLat() - rectangle.getMinLat();
-        pointYScale = -1d / (yDiff / (double) extent);
+        pointYScale = (double) -extent / yDiff;
         pointXTranslate = -pointXScale * rectangle.getMinX();
         pointYTranslate = -pointYScale * rectangle.getMinY();
     }

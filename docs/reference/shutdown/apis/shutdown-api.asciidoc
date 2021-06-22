@@ -1,0 +1,16 @@
+[role="xpack"]
+[testenv="basic"]
+[[node-lifecycle-api]]
+== Node lifecycle API
+
+You can use the following APIs to register nodes to be prepared for temporary
+or permanent shutdown.
+
+[discrete]
+=== Node shutdown APIs
+
+* <<shutdown-api-put-shutdown,Register node for shutdown>>
+
+include::shutdown-put.asciidoc[]
+include::shutdown-get.asciidoc[]
+include::shutdown-delete.asciidoc[]

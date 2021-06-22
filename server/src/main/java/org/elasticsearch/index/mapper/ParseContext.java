@@ -319,13 +319,13 @@ public abstract class ParseContext {
         public InternalParseContext(MappingLookup mappingLookup,
                                     IndexSettings indexSettings,
                                     IndexAnalyzers indexAnalyzers,
-                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
+                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContext,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
             this.indexSettings = indexSettings;
             this.indexAnalyzers = indexAnalyzers;
-            this.parserContextFunction = parserContextFunction;
+            this.parserContextFunction = parserContext;
             this.parser = parser;
             this.document = new Document();
             this.documents.add(document);
@@ -337,7 +337,7 @@ public abstract class ParseContext {
 
         @Override
         public Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
-            return parserContextFunction.apply(dateFormatter).createDynamicTemplateFieldContext();
+            return parserContextFunction.apply(dateFormatter);
         }
 
         @Override

@@ -964,10 +964,10 @@ public class WildcardFieldMapper extends FieldMapper {
         ParseContext.Document parseDoc = context.doc();
 
         List<IndexableField> fields = new ArrayList<>();
-        if (value != null && value.length() <= ignoreAbove) {
-            createFields(value, parseDoc, fields);
-        } else {
-            if (value != null && value.length() > ignoreAbove) {
+        if (value != null) {
+            if (value.length() <= ignoreAbove) {
+                createFields(value, parseDoc, fields);
+            } else {
                 context.addIgnoredField(name());
             }
         }

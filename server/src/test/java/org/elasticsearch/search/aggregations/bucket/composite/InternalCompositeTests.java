@@ -385,7 +385,7 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             DateFieldMapper.Resolution.MILLISECONDS
         );
         long epoch = 1622060077L; // May 25th 2021, evening
-        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObjectChecked(epoch, weekYearMonth));
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObject(epoch, weekYearMonth));
     }
 
     public void testFormatDateEpochTimezone() {
@@ -402,10 +402,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             DateFieldMapper.Resolution.MILLISECONDS
         );
         long epoch = 1622060077L; // May 25th 2021, evening
-        Object actual = InternalComposite.formatObjectChecked(epoch, epochSecond);
+        Object actual = InternalComposite.formatObject(epoch, epochSecond);
         assertEquals("1622060.077", actual.toString());
 
-        actual = InternalComposite.formatObjectChecked(epoch, epochMillis);
+        actual = InternalComposite.formatObject(epoch, epochMillis);
         assertEquals("1622060077", actual.toString());
     }
 

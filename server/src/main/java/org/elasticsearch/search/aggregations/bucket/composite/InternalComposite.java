@@ -333,7 +333,7 @@ public class InternalComposite
                 }
                 builder.append(sourceNames.get(i));
                 builder.append('=');
-                builder.append(formatObjectChecked(key.get(i), formats.get(i)));
+                builder.append(formatObject(key.get(i), formats.get(i)));
             }
             builder.append('}');
             return builder.toString();
@@ -395,64 +395,53 @@ public class InternalComposite
      * and throw an IllegalArgumentException if parsing fails.  This in turn prevents us from
      * returning an after_key which we can't subsequently parse into the original value.
      */
-    static Object formatObjectChecked(Object obj, DocValueFormat format) {
-        Object formatted = formatObjectUnchecked(obj, format);
-        if (formatted != null) {
-            Object parsed;
-            // Type Jank ahead
-            if (obj.getClass() == BytesRef.class) {
-                parsed = format.parseBytesRef(formatted.toString());
-                if (parsed.equals(obj) == false) {
-                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
-                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
-                }
-            } else if (obj.getClass() == Long.class) {
-                parsed = format.parseLong(formatted.toString(), false, () -> {
-                    throw new UnsupportedOperationException("Using now() is not supported in after keys");
-                });
-                if (parsed.equals(((Number) obj).longValue()) == false) {
-                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
-                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
-                }
-            } else if (obj.getClass() == Double.class) {
-                parsed = format.parseDouble(formatted.toString(), false,
-                    () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
-                if (parsed.equals(((Number) obj).doubleValue()) == false) {
-                    throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
-                        + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
-                }
-            }
-        }
-        return formatted;
-    }
-
-    private static Object formatObjectUnchecked(Object obj, DocValueFormat format) {
+    static Object formatObject(Object obj, DocValueFormat format) {
         if (obj == null) {
             return null;
         }
+        Object formatted = obj;
+        Object parsed;
         if (obj.getClass() == BytesRef.class) {
             BytesRef value = (BytesRef) obj;
             if (format == DocValueFormat.RAW) {
-                return value.utf8ToString();
+                formatted = value.utf8ToString();
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseBytesRef(formatted.toString());
+            if (parsed.equals(obj) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Long.class) {
             long value = (long) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseLong(formatted.toString(), false, () -> {
+                throw new UnsupportedOperationException("Using now() is not supported in after keys");
+            });
+            if (parsed.equals(((Number) obj).longValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         } else if (obj.getClass() == Double.class) {
             double value = (double) obj;
             if (format == DocValueFormat.RAW) {
-                return value;
+                formatted = value;
             } else {
-                return format.format(value);
+                formatted = format.format(value);
+            }
+            parsed = format.parseDouble(formatted.toString(), false,
+                () -> {throw new UnsupportedOperationException("Using now() is not supported in after keys");});
+            if (parsed.equals(((Number) obj).doubleValue()) == false) {
+                throw new IllegalArgumentException("Format [" + format + "] created output it couldn't parse for value [" + obj +"] "
+                    + "of type [" + obj.getClass() + "]. parsed value: [" + parsed + "(" + parsed.getClass() + ")]");
             }
         }
-        return obj;
+        return formatted;
     }
 
     static class ArrayMap extends AbstractMap<String, Object> implements Comparable<ArrayMap> {
@@ -476,7 +465,7 @@ public class InternalComposite
         public Object get(Object key) {
             for (int i = 0; i < keys.size(); i++) {
                 if (key.equals(keys.get(i))) {
-                    return formatObjectChecked(values[i], formats.get(i));
+                    return formatObject(values[i], formats.get(i));
                 }
             }
             return null;
@@ -497,7 +486,7 @@ public class InternalComposite
                         @Override
                         public Entry<String, Object> next() {
                             SimpleEntry<String, Object> entry =
-                                new SimpleEntry<>(keys.get(pos), formatObjectChecked(values[pos], formats.get(pos)));
+                                new SimpleEntry<>(keys.get(pos), formatObject(values[pos], formats.get(pos)));
                             ++ pos;
                             return entry;
                         }

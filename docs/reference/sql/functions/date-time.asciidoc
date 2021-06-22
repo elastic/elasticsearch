@@ -256,10 +256,12 @@ DATE_ADD(
 
 *Input*:
 
-<1> string expression denoting the date/time unit to add to the date/datetime
-<2> integer expression denoting how many times the above unit should be added to/from the date/datetime,
-if a negative value is used it results to a subtraction from the date/datetime
-<3> date/datetime expression
+<1> string expression denoting the date/time unit to add to the date/datetime.
+If `null`, the function returns `null`.
+<2> integer expression denoting how many times the above unit should be added
+to/from the date/datetime, if a negative value is used it results to a
+subtraction from the date/datetime. If `null`, the function returns `null`.
+<3> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: datetime
 
@@ -332,9 +334,10 @@ DATE_DIFF(
 
 *Input*:
 
-<1> string expression denoting the date/time unit difference between the following two date/datetime expressions
-<2> start date/datetime expression
-<3> end date/datetime expression
+<1> string expression denoting the date/time unit difference between the
+following two date/datetime expressions. If `null`, the function returns `null`.
+<2> start date/datetime expression. If `null`, the function returns `null`.
+<3> end date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -417,8 +420,8 @@ DATE_PARSE(
 
 *Input*:
 
-<1> date expression as a string
-<2> parsing pattern
+<1> date expression as a string. If `null`, the function returns `null`.
+<2> parsing pattern. If `null`, the function returns `null`.
 
 *Output*: date
 
@@ -461,8 +464,8 @@ DATETIME_FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -503,8 +506,8 @@ DATETIME_PARSE(
 
 *Input*:
 
-<1> datetime expression as a string
-<2> parsing pattern
+<1> datetime expression as a string. If `null`, the function returns `null`.
+<2> parsing pattern. If `null`, the function returns `null`.
 
 *Output*: datetime
 
@@ -553,8 +556,8 @@ TIME_PARSE(
 
 *Input*:
 
-<1> time expression as a string
-<2> parsing pattern
+<1> time expression as a string. If `null`, the function returns `null`.
+<2> parsing pattern. If `null`, the function returns `null`.
 
 *Output*: time
 
@@ -603,8 +606,9 @@ DATE_PART(
 
 *Input*:
 
-<1> string expression denoting the unit to extract from the date/datetime
-<2> date/datetime expression
+<1> string expression denoting the unit to extract from the date/datetime. If
+`null`, the function returns `null`.
+<2> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -691,8 +695,9 @@ DATE_TRUNC(
 
 *Input*:
 
-<1> string expression denoting the unit to which the date/datetime/interval should be truncated to
-<2> date/datetime/interval expression
+<1> string expression denoting the unit to which the date/datetime/interval
+should be truncated to. If `null`, the function returns `null`.
+<2> date/datetime/interval expression. If `null`, the function returns `null`.
 
 *Output*: datetime/interval
 
@@ -778,8 +783,8 @@ FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -829,8 +834,8 @@ TO_CHAR(
 
 *Input*:
 
-<1> date/datetime/time expression
-<2> format pattern
+<1> date/datetime/time expression. If `null`, the function returns `null`.
+<2> format pattern. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -875,7 +880,7 @@ DAY_OF_MONTH(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -897,7 +902,7 @@ DAY_OF_WEEK(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -919,7 +924,7 @@ DAY_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -941,7 +946,7 @@ DAY_NAME(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -963,7 +968,7 @@ HOUR_OF_DAY(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -985,7 +990,7 @@ ISO_DAY_OF_WEEK(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1008,7 +1013,7 @@ ISO_WEEK_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1031,7 +1036,7 @@ MINUTE_OF_DAY(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1053,7 +1058,7 @@ MINUTE_OF_HOUR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1075,7 +1080,7 @@ MONTH(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1097,7 +1102,7 @@ MONTH_NAME(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: string
 
@@ -1149,7 +1154,7 @@ SECOND_OF_MINUTE(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1171,7 +1176,7 @@ QUARTER(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1223,7 +1228,7 @@ WEEK_OF_YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 
@@ -1245,7 +1250,7 @@ YEAR(datetime_exp) <1>
 
 *Input*:
 
-<1> date/datetime expression
+<1> date/datetime expression. If `null`, the function returns `null`.
 
 *Output*: integer
 

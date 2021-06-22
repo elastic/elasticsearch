@@ -100,8 +100,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     public boolean checkMappingVersion(Predicate<Version> requiredVersion) {
         // pull value into local variable for consistent view
-        final State currentIndexState = this.indexState;
-        return currentIndexState.mappingVersion == null || requiredVersion.test(currentIndexState.mappingVersion);
+        final State state = this.state;
+        return state.mappingVersion == null || requiredVersion.test(state.mappingVersion);
     }
 
     public String aliasName() {
@@ -422,8 +422,8 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     public Version getInstallableMappingVersion() {
-        final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
-        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(indexState.minimumNodeVersion);
+        final State state = this.state; // use a local copy so all checks execute against the same state!
+        final SystemIndexDescriptor descriptor = systemIndexDescriptor.getDescriptorCompatibleWith(state.minimumNodeVersion);
         return descriptor == null ? Version.V_EMPTY : descriptor.getMappingVersion();
     }
 

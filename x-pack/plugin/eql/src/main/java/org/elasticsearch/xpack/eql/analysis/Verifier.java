@@ -7,6 +7,12 @@
 
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -19,6 +25,7 @@ import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -64,9 +71,13 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 public class Verifier {
 
     private final Metrics metrics;
+    private final IndicesOptions indicesOptions;
+    private final RemoteClusterService remoteClusterService;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, IndicesOptions indicesOptions, RemoteClusterService remoteClusterService) {
         this.metrics = metrics;
+        this.indicesOptions = indicesOptions;
+        this.remoteClusterService = remoteClusterService;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -157,6 +168,7 @@ public class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
+                checkRemoteClusterOnSameVersion(p, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -276,6 +288,22 @@ public class Verifier {
                 currentKey.name(), currentKey.dataType().esType(),
                 expectedKey.name(), expectedKey.dataType().esType()
             ));
+        }
+    }
+
+    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Set<Failure> localFailures) {
+        if (plan instanceof EsRelation) {
+            EsRelation esRelation = (EsRelation) plan;
+            Map<String, OriginalIndices> perClusterIndices = remoteClusterService.groupIndices(indicesOptions,
+                Strings.splitStringByCommaToArray(esRelation.index().name()));
+            perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            for (String clusterAlias: perClusterIndices.keySet()) {
+                Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+                if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
+                    localFailures.add(fail(esRelation, "remote cluster [{}] (on version [{}]) must be on the same version as the local "
+                            + "cluster (on version [{}])", clusterAlias, clusterVersion, Version.CURRENT));
+                }
+            }
         }
     }
 }

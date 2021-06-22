@@ -8,15 +8,16 @@ package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
+import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
+import org.junit.After;
 
 import java.util.Map;
 
@@ -28,6 +29,8 @@ public class VerifierTests extends ESTestCase {
 
     private final IndexResolution index = loadIndexResolution("mapping-default.json");
 
+    private final TestVerifier verifier = new TestVerifier();
+
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
     }
@@ -38,7 +41,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), verifier.verifier());
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -370,4 +373,8 @@ public class VerifierTests extends ESTestCase {
                 "[process where true] by opcode"));
     }
 
+    @After
+    public void cleanup() {
+        verifier.cleanup();
+    }
 }

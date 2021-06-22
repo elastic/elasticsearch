@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.eql.util;
 
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 
-import static org.elasticsearch.common.Strings.hasText;
+import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 public final class SearchHitUtils {
 
     public static String qualifiedIndex(SearchHit hit) {
-        String qualification = hasText(hit.getClusterAlias()) ? hit.getClusterAlias() + ":" : StringUtils.EMPTY;
-        return qualification + hit.getIndex();
+        return buildRemoteIndexName(hit.getClusterAlias(), hit.getIndex());
     }
 }

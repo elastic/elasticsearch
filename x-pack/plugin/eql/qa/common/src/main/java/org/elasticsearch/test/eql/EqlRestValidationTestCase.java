@@ -22,7 +22,7 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.EMPTY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class EqlRestValidationTestCase extends MultiClusterAwareEqlRestTestCase {
+public abstract class EqlRestValidationTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     private static final String indexName = "test_eql";
     protected static final String[] existentIndexWithWildcard = new String[] {indexName + ",inexistent*", indexName + "*,inexistent*",

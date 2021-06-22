@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.eql.stats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
+import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.OptimizerTests;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
@@ -165,9 +165,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private Counters eql(String query) {
         Metrics metrics = new Metrics();
-        Verifier verifier = new Verifier(metrics);
-        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier);
+        TestVerifier verifier = new TestVerifier();
+        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier.verifier(metrics));
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
+        verifier.cleanup();
         return metrics.stats();
     }
 

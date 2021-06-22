@@ -303,7 +303,7 @@ class IndicesAndAliasesResolver {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
                 || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request
                 || request instanceof OpenPointInTimeRequest
-                || request.getClass().getCanonicalName().equals("org.elasticsearch.xpack.eql.action.EqlSearchRequest"); // TODO
+                || request.getClass().getCanonicalName().equals("org.elasticsearch.xpack.eql.action.EqlSearchRequest");
     }
 
     private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {

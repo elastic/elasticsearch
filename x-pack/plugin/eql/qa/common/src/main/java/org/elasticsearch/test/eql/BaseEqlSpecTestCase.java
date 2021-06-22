@@ -34,7 +34,7 @@ import java.util.StringJoiner;
 
 import static java.util.stream.Collectors.toList;
 
-public abstract class BaseEqlSpecTestCase extends MultiClusterAwareEqlRestTestCase {
+public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
     protected static final String PARAM_FORMATTING = "%2$s";
 

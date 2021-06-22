@@ -9,18 +9,18 @@ package org.elasticsearch.xpack.eql.planner;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
+import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
-import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.optimizer.Optimizer;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.junit.After;
 
 import static org.elasticsearch.xpack.ql.type.TypesTests.loadMapping;
 
@@ -29,7 +29,8 @@ public abstract class AbstractQueryTranslatorTestCase extends ESTestCase {
     protected PreAnalyzer preAnalyzer = new PreAnalyzer();
     protected PostAnalyzer postAnalyzer = new PostAnalyzer();
     protected EqlConfiguration configuration = EqlTestUtils.randomConfiguration();
-    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), new Verifier(new Metrics()));
+    private TestVerifier testVerifier = new TestVerifier();
+    protected Analyzer analyzer = new Analyzer(configuration, new EqlFunctionRegistry(), testVerifier.verifier());
     protected Optimizer optimizer = new Optimizer();
     protected Planner planner = new Planner();
 
@@ -42,5 +43,10 @@ public abstract class AbstractQueryTranslatorTestCase extends ESTestCase {
 
     protected PhysicalPlan plan(String eql) {
         return plan(index, eql);
+    }
+
+    @After
+    public void cleanup() {
+        testVerifier.cleanup();
     }
 }

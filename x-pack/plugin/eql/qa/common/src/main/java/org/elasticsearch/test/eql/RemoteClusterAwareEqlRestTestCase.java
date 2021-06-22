@@ -24,7 +24,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 
-public abstract class MultiClusterAwareEqlRestTestCase extends ESRestTestCase {
+public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     private static RestClient remoteClusterClient;
 

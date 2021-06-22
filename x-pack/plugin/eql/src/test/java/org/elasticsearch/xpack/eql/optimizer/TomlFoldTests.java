@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.eql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
-import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -39,8 +39,8 @@ public class TomlFoldTests extends ESTestCase {
 
     private static final EqlParser PARSER = new EqlParser();
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private static final Verifier VERIFIER = new Verifier(new Metrics());
-    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, VERIFIER);
+    private final TestVerifier verifier = new TestVerifier();
+    private final Analyzer analyzer = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, verifier.verifier());
 
     private final int num;
     private final EqlFoldSpec spec;
@@ -72,7 +72,7 @@ public class TomlFoldTests extends ESTestCase {
         Expression expr = PARSER.createExpression(spec.expression());
         LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
             singletonList(new Alias(Source.EMPTY, "test", expr)));
-        LogicalPlan analyzed = ANALYZER.analyze(logicalPlan);
+        LogicalPlan analyzed = analyzer.analyze(logicalPlan);
 
         assertTrue(analyzed instanceof Project);
         List<?> projections = ((Project) analyzed).projections();
@@ -89,5 +89,10 @@ public class TomlFoldTests extends ESTestCase {
         }
 
         assertEquals(spec.expected(), folded);
+    }
+
+    @After
+    public void cleanup() {
+        verifier.cleanup();
     }
 }

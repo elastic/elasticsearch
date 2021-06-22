@@ -14,6 +14,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 
 import java.time.ZoneId;
@@ -29,6 +30,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
+    private final RemoteClusterService remoteClusterService;
 
     @Nullable
     private final QueryBuilder filter;
@@ -39,7 +41,8 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
                             Map<String, Object> runtimeMappings, List<FieldAndFormat> fetchFields, TimeValue requestTimeout,
-                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task) {
+                            IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task,
+                            RemoteClusterService remoteClusterService) {
         super(zi, username, clusterName);
 
         this.indices = indices;
@@ -52,6 +55,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
+        this.remoteClusterService = remoteClusterService;
     }
 
     public String[] indices() {
@@ -96,5 +100,9 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public TaskId getTaskId() {
         return taskId;
+    }
+
+    public RemoteClusterService remoteClusterService() {
+        return remoteClusterService;
     }
 }

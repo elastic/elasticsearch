@@ -89,10 +89,8 @@ The API returns:
         "all_fields": {
             "total": "928.9mb", <2>
             "total_in_bytes": 973977084,
-            "terms": "107.8mb",
-            "terms_in_bytes": 113128526,
-            "proximity": "11.6mb",
-            "proximity_in_bytes": 12253834,
+            "inverted_index": "107.8mb",
+            "inverted_index_in_bytes": 113128526,
             "stored_fields": "623.5mb",
             "stored_fields_in_bytes": 653819143,
             "doc_values": "125.7mb",
@@ -108,10 +106,8 @@ The API returns:
             "_id": {
                 "total": "49.3mb",
                 "total_in_bytes": 51709993,
-                "terms": "29.7mb",
-                "terms_in_bytes": 31172745,
-                "proximity": "0b",
-                "proximity_in_bytes": 0,
+                "inverted_index": "29.7mb",
+                "inverted_index_in_bytes": 31172745,
                 "stored_fields": "19.5mb", <3>
                 "stored_fields_in_bytes": 20537248,
                 "doc_values": "0b",
@@ -129,10 +125,8 @@ The API returns:
             "_source": {
                 "total": "603.9mb",
                 "total_in_bytes": 633281895,
-                "terms": "0b",
-                "terms_in_bytes": 0,
-                "proximity": "0b",
-                "proximity_in_bytes": 0,
+                "inverted_index": "0b",
+                "inverted_index_in_bytes": 0,
                 "stored_fields": "603.9mb", <4>
                 "stored_fields_in_bytes": 633281895,
                 "doc_values": "0b",
@@ -147,10 +141,8 @@ The API returns:
             "context": {
                 "total": "28.6mb",
                 "total_in_bytes": 30060405,
-                "terms": "22mb",
-                "terms_in_bytes": 23090908,
-                "proximity": "6.6mb",
-                "proximity_in_bytes": 6969497,
+                "inverted_index": "22mb",
+                "inverted_index_in_bytes": 23090908,
                 "stored_fields": "0b",
                 "stored_fields_in_bytes": 0,
                 "doc_values": "0b",

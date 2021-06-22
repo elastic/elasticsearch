@@ -421,11 +421,9 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                     case TIP:
                     case TMD:
                     case DOC:
-                        stats.addTerms(fieldLookup.getPostingsField(file), bytes);
-                        break;
                     case POS:
                     case PAY:
-                        stats.addProximity(fieldLookup.getPostingsField(file), bytes);
+                        stats.addInvertedIndex(fieldLookup.getPostingsField(file), bytes);
                         break;
                     case KDI:
                     case KDD:
@@ -465,14 +463,14 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);
             if (expectedField == null) {
                 assertThat(actualField.getDocValuesBytes(), equalTo(0L));
-                assertThat(actualField.getTermsBytes(), equalTo(0L));
-                assertThat(actualField.getProximityBytes(), equalTo(0L));
+                assertThat(actualField.getInvertedIndexBytes(), equalTo(0L));
                 continue;
             }
             // Allow difference up to 2.5KB as we can load up to 256 long values in the table for numeric docValues
-            assertFieldStats(field, "doc values", actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
-            assertFieldStats(field, "terms", actualField.getTermsBytes(), expectedField.getTermsBytes(), 0.01, 1024);
-            assertFieldStats(field, "proximity", actualField.getProximityBytes(), expectedField.getProximityBytes(), 0.01, 1024);
+            assertFieldStats(field, "doc values",
+                actualField.getDocValuesBytes(), expectedField.getDocValuesBytes(), 0.01, 2560);
+            assertFieldStats(field, "inverted index",
+                actualField.getInvertedIndexBytes(), expectedField.getInvertedIndexBytes(), 0.01, 1024);
         }
         // We are not able to collect per field stats for stored, vector, points, and norms
         IndexDiskUsageStats.PerFieldDiskUsage actualTotal = actualStats.total();

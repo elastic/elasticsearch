@@ -29,10 +29,8 @@ import java.util.stream.Collectors;
 public final class IndexDiskUsageStats implements ToXContentFragment, Writeable {
     public static final String TOTAL = "total";
     public static final String TOTAL_IN_BYTES = "total_in_bytes";
-    public static final String TERMS = "terms";
-    public static final String TERMS_IN_BYTES = "terms_in_bytes";
-    public static final String PROXIMITY = "proximity";
-    public static final String PROXIMITY_IN_BYTES = "proximity_in_bytes";
+    public static final String INVERTED_INDEX = "inverted_index";
+    public static final String INVERTED_INDEX_IN_BYTES = "inverted_index_in_bytes";
     public static final String STORED_FIELDS = "stored_fields";
     public static final String STORED_FIELDS_IN_BYTES = "stored_fields_in_bytes";
     public static final String DOC_VALUES = "doc_values";
@@ -93,14 +91,9 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         return fields.computeIfAbsent(fieldName, k -> new PerFieldDiskUsage());
     }
 
-    public void addTerms(String fieldName, long bytes) {
+    public void addInvertedIndex(String fieldName, long bytes) {
         checkByteSize(bytes);
-        getOrAdd(fieldName).termsBytes += bytes;
-    }
-
-    public void addProximity(String fieldName, long bytes) {
-        checkByteSize(bytes);
-        getOrAdd(fieldName).proximityBytes += bytes;
+        getOrAdd(fieldName).invertedIndexBytes += bytes;
     }
 
     public void addStoredField(String fieldName, long bytes) {
@@ -169,8 +162,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
      * Disk usage stats for a single field
      */
     public static final class PerFieldDiskUsage implements ToXContentFragment, Writeable {
-        private long termsBytes;
-        private long proximityBytes;
+        private long invertedIndexBytes;
         private long storedFieldBytes;
         private long docValuesBytes;
         private long pointsBytes;
@@ -182,8 +174,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
         }
 
         private PerFieldDiskUsage(StreamInput in) throws IOException {
-            termsBytes = in.readVLong();
-            proximityBytes = in.readVLong();
+            invertedIndexBytes = in.readVLong();
             storedFieldBytes = in.readVLong();
             docValuesBytes = in.readVLong();
             pointsBytes = in.readVLong();
@@ -193,8 +184,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(termsBytes);
-            out.writeVLong(proximityBytes);
+            out.writeVLong(invertedIndexBytes);
             out.writeVLong(storedFieldBytes);
             out.writeVLong(docValuesBytes);
             out.writeVLong(pointsBytes);
@@ -204,8 +194,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
 
         private void add(PerFieldDiskUsage other) {
-            termsBytes += other.termsBytes;
-            proximityBytes += other.proximityBytes;
+            invertedIndexBytes += other.invertedIndexBytes;
             storedFieldBytes += other.storedFieldBytes;
             docValuesBytes += other.docValuesBytes;
             pointsBytes += other.pointsBytes;
@@ -213,12 +202,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             termVectorsBytes += other.termVectorsBytes;
         }
 
-        public long getTermsBytes() {
-            return termsBytes;
-        }
-
-        public long getProximityBytes() {
-            return proximityBytes;
+        public long getInvertedIndexBytes() {
+            return invertedIndexBytes;
         }
 
         public long getStoredFieldBytes() {
@@ -243,7 +228,7 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
 
 
         long totalBytes() {
-            return termsBytes + proximityBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
+            return invertedIndexBytes + storedFieldBytes + docValuesBytes + pointsBytes + normsBytes + termVectorsBytes;
         }
 
         @Override
@@ -252,11 +237,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             builder.field(TOTAL, new ByteSizeValue(totalBytes));
             builder.field(TOTAL_IN_BYTES, totalBytes);
 
-            builder.field(TERMS, new ByteSizeValue(termsBytes));
-            builder.field(TERMS_IN_BYTES, termsBytes);
-
-            builder.field(PROXIMITY, new ByteSizeValue(proximityBytes));
-            builder.field(PROXIMITY_IN_BYTES, proximityBytes);
+            builder.field(INVERTED_INDEX, new ByteSizeValue(invertedIndexBytes));
+            builder.field(INVERTED_INDEX_IN_BYTES, invertedIndexBytes);
 
             builder.field(STORED_FIELDS, new ByteSizeValue(storedFieldBytes));
             builder.field(STORED_FIELDS_IN_BYTES, storedFieldBytes);

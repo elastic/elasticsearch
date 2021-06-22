@@ -265,6 +265,18 @@ import java.util.Map;
         }
     }
 
+    private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
+        postings.freq();
+        if (terms.hasPositions()) {
+            for (int pos = 0; pos < postings.freq(); pos++) {
+                postings.nextPosition();
+                postings.startOffset();
+                postings.endOffset();
+                postings.getPayload();
+            }
+        }
+    }
+
     void analyzePostings(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
         // TODO: FieldsReader has stats() which might contain the disk usage infos
         // Also, can we track the byte reader per field extension to avoid visiting terms multiple times?
@@ -284,61 +296,38 @@ import java.util.Map;
             if (terms == null) {
                 continue;
             }
-
             // It's expensive to look up every term and visit every document of the postings lists of all terms.
             // As we track the min/max positions of read bytes, we just visit the two ends of a partition containing
             // the data. We might some small parts of the data, but it's an good trade-off to speed up the process.
             TermsEnum termsEnum = terms.iterator();
-            final TermsEnum termsIndexLookup = terms.iterator(); // used to traverse the term index
-            termsIndexLookup.seekExact(terms.getMin());
-            byte lastFirstByte = terms.getMin().bytes[0];
-            BytesRef bytesRef;
-            while ((bytesRef = termsEnum.next()) != null) {
+            while (termsEnum.next() != null) {
                 cancellationChecker.logEvent();
-                if (lastFirstByte != bytesRef.bytes[0]) {
-                    lastFirstByte = bytesRef.bytes[0];
-                    termsIndexLookup.seekExact(bytesRef);
-                }
+                termsEnum.docFreq();
                 termsEnum.totalTermFreq();
-                int docID = 0;
-                for (long idx = 0; idx <= 8; idx++) {
-                    final int skipDocID = Math.toIntExact(idx * reader.maxDoc() / 8);
-                    if (skipDocID <= docID) {
-                        cancellationChecker.logEvent();
-                        postings = termsEnum.postings(postings, PostingsEnum.NONE);
-                        if ((docID = postings.advance(skipDocID)) != DocIdSetIterator.NO_MORE_DOCS) {
-                            postings.freq();
-                            postings.nextDoc();
-                        }
-                    }
-                }
-            }
-            termsIndexLookup.seekExact(terms.getMax());
-            final long termsBytes = directory.getBytesRead();
-            stats.addTerms(field.name, termsBytes);
-
-            // Visit positions, offsets, and payloads
-            if (field.getIndexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS ||
-                field.getIndexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
-                termsEnum = terms.iterator();
-                while (termsEnum.next() != null) {
-                    cancellationChecker.logEvent();
-                    termsEnum.docFreq();
-                    postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                    while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        if (terms.hasPositions()) {
-                            for (int pos = 0; pos < postings.freq(); pos++) {
-                                postings.nextPosition();
-                                postings.startOffset();
-                                postings.endOffset();
-                                postings.getPayload();
+                postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                int docID;
+                if ((docID = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                    readProximity(terms, postings);
+                    for (long idx = 1; idx <= 8; idx++) {
+                        final int skipDocID = Math.toIntExact(idx * (reader.maxDoc() - 1) / 8);
+                        if (skipDocID >= docID) {
+                            cancellationChecker.logEvent();
+                            postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                            if (postings.advance(skipDocID) != DocIdSetIterator.NO_MORE_DOCS) {
+                                docID = postings.docID();
+                                readProximity(terms, postings);
+                            } else {
+                                postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                                break;
                             }
                         }
                     }
+                    while ((docID = postings.advance(docID + 1)) != DocIdSetIterator.NO_MORE_DOCS) {
+                        readProximity(terms, postings);
+                    }
                 }
-                final long proximityBytes = directory.getBytesRead() - termsBytes;
-                stats.addProximity(field.name, proximityBytes);
             }
+            stats.addInvertedIndex(field.name, directory.getBytesRead());
         }
     }
 

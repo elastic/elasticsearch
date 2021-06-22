@@ -70,7 +70,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
             "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
                 + JavaVersion.current().toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
-                + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.");
+                + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
+            null);
 
         if (isJvmEarlierThan11()) {
             assertThat(issues, hasItem(expected));
@@ -88,7 +89,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [pidfile] is deprecated in favor of setting [node.pidfile]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-pidfile",
-            "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]");
+            "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Environment.PIDFILE_SETTING});
     }
@@ -102,7 +103,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [processors] is deprecated in favor of setting [node.processors]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors",
-            "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
+            "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]",
+            null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});
     }
@@ -132,7 +134,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 Locale.ROOT,
                 "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
                 RealmSettings.realmSettingPrefix(invalidRealm) + RealmSettings.ORDER_SETTING_KEY
-            )
+            ),
+            null
         ), deprecationIssues.get(0));
     }
 
@@ -362,7 +365,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
-            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting");
+            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
     }
@@ -376,7 +379,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
-            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
+            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
     }
@@ -391,7 +394,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size",
             "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
-                "to [" + size + "] where * is a script context");
+                "to [" + size + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
     }
@@ -406,7 +409,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire",
             "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
-                "[" + expire + "] where * is a script context");
+                "[" + expire + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
@@ -421,7 +424,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate",
             "the setting [script.max_compilations_rate] is currently set to [" + rate +
-                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context");
+                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
@@ -441,7 +444,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
                 value,
                 "node.remote_cluster_client"
-            ));
+            ), null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
     }
@@ -455,7 +458,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [node.local_storage] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage",
-            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting"
+            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting", null
         );
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
@@ -484,7 +487,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [" + deprecatedSetting.getKey() + "] is deprecated and will be removed in the next major version",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html" +
                     "#deprecate-basic-license-feature-enabled",
-                "the setting [" + deprecatedSetting.getKey() + "] is currently set to [" + value + "], remove this setting"
+                "the setting [" + deprecatedSetting.getKey() + "] is currently set to [" + value + "], remove this setting", null
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
@@ -510,7 +513,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [" + legacyRoleSetting.getKey() + "] is deprecated in favor of setting [node.roles]",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes",
                 "the setting [" + legacyRoleSetting.getKey() + "] is currently set to ["
-                    + value + "], instead set [node.roles] to [" + roles + "]"
+                    + value + "], instead set [node.roles] to [" + roles + "]", null
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{legacyRoleSetting});
@@ -530,7 +533,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting",
-            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting");
+            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting",
+            null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{BootstrapSettings.SYSTEM_CALL_FILTER_SETTING});
     }
@@ -646,8 +650,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
-                "Found shared data path configured. Discontinue use of this setting."
-            )));
+                "Found shared data path configured. Discontinue use of this setting.",
+                null)));
     }
 
     public void testSingleDataNodeWatermarkSettingExplicit() {
@@ -667,7 +671,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                     " will not be available in a future version",
                 expectedUrl,
                 "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured to false." +
-                    " Discontinue use of this setting or set it to true."
+                    " Discontinue use of this setting or set it to true.",
+                null
             )));
 
         assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
@@ -696,8 +701,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             expectedUrl,
             "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] defaulting to false" +
                 " on a single data node cluster. Set it to true to avoid this warning." +
-                " Consider using [cluster.routing.allocation.disk.threshold_enabled] to disable disk based allocation"
-        );
+                " Consider using [cluster.routing.allocation.disk.threshold_enabled] to disable disk based allocation", null);
 
         assertThat(issues, hasItem(deprecationIssue));
 
@@ -746,7 +750,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 Locale.ROOT,
                 "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
                 joinedNames
-            ))));
+            ), null)));
 
         // test for absence of deprecated exporter passwords
         issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null);

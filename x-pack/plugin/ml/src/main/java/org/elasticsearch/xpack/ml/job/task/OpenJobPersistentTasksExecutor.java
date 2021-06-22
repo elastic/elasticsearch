@@ -323,6 +323,10 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     }
 
     private void openJob(JobTask jobTask) {
+        if (jobTask.isClosing()) {
+            logger.debug(() -> new ParameterizedMessage("[{}] Aborted opening job as it has been closed", jobTask.getJobId()));
+            return;
+        }
         String jobId = jobTask.getJobId();
         autodetectProcessManager.openJob(jobTask, clusterState, PERSISTENT_TASK_MASTER_NODE_TIMEOUT, (e2, shouldFinalizeJob) -> {
             if (e2 == null) {

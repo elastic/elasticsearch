@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.common.socket;
 
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
 
 import java.io.IOException;

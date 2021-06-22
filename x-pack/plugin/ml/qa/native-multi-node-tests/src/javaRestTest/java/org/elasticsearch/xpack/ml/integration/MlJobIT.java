@@ -145,7 +145,6 @@ public class MlJobIT extends ESRestTestCase {
             + "        \"bucket_span\": \"3600s\",\n"
             + "        \"detectors\" :[{\"function\":\"metric\",\"field_name\":\"responsetime\",\"by_field_name\":\"airline\"}]\n"
             + "    },\n" + "    \"data_description\" : {\n"
-            + "        \"field_delimiter\":\",\",\n"
             + "        \"time_field\":\"time\",\n"
             + "        \"time_format\":\"yyyy-MM-dd HH:mm:ssX\"\n"
             + "    }\n"

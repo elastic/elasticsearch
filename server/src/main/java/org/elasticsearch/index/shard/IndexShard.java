@@ -46,27 +46,27 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RecoverySource.SnapshotRecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.WriteStateException;
 import org.elasticsearch.index.Index;
@@ -2544,6 +2544,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public void maybeCheckIndex() {
         recoveryState.setStage(RecoveryState.Stage.VERIFY_INDEX);
         if (Booleans.isTrue(checkIndexOnStartup) || "checksum".equals(checkIndexOnStartup)) {
+            logger.warn(
+                "performing expensive diagnostic checks during shard startup [{}={}]; " +
+                    "these checks should only be enabled temporarily, you must remove this index setting as soon as possible",
+                IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(),
+                checkIndexOnStartup);
             try {
                 checkIndex();
             } catch (IOException ex) {
@@ -2570,30 +2575,47 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         if (Lucene.indexExists(store.directory()) == false) {
             return;
         }
-        BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
 
         if ("checksum".equals(checkIndexOnStartup)) {
             // physical verification only: verify all checksums for the latest commit
             IOException corrupt = null;
-            MetadataSnapshot metadata = snapshotStoreMetadata();
+            final MetadataSnapshot metadata;
+            try {
+                metadata = snapshotStoreMetadata();
+            } catch (IOException e) {
+                logger.warn("check index [failure]", e);
+                throw e;
+            }
+            final List<String> checkedFiles = new ArrayList<>(metadata.size());
             for (Map.Entry<String, StoreFileMetadata> entry : metadata.asMap().entrySet()) {
                 try {
                     Store.checkIntegrity(entry.getValue(), store.directory());
-                    out.println("checksum passed: " + entry.getKey());
-                } catch (IOException exc) {
-                    out.println("checksum failed: " + entry.getKey());
-                    exc.printStackTrace(out);
-                    corrupt = exc;
+                    if (corrupt == null) {
+                        checkedFiles.add(entry.getKey());
+                    } else {
+                        logger.info("check index [ok]: checksum check passed on [{}]", entry.getKey());
+                    }
+                } catch (IOException ioException) {
+                    for (final String checkedFile : checkedFiles) {
+                        logger.info("check index [ok]: checksum check passed on [{}]", checkedFile);
+                    }
+                    checkedFiles.clear();
+                    logger.warn(new ParameterizedMessage("check index [failure]: checksum failed on [{}]", entry.getKey()), ioException);
+                    corrupt = ioException;
                 }
             }
-            out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
                 throw corrupt;
+            }
+            if (logger.isDebugEnabled()) {
+                for (final String checkedFile : checkedFiles) {
+                    logger.debug("check index [ok]: checksum check passed on [{}]", checkedFile);
+                }
             }
         } else {
             // full checkindex
+            final BytesStreamOutput os = new BytesStreamOutput();
+            final PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
             final CheckIndex.Status status = store.checkIndex(out);
             out.flush();
             if (status.clean == false) {
@@ -2601,13 +2623,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     // ignore if closed....
                     return;
                 }
-                logger.warn("check index [failure]\n{}", os.bytes().utf8ToString());
+                logger.warn("check index [failure]");
+                // report details in a separate message, it might contain control characters which mess up detection of the failure message
+                logger.warn("{}", os.bytes().utf8ToString());
                 throw new IOException("index check failure");
             }
-        }
 
-        if (logger.isDebugEnabled()) {
-            logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            if (logger.isDebugEnabled()) {
+                logger.debug("check index [success]\n{}", os.bytes().utf8ToString());
+            }
         }
 
         recoveryState.getVerifyIndex().checkIndexTime(Math.max(0, TimeValue.nsecToMSec(System.nanoTime() - timeNS)));

@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 /**
  * An allocation decider that prevents shards from being allocated to a

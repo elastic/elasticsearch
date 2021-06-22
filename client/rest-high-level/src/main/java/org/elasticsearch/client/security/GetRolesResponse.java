@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.security.user.privileges.Role;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 

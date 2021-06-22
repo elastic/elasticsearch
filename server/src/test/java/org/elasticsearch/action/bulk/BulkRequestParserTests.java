@@ -9,7 +9,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;

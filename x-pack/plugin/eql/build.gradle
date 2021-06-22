@@ -71,7 +71,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'

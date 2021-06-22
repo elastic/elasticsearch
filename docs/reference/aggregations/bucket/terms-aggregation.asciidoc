@@ -60,15 +60,12 @@ GET /_search
 {
   "aggs": {
     "genres": {
-      "terms": { "field": "genre" } <1>
+      "terms": { "field": "genre" }
     }
   }
 }
 --------------------------------------------------
 // TEST[s/_search/_search\?filter_path=aggregations/]
-
-<1> `terms` aggregation should be a field of type `keyword` or any other data type suitable for bucket aggregations. In order to use it with `text` you will need to enable
-<<fielddata, fielddata>>.
 
 Response:
 
@@ -100,12 +97,22 @@ Response:
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\.//]
 
-<1> an upper bound of the error on the document counts for each term, see <<search-aggregations-bucket-terms-aggregation-approximate-counts,below>>
+<1> an upper bound of the error on the document counts for each term, see <<terms-agg-doc-count-error,below>>
 <2> when there are lots of unique terms, Elasticsearch only returns the top terms; this number is the sum of the document counts for all buckets that are not part of the response
 <3> the list of the top buckets, the meaning of `top` being defined by the <<search-aggregations-bucket-terms-aggregation-order,order>>
 
 By default, the `terms` aggregation will return the buckets for the top ten terms ordered by the `doc_count`. One can
 change this default behaviour by setting the `size` parameter.
+
+[[search-aggregations-bucket-terms-aggregation-types]]
+The `field` can be <<keyword>>, <<number>>, <<ip, `ip`>>, <<boolean, `boolean`>>,
+or <<binary, `binary`>>.
+
+NOTE: By default, you cannot run a `terms` aggregation on a `text` field. Use a
+`keyword` <<multi-fields,sub-field>> instead. Alternatively, you can enable
+<<fielddata,`fielddata`>> on the `text` field to create buckets for the field's
+<<analysis,analyzed>> terms. Enabling `fielddata` can significantly increase
+memory usage.
 
 [[search-aggregations-bucket-terms-aggregation-size]]
 ==== Size
@@ -121,14 +128,6 @@ NOTE: If you want to retrieve **all** terms or all combinations of terms in a ne
       you should use the <<search-aggregations-bucket-composite-aggregation,Composite>> aggregation which
       allows to paginate over all possible terms rather than setting a size greater than the cardinality of the field in the
       `terms` aggregation. The `terms` aggregation is meant to return the `top` terms and does not allow pagination.
-
-[[search-aggregations-bucket-terms-aggregation-approximate-counts]]
-==== Document counts are approximate
-
-Document counts (and the results of any sub aggregations) in the terms
-aggregation are not always accurate. Each shard provides its own view of what
-the ordered list of terms should be. These views are combined to give a final
-view.
 
 ==== Shard Size
 
@@ -149,15 +148,28 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 
 The default `shard_size` is `(size * 1.5 + 10)`.
 
-==== Calculating Document Count Error
+[[terms-agg-doc-count-error]]
+==== Document count error
 
-There are two error values which can be shown on the terms aggregation. The first gives a value for the aggregation as
-a whole which represents the maximum potential document count for a term which did not make it into the final list of
-terms. This is calculated as the sum of the document count from the last term returned from each shard.
+`doc_count` values for a `terms` aggregation may be approximate. As a result,
+any sub-aggregations on the `terms` aggregation may also be approximate.
+
+To calculate `doc_count` values, each shard provides its own top terms and
+document counts. The aggregation combines these shard-level results to calculate
+its final `doc_count` values. To measure the accuracy of `doc_count` values, the
+aggregation results include the following properties:
+
+`sum_other_doc_count`::
+(integer) The total document count for any terms not included in the results.
+
+`doc_count_error_upper_bound`::
+(integer) The highest possible document count for any single term not included
+in the results. If `0`, `doc_count` values are accurate.
 
 ==== Per bucket document count error
 
-The second error value can be enabled by setting the `show_term_doc_count_error` parameter to true:
+To get the `doc_count_error_upper_bound` for each term, set
+`show_term_doc_count_error` to `true`:
 
 [source,console,id=terms-aggregation-doc-count-error-example]
 --------------------------------------------------
@@ -194,7 +206,7 @@ The order of the buckets can be customized by setting the `order` parameter. By 
 their `doc_count` descending. It is possible to change this behaviour as documented below:
 
 WARNING: Sorting by ascending `_count` or by sub aggregation is discouraged as it increases the
-<<search-aggregations-bucket-terms-aggregation-approximate-counts,error>> on document counts.
+<<terms-agg-doc-count-error,error>> on document counts.
 It is fine when a single shard is queried, or when the field that is being aggregated was used
 as a routing key at index time: in these cases results will be accurate since shards have disjoint
 values. However otherwise, errors are unbounded. One particular case that could still be useful

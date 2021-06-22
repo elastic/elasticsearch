@@ -28,6 +28,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -58,8 +59,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     }
 
     @Override
-    public final MappedFieldType asMappedFieldType() {
-        return this;
+    public final Collection<MappedFieldType> asMappedFieldTypes() {
+        return Collections.singleton(this);
     }
 
     @Override

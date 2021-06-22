@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.notification.jira;
 
 import org.apache.http.HttpStatus;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;

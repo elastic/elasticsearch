@@ -324,7 +324,7 @@ public class SearchExecutionContextTests extends ESTestCase {
 
     private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeField> runtimeFields) {
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc");
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
@@ -466,7 +466,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return new TestRuntimeField(name, null) {
+        TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {
@@ -555,6 +555,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 };
             }
         };
+        return new TestRuntimeField(name, null, Collections.singleton(fieldType));
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {

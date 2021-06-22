@@ -18,11 +18,11 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -187,13 +187,14 @@ public class AutodetectProcessManager implements ClusterStateListener {
                 .kill();
         } else {
             // If the process is missing but the task exists this is most likely
-            // due to 2 reasons. The first is because the job went into the failed
+            // due to 3 reasons. The first is because the job went into the failed
             // state then the node restarted causing the task to be recreated
             // but the failed process wasn't. The second is that the job went into
             // the failed state and the user tries to remove it force-deleting it.
             // Force-delete issues a kill but the process will not be present
-            // as it is cleaned up already. In both cases, we still need to remove
-            // the task from the TaskManager (which is what the kill would do)
+            // as it is cleaned up already. The third is that the kill has been
+            // received before the process has even started. In all cases, we still
+            // need to remove the task from the TaskManager (which is what the kill would do)
             logger.trace(() -> new ParameterizedMessage("[{}] Marking job task as completed", jobTask.getJobId()));
             jobTask.markAsCompleted();
         }
@@ -241,7 +242,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
      * <p>
      * An ElasticsearchStatusException will be thrown is any of these error conditions occur:
      * <ol>
-     * <li>If a configured field is missing from the CSV header</li>
+     * <li>If a configured field is missing from the input</li>
      * <li>If JSON data is malformed and we cannot recover parsing</li>
      * <li>If a high proportion of the records the timestamp field that cannot be parsed</li>
      * <li>If a high proportion of the records chronologically out of order</li>

@@ -20,7 +20,7 @@ import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.is;
 
-public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeStep> {
+public class FreezeStepTests extends AbstractStepTestCase<FreezeStep> {
 
     @Override
     public FreezeStep createRandomInstance() {
@@ -54,8 +54,7 @@ public class FreezeStepTests extends AbstractStepMasterTimeoutTestCase<FreezeSte
         return new FreezeStep(instance.getKey(), instance.getNextStepKey(), instance.getClient());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }

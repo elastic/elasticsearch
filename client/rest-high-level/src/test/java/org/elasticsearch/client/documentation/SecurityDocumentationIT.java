@@ -2725,10 +2725,10 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
             client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
-        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
 
         {
             // tag::get-service-account-credentials-request
@@ -2750,7 +2750,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
             assertThat(serviceTokenInfos.size(), equalTo(1));
-            assertThat(tokenName, equalTo("token1"));
+            assertThat(tokenName, equalTo("token2"));
             assertThat(tokenSource, equalTo("index"));
         }
 
@@ -2784,7 +2784,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
             assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token1", "index")));
+            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token2", "index")));
         }
     }
 

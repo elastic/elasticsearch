@@ -398,13 +398,12 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
     /**
      * Returns the cache key for this shard search request, based on its content
      */
-    public BytesReference cacheKey(
-        List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators) throws IOException {
+    public BytesReference cacheKey(CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator) throws IOException {
         BytesStreamOutput out = scratch.get();
         try {
             this.innerWriteTo(out, true);
-            for (CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> c : differentiators) {
-                c.accept(this, out);
+            if (differentiator != null) {
+                differentiator.accept(this, out);
             }
             // copy it over since we don't want to share the thread-local bytes in #scratch
             return out.copyBytes();

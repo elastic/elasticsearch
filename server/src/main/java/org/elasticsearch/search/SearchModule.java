@@ -275,7 +275,7 @@ public class SearchModule {
     private final List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
     private final List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>();
     private final ValuesSourceRegistry valuesSourceRegistry;
-    private final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> requestCacheKeyDifferentiators = new ArrayList<>();
+    private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
 
     /**
      * Constructs a new SearchModule object
@@ -301,7 +301,7 @@ public class SearchModule {
         registerSearchExts(plugins);
         registerShapes();
         registerIntervalsSourceProviders();
-        registerRequestCacheKeyDifferentiators(plugins);
+        requestCacheKeyDifferentiator = registerRequestCacheKeyDifferentiator(plugins);
         namedWriteables.addAll(SortValue.namedWriteables());
     }
 
@@ -317,8 +317,8 @@ public class SearchModule {
         return valuesSourceRegistry;
     }
 
-    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return requestCacheKeyDifferentiators;
+    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        return requestCacheKeyDifferentiator;
     }
 
     /**
@@ -843,8 +843,19 @@ public class SearchModule {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
 
-    private void registerRequestCacheKeyDifferentiators(List<SearchPlugin> plugins) {
-        registerFromPlugin(plugins, SearchPlugin::getRequestCacheKeyDifferentiators, requestCacheKeyDifferentiators::add);
+    private CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(List<SearchPlugin> plugins) {
+        CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = null;
+        for (SearchPlugin plugin : plugins) {
+            final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> d = plugin.getRequestCacheKeyDifferentiator();
+            if (d != null) {
+                if (differentiator == null) {
+                    differentiator = d;
+                } else {
+                    throw new IllegalArgumentException("Cannot have more than one plugin providing a request cache key differentiator");
+                }
+            }
+        }
+        return differentiator;
     }
 
     public static List<NamedWriteableRegistry.Entry> getIntervalsSourceProviderNamedWritables() {

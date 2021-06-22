@@ -572,10 +572,20 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
     }
 
     @Override
-    public List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return filterPlugins(SearchPlugin.class).stream()
-            .map(SearchPlugin::getRequestCacheKeyDifferentiators)
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
+    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators =
+            filterPlugins(SearchPlugin.class).stream()
+                .map(SearchPlugin::getRequestCacheKeyDifferentiator)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toUnmodifiableList());
+
+        if (differentiators.size() > 1) {
+            throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");
+        } else if (differentiators.size() == 1) {
+            return differentiators.get(0);
+        } else {
+            return null;
+        }
+
     }
 }

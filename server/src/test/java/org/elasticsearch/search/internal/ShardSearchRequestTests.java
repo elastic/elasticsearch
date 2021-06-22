@@ -38,6 +38,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -46,6 +47,7 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -154,7 +156,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertEquals(orig.cacheKey(List.of()), copy.cacheKey(List.of()));
+        assertEquals(orig.cacheKey(null), copy.cacheKey(null));
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);
@@ -208,16 +210,12 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
 
     public void testWillCallRequestCacheKeyDifferentiators() throws IOException {
         final ShardSearchRequest shardSearchRequest = createShardSearchRequest();
-        final int n = randomIntBetween(1, 3);
-        final AtomicInteger count = new AtomicInteger();
-        final List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> differentiators
-            = IntStream.range(0, n)
-            .mapToObj(i -> (CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>) (r, o) -> {
-                assertThat(r, sameInstance(shardSearchRequest));
-                count.incrementAndGet();
-            })
-            .collect(Collectors.toUnmodifiableList());
-        shardSearchRequest.cacheKey(differentiators);
-        assertThat(count.get(), equalTo(n));
+        final AtomicBoolean invoked = new AtomicBoolean(false);
+        final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = (r, o) -> {
+            assertThat(r, sameInstance(shardSearchRequest));
+            invoked.set(true);
+        };
+        shardSearchRequest.cacheKey(differentiator);
+        assertThat(invoked.get(), is(true));
     }
 }

@@ -128,12 +128,12 @@ public interface SearchPlugin {
     }
 
     /**
-     * Allows plugins to register cache differentiators which contributes to the cacheKey
+     * Allows plugins to register a cache differentiator which contributes to the cacheKey
      * computation for the request cache. This helps differentiate between queries that
      * are otherwise identical.
      */
-    default List<CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException>> getRequestCacheKeyDifferentiators() {
-        return emptyList();
+    default CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+        return null;
     }
 
     /**

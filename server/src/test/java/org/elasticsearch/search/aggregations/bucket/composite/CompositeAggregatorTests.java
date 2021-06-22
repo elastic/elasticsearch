@@ -2503,6 +2503,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         }
     }
 
+
     public void testInvalidCompositeValueSourceName() throws IOException {
         String invalidName = randomAlphaOfLengthBetween(0, 5)
             + ILLEGAL_FIELD_NAME_CHARACTERS[randomIntBetween(0, ILLEGAL_FIELD_NAME_CHARACTERS.length - 1)]

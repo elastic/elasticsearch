@@ -88,6 +88,7 @@ public class CompositeValuesSourceParserHelper {
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String name = parser.currentName();
+
         Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher(name);
 
         if (validAggMatcher.matches() == false) {

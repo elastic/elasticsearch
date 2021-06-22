@@ -83,11 +83,11 @@ public class PyTorchModelIT extends ESRestTestCase {
         RAW_MODEL_SIZE = Base64.getDecoder().decode(BASE_64_ENCODED_MODEL).length;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/73769")
     public void testEvaluate() throws IOException {
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();
+        refreshModelStoreIndex();
         createTrainedModel();
         startDeployment();
         try {
@@ -165,6 +165,11 @@ public class PyTorchModelIT extends ESRestTestCase {
             "        }\n" +
             "    }" +
             "}");
+        client().performRequest(request);
+    }
+
+    private void refreshModelStoreIndex() throws IOException {
+        Request request = new Request("POST", "/" + MODEL_INDEX + "/_refresh");
         client().performRequest(request);
     }
 

@@ -24,6 +24,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         assertEquals(7, pointField.numericValue().doubleValue(), 0d);
     }
 
+    @Override
     public void testDimension() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -34,6 +35,33 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         assertThat(fieldType, instanceOf(NumberFieldMapper.NumberFieldType.class));
         NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
         assertTrue(ft.isDimension());
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        super.registerParameters(checker);
+
+        // dimension cannot be updated
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }));
     }
 
 }

@@ -24,6 +24,7 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -70,28 +71,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 },
                 m -> assertThat((m).onScriptError, equalTo("continue")));
         }
-
-        // dimension cannot be updated
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }));
     }
 
     @Override
@@ -267,6 +246,28 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
                     e.getCause().getMessage(), containsString(item.message));
             }
+        }
+    }
+
+    public void testDimension() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", false);
+        }));
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        assertThat(fieldType, instanceOf(NumberFieldMapper.NumberFieldType.class));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        assertFalse(ft.isDimension());
+
+        try {
+            createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+            fail("Mapper parsing exception expected for non-integer numeric with dimension parameter set");
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
         }
     }
 

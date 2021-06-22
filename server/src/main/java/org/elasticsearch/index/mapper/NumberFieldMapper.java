@@ -51,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -81,8 +82,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
-        private final Parameter<Boolean> dimension
-            = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false);
+        private final Parameter<Boolean> dimension;
+
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -111,6 +112,13 @@ public class NumberFieldMapper extends FieldMapper {
                 = Parameter.explicitBoolParam("coerce", true, m -> toType(m).coerce, coerceByDefault);
             this.nullValue = new Parameter<>("null_value", false, () -> null,
                 (n, c, o) -> o == null ? null : type.parse(o, false), m -> toType(m).nullValue).acceptsNull();
+
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
+                .setValidator(v -> {
+                    if (v && EnumSet.of(NumberType.INTEGER, NumberType.LONG, NumberType.BYTE, NumberType.SHORT).contains(type) == false) {
+                        throw new IllegalArgumentException("Parameter [dimension] cannot be set to numeric type [" + type.name + "]");
+                    }
+                });
 
             this.script.precludesParameters(ignoreMalformed, coerce, nullValue);
             addScriptValidation(script, indexed, hasDocValues);

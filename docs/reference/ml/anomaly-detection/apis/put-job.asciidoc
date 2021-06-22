@@ -236,14 +236,15 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=background-persist-interval]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-settings]
 
 `datafeed_config`::
-(object) The {dfeed} configured for the current {anomaly-job}
+(object) The {dfeed} configured for the current {anomaly-job}.
 +
 .Properties of `datafeed`
 [%collapsible%open]
 ====
 `datafeed_id`:::
 (Optional, string)
-The unique ID for the {dfeed}. Defaults to the same ID as the {anomaly-job}.
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
+Defaults to the same ID as the {anomaly-job}.
 
 `aggregations`:::
 (Optional, object)

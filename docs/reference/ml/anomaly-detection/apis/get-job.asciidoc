@@ -82,14 +82,14 @@ monitor progress.
 property is informational; you cannot change its value.
 
 `datafeed_config`::
-(object) The {dfeed} configured for the current {anomaly-job}
+(object) The {dfeed} configured for the current {anomaly-job}.
 +
 .Properties of `datafeed`
 [%collapsible%open]
 ====
 `datafeed_id`:::
 (Optional, string)
-The unique ID for the {dfeed}
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id]
 
 `aggregations`:::
 (Optional, object)

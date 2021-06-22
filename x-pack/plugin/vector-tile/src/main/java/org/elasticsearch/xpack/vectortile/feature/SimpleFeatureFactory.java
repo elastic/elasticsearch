@@ -26,10 +26,8 @@ public class SimpleFeatureFactory {
     public SimpleFeatureFactory(int z, int x, int y, int extent) {
         this.extent = extent;
         final Rectangle rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
-        final double xDiff = rectangle.getMaxLon() - rectangle.getMinLon();
-        pointXScale = (double) extent / xDiff;
-        final double yDiff = rectangle.getMaxLat() - rectangle.getMinLat();
-        pointYScale = (double) -extent / yDiff;
+        pointXScale = (double) extent / (rectangle.getMaxLon() - rectangle.getMinLon());
+        pointYScale = (double) -extent / (rectangle.getMaxLat() - rectangle.getMinLat());
         pointXTranslate = -pointXScale * rectangle.getMinX();
         pointYTranslate = -pointYScale * rectangle.getMinY();
     }

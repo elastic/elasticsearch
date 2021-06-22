@@ -178,18 +178,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
 
-        // dimension can be set from false to true, but not vice versa
-        checker.registerUpdateCheck(b -> b.field("dimension", true),
-            m -> assertEquals(true, ((KeywordFieldMapper)m).fieldType().isDimension()));
-        checker.registerUpdateCheck(b -> b.field("dimension", false),
-            m -> assertEquals(false, ((KeywordFieldMapper)m).fieldType().isDimension()));
+        // dimension cannot be updated
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
         checker.registerConflictCheck("dimension",
             fieldMapping(b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
+                b.field("dimension", false);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
                 b.field("dimension", true);
             }),
             fieldMapping(b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("dimension", false);
             }));
     }

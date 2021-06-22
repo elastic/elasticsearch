@@ -81,7 +81,8 @@ public class NumberFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).builder.script.get());
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
-        private final Parameter<Boolean> dimension = TimeseriesParams.dimension(false, m -> toType(m).fieldType().isDimension());
+        private final Parameter<Boolean> dimension
+            = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

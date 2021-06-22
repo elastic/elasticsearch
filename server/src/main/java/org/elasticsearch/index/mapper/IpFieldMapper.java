@@ -72,7 +72,8 @@ public class IpFieldMapper extends FieldMapper {
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
-        private final Parameter<Boolean> dimension = TimeseriesParams.dimension(false, m -> toType(m).fieldType().isDimension());
+        private final Parameter<Boolean> dimension
+            = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false);
 
         private final boolean ignoreMalformedByDefault;
         private final Version indexCreatedVersion;
@@ -91,6 +92,11 @@ public class IpFieldMapper extends FieldMapper {
 
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
+            return this;
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
             return this;
         }
 
@@ -380,6 +386,7 @@ public class IpFieldMapper extends FieldMapper {
     private final boolean hasDocValues;
     private final boolean stored;
     private final boolean ignoreMalformed;
+    private final boolean dimension;
 
     private final InetAddress nullValue;
     private final String nullValueAsString;
@@ -409,6 +416,7 @@ public class IpFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
+        this.dimension = builder.dimension.getValue();
     }
 
     boolean ignoreMalformed() {
@@ -478,7 +486,7 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
 
 }

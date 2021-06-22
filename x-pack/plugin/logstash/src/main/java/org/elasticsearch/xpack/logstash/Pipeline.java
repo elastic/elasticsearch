@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.logstash;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParseField;
 
 import java.time.Instant;
 import java.util.Arrays;

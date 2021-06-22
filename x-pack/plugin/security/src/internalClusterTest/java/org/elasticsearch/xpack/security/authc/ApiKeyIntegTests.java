@@ -975,6 +975,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final Settings settings = internalCluster().getInstance(Settings.class, nodeName);
         final int allocatedProcessors = EsExecutors.allocatedProcessors(settings);
         final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+        final ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
 
         final RoleDescriptor descriptor = new RoleDescriptor("auth_only", new String[] { }, null, null);
         final Client client = client().filterWithHeader(
@@ -987,6 +988,8 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
 
         assertNotNull(createApiKeyResponse.getId());
         assertNotNull(createApiKeyResponse.getKey());
+        // Clear the auth cache to force recompute the expensive hash which requires the crypto thread pool
+        apiKeyService.getApiKeyAuthCache().invalidateAll();
 
         final List<NodeInfo> nodeInfos = client().admin().cluster().prepareNodesInfo().get().getNodes().stream()
             .filter(nodeInfo -> nodeInfo.getNode().getName().equals(nodeName))

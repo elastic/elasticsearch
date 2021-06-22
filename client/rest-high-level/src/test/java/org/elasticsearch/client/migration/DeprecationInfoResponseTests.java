@@ -74,7 +74,7 @@ public class DeprecationInfoResponseTests extends ESTestCase {
             builder.field("details", issue.getDetails());
         }
         if (issue.getMeta() != null) {
-            builder.field("meta", issue.getMeta());
+            builder.field("_meta", issue.getMeta());
         }
         builder.endObject();
     }

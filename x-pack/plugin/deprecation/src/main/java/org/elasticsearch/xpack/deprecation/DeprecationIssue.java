@@ -127,7 +127,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             builder.field("details", details);
         }
         if (meta != null) {
-            builder.field("meta", meta);
+            builder.field("_meta", meta);
         }
         return builder.endObject();
     }

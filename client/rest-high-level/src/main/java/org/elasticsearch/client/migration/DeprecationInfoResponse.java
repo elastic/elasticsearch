@@ -128,7 +128,7 @@ public class DeprecationInfoResponse {
         private static final ParseField MESSAGE = new ParseField("message");
         private static final ParseField URL = new ParseField("url");
         private static final ParseField DETAILS = new ParseField("details");
-        private static final ParseField META = new ParseField("meta");
+        private static final ParseField META = new ParseField("_meta");
 
         static final ConstructingObjectParser<DeprecationIssue, Void> PARSER =
             new ConstructingObjectParser<>("deprecation_issue", true, args -> {

@@ -66,7 +66,7 @@ public class DeprecationIssueTests extends ESTestCase {
         }
         String details = (String) toXContentMap.get("details");
         @SuppressWarnings("unchecked")
-        Map<String, Object> meta = (Map<String, Object>) toXContentMap.get("meta");
+        Map<String, Object> meta = (Map<String, Object>) toXContentMap.get("_meta");
         DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, meta);
         assertThat(issue, equalTo(other));
     }

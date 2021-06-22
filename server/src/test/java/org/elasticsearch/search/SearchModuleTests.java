@@ -301,7 +301,7 @@ public class SearchModuleTests extends ESTestCase {
                 hasSize(1));
     }
 
-    public void testRegisterDefaultRequestCacheKeyProvider() {
+    public void testRegisterNullRequestCacheKeyDifferentiator() {
         final SearchModule module = new SearchModule(Settings.EMPTY, List.of());
         assertThat(module.getRequestCacheKeyDifferentiator(), nullValue());
     }

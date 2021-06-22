@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.io.IOException;
@@ -168,9 +169,10 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
      *
      * @param client The Elasticsearch Client to use during execution of {@link AsyncActionStep}
      *               and {@link AsyncWaitStep} steps.
+     * @param licenseState The license state to use in actions and steps
      * @return The list of {@link Step} objects in order of their execution.
      */
-    public List<Step> toSteps(Client client) {
+    public List<Step> toSteps(Client client, XPackLicenseState licenseState) {
         List<Step> steps = new ArrayList<>();
         List<Phase> orderedPhases = type.getOrderedPhases(phases);
         ListIterator<Phase> phaseIterator = orderedPhases.listIterator(orderedPhases.size());
@@ -199,7 +201,7 @@ public class LifecyclePolicy extends AbstractDiffable<LifecyclePolicy>
             // add steps for each action, in reverse
             while (actionIterator.hasPrevious()) {
                 LifecycleAction action = actionIterator.previous();
-                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey);
+                List<Step> actionSteps = action.toSteps(client, phase.getName(), lastStepKey, licenseState);
                 ListIterator<Step> actionStepsIterator = actionSteps.listIterator(actionSteps.size());
                 while (actionStepsIterator.hasPrevious()) {
                     Step step = actionStepsIterator.previous();

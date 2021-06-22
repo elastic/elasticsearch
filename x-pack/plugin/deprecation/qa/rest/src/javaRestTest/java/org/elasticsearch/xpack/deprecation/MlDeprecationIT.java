@@ -24,6 +24,7 @@ import org.elasticsearch.client.ml.job.config.Job;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class MlDeprecationIT extends ESRestTestCase {
@@ -101,6 +103,7 @@ public class MlDeprecationIT extends ESRestTestCase {
             response.getMlSettingsIssues().get(0).getMessage(),
             containsString("model snapshot [1] for job [deprecation_check_job] needs to be deleted or upgraded")
         );
+        assertThat(response.getMlSettingsIssues().get(0).getMeta(), equalTo(Map.of("job_id", jobId, "snapshot_id", "1")));
         hlrc.close();
     }
 

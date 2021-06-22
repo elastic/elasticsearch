@@ -103,7 +103,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .build();
 
         Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+        List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
         assertThat(migratedPolicies.size(), is(1));
         assertThat(migratedPolicies.get(0), is(lifecycleName));
 
@@ -152,7 +152,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -190,7 +190,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -232,7 +232,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -272,7 +272,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                 .build();
 
             Metadata.Builder newMetadata = Metadata.builder(state.metadata());
-            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client);
+            List<String> migratedPolicies = migrateIlmPolicies(newMetadata, state, "data", REGISTRY, client, null);
 
             assertThat(migratedPolicies.get(0), is(lifecycleName));
             ClusterState newState = ClusterState.builder(state).metadata(newMetadata).build();
@@ -560,7 +560,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
         {
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", "catch-all", REGISTRY, client);
+                migrateToDataTiersRouting(state, "data", "catch-all", REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, is("catch-all"));
@@ -578,7 +578,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // let's test a null template name to make sure nothing is removed
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, "data", null, REGISTRY, client);
+                migrateToDataTiersRouting(state, "data", null, REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.removedIndexTemplateName, nullValue());
@@ -596,7 +596,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
         {
             // let's test a null node attribute parameter defaults to "data"
             Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-                migrateToDataTiersRouting(state, null, null, REGISTRY, client);
+                migrateToDataTiersRouting(state, null, null, REGISTRY, client, null);
 
             MigratedEntities migratedEntities = migratedEntitiesTuple.v2();
             assertThat(migratedEntities.migratedPolicies.size(), is(1));
@@ -616,7 +616,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     org.elasticsearch.core.Map.of(), OperationMode.RUNNING)))
                 .build();
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client));
+                () -> migrateToDataTiersRouting(ilmRunningState, "data", "catch-all", REGISTRY, client, null));
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [RUNNING]"));
         }
 
@@ -626,7 +626,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     org.elasticsearch.core.Map.of(), OperationMode.STOPPING)))
                 .build();
             IllegalStateException illegalStateException = expectThrows(IllegalStateException.class,
-                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client));
+                () -> migrateToDataTiersRouting(ilmStoppingState, "data", "catch-all", REGISTRY, client, null));
             assertThat(illegalStateException.getMessage(), is("stop ILM before migrating to data tiers, current state is [STOPPING]"));
         }
 
@@ -636,7 +636,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
                     org.elasticsearch.core.Map.of(), OperationMode.STOPPED)))
                 .build();
             Tuple<ClusterState, MigratedEntities> migratedState = migrateToDataTiersRouting(ilmStoppedState, "data", "catch-all",
-                REGISTRY, client);
+                REGISTRY, client, null);
             assertThat(migratedState.v2().migratedIndices, empty());
             assertThat(migratedState.v2().migratedPolicies, empty());
             assertThat(migratedState.v2().removedIndexTemplateName, nullValue());
@@ -654,7 +654,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
             .put(composableTemplateName, composableIndexTemplate).build())
             .build();
         Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
-            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client);
+            migrateToDataTiersRouting(clusterState, "data", composableTemplateName, REGISTRY, client, null);
         assertThat(migratedEntitiesTuple.v2().removedIndexTemplateName, nullValue());
         assertThat(migratedEntitiesTuple.v1().metadata().templatesV2().get(composableTemplateName), is(composableIndexTemplate));
     }

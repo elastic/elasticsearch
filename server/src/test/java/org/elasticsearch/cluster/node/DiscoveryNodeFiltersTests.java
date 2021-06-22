@@ -286,7 +286,7 @@ public class DiscoveryNodeFiltersTests extends ESTestCase {
         Settings.Builder builder = Settings.builder();
         keys.forEach(key -> builder.put("xxx." + key, "1.2.3.4"));
         DiscoveryNodeFilters discoveryNodeFilters = buildFromSettings(
-            randomFrom(DiscoveryNodeFilters.OpType.AND), "xxx.", builder.build()
+           DiscoveryNodeFilters.OpType.AND, "xxx.", builder.build()
         );
         DiscoveryNode node = new DiscoveryNode(
             "", "", "", "", "192.1.1.54", localAddress, singletonMap("tag", "1.2.3.4"), emptySet(), null

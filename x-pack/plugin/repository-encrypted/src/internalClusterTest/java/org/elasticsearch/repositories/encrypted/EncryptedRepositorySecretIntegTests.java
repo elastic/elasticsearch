@@ -595,7 +595,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
+        assertThat(getSnapshotResponse.getSnapshots(), empty());
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
         assertThat(
             getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
@@ -621,7 +621,10 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         // ensure get snapshot works
         getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
         assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), contains(repositoryName));
+        assertThat(
+            getSnapshotResponse.getSnapshots().stream().map(SnapshotInfo::repository).collect(Collectors.toUnmodifiableSet()),
+            contains(repositoryName)
+        );
     }
 
     public void testSnapshotFailsForMasterFailoverWithWrongPassword() throws Exception {
@@ -769,7 +772,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .prepareGetSnapshots(repository)
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots(repository);
+                .getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

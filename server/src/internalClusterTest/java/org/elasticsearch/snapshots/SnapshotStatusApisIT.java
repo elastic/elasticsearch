@@ -77,7 +77,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         createFullSnapshot("test-repo", "test-snap");
 
-        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots("test-repo");
+        List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots("test-repo").get().getSnapshots();
         assertThat(snapshotInfos.size(), equalTo(1));
         SnapshotInfo snapshotInfo = snapshotInfos.get(0);
         assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
@@ -185,7 +185,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .prepareGetSnapshots("test-repo")
             .setVerbose(false)
             .get()
-            .getSnapshots("test-repo");
+            .getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         final SnapshotInfo found = snapshotInfos.get(0);
         assertThat(found.snapshotId(), is(snapshotInfo.snapshotId()));
@@ -301,9 +301,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(randomFrom("_all", "*"))
             .get();
 
-        assertTrue(getSnapshotsResponse.getRepositories().isEmpty());
+        assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
         assertTrue(getSnapshotsResponse.getFailedResponses().isEmpty());
-        assertTrue(getSnapshotsResponse.getSuccessfulResponses().isEmpty());
+        assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
     }
 
     public void testGetSnapshotsMultipleRepos() throws Exception {
@@ -371,8 +371,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         for (Map.Entry<String, List<String>> repo2Names : repo2SnapshotNames.entrySet()) {
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
-            List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots(repo);
-            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
+            List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
+            assertEquals(
+                snapshotNames,
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+            );
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=false");
@@ -384,7 +387,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         for (String repo : repoList) {
-            expectThrows(SnapshotMissingException.class, () -> getSnapshotsResponse2.getSnapshots(repo));
+            assertThat(getSnapshotsResponse2.getFailedResponses().get(repo), instanceOf(SnapshotMissingException.class));
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=true");
@@ -398,8 +401,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         for (Map.Entry<String, List<String>> repo2Names : repo2SnapshotNames.entrySet()) {
             String repo = repo2Names.getKey();
             List<String> snapshotNames = repo2Names.getValue();
-            List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots(repo);
-            assertEquals(snapshotNames, snapshots.stream().map(s -> s.snapshotId().getName()).collect(Collectors.toList()));
+            List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots();
+            assertEquals(
+                snapshotNames,
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+            );
         }
     }
 
@@ -421,7 +427,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots("test-snap")
             .setIgnoreUnavailable(true)
             .get();
-        List<SnapshotInfo> snapshotInfoList = response1.getSnapshots("test-repo");
+        List<SnapshotInfo> snapshotInfoList = response1.getSnapshots();
         assertEquals(1, snapshotInfoList.size());
         assertEquals(SnapshotState.IN_PROGRESS, snapshotInfoList.get(0).state());
 
@@ -432,15 +438,19 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setSnapshots(notExistedSnapshotName)
             .setIgnoreUnavailable(true)
             .get();
-        assertEquals(0, response2.getSnapshots("test-repo").size());
+        assertEquals(0, response2.getSnapshots().size());
 
-        GetSnapshotsResponse response3 = client().admin()
-            .cluster()
-            .prepareGetSnapshots("test-repo")
-            .setSnapshots(notExistedSnapshotName)
-            .setIgnoreUnavailable(false)
-            .get();
-        expectThrows(SnapshotMissingException.class, () -> response3.getSnapshots("test-repo"));
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareGetSnapshots("test-repo")
+                .setSnapshots(notExistedSnapshotName)
+                .setIgnoreUnavailable(false)
+                .get()
+                .getFailedResponses()
+                .get("test-repo"),
+            instanceOf(SnapshotMissingException.class)
+        );
 
         logger.info("--> unblock all data nodes");
         unblockAllDataNodes("test-repo");
@@ -480,14 +490,15 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         );
 
         logger.info("--> get snapshots on an empty repository");
-        expectThrows(
-            SnapshotMissingException.class,
-            () -> client.admin()
+        assertThat(
+            client.admin()
                 .cluster()
                 .prepareGetSnapshots(repositoryName)
                 .addSnapshots("non-existent-snapshot")
                 .get()
-                .getSnapshots(repositoryName)
+                .getFailedResponses()
+                .get(repositoryName),
+            instanceOf(SnapshotMissingException.class)
         );
         // with ignore unavailable set to true, should not throw an exception
         GetSnapshotsResponse getSnapshotsResponse = client.admin()
@@ -496,7 +507,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .setIgnoreUnavailable(true)
             .addSnapshots("non-existent-snapshot")
             .get();
-        assertThat(getSnapshotsResponse.getSnapshots(repositoryName).size(), equalTo(0));
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
 
         logger.info("--> creating an index and indexing documents");
         // Create index on 2 nodes and make sure each node has a primary by setting no replicas
@@ -520,8 +531,8 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .prepareGetSnapshots("test-repo")
             .setSnapshots(randomFrom("_all", "_current", "snap-on-*", "*-on-empty-repo", "snap-on-empty-repo"))
             .get();
-        assertEquals(1, getSnapshotsResponse.getSnapshots("test-repo").size());
-        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots("test-repo").get(0).snapshotId().getName());
+        assertEquals(1, getSnapshotsResponse.getSnapshots().size());
+        assertEquals("snap-on-empty-repo", getSnapshotsResponse.getSnapshots().get(0).snapshotId().getName());
         unblockNode(repositoryName, initialBlockedNode); // unblock node
         startDeleteSnapshot(repositoryName, "snap-on-empty-repo").get();
 
@@ -577,26 +588,18 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
-        assertThat(getSnapshotsResponse.getSnapshots(repositoryName).size(), equalTo(numSnapshots));
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
         assertThat(
-            getSnapshotsResponse.getSnapshots(repositoryName)
-                .stream()
-                .map(s -> s.snapshotId().getName())
-                .sorted()
-                .collect(Collectors.toList()),
+            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
             equalTo(sortedNames)
         );
 
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots(snapshotNames).get();
         sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
-        assertThat(getSnapshotsResponse.getSnapshots(repositoryName).size(), equalTo(numSnapshots));
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
         assertThat(
-            getSnapshotsResponse.getSnapshots(repositoryName)
-                .stream()
-                .map(s -> s.snapshotId().getName())
-                .sorted()
-                .collect(Collectors.toList()),
+            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
             equalTo(sortedNames)
         );
 
@@ -611,13 +614,9 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .addSnapshots(snapshotNames)
             .addSnapshots(firstRegex, secondRegex)
             .get();
-        assertThat(getSnapshotsResponse.getSnapshots(repositoryName).size(), equalTo(numSnapshots));
+        assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
         assertThat(
-            getSnapshotsResponse.getSnapshots(repositoryName)
-                .stream()
-                .map(s -> s.snapshotId().getName())
-                .sorted()
-                .collect(Collectors.toList()),
+            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
             equalTo(sortedNames)
         );
 
@@ -649,7 +648,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             }
         }
         for (ActionFuture<GetSnapshotsResponse> get : gets) {
-            final List<SnapshotInfo> snapshotInfos = get.get().getSnapshots(repoName);
+            final List<SnapshotInfo> snapshotInfos = get.get().getSnapshots();
             assertThat(snapshotInfos, hasSize(snapshots));
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
                 assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));

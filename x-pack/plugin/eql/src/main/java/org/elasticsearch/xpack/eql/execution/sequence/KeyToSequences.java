@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
@@ -18,13 +20,17 @@ import java.util.Map;
  * Dedicated collection for mapping a key to a list of sequences
  * The list represents the sequence for each stage (based on its index) and is fixed in size
  */
-class KeyToSequences {
+class KeyToSequences implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KeyToSequences.class);
 
     /**
      * Utility class holding the sequencegroup/until tuple that also handles
      * lazy initialization.
      */
-    private class SequenceEntry {
+    private static class SequenceEntry implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceEntry.class);
 
         private final SequenceGroup[] groups;
         // created lazily
@@ -34,23 +40,42 @@ class KeyToSequences {
             this.groups = new SequenceGroup[stages];
         }
 
-        void add(int stage, Sequence sequence) {
+        long add(int stage, Sequence sequence) {
             // create the group on demand
             if (groups[stage] == null) {
                 groups[stage] = new SequenceGroup();
             }
             groups[stage].add(sequence);
+            return groups[stage].ramBytesUsed();
         }
 
-        public void remove(int stage) {
+        public long remove(int stage) {
+            long ramBytesUsed = groups[stage].ramBytesUsed();
             groups[stage] = null;
+            return ramBytesUsed;
         }
 
-        void until(Ordinal ordinal) {
+        long until(Ordinal ordinal) {
             if (until == null) {
                 until = new UntilGroup();
             }
             until.add(ordinal);
+            return until.ramBytesUsed();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            long size = SHALLOW_SIZE;
+            if (until != null) {
+                size += until.ramBytesUsed();
+            }
+            for (SequenceGroup sg : groups) {
+                if (sg != null) {
+                    size += sg.ramBytesUsed();
+                }
+            }
+            size += RamUsageEstimator.shallowSizeOf(groups);
+            return size;
         }
     }
 
@@ -73,26 +98,35 @@ class KeyToSequences {
         return sequenceEntry == null ? null : sequenceEntry.until;
     }
 
-    void add(int stage, Sequence sequence) {
+    long add(int stage, Sequence sequence) {
+        long ramBytesUsed = 0;
         SequenceKey key = sequence.key();
-        SequenceEntry info = keyToSequences.computeIfAbsent(key, k -> new SequenceEntry(listSize));
-        info.add(stage, sequence);
+        SequenceEntry info = keyToSequences.get(key);
+        if (info == null) {
+            info = new SequenceEntry(listSize);
+            keyToSequences.put(key, info);
+            ramBytesUsed += info.ramBytesUsed();
+        }
+        ramBytesUsed += info.add(stage, sequence);
+        return ramBytesUsed;
     }
 
-    void until(Iterable<KeyAndOrdinal> until) {
+    long until(Iterable<KeyAndOrdinal> until) {
+        long ramBytesUsed = 0;
         for (KeyAndOrdinal keyAndOrdinal : until) {
             // ignore unknown keys
             SequenceKey key = keyAndOrdinal.key();
             SequenceEntry sequenceEntry = keyToSequences.get(key);
             if (sequenceEntry != null) {
-                sequenceEntry.until(keyAndOrdinal.ordinal);
+                ramBytesUsed += sequenceEntry.until(keyAndOrdinal.ordinal);
             }
         }
+        return ramBytesUsed;
     }
 
-    void remove(int stage, SequenceKey key) {
+    long remove(int stage, SequenceKey key) {
         SequenceEntry info = keyToSequences.get(key);
-        info.remove(stage);
+        return info.remove(stage);
     }
 
     /**
@@ -131,6 +165,14 @@ class KeyToSequences {
 
     public void clear() {
         keyToSequences.clear();
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.primitiveSizes.get(int.class);
+        size += RamUsageEstimator.sizeOfMap(keyToSequences);
+        return size;
     }
 
     @Override

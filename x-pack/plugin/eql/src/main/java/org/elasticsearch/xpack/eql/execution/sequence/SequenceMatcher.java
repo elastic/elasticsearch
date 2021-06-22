@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.TimeValue;
@@ -72,8 +73,11 @@ public class SequenceMatcher {
 
     private final Stats stats = new Stats();
 
+    private final CircuitBreaker circuitBreaker;
+    private long ramBytesUsed;
+
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -86,15 +90,20 @@ public class SequenceMatcher {
 
         // limit
         this.limit = limit;
+
+        this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
         stageToKeys.add(0, key);
-        keyToSequences.add(0, sequence);
+        long bytesUsed = keyToSequences.add(0, sequence);
 
         stats.seen++;
+
+        bytesUsed += sequence.ramBytesUsed();
+        addAccountedMemory(bytesUsed, "matcher_sequence");
     }
 
     /**
@@ -158,7 +167,8 @@ public class SequenceMatcher {
 
         // remove the group early (as the key space is large)
         if (group.isEmpty()) {
-            keyToSequences.remove(previousStage, key);
+            long bytesFreed = keyToSequences.remove(previousStage, key);
+            addAccountedMemory(-bytesFreed, "matcher_removeGroup");
             stageToKeys.remove(previousStage, key);
         }
 
@@ -254,7 +264,7 @@ public class SequenceMatcher {
     }
 
     void until(Iterable<KeyAndOrdinal> markers) {
-        keyToSequences.until(markers);
+        addAccountedMemory(keyToSequences.until(markers), "matcher_until");
     }
 
     /**
@@ -263,6 +273,7 @@ public class SequenceMatcher {
      * and adjust insertion positions.
      */
     void trim(Ordinal ordinal) {
+        long bytesUsedDiff = keyToSequences.ramBytesUsed();
         // for descending sequences, remove all in-flight sequences
         // since the windows moves head and thus there is no chance
         // of new results coming in
@@ -272,6 +283,8 @@ public class SequenceMatcher {
             // keep only the tail
             keyToSequences.trimToTail(ordinal);
         }
+        bytesUsedDiff -= keyToSequences.ramBytesUsed();
+        addAccountedMemory(-bytesUsedDiff, "matcher_clear");
     }
 
     public Stats stats() {
@@ -283,6 +296,17 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
+        cleanCircuitBreaker();
+    }
+
+    private void addAccountedMemory(long bytes, String label) {
+        ramBytesUsed += bytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+    }
+
+    private void cleanCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-ramBytesUsed);
+        ramBytesUsed = 0;
     }
 
     @Override

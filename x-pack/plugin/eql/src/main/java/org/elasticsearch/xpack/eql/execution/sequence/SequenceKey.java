@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.CollectionUtils;
 
 import java.util.Arrays;
@@ -16,6 +17,8 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 
 public class SequenceKey {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceKey.class);
 
     public static final SequenceKey NONE = new SequenceKey();
 
@@ -29,6 +32,16 @@ public class SequenceKey {
 
     public List<Object> asList() {
         return keys == null ? emptyList() : Arrays.asList(keys);
+    }
+
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.primitiveSizes.get(int.class);
+        for (Object key : keys) {
+            size += RamUsageEstimator.sizeOfObject(key);
+        }
+        size += RamUsageEstimator.shallowSizeOf(keys);
+        return size;
     }
 
     @Override

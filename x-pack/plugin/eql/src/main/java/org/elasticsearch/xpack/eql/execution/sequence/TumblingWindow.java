@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -73,6 +74,7 @@ public class TumblingWindow implements Executable {
     private final List<Criterion<BoxedQueryRequest>> criteria;
     private final Criterion<BoxedQueryRequest> until;
     private final SequenceMatcher matcher;
+    private final CircuitBreaker circuitBreaker;
     // shortcut
     private final int maxStages;
     private final int windowSize;
@@ -84,6 +86,7 @@ public class TumblingWindow implements Executable {
     private boolean restartWindowFromTailQuery;
 
     private long startTime;
+    private long ramBytesUsed = 0;
 
     private static class WindowInfo {
         private final int baseStage;
@@ -100,7 +103,8 @@ public class TumblingWindow implements Executable {
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
                           Criterion<BoxedQueryRequest> until,
-                          SequenceMatcher matcher) {
+                          SequenceMatcher matcher,
+                          CircuitBreaker circuitBreaker) {
         this.client = client;
 
         this.until = until;
@@ -112,6 +116,7 @@ public class TumblingWindow implements Executable {
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -556,6 +561,7 @@ public class TumblingWindow implements Executable {
     private void close(ActionListener<Payload> listener) {
         matcher.clear();
         client.close(listener.delegateFailure((l, r) -> {}));
+        clearCircuitBreaker();
     }
 
     private TimeValue timeTook() {
@@ -590,6 +596,16 @@ public class TumblingWindow implements Executable {
 
     private static Ordinal tailOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
         return criterion.ordinal(hits.get(hits.size() - 1));
+    }
+
+    private void addMemory(long bytes, String label) {
+        ramBytesUsed += bytes;
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+    }
+
+    private void clearCircuitBreaker() {
+        circuitBreaker.addWithoutBreaking(-ramBytesUsed);
+        ramBytesUsed = 0;
     }
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
@@ -629,7 +645,10 @@ public class TumblingWindow implements Executable {
                     SearchHit hit = delegate.next();
                     SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(hit.getIndex()), hit.getId()));
+                    KeyAndOrdinal ko = new KeyAndOrdinal(k, o);
+                    HitReference ht = new HitReference(cache(hit.getIndex()), hit.getId());
+                    addMemory(ko.ramBytesUsed() + ht.ramBytesUsed(), "tumbling_window");
+                    return new Tuple<>(ko, ht);
                 }
             };
         };

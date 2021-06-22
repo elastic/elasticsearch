@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
 
-public class HitReference {
+public class HitReference implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HitReference.class);
 
     private final String index;
     private final String id;
@@ -31,6 +35,11 @@ public class HitReference {
 
     public String id() {
         return id;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(index) + RamUsageEstimator.sizeOf(id);
     }
 
     @Override

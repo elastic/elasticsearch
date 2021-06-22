@@ -7,9 +7,13 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import java.util.Objects;
 
-public class Ordinal implements Comparable<Ordinal> {
+public class Ordinal implements Comparable<Ordinal>, Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Ordinal.class);
 
     private final long timestamp;
     private final Comparable<Object> tiebreaker;
@@ -31,6 +35,15 @@ public class Ordinal implements Comparable<Ordinal> {
 
     public long implicitTiebreaker() {
         return implicitTiebreaker;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long size = SHALLOW_SIZE;
+        size += RamUsageEstimator.sizeOf(timestamp);
+        size += RamUsageEstimator.sizeOf(implicitTiebreaker);
+        size += RamUsageEstimator.shallowSizeOf(tiebreaker);
+        return size;
     }
 
     @Override

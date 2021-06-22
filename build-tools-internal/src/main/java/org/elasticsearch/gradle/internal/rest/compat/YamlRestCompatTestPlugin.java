@@ -180,7 +180,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.onlyIf(t -> isEnabled(project));
         });
 
-        // setup the dependencies
         setupDependencies(project, yamlCompatTestSourceSet);
 
         // setup IDE

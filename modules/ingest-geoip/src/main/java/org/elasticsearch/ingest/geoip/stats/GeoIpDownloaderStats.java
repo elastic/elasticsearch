@@ -59,7 +59,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         totalDownloadTime = in.readVLong();
         databasesCount = in.readVInt();
         skippedDownloads = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
             expiredDatabases = in.readVInt();
         } else {
             expiredDatabases = 0;
@@ -149,7 +149,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         out.writeVLong(totalDownloadTime);
         out.writeVInt(databasesCount);
         out.writeVInt(skippedDownloads);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
             out.writeVInt(expiredDatabases);
         }
     }

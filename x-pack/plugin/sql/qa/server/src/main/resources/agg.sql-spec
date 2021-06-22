@@ -703,3 +703,17 @@ aggSumWithCastWithAliasWithLiteralWithAlias
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp GROUP BY g ORDER BY g DESC;
 aggSumWithWhereWithLiteralWithAlias
 SELECT TRUE as employed, gender g, CAST(SUM(emp_no) AS BIGINT) s FROM test_emp WHERE emp_no > 10000 GROUP BY gender ORDER BY gender;
+
+// local aggs without group by
+localAgg
+SELECT COUNT(*), MAX(123);
+localAggWithContradiction
+SELECT COUNT(*), MAX(123) WHERE 1 = 2;
+aggWithContradictionOptimizedToLocalAgg
+SELECT COUNT(*), MAX(123) AS l FROM test_emp WHERE 1 = 2;
+aggWithContradictionOptimizedToLocalAggWithField
+SELECT COUNT(*), MAX(languages) AS l FROM test_emp WHERE 1 = 2;
+localAggWithHavingContradiction
+SELECT COUNT(*), MAX(1) HAVING MAX(1) = 2;
+localAggWithHavingTautology
+SELECT COUNT(*), MAX(1) HAVING MAX(1) = 1;

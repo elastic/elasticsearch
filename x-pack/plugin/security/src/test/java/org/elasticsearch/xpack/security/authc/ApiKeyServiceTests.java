@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -94,6 +95,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -162,8 +164,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
-    public void testCreateApiKeyWillUseBulkAction() {
+    public void testCreateApiKeyWillUseBulkAction() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(
@@ -173,8 +174,18 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            bulkActionInvoked.set(true);
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), new PlainActionFuture<>());
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     public void testCreateApiKeyWillCacheOnCreation() {
@@ -1093,8 +1104,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
-    public void testCreateApiKeyWillEnsureMetadataCompatibility() {
+    public void testCreateApiKeyWillEnsureMetadataCompatibility() throws Exception {
         when(securityIndex.getInstallableMappingVersion()).thenReturn(Version.V_7_12_0);
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
@@ -1110,9 +1120,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomFrom(org.elasticsearch.core.Map.of(), null));
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            bulkActionInvoked.set(true);
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         final PlainActionFuture<CreateApiKeyResponse> future2 = new PlainActionFuture<>();
         service.createApiKey(authentication, request2, Collections.emptySet(), future2);
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     public void testGetApiKeyMetadata() throws IOException {

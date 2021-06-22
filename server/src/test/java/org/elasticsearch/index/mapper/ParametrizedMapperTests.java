@@ -136,7 +136,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, MappingsParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name,
+                                    Map<String, Object> node,
+                                    MappingsParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(name);
             builder.parse(name, parserContext, node);
             return builder;

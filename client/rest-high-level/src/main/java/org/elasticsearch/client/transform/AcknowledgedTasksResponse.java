@@ -11,7 +11,7 @@ package org.elasticsearch.client.transform;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.TaskOperationFailure;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 

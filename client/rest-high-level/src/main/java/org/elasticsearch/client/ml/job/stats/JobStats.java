@@ -13,7 +13,7 @@ import org.elasticsearch.client.ml.job.process.DataCounts;
 import org.elasticsearch.client.ml.job.process.ModelSizeStats;
 import org.elasticsearch.client.ml.job.process.TimingStats;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;

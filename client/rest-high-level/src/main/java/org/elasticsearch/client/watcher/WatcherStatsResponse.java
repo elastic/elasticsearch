@@ -9,7 +9,7 @@
 package org.elasticsearch.client.watcher;
 
 import org.elasticsearch.client.NodesResponseHeader;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

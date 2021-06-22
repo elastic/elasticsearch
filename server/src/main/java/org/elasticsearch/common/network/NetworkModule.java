@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.ClusterSettings;

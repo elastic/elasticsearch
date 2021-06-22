@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;

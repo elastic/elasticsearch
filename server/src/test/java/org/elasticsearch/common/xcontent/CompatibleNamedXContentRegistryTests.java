@@ -9,7 +9,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;

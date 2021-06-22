@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;

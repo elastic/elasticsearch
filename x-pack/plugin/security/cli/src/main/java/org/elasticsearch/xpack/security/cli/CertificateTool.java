@@ -28,7 +28,7 @@ import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.PathUtils;

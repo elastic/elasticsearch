@@ -12,7 +12,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.network.NetworkModule;

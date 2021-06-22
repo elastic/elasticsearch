@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;

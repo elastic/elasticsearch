@@ -8,7 +8,7 @@
 package org.elasticsearch.client.indices;
 
 import org.elasticsearch.client.core.BroadcastResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

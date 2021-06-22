@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,8 +42,8 @@ public class StartTrainedModelDeploymentAction extends ActionType<NodeAcknowledg
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
 
-        private static final ParseField MODEL_ID = new ParseField("model_id");
-        private static final ParseField TIMEOUT = new ParseField("timeout");
+        public static final ParseField MODEL_ID = new ParseField("model_id");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
         private String modelId;
         private TimeValue timeout = DEFAULT_TIMEOUT;

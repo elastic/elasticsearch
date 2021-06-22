@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.util.set.Sets;

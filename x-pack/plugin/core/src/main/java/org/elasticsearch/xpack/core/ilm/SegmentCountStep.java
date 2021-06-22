@@ -16,7 +16,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

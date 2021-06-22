@@ -11,7 +11,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;

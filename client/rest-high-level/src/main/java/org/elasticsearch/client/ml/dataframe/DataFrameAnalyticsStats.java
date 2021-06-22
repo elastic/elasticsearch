@@ -13,7 +13,7 @@ import org.elasticsearch.client.ml.dataframe.stats.AnalysisStats;
 import org.elasticsearch.client.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.client.ml.dataframe.stats.common.MemoryUsage;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;

@@ -1,5 +1,5 @@
 plugins {
-  id "com.gradle.enterprise" version "3.5.1"
+  id "com.gradle.enterprise" version "3.6.2"
 }
 
 includeBuild "build-conventions"

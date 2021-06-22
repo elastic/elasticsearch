@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;

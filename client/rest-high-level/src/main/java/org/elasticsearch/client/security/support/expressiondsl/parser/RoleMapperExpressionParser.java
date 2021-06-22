@@ -16,7 +16,7 @@ import org.elasticsearch.client.security.support.expressiondsl.expressions.Compo
 import org.elasticsearch.client.security.support.expressiondsl.expressions.ExceptRoleMapperExpression;
 import org.elasticsearch.client.security.support.expressiondsl.fields.FieldRoleMapperExpression;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;

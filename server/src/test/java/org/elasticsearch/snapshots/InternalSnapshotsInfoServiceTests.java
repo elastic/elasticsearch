@@ -9,6 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
@@ -112,10 +113,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             rerouteLatch.countDown();
         };
 
-        final InternalSnapshotsInfoService snapshotsInfoService =
-            new InternalSnapshotsInfoService(Settings.builder()
-                .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches)
-                .build(), clusterService, () -> repositoriesService, () -> rerouteService);
+        final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+            Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), maxConcurrentFetches).build(),
+            clusterService,
+            () -> repositoriesService,
+            () -> rerouteService
+        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final long[] expectedShardSizes = new long[numberOfShards];
@@ -145,8 +148,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         waitForMaxActiveGenericThreads(Math.min(numberOfShards, maxConcurrentFetches));
 
         if (randomBoolean()) {
-            applyClusterState("reapply-last-cluster-state-to-check-deduplication-works",
-                state -> ClusterState.builder(state).incrementVersion().build());
+            applyClusterState(
+                "reapply-last-cluster-state-to-check-deduplication-works",
+                state -> ClusterState.builder(state).incrementVersion().build()
+            );
         }
 
         assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(numberOfShards));
@@ -183,17 +188,22 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             }
         };
 
-        final InternalSnapshotsInfoService snapshotsInfoService =
-            new InternalSnapshotsInfoService(Settings.builder()
-                .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
-                .build(), clusterService, () -> repositoriesService, () -> rerouteService);
+        final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+            Settings.builder().put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10)).build(),
+            clusterService,
+            () -> repositoriesService,
+            () -> rerouteService
+        );
 
         final Map<InternalSnapshotsInfoService.SnapshotShard, Long> results = new ConcurrentHashMap<>();
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
             public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-                final InternalSnapshotsInfoService.SnapshotShard snapshotShard =
-                    new InternalSnapshotsInfoService.SnapshotShard(new Snapshot("_repo", snapshotId), indexId, shardId);
+                final InternalSnapshotsInfoService.SnapshotShard snapshotShard = new InternalSnapshotsInfoService.SnapshotShard(
+                    new Snapshot("_repo", snapshotId),
+                    indexId,
+                    shardId
+                );
                 if (randomBoolean()) {
                     results.put(snapshotShard, Long.MIN_VALUE);
                     throw new SnapshotException(snapshotShard.snapshot(), "simulated");
@@ -212,8 +222,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
                 final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
                 final int numberOfShards = randomIntBetween(1, remainingShards);
                 try {
-                    applyClusterState("add-more-unassigned-shards-for-" + indexName,
-                        clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards));
+                    applyClusterState(
+                        "add-more-unassigned-shards-for-" + indexName,
+                        clusterState -> addUnassignedShards(clusterState, indexName, numberOfShards)
+                    );
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 } finally {
@@ -226,26 +238,37 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         final Predicate<Long> failedSnapshotShardSizeRetrieval = shardSize -> shardSize == Long.MIN_VALUE;
         assertBusy(() -> {
-            assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
-                equalTo((int) results.values().stream().filter(Predicate.not(failedSnapshotShardSizeRetrieval)).count()));
-            assertThat(snapshotsInfoService.numberOfFailedSnapshotShardSizes(),
-                equalTo((int) results.values().stream().filter(failedSnapshotShardSizeRetrieval).count()));
+            assertThat(
+                snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
+                equalTo((int) results.values().stream().filter(Predicate.not(failedSnapshotShardSizeRetrieval)).count())
+            );
+            assertThat(
+                snapshotsInfoService.numberOfFailedSnapshotShardSizes(),
+                equalTo((int) results.values().stream().filter(failedSnapshotShardSizeRetrieval).count())
+            );
             assertThat(snapshotsInfoService.numberOfUnknownSnapshotShardSizes(), equalTo(0));
         });
 
         final SnapshotShardSizeInfo snapshotShardSizeInfo = snapshotsInfoService.snapshotShardSizes();
         for (Map.Entry<InternalSnapshotsInfoService.SnapshotShard, Long> snapshotShard : results.entrySet()) {
             final ShardId shardId = snapshotShard.getKey().shardId();
-            final ShardRouting shardRouting = clusterService.state().routingTable().index(shardId.getIndexName())
-                .shard(shardId.id()).primaryShard();
+            final ShardRouting shardRouting = clusterService.state()
+                .routingTable()
+                .index(shardId.getIndexName())
+                .shard(shardId.id())
+                .primaryShard();
             assertThat(shardRouting, notNullValue());
 
             final boolean success = failedSnapshotShardSizeRetrieval.test(snapshotShard.getValue()) == false;
-            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting),
-                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE));
+            assertThat(
+                snapshotShardSizeInfo.getShardSize(shardRouting),
+                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE)
+            );
             final long defaultValue = randomNonNegativeLong();
-            assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
-                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue));
+            assertThat(
+                snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
+                success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue)
+            );
         }
 
         waitForAllReroutesProcessed.get(60L, TimeUnit.SECONDS);
@@ -254,8 +277,12 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     public void testNoLongerMaster() throws Exception {
-        final InternalSnapshotsInfoService snapshotsInfoService =
-            new InternalSnapshotsInfoService(Settings.EMPTY, clusterService, () -> repositoriesService, () -> rerouteService);
+        final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+            Settings.EMPTY,
+            clusterService,
+            () -> repositoriesService,
+            () -> rerouteService
+        );
 
         final Repository mockRepository = new FilterRepository(mock(Repository.class)) {
             @Override
@@ -267,18 +294,22 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            final int nbShards =  randomIntBetween(1, 5);
-            applyClusterState("restore-indices-when-master-" + indexName,
-                clusterState -> addUnassignedShards(clusterState, indexName, nbShards));
+            final int nbShards = randomIntBetween(1, 5);
+            applyClusterState(
+                "restore-indices-when-master-" + indexName,
+                clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
+            );
         }
 
         applyClusterState("demote-current-master", this::demoteMasterNode);
 
         for (int i = 0; i < randomIntBetween(1, 10); i++) {
             final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            final int nbShards =  randomIntBetween(1, 5);
-            applyClusterState("restore-indices-when-no-longer-master-" + indexName,
-                clusterState -> addUnassignedShards(clusterState, indexName, nbShards));
+            final int nbShards = randomIntBetween(1, 5);
+            applyClusterState(
+                "restore-indices-when-no-longer-master-" + indexName,
+                clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
+            );
         }
 
         assertBusy(() -> {
@@ -301,28 +332,42 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
-        final InternalSnapshotsInfoService snapshotsInfoService =
-            new InternalSnapshotsInfoService(Settings.EMPTY, clusterService, () -> repositoriesService, () -> rerouteService);
+        final InternalSnapshotsInfoService snapshotsInfoService = new InternalSnapshotsInfoService(
+            Settings.EMPTY,
+            clusterService,
+            () -> repositoriesService,
+            () -> rerouteService
+        );
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int nbShards = randomIntBetween(1, 10);
 
-        applyClusterState("new snapshot restore for index " + indexName,
-            clusterState -> addUnassignedShards(clusterState, indexName, nbShards));
+        applyClusterState(
+            "new snapshot restore for index " + indexName,
+            clusterState -> addUnassignedShards(clusterState, indexName, nbShards)
+        );
 
         // waiting for snapshot shard size fetches to be executed, as we want to verify that they are cleaned up
-        assertBusy(() -> assertThat(
-            snapshotsInfoService.numberOfFailedSnapshotShardSizes() + snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
-            equalTo(nbShards)));
+        assertBusy(
+            () -> assertThat(
+                snapshotsInfoService.numberOfFailedSnapshotShardSizes() + snapshotsInfoService.numberOfKnownSnapshotShardSizes(),
+                equalTo(nbShards)
+            )
+        );
 
         if (randomBoolean()) {
             // simulate initialization and start of the shards
-            final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.builder()
-                .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), nbShards)
-                .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
-                .build(), snapshotsInfoService);
-            applyClusterState("starting shards for " + indexName, clusterState ->
-                    ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName));
+            final AllocationService allocationService = ESAllocationTestCase.createAllocationService(
+                Settings.builder()
+                    .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES_SETTING.getKey(), nbShards)
+                    .put(CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(), nbShards)
+                    .build(),
+                snapshotsInfoService
+            );
+            applyClusterState(
+                "starting shards for " + indexName,
+                clusterState -> ESAllocationTestCase.startInitializingShardsAndReroute(allocationService, clusterState, indexName)
+            );
             assertTrue(clusterService.state().routingTable().shardsWithState(ShardRoutingState.UNASSIGNED).isEmpty());
 
         } else {
@@ -337,19 +382,19 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private void applyClusterState(final String reason, final Function<ClusterState, ClusterState> applier) {
-        PlainActionFuture.get(future -> clusterService.getClusterApplierService().onNewClusterState(reason,
-            () -> applier.apply(clusterService.state()),
-            new ClusterApplier.ClusterApplyListener() {
-                @Override
-                public void onSuccess(String source) {
-                    future.onResponse(source);
-                }
+        PlainActionFuture.get(
+            future -> clusterService.getClusterApplierService()
+                .onNewClusterState(reason, () -> applier.apply(clusterService.state()), new ClusterApplier.ClusterApplyListener() {
+                    @Override
+                    public void onSuccess(String source) {
+                        future.onResponse(source);
+                    }
 
-                @Override
-                public void onFailure(String source, Exception e) {
-                    future.onFailure(e);
-                }
-            })
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        future.onFailure(e);
+                    }
+                })
         );
     }
 
@@ -371,11 +416,13 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         assertThat(currentState.metadata().hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(Settings.builder()
-                .put(SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
-                .put(SETTING_CREATION_DATE, System.currentTimeMillis()));
+            .settings(
+                Settings.builder()
+                    .put(SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(SETTING_CREATION_DATE, System.currentTimeMillis())
+            );
 
         for (int i = 0; i < numberOfShards; i++) {
             indexMetadataBuilder.putInSyncAllocationIds(i, Collections.singleton(AllocationId.newInitializing().getId()));
@@ -398,15 +445,23 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         final RoutingTable.Builder routingTable = RoutingTable.builder(currentState.routingTable());
         routingTable.add(IndexRoutingTable.builder(index).initializeAsNewRestore(indexMetadata, recoverySource, new IntHashSet()).build());
 
-        final RestoreInProgress.Builder restores =
-            new RestoreInProgress.Builder(currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY));
+        final RestoreInProgress.Builder restores = new RestoreInProgress.Builder(
+            currentState.custom(RestoreInProgress.TYPE, RestoreInProgress.EMPTY)
+        );
         final ImmutableOpenMap.Builder<ShardId, RestoreInProgress.ShardRestoreStatus> shards = ImmutableOpenMap.builder();
         for (int i = 0; i < indexMetadata.getNumberOfShards(); i++) {
-            shards.put( new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
+            shards.put(new ShardId(index, i), new RestoreInProgress.ShardRestoreStatus(clusterService.state().nodes().getLocalNodeId()));
         }
 
-        restores.add(new RestoreInProgress.Entry(recoverySource.restoreUUID(), recoverySource.snapshot(), RestoreInProgress.State.INIT,
-            Collections.singletonList(indexName), shards.build()));
+        restores.add(
+            new RestoreInProgress.Entry(
+                recoverySource.restoreUUID(),
+                recoverySource.snapshot(),
+                RestoreInProgress.State.INIT,
+                Collections.singletonList(indexName),
+                shards.build()
+            )
+        );
 
         return ClusterState.builder(currentState)
             .putCustom(RestoreInProgress.TYPE, restores.build())
@@ -416,14 +471,17 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = new DiscoveryNode("other", ESTestCase.buildNewFakeTransportAddress(), Collections.emptyMap(),
-            DiscoveryNodeRole.roles(), Version.CURRENT);
+        final DiscoveryNode node = new DiscoveryNode(
+            "other",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            DiscoveryNodeRole.roles(),
+            Version.CURRENT
+        );
         assertThat(currentState.nodes().get(node.getId()), nullValue());
 
         return ClusterState.builder(currentState)
-            .nodes(DiscoveryNodes.builder(currentState.nodes())
-                .add(node)
-                .masterNodeId(node.getId()))
+            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).masterNodeId(node.getId()))
             .build();
     }
 

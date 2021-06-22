@@ -8,8 +8,8 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -261,13 +261,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                            if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) &&
-                                    parser.nextToken() == XContentParser.Token.START_ARRAY) {
-                                List<String> fileNames = new ArrayList<>();
-                                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                                    fileNames.add(parser.text());
-                                }
-                                snapshotsMap.put(snapshot, fileNames);
+                            if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler())
+                                && parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                                snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
                             } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 parser.nextToken();
                                 historyUUIDs.put(snapshot, parser.text());
@@ -288,8 +284,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 assert fileInfo != null;
                 fileInfosBuilder.add(fileInfo);
             }
-            snapshots.add(new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder),
-                historyUUIDs.get(entry.getKey())));
+            snapshots.add(
+                new SnapshotFiles(entry.getKey(), Collections.unmodifiableList(fileInfosBuilder), historyUUIDs.get(entry.getKey()))
+            );
         }
         return new BlobStoreIndexShardSnapshots(files, Collections.unmodifiableList(snapshots));
     }

@@ -10,7 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;

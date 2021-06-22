@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.watcher.common.http;
 import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContentObject;

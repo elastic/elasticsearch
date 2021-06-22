@@ -9,7 +9,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;

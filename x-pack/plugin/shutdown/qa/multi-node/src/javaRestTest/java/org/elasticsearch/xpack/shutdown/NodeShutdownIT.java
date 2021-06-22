@@ -8,22 +8,28 @@
 package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class NodeShutdownIT extends ESRestTestCase {
 
@@ -98,11 +104,13 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     /**
-     * Checks that a reroute is started immediately after registering a node shutdown, so that shards will actually start moving off of
-     * the node immediately, rather than waiting for something to trigger it.
+     * Checks that shards properly move off of a node that's marked for removal, including:
+     * 1) A reroute needs to be triggered automatically when the node is registered for shutdown, otherwise shards won't start moving
+     *    immediately.
+     * 2) Ensures the status properly comes to rest at COMPLETE after the shards have moved.
      */
     @SuppressWarnings("unchecked")
-    public void testRerouteStartedOnRemoval() throws Exception {
+    public void testShardsMoveOffRemovingNode() throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -132,15 +140,25 @@ public class NodeShutdownIT extends ESRestTestCase {
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
         // assertBusy waiting for the shard to no longer be on that node
+        AtomicReference<List<Object>> debug = new AtomicReference<>();
         assertBusy(() -> {
             List<Object> shardsResponse = entityAsList(client().performRequest(checkShardsRequest));
             final long shardsOnNodeToShutDown = shardsResponse.stream()
                 .map(shard -> (Map<String, Object>) shard)
                 .filter(shard -> nodeIdToShutdown.equals(shard.get("id")))
-                .filter(shard -> "STARTED".equals(shard.get("state")))
+                .filter(shard -> "STARTED".equals(shard.get("state")) || "RELOCATING".equals(shard.get("state")))
                 .count();
             assertThat(shardsOnNodeToShutDown, is(0L));
+            debug.set(shardsResponse);
         });
+
+        // Now check the shard migration status
+        Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        Response statusResponse = client().performRequest(getStatusRequest);
+        Map<String, Object> status = entityAsMap(statusResponse);
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
+        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
@@ -163,6 +181,52 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Check that the shard is assigned now
         ensureGreen(indexName);
+    }
+
+    public void testStalledShardMigrationProperlyDetected() throws Exception {
+        String nodeIdToShutdown = getRandomNodeId();
+        int numberOfShards = randomIntBetween(1,5);
+
+        // Create an index, pin the allocation to the node we're about to shut down
+        final String indexName = "test-idx";
+        Request createIndexRequest = new Request("PUT", indexName);
+        createIndexRequest.setJsonEntity(
+            "{\"settings\":  {\"number_of_shards\": "
+                + numberOfShards
+                + ", \"number_of_replicas\": 0, \"index.routing.allocation.require._id\": \""
+                + nodeIdToShutdown
+                + "\"}}"
+        );
+        assertOK(client().performRequest(createIndexRequest));
+
+        // Mark the node for shutdown
+        putNodeShutdown(nodeIdToShutdown, "remove");
+        {
+            // Now check the shard migration status
+            Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Response statusResponse = client().performRequest(getStatusRequest);
+            Map<String, Object> status = entityAsMap(statusResponse);
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("STALLED"));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
+            assertThat(
+                ObjectPath.eval("nodes.0.shard_migration.explanation", status),
+                allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
+            );
+        }
+
+        // Now update the allocation requirements to unblock shard relocation
+        Request updateSettingsRequest = new Request("PUT", indexName + "/_settings");
+        updateSettingsRequest.setJsonEntity("{\"index.routing.allocation.require._id\": null}");
+        assertOK(client().performRequest(updateSettingsRequest));
+
+        assertBusy(() -> {
+            Request getStatusRequest = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            Response statusResponse = client().performRequest(getStatusRequest);
+            Map<String, Object> status = entityAsMap(statusResponse);
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.status", status), equalTo("COMPLETE"));
+            assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
+                        assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
+        });
     }
 
     @SuppressWarnings("unchecked")

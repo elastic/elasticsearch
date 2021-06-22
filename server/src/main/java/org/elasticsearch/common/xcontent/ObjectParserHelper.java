@@ -9,7 +9,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;

@@ -82,7 +82,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
             // shard_min_doc_count should not be larger than min_doc_count because this can cause buckets to be removed that would match
             // the min_doc_count criteria
             if (shardMinDocCount > minDocCount) {
-                setShardMinDocCount(minDocCount);
+                throw new ElasticsearchException("parameters [min_doc_count] must be <= [shardMinDocCount].");
             }
 
             if (requiredSize <= 0 || shardSize <= 0) {

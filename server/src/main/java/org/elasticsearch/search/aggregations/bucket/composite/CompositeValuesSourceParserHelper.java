@@ -83,13 +83,14 @@ public class CompositeValuesSourceParserHelper {
     }
 
     public static CompositeValuesSourceBuilder<?> fromXContent(XContentParser parser) throws IOException {
-        Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher("");
         XContentParser.Token token = parser.currentToken();
         ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         token = parser.nextToken();
         ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
         String name = parser.currentName();
-        if (validAggMatcher.reset(name).matches() == false) {
+        Matcher validAggMatcher = AggregatorFactories.VALID_AGG_NAME.matcher(name);
+
+        if (validAggMatcher.matches() == false) {
             throw new ParsingException(parser.getTokenLocation(), "Invalid source name [" + name
                 + "]. Source names can contain any character except '[', ']', and '>'");
         }

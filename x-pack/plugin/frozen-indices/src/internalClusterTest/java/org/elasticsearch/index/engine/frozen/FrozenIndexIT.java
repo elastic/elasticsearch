@@ -8,6 +8,10 @@
 package org.elasticsearch.index.engine.frozen;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -32,10 +36,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.joda.time.Instant;
 

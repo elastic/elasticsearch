@@ -27,6 +27,9 @@
         },
         "@timestamp": {
           "type": "date"
+        },
+        "unenroll_timeout": {
+          "type": "integer"
         }
       }
     }

@@ -137,6 +137,7 @@ tasks.named("yamlRestCompatTest").configure {
     'ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed',
     'ml/datafeeds_crud/Test update datafeed to point to missing job',
     'ml/job_cat_apis/Test cat anomaly detector jobs',
+    'ml/jobs_crud/Test create job with delimited format',
     'ml/jobs_crud/Test update job',
     'ml/jobs_get_stats/Test get job stats after uploading data prompting the creation of some stats',
     'ml/jobs_get_stats/Test get job stats for closed job',

@@ -13,6 +13,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestActions.NodesResponseRestListener;
@@ -31,6 +33,9 @@ import java.util.function.Consumer;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestNodesStatsAction extends BaseRestHandler {
+    private DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestNodesStatsAction.class);
+    private static final String TYPES_DEPRECATION_MESSAGE =
+        "[types removal] " + "Specifying types in nodes stats requests is deprecated.";
 
     @Override
     public List<Route> routes() {
@@ -71,6 +76,11 @@ public class RestNodesStatsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if(request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("types")){
+            deprecationLogger.compatibleApiWarning("nodes_stats_types", TYPES_DEPRECATION_MESSAGE);
+            request.param("types");
+        }
+
         String[] nodesIds = Strings.splitStringByCommaToArray(request.param("nodeId"));
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 

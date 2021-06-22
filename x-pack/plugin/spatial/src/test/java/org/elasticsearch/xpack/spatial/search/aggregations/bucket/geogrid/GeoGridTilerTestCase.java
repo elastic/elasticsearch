@@ -100,7 +100,7 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
 
     // tests that bounding boxes of shapes crossing the dateline are correctly wrapped
     public void testGeoGridSetValuesBoundingBoxes_BoundedGeoShapeCellValues() throws Exception {
-        for (int i = 0; i < 1; i++) {
+        for (int i = 0; i < 10; i++) {
             int precision = randomIntBetween(0, 3);
             GeoShapeIndexer indexer = new GeoShapeIndexer(true, "test");
             Geometry geometry = indexer.prepareForIndexing(randomValueOtherThanMany(g -> {
@@ -122,6 +122,21 @@ public abstract class GeoGridTilerTestCase extends ESTestCase {
             int expected = expectedBuckets(value, precision, geoBoundingBox);
             assertThat(numBuckets, equalTo(expected));
         }
+    }
+
+    // tests that bounding boxes that crosses the dateline and cover all longitude values are correctly wrapped
+    public void testGeoGridSetValuesBoundingBoxes_coversAllLongitudeValues() throws Exception {
+        int precision = 3;
+        Geometry geometry = new Rectangle(-92, 180, 0.99, -89);
+        GeoBoundingBox geoBoundingBox = new GeoBoundingBox(new GeoPoint(5, 0.6), new GeoPoint(-5, 0.5));
+        GeoShapeValues.GeoShapeValue value = geoShapeValue(geometry);
+        GeoShapeCellValues cellValues =
+            new GeoShapeCellValues(makeGeoShapeValues(value), getBoundedGridTiler(geoBoundingBox, precision), NOOP_BREAKER);
+
+        assertTrue(cellValues.advanceExact(0));
+        int numBuckets = cellValues.docValueCount();
+        int expected = expectedBuckets(value, precision, geoBoundingBox);
+        assertThat(numBuckets, equalTo(expected));
     }
 
     public void testGeoGridSetValuesBoundingBoxes_UnboundedGeoShapeCellValues() throws Exception {

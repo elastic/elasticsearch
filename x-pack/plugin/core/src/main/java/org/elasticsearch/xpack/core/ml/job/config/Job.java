@@ -579,6 +579,12 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             if (customSettings != null) {
                 builder.field(CUSTOM_SETTINGS.getPreferredName(), customSettings);
             }
+            //TODO in v8.0.0 move this out so that it will be included when `exclude_generated` is `true`
+            if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
+                if (datafeedConfig != null) {
+                    builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
+                }
+            }
         } else {
             if (customSettings != null) {
                 HashMap<String, Object> newCustomSettings = new HashMap<>(customSettings);
@@ -621,11 +627,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         builder.field(ALLOW_LAZY_OPEN.getPreferredName(), allowLazyOpen);
         if (blocked.getReason() != Blocked.Reason.NONE) {
             builder.field(BLOCKED.getPreferredName(), blocked);
-        }
-        if (params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false) == false) {
-            if (datafeedConfig != null) {
-                builder.field(DATAFEED_CONFIG.getPreferredName(), datafeedConfig, params);
-            }
         }
         return builder;
     }

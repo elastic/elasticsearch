@@ -1059,6 +1059,15 @@
   - match: { count: 1 }
   - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
   - match: { jobs.0.datafeed_config.datafeed_id: "jobs-crud-get-with-datafeed" }
+
+# TODO in v8.0.0 adjust this test to handle exclude_generated behavior
+  - do:
+      ml.get_jobs:
+        job_id: jobs-crud-get-with-datafeed
+        exclude_generated: true
+  - match: { count: 1 }
+  - match: { jobs.0.job_id: "jobs-crud-get-with-datafeed" }
+  - is_false: jobs.0.datafeed_config
 ---
 "Test put job with datafeed with indices options in params":
   - do:

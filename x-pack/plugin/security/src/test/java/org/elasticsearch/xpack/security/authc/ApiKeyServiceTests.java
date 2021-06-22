@@ -690,7 +690,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
-    public void testApiKeyAuthCacheWillTraceLogOnEviction() throws IllegalAccessException {
+    public void testApiKeyAuthCacheWillTraceLogOnEvictionDueToCacheSize() throws IllegalAccessException {
         final int cacheSize = randomIntBetween(2, 8);
         ApiKeyService service = createApiKeyService(
             Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", cacheSize).build());
@@ -709,24 +709,58 @@ public class ApiKeyServiceTests extends ESTestCase {
         try {
             appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
                 "evict", ApiKeyService.class.getName(), Level.TRACE,
-                "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache"
+                "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
             ));
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
                 "replace", ApiKeyService.class.getName(), Level.TRACE,
-                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache"
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
             ));
             apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
                 "invalidate", ApiKeyService.class.getName(), Level.TRACE,
-                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache"
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
             ));
             apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
             apiKeyAuthCache.invalidateAll();
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyCacheWillNotTraceLogOnEvictionDueToCacheTtl() throws IllegalAccessException, InterruptedException {
+        ApiKeyService service = createApiKeyService(Settings.builder()
+            .put("xpack.security.authc.api_key.cache.max_keys", 2)
+            .put("xpack.security.authc.api_key.cache.ttl", TimeValue.timeValueMillis(100))
+            .build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+        final String apiKeyId = randomAlphaOfLength(22);
+
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+            // Wait for the entry to expire
+            Thread.sleep(200);
+            assertNull(apiKeyAuthCache.get(apiKeyId));
+            // Cache a new entry
+            apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
+            assertEquals(1, apiKeyAuthCache.count());
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();

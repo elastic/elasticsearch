@@ -215,7 +215,10 @@ public class ApiKeyService {
                 .setMaximumWeight(maximumWeight)
                 .removalListener(notification -> {
                     if (RemovalNotification.RemovalReason.EVICTED == notification.getRemovalReason()) {
-                        logger.trace("API key with ID [{}] was evicted from the authentication cache", notification.getKey());
+                        if (getApiKeyAuthCache().count() >= maximumWeight) {
+                            logger.trace("API key with ID [{}] was evicted from the authentication cache, " +
+                                    "possibly due to cache size limit", notification.getKey());
+                        }
                     }
                 })
                 .build();

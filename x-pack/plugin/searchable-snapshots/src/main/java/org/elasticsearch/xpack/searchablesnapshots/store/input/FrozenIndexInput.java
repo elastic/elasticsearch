@@ -17,11 +17,11 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
-import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService.FrozenCacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.SharedBytes;
+import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 public class FrozenIndexInput extends MetadataCachingIndexInput {
 

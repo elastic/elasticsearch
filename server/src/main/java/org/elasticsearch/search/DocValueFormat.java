@@ -229,9 +229,9 @@ public interface DocValueFormat extends NamedWriteable {
         }
 
         private DateTime(DateFormatter formatter, ZoneId timeZone, DateFieldMapper.Resolution resolution, boolean formatSortValues) {
-            this.formatter = formatter;
             this.timeZone = Objects.requireNonNull(timeZone);
-            this.parser = formatter.toDateMathParser();
+            this.formatter = formatter.withZone(timeZone);
+            this.parser = this.formatter.toDateMathParser();
             this.resolution = resolution;
             this.formatSortValues = formatSortValues;
         }

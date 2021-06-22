@@ -37,11 +37,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;

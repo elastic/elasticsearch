@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.vectortile;
 import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -16,19 +17,24 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.xpack.core.XPackPlugin;
+import org.elasticsearch.xpack.vectortile.feature.FeatureFactory;
 import org.elasticsearch.xpack.vectortile.rest.RestVectorTileAction;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
-public class VectorTilePlugin extends Plugin implements ActionPlugin {
+public class VectorTilePlugin extends Plugin implements ActionPlugin, MapperPlugin {
 
     // to be overriden by tests
     protected XPackLicenseState getLicenseState() {
@@ -77,5 +83,32 @@ public class VectorTilePlugin extends Plugin implements ActionPlugin {
             false
         );
         return Collections.singletonList(indexing);
+    }
+
+    @Override
+    public Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters() {
+        return Map.of("mvt", param -> {
+            final String[] parts = param.split("@", 3);
+            if (parts.length > 2) {
+                throw new IllegalArgumentException(
+                    "Invalid mvt formatter parameter [" + param + "]. Must have the form \"zoom/x/y\" or \"zoom/x/y@extent\"."
+                );
+            }
+            final int extent = parts.length == 2 ? Integer.parseInt(parts[1]) : 4096;
+            final String[] tileBits = parts[0].split("/", 4);
+            if (tileBits.length != 3) {
+                throw new IllegalArgumentException(
+                    "Invalid tile string [" + parts[0] + "]. Must be three integers in a form \"zoom/x/y\"."
+                );
+            }
+            int z = GeoTileUtils.checkPrecisionRange(Integer.parseInt(tileBits[0]));
+            final int tiles = 1 << z;
+            int x = Integer.parseInt(tileBits[1]);
+            int y = Integer.parseInt(tileBits[2]);
+            if (x < 0 || y < 0 || x >= tiles || y >= tiles) {
+                throw new IllegalArgumentException(String.format(Locale.ROOT, "Zoom/X/Y combination is not valid: %d/%d/%d", z, x, y));
+            }
+            return new FeatureFactory(z, x, y, extent);
+        });
     }
 }

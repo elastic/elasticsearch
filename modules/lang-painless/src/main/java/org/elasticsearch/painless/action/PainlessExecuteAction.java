@@ -588,12 +588,12 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                     List<GeoPoint> points = new ArrayList<>();
                     geoPointFieldScript.runGeoPointForDoc(0, gp -> points.add(new GeoPoint(gp)));
                     // convert geo points to the standard format of the fields api
-                    Function<Geometry, Object> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
-                    List<Object> objects = new ArrayList<>();
+                    Function<List<Geometry>, List<Object>> format = GeoFormatterFactory.getFormatter(GeoFormatterFactory.GEOJSON);
+                    List<Geometry> geometries = new ArrayList<>();
                     for (GeoPoint gp : points) {
-                        objects.add(format.apply(new Point(gp.getLon(), gp.getLat())));
+                        geometries.add(new Point(gp.getLon(), gp.getLat()));
                     }
-                    return new Response(objects);
+                    return new Response(format.apply(geometries));
                 }, indexService);
             } else if (scriptContext == IpFieldScript.CONTEXT) {
                 return prepareRamIndex(request, (context, leafReaderContext) -> {

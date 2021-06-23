@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeField;
@@ -63,6 +64,15 @@ public interface MapperPlugin {
      */
     default Function<String, Predicate<String>> getFieldFilter() {
         return NOOP_FIELD_FILTER;
+    }
+
+    /**
+     * Returns the {@link GeoFormatterFactory.GeoFormatterEngine} add by this plugin.
+     * <p>
+     *  The key of the returned {@link Map} is the unique name for the formatter.
+     */
+    default Map<String, GeoFormatterFactory.GeoFormatterEngine> getGeoFormatters() {
+        return Collections.emptyMap();
     }
 
     /**

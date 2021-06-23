@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.MaxDocsCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxPrimaryShardSizeCondition;
 import org.elasticsearch.action.admin.indices.rollover.MaxSizeCondition;
 import org.elasticsearch.action.resync.TransportResyncReplicationAction;
+import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -131,6 +132,7 @@ public class IndicesModule extends AbstractModule {
         mappers.put(TextFieldMapper.CONTENT_TYPE, TextFieldMapper.PARSER);
 
         for (MapperPlugin mapperPlugin : mapperPlugins) {
+            GeoFormatterFactory.add(mapperPlugin.getGeoFormatters());
             for (Map.Entry<String, Mapper.TypeParser> entry : mapperPlugin.getMappers().entrySet()) {
                 if (mappers.put(entry.getKey(), entry.getValue()) != null) {
                     throw new IllegalArgumentException("Mapper [" + entry.getKey() + "] is already registered");

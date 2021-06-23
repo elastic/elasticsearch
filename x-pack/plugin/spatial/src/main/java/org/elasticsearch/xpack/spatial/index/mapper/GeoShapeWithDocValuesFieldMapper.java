@@ -173,7 +173,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        protected Function<Geometry, Object> getFormatter(String format) {
+        protected Geometry toGeometry(Geometry geometry) {
+            return geometry;
+        }
+
+        @Override
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
             return GeoFormatterFactory.getFormatter(format);
         }
     }

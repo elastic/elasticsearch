@@ -37,9 +37,11 @@ import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -239,9 +241,13 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        protected Function<GeoPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = GeoFormatterFactory.getFormatter(format);
-            return (point) -> formatter.apply(new Point(point.lon(), point.lat()));
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeoFormatterFactory.getFormatter(format);
+        }
+
+        @Override
+        protected Geometry toGeometry(GeoPoint point) {
+            return new Point(point.lon(), point.lat());
         }
 
         @Override
@@ -249,8 +255,28 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (scriptValues == null) {
                 return super.valueFetcher(context, format);
             }
-            Function<GeoPoint, Object> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
-            return FieldValues.valueFetcher(scriptValues, v -> formatter.apply((GeoPoint) v), context);
+            final Function<List<Geometry>, List<Object>> formatter = getFormatter(format != null ? format : GeoFormatterFactory.GEOJSON);
+            return new ValueFetcher() {
+                LeafReaderContext ctx;
+
+                @Override
+                public void setNextReader(LeafReaderContext context) {
+                    this.ctx = context;
+                }
+
+                @Override
+                public List<Object> fetchValues(SourceLookup lookup)  {
+                    // TODO: should / can we reuse this list?
+                    final List<Geometry> geometries = new ArrayList<>();
+                    try {
+                        scriptValues.valuesForDoc(context.lookup(), ctx, lookup.docId(), v -> geometries.add(toGeometry(v)));
+                    } catch (Exception e) {
+                        // ignore errors - if they exist here then they existed at index time
+                        // and so on_script_error must have been set to `ignore`
+                    }
+                    return formatter.apply(geometries);
+                }
+            };
         }
 
         @Override

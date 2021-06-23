@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.vectortile.feature;
 
 import com.wdtinc.mapbox_vector_tile.VectorTile;
-import com.wdtinc.mapbox_vector_tile.adapt.jts.UserDataIgnoreConverter;
 
 import org.apache.lucene.geo.GeoTestUtil;
 import org.elasticsearch.geometry.Point;
@@ -40,9 +39,9 @@ public class FeatureFactoryTests extends ESTestCase {
             builder.point(featureBuilder, lon, lat);
             byte[] b1 = featureBuilder.build().toByteArray();
             Point point = new Point(lon, lat);
-            List<VectorTile.Tile.Feature> features = factory.getFeatures(point, new UserDataIgnoreConverter());
+            List<Object> features = factory.apply(List.of(point));
             assertThat(features.size(), Matchers.equalTo(1));
-            byte[] b2 = features.get(0).toByteArray();
+            byte[] b2 = (byte[]) features.get(0);
             assertArrayEquals(b1, b2);
         }
     }
@@ -62,9 +61,9 @@ public class FeatureFactoryTests extends ESTestCase {
         builder.point(featureBuilder, lon, lat);
         byte[] b1 = featureBuilder.build().toByteArray();
         Point point = new Point(lon, lat);
-        List<VectorTile.Tile.Feature> features = factory.getFeatures(point, new UserDataIgnoreConverter());
+        List<Object> features = factory.apply(List.of(point));
         assertThat(features.size(), Matchers.equalTo(1));
-        byte[] b2 = features.get(0).toByteArray();
+        byte[] b2 = (byte[]) features.get(0);
         assertThat(Arrays.equals(b1, b2), Matchers.equalTo(false));
     }
 
@@ -88,9 +87,9 @@ public class FeatureFactoryTests extends ESTestCase {
             featureBuilder.clear();
             builder.box(featureBuilder, r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             byte[] b1 = featureBuilder.build().toByteArray();
-            List<VectorTile.Tile.Feature> features = factory.getFeatures(r, new UserDataIgnoreConverter());
+            List<Object> features = factory.apply(List.of(r));
             assertThat(features.size(), Matchers.equalTo(1));
-            byte[] b2 = features.get(0).toByteArray();
+            byte[] b2 = (byte[]) features.get(0);
             assertArrayEquals(extent + "", b1, b2);
         }
     }

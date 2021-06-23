@@ -179,9 +179,13 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         }
 
         @Override
-        protected Function<CartesianPoint, Object> getFormatter(String format) {
-            Function<Geometry, Object> formatter = CartesianFormatterFactory.getFormatter(format);
-            return (point) -> formatter.apply(new Point(point.getX(), point.getY()));
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return CartesianFormatterFactory.getFormatter(format);
+        }
+
+        @Override
+        protected Geometry toGeometry(CartesianPoint point) {
+            return new Point(point.getX(), point.getY());
         }
     }
 

@@ -53,7 +53,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCase {
@@ -131,9 +130,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot(repoName, snapshot).get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThat(
-            client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get().getFailedResponses().get(repoName),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
         );
     }
 
@@ -208,9 +207,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(getRepositoryData(repoName).getGenId(), is(beforeMoveGen + 2));
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThat(
-            client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get().getFailedResponses().get(repoName),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareGetSnapshots(repoName).addSnapshots(snapshot).get()
         );
     }
 
@@ -570,15 +569,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> make sure snapshot doesn't exist");
 
-        assertThat(
-            client.admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .addSnapshots("test-snap-1")
-                .get()
-                .getFailedResponses()
-                .get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
         );
 
         for (String index : indices) {
@@ -620,15 +613,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThat(
-            client.admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .addSnapshots("test-snap-1")
-                .get()
-                .getFailedResponses()
-                .get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get()
         );
     }
 
@@ -674,15 +661,9 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         startDeleteSnapshot("test-repo", "test-snap-1").get();
 
         logger.info("--> make sure snapshot doesn't exist");
-        assertThat(
-            client.admin()
-                .cluster()
-                .prepareGetSnapshots("test-repo")
-                .addSnapshots("test-snap-1")
-                .get()
-                .getFailedResponses()
-                .get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("test-snap-1").get().getSnapshots()
         );
 
         logger.info("--> make sure that we can create the snapshot again");
@@ -741,10 +722,7 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotStatusResponse.getSnapshots().get(0).getSnapshot().getSnapshotId().getName(), equalTo("test-snap"));
 
         assertAcked(startDeleteSnapshot("test-repo", "test-snap").get());
-        assertThat(
-            clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getFailedResponses().get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
-        );
+        expectThrows(SnapshotMissingException.class, () -> clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get());
         assertRequestBuilderThrows(
             clusterAdmin().prepareSnapshotStatus("test-repo").addSnapshots("test-snap"),
             SnapshotMissingException.class

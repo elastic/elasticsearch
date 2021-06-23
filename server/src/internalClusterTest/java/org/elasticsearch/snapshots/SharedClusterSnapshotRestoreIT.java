@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
@@ -1553,9 +1552,9 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         createRepository("test-repo", "fs");
 
         expectThrows(InvalidSnapshotNameException.class, () -> client.admin().cluster().prepareCreateSnapshot("test-repo", "_foo").get());
-        assertThat(
-            client.admin().cluster().prepareGetSnapshots("test-repo").addSnapshots("_foo").get().getFailedResponses().get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("_foo").get()
         );
         expectThrows(SnapshotMissingException.class, () -> client.admin().cluster().prepareDeleteSnapshot("test-repo", "_foo").get());
         expectThrows(
@@ -1605,13 +1604,10 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertThat(snapshotInfos.get(0).state(), equalTo(SnapshotState.SUCCESS));
         assertThat(snapshotInfos.get(0).snapshotId().getName(), equalTo("test-snap-1"));
 
-        final SnapshotException ex = (SnapshotException) client.admin()
-            .cluster()
-            .prepareGetSnapshots("test-repo")
-            .setIgnoreUnavailable(false)
-            .get()
-            .getFailedResponses()
-            .get("test-repo");
+        final SnapshotException ex = expectThrows(
+            SnapshotException.class,
+            () -> client.admin().cluster().prepareGetSnapshots("test-repo").setIgnoreUnavailable(false).get()
+        );
         assertThat(ex.getRepositoryName(), equalTo("test-repo"));
         assertThat(ex.getSnapshotName(), equalTo("test-snap-2"));
     }

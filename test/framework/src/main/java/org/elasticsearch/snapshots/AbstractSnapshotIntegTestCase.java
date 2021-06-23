@@ -8,14 +8,12 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -627,13 +625,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
     }
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
-        final GetSnapshotsResponse response = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot).get();
-        final List<SnapshotInfo> snapshotInfos = response.getSnapshots();
-        if (snapshotInfos.isEmpty()) {
-            final ElasticsearchException ex = response.getFailedResponses().get(repository);
-            assertNotNull(ex);
-            throw ex;
-        }
+        final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
+                .get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }

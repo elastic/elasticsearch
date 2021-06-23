@@ -170,7 +170,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 size,
                 order,
                 groupedActionListener.delegateResponse((groupedListener, e) -> {
-                    if (e instanceof ElasticsearchException) {
+                    if (repos.size() > 1 && e instanceof ElasticsearchException) {
                         groupedListener.onResponse(Tuple.tuple(Tuple.tuple(repoName, (ElasticsearchException) e), null));
                     } else {
                         groupedListener.onFailure(e);

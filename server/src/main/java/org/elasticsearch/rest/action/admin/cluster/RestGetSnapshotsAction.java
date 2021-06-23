@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -85,10 +84,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
                     @Override
                     public RestResponse buildResponse(GetSnapshotsResponse response, XContentBuilder builder) throws Exception {
                         final ToXContent.Params params;
-                        if (getSnapshotsRequest.repositories().length == 1
-                                && getSnapshotsRequest.repositories()[0].equals("_all") == false
-                                && getSnapshotsRequest.repositories()[0].equals("*") == false
-                                && Regex.isSimpleMatchPattern(getSnapshotsRequest.repositories()[0]) == false) {
+                        if (getSnapshotsRequest.isSingleRepositoryRequest()) {
                             final Map<String, String> updatedParams = new HashMap<>(request.params());
                             updatedParams.put("include_repository", "false");
                             params = new ToXContent.MapParams(updatedParams);

@@ -188,9 +188,9 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         }
 
         logger.info("--> making sure that snapshot no longer exists");
-        assertThat(
-            clusterAdmin().prepareGetSnapshots("test-repo").addSnapshots("test-snap").get().getFailedResponses().get("test-repo"),
-            instanceOf(SnapshotMissingException.class)
+        expectThrows(
+            SnapshotMissingException.class,
+            () -> client().admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").execute().actionGet()
         );
 
         logger.info("--> Go through a loop of creating and deleting a snapshot to trigger repository cleanup");

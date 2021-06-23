@@ -169,7 +169,7 @@ public class CreateEnrollmentToken {
         if (Strings.isNullOrEmpty(apiKey) || Strings.isNullOrEmpty(apiId)) {
             throw new IllegalStateException("Could not create an api key.");
         }
-        return Base64.getEncoder().encodeToString((apiId + ":" + apiKey).getBytes());
+        return Base64.getEncoder().encodeToString((apiId + ":" + apiKey).getBytes(StandardCharsets.UTF_8));
     }
 
     protected Tuple<List<String>, String> getNodeInfo(String user, SecureString password) throws Exception {

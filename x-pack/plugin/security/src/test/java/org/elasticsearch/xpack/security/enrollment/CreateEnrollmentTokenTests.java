@@ -189,7 +189,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertThat(ex.getMessage(), Matchers.containsString("Unexpected response code [400] from calling GET "));
     }
 
-    public void testFailedRetrieveHttpInfoNoCaInKeystore() throws Exception {
+    public void testFailedNoCaInKeystore() throws Exception {
         final Path tempDir = createTempDir();
         final Path httpNoCaPath = tempDir.resolve("transport.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/transport.p12"), httpNoCaPath);
@@ -242,7 +242,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             "SSL configuration Keystore doesn't contain any PrivateKey entries where the associated certificate is a CA certificate"));
     }
 
-    public void testFailedRetrieveHttpInfoManyCaInKeystore() throws Exception {
+    public void testFailedManyCaInKeystore() throws Exception {
         final Path tempDir = createTempDir();
         final Path httpNoCaPath = tempDir.resolve("httpCa2.p12");
         Files.copy(getDataPath("/org/elasticsearch/xpack/security/action/enrollment/httpCa2.p12"), httpNoCaPath);

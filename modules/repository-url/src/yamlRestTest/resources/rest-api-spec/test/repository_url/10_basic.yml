@@ -129,9 +129,9 @@ teardown:
         repository: repository-url
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state : SUCCESS }
-  - match: { responses.0.snapshots.1.state : SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -194,9 +194,9 @@ teardown:
         repository: repository-file
         snapshot: snapshot-one,snapshot-two
 
-  - is_true: responses.0.snapshots
-  - match: { responses.0.snapshots.0.state : SUCCESS }
-  - match: { responses.0.snapshots.1.state : SUCCESS }
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
 
   # Delete the index
   - do:
@@ -251,8 +251,8 @@ teardown:
         repository: repository-url
         snapshot: missing
 
-  - is_true: responses.0.error
-  - match: { responses.0.error.type: snapshot_missing_exception }
+  - is_true: failures.repository-url
+  - match: { failures.repository-url.type: snapshot_missing_exception }
 
 ---
 "Delete a non existing snapshot":

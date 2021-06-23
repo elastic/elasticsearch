@@ -82,7 +82,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;
-        private String repository = null;
+        private String repository = "_unknown";
         private String state = null;
         private String reason = null;
         private List<String> indices = null;

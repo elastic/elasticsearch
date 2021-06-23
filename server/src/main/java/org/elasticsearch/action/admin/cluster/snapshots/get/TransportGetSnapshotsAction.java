@@ -153,7 +153,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     .map(Tuple::v1)
                     .filter(Objects::nonNull)
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
-                return new GetSnapshotsResponse(allSnapshots, failures);
+                return new GetSnapshotsResponse(sortSnapshots(allSnapshots, sortBy, after, size, order), failures);
             }), repos.size());
 
         for (final RepositoryMetadata repo : repos) {

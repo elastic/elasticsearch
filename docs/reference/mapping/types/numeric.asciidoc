@@ -119,11 +119,11 @@ The following parameters are accepted by numeric types:
     Accepts `true` (default) and `false`. Not applicable for `unsigned_long`.
     Note that this cannot be set if the `script` parameter is used.
 
-<<dimension,`dimension`>>::
+`dimension`::
 
-    This parameter marks the field as a time series dimension field. Accepts
-    `true` or `false` (default). This parameter can be set only for fields
-    of type `byte`, `short`, `integer` and `long`.
+    Marks the field as a time series dimension. Accepts `true` or `false`
+    (default). Only `byte`, `short`, `integer`, and `long` numeric fields
+    support this parameter.
 
 <<doc-values,`doc_values`>>::
 

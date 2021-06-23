@@ -166,7 +166,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             this.lifecyclePolicy = new LifecyclePolicy(in);
             this.version = in.readVLong();
             this.modifiedDate = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
                 this.usage = new ItemUsage(in);
             } else {
                 this.usage = new ItemUsage(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
@@ -178,7 +178,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
             lifecyclePolicy.writeTo(out);
             out.writeVLong(version);
             out.writeString(modifiedDate);
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
                 this.usage.writeTo(out);
             }
         }

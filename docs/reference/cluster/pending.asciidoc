@@ -50,7 +50,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
     the task queue.
     
 `priority`::
-    (string) The priority of the pending task. The hierachy of pending tasks execution are `IMMEDIATE` > `URGENT` > `HIGH` > `NORMAL` > `LOW` > `LANGUID`. 
+    (string) The priority of the pending task. The valid priorities in descending priority order are: `IMMEDIATE` > `URGENT` > `HIGH` > `NORMAL` > `LOW` > `LANGUID`. 
     
 `source`::
     (string) A general description of the cluster task that may include a reason 

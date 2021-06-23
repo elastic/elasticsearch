@@ -40,7 +40,7 @@ public class RestGetActionTests extends RestActionTestCase {
         testTypeInPath(RestRequest.Method.HEAD);
     }
 
-    private void testTypeInPath(RestRequest.Method head) {
+    private void testTypeInPath(RestRequest.Method method) {
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");

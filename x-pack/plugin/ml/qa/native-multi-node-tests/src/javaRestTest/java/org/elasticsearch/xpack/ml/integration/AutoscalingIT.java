@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingDeciderService;
 import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
+import org.junit.After;
+import org.junit.Before;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -43,6 +45,28 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
     private static final long BASIC_REQUIREMENT_MB = 10;
     private static final long NATIVE_PROCESS_OVERHEAD_MB = 30;
     private static final long BASELINE_OVERHEAD_MB = BASIC_REQUIREMENT_MB + NATIVE_PROCESS_OVERHEAD_MB;
+
+    @Before
+    public void setLoggingLevel() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.process.MlMemoryTracker", "TRACE")
+                .build()
+            ).get();
+    }
+
+    @After
+    public void unsetLoggingLevel() {
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml.process.MlMemoryTracker")
+                .build()
+            ).get();
+    }
 
     // This test assumes that xpack.ml.max_machine_memory_percent is 30
     // and that xpack.ml.use_auto_machine_memory_percent is false

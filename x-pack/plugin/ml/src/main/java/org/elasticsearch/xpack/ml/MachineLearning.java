@@ -1331,32 +1331,15 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
-                resetSuccess -> finalListener.onFailure(failure),
-                resetFailure -> {
-                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                    finalListener.onFailure(failure);
-                })
-            )
-        );
-
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> cleanedUpIndicesListener = ActionListener.wrap(
-            success -> {
-                if (memoryTracker.get() != null) {
-                    memoryTracker.get().awaitAndClear(ActionListener.wrap(
-                        cacheCleared -> unsetResetModeListener.onResponse(success),
-                        clearFailed -> {
-                            logger.error("failed to clear memory tracker cache via machine learning reset feature API", clearFailed);
-                            unsetResetModeListener.onResponse(success);
-                        }
-                    ));
-                    return;
-                }
-                unsetResetModeListener.onResponse(success);
-            },
             failure -> {
-                logger.error("failed to clear .ml-* indices via reset feature API", failure);
-                unsetResetModeListener.onFailure(failure);
+                logger.error("failed to reset machine learning", failure);
+                client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
+                    resetSuccess -> finalListener.onFailure(failure),
+                    resetFailure -> {
+                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                        finalListener.onFailure(failure);
+                    })
+                );
             }
         );
 
@@ -1364,19 +1347,29 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             listTasksResponse -> {
                 listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
                 if (results.values().stream().allMatch(b -> b)) {
+                    if (memoryTracker.get() != null) {
+                        memoryTracker.get().awaitAndClear(ActionListener.wrap(
+                            cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener),
+                            clearFailed -> {
+                                logger.error("failed to clear memory tracker cache via machine learning reset feature API", clearFailed);
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+                            }
+                        ));
+                        return;
+                    }
                     // Call into the original listener to clean up the indices and then clear ml memory cache
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, cleanedUpIndicesListener);
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
                 } else {
                     final List<String> failedComponents = results.entrySet().stream()
                         .filter(result -> result.getValue() == false)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
-                    cleanedUpIndicesListener.onFailure(
+                    unsetResetModeListener.onFailure(
                         new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                     );
                 }
             },
-            cleanedUpIndicesListener::onFailure
+            unsetResetModeListener::onFailure
         );
 
         ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {

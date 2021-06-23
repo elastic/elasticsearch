@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.process;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
@@ -122,6 +123,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     public void awaitAndClear(ActionListener<Void> listener) {
         // We never terminate the phaser
+        logger.trace("awaiting and clearing memory tracker");
         assert stopPhaser.isTerminated() == false;
         // If there are no registered parties or no unarrived parties then there is a flaw
         // in the register/arrive/unregister logic in another method that uses the phaser
@@ -135,6 +137,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     int newPhase = stopPhaser.arriveAndAwaitAdvance();
                     assert newPhase > 0;
                     clear();
+                    logger.trace("completed awaiting and clearing memory tracker");
                     phase.incrementAndGet();
                     listener.onResponse(null);
                 } catch (Exception e) {
@@ -435,9 +438,13 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         // The phaser prevents searches being started after the memory tracker's stop() method has returned
         // Note: `phase` is incremented if cache is reset via the feature reset API
-        if (stopPhaser.register() != phase.get()) {
+        int localPhase = phase.get();
+        if (stopPhaser.register() != localPhase) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
+            logger.trace(
+                () -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId)
+            );
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));
             return;
         }

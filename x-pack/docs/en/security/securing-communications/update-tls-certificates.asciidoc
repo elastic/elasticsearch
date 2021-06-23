@@ -11,7 +11,7 @@ certificates, there are two main scenarios that you'll encounter:
 Regardless of the scenario, {es} monitors the SSL resources for updates
 on a five-second interval, which is the default. You can just copy the new
 certificate and key files (or keystore) into the {es} configuration directory
-and your nodes will detect the changes. 
+and your nodes will detect the changes and will reload the keys and certificates. 
 
 Because {es} doesn't reload the `elasticsearch.yml` configuration,
 you must use *the same file names* so that {es} refreshes the security
@@ -61,7 +61,7 @@ the HTTP layer.
 
 [[cert-password-updates]] 
 IMPORTANT: If your keystore is password protected, the password
-is stored in the {es} keystore, _and_ the password needs to change, then you
+is stored in the {es} secure settings, _and_ the password needs to change, then you
 must perform a <<restart-cluster-rolling,rolling restart>> on your cluster. You
 must also use a different file name for the keystore so that {es} reloads the
 new file.
@@ -79,8 +79,8 @@ TIP: If your CA has changed, complete the steps in
 ==== Generate a new certificate for the transport layer
 Create a new PKCS#12 file that contains a certificate and key and replace
 the existing PKCS#12 file (such as `elastic-certificates.p12`) with the new
-certificate. Stop one node at a time, replace the node certificate, and then
-restart the node.
+certificate. Stop one node at a time, replace the node keystore, and then
+start the node.
 
 NOTE: The following examples use PKCS#12 files, but the same steps apply to JKS
 keystores.
@@ -102,7 +102,7 @@ xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 
 . On every node in your cluster, generate a certificate and private key for your
-node. You must include the CA that was used to sign the certificate currently
+node. You must use the CA that was used to sign the certificate currently
 in use.
 +
 [source,shell]
@@ -129,7 +129,7 @@ keystore with a new filename.
 
     c. (Optional) Enter a password for your keystore. 
 
-. If you entered a password when creating the node certificate, run the
+. If you entered a password when creating the node keystore, and if it is different than the one the current keystore has, run the
 following command to store the password in the {es} keystore:
 +
 --
@@ -139,7 +139,7 @@ following command to store the password in the {es} keystore:
 ----
 --
 
-. Stop {es} on the first node in your cluster where you are updating the
+. Stop {es} on the current node in your cluster where you are updating the
 keystore.
 
 . Replace your existing keystore with the new keystore, ensuring that the
@@ -150,12 +150,12 @@ keystore, _and_ the password needs to change, then update the
 `ES_PATH_CONF/elasticsearch.yml` file to use the filename of the new keystore
 file that you created.
 
-. Restart the node where you updated the keystore. 
+. Start the node where you updated the keystore. 
 
 . (Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
-. On each additional node in your cluster, stop {es}, update the keystore,
+. On each additional node in your cluster, perform the previous steps,
 and restart {es}.
 
 [[node-certs-same-http]]
@@ -346,7 +346,7 @@ keytool -importcert -trustcacerts -noprompt -keystore elastic-stack-ca.p12 \
 
    `-storepass`:: Password for the CA truststore. 
 
-   `-alias`:: Name that you want to assign to the new CA certificate.
+   `-alias`:: Name that you want to assign to the new CA certificate entry in the keystore.
 
    `-file`:: Name of the new CA certificate to import.
 ====
@@ -454,7 +454,7 @@ in your cluster. Include the `instances.yml` file that you created previously.
 
    d. Rename the `<node-name>.p12` file to match the existing file name
    specified by the `xpack.security.transport.ssl.keystore.path` variable in 
-   the `elasticsearch.yml` file.
+   the `elasticsearch.yml` file on each node.
 
 . On *every* node, copy the appropriate node certificate to the `ES_PATH_CONF`
 directory.
@@ -464,7 +464,7 @@ configuration files. If you installed {es} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
 
-. Delete the old node certificate from each node. 
+. Delete the old node keystore from each node. 
 
 [[node-certs-different-http]]
 ==== Generate a new certificate for the HTTP layer

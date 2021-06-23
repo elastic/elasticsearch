@@ -129,7 +129,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("8.0.0", infoNode.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoNode.get("adr"));
         assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", infoNode.get("fgr"));
-        assertEquals("RFI2Q3pYa0JEZjhhbVZfNDh5WVg6eDNZcVVfcnFRd20tRVNya0V4Y25PZw==", infoNode.get("key"));
+        assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
         final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
 
@@ -137,7 +137,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         assertEquals("8.0.0", infoKibana.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoKibana.get("adr"));
         assertEquals("598a35cd831ee6bb90e79aa80d6b073cda88b41d", infoKibana.get("fgr"));
-        assertEquals("RFI2Q3pYa0JEZjhhbVZfNDh5WVg6eDNZcVVfcnFRd20tRVNya0V4Y25PZw==", infoKibana.get("key"));
+        assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoKibana.get("key"));
     }
 
     public void testFailedCreateApiKey() throws Exception {

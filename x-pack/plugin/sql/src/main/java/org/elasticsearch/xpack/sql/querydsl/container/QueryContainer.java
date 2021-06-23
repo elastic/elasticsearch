@@ -182,7 +182,9 @@ public class QueryContainer {
      */
     public BitSet columnMask(List<Attribute> columns) {
         BitSet mask = new BitSet(fields.size());
-        aliasName(columns.get(0));
+        if (columns.size() > 0) {
+            aliasName(columns.get(0));
+        }
 
         for (Attribute column : columns) {
             Expression expression = aliases.resolve(column, column);

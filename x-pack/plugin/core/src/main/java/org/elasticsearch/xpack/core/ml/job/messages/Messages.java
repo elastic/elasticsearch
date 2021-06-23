@@ -246,6 +246,8 @@ public final class Messages {
     public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
             "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
                 Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";
+    public static final String JOB_CONFIG_DATAFEED_CONFIG_JOB_ID_MISMATCH =
+        "datafeed job_id [{0}] does not equal job id [{1}}";
 
     public static final String JOB_AND_GROUP_NAMES_MUST_BE_UNIQUE =
             "job and group names must be unique but job [{0}] and group [{0}] have the same name";

@@ -59,7 +59,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 [NOTE]
 =======
 * You cannot decrease the `model_memory_limit` value below the current usage. To
-determine the current usage, refer to the `model_bytes_memory_limit` value in
+determine the current usage, refer to the `model_bytes` value in
 the <<ml-get-snapshot,get model snapshots>> or <<ml-get-job-stats,get job stats>> 
 APIs.
 * If the `memory_status` property in the

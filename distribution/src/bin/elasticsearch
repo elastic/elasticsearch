@@ -61,10 +61,13 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   if [[ "$QUIET" = false ]]; then
-    exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner <(echo -ne "TEST BANNER\nTEST BANNER2\nEOF"))
-    #exec > >(while read line; do
-    #  printf "%s\nTEST BOTTOM BANNER\r" "$line"
-    #  done)
+    exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF"\
+      <(sleep 15; echo -ne "DEMO BANNER\n"\
+"SECURITY HAS BEEN AUTO-CONFIGURED\n"\
+"\"elastic\" user password: *******\n"\
+"ES node enrollment token (expires in 30 mins): *******\n"\
+"Kibana enrollment token (expires in 30 mins): *******\n"\
+"EOF"))
   fi
   exec \
     "$JAVA" \

@@ -31,25 +31,29 @@ import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Prints lines at the tail of the console output
+ */
 final class OutputBottomBanner {
 
-    private static String BANNER_END_MARKER = "EOF";
-
     public static void main(final String[] args) throws IOException {
-        if (args.length != 1) {
-            throw new IllegalArgumentException("expected the banner file sole argument, but provided " + Arrays.toString(args));
+        if (args.length != 2) {
+            throw new IllegalArgumentException("expected two arguments, but provided " + Arrays.toString(args));
         }
+        // TODO validate args
+        final String bannerEndMarker = args[0];
+        final String bannerFileName = args[1];
         final AtomicReference<Banner> bannerReference = new AtomicReference<>();
-        // asynchronously read the whole banner
+        // asynchronously read the whole banner; the banner is only used when complete
         final Thread bannerThread = new Thread(() -> {
             StringBuilder bannerBuilder = new StringBuilder();
             int lineCount = 0;
-            // read file using platform's charset
-            try (BufferedReader reader = new BufferedReader(new FileReader(args[0]))) {
+            // read banner from file using platform's charset
+            try (BufferedReader reader = new BufferedReader(new FileReader(bannerFileName))) {
                 while (true) {
                     String bannerLine;
                     while ((bannerLine = reader.readLine()) != null) {
-                        if (BANNER_END_MARKER.equals(bannerLine)) {
+                        if (bannerEndMarker.equals(bannerLine)) {
                             break;
                         }
                         if (lineCount != 0) {
@@ -58,7 +62,8 @@ final class OutputBottomBanner {
                         bannerBuilder.append(bannerLine);
                         lineCount++;
                     }
-                    if (BANNER_END_MARKER.equals(bannerLine)) {
+                    // the banner is now complete (marker on its own line)
+                    if (bannerEndMarker.equals(bannerLine)) {
                         break;
                     }
                     // this is EOF without the banner end marker. Keep reading until encountering the end marker.
@@ -74,39 +79,34 @@ final class OutputBottomBanner {
         bannerThread.setDaemon(true);
         bannerThread.start();
 
-        // forward stdin
+        // forward stdin to stdout
         try (BufferedReader reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()))) {
             String line;
-            // no banner, yet
+            // no banner yet
             while (bannerReference.get() == null) {
-                // avoid blocking if no input, because banner can become available and it must be shown
+                // avoid blocking if no input, because banner can become available and it must be shown even if no input lines
                 if (reader.ready()) {
+                    // this might block if only part of line is available
+                    // this is reasonable because the assumption is that the input is a stream of lines
+                    // so it only blocks for a short while
                     line = reader.readLine();
                     System.out.printf("%s%n", line);
                 } else {
-                    // avoid busy looping when no input and no banner
+                    // avoid busy looping when no input lines and no banner
                     Thread.sleep(1000);
                 }
             }
             Banner banner = bannerReference.get();
-            printBanner(banner);
             // print banner
+            System.out.printf("%s%n", banner.banner);
+            // we can block indefinitely for input lines since the banner has already been printed
             while ((line = reader.readLine()) != null) {
+                // clear banner
+                System.out.printf("\u001b[%dF\u001b[J", banner.lineCount);
+                // line overwrites banner
                 System.out.printf("%s%n", line);
-                printBanner(banner);
-//                if (bannerLineCount == 1) {
-//                    System.out.printf("\u001b[J%s%n%s\r", line, bannerReference);
-//                } else {
-//                    System.out.printf("\u001b[J%s%n%s\u001b[%dF", line, bannerReference, bannerLineCount - 1);
-//                }
-                //printLineWithBanner(line, banner.get());
-                //if (bannerLineCount == 0) {
-                //    System.out.printf("%s%n", line);
-                //} else if (bannerLineCount == 1) {
-                //    System.out.printf("\u001b[J%s%n%s\r", line, banner);
-                //} else {
-                //    System.out.printf("\u001b[J%s%n%s\u001b[%dF", line, banner, bannerLineCount - 1);
-                //}
+                // append another banner
+                System.out.printf("%s%n", banner.banner);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -120,40 +120,6 @@ final class OutputBottomBanner {
         Banner(String banner, Integer lineCount) {
             this.banner = banner;
             this.lineCount = lineCount;
-        }
-    }
-
-    private static void printBanner(Banner banner) {
-        if (banner == null || banner.lineCount == 0) {
-            // nothing to print
-        } else if (banner.lineCount == 1) {
-            // clear screen following the cursor
-            // print one line banner
-            // move cursor back to banner line start
-            System.out.printf("\u001b[J%s\r", banner);
-        } else if (banner.lineCount > 1) {
-            // clear screen following the cursor
-            // print multi-line banner
-            // move cursor back to banner first line start
-            System.out.printf("\u001b[J%s\u001b[%dF", banner.banner, banner.lineCount - 1);
-        }
-    }
-
-    private static void printLineWithBanner(String line, Banner banner) {
-        if (banner == null || banner.lineCount == 0) {
-            System.out.printf("%s%n", line);
-        } else if (banner.lineCount == 1) {
-            // clear screen following the cursor
-            // print line
-            // print one line banner
-            // move cursor back to banner line start
-            System.out.printf("\u001b[J%s%n%s\r", line, banner);
-        } else if (banner.lineCount > 1) {
-            // clear screen following the cursor
-            // print line
-            // print multi-line banner
-            // move cursor back to banner first line start
-            System.out.printf("\u001b[J%s%n%s\u001b[%dF", line, banner.banner, banner.lineCount - 1);
         }
     }
 

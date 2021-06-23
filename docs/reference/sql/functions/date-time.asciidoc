@@ -464,8 +464,7 @@ DATETIME_FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null` or an empty string, the function
-returns `null`.
+<1> date/datetime/time expression. If `null`, the function returns `null`.
 <2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
@@ -785,8 +784,7 @@ FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null` or an empty string, the function
-returns `null`.
+<1> date/datetime/time expression. If `null`, the function returns `null`.
 <2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
@@ -837,8 +835,7 @@ TO_CHAR(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null` or an empty string, the function
-returns `null`.
+<1> date/datetime/time expression. If `null`, the function returns `null`.
 <2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string

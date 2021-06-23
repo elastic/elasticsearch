@@ -9,12 +9,17 @@
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.ElasticsearchExceptionTests;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -114,6 +119,35 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         assertEquals(deserializedFailures.size(), randomResponse.getFailures().size());
         int i = 0;
         for (FieldCapabilitiesFailure originalFailure : randomResponse.getFailures()) {
+            FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
+            assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
+            i++;
+        }
+    }
+
+    /**
+     * check that failure serialization between different minor versions after 7.13 works
+     */
+    public void testMixedVersionFailureSerialization() throws IOException {
+        FieldCapabilitiesResponse original = createResponseWithFailures();
+        FieldCapabilitiesResponse deserialized;
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            Version outVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+            output.setVersion(outVersion);
+            original.writeTo(output);
+            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), getNamedWriteableRegistry())) {
+                Version inVersion = VersionUtils.randomVersionBetween(random(), Version.V_7_13_0, Version.CURRENT);
+                in.setVersion(inVersion);
+                deserialized = new FieldCapabilitiesResponse(in);
+                assertEquals(-1, in.read());
+            }
+        }
+        assertThat(deserialized.getIndices(), Matchers.equalTo(original.getIndices()));
+        // only match size of failure list and indices, most exceptions don't support 'equals'
+        List<FieldCapabilitiesFailure> deserializedFailures = deserialized.getFailures();
+        assertEquals(deserializedFailures.size(), original.getFailures().size());
+        int i = 0;
+        for (FieldCapabilitiesFailure originalFailure : original.getFailures()) {
             FieldCapabilitiesFailure deserializedFaliure = deserializedFailures.get(i);
             assertThat(deserializedFaliure.getIndices(), Matchers.equalTo(originalFailure.getIndices()));
             i++;

@@ -89,12 +89,11 @@ generate a CA for your cluster.
 +
 [source,shell]
 ----
-./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12 --pem
+./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 +
    `--ca <ca_file>`:: Name of the CA file used to sign your certificates. The
    default file name from the `elasticsearch-certutil` tool is `elastic-stack-ca.p12`.
-   `--pem`:: 
 +
 
    a. Enter the password for your CA, or press *Enter* if you did not configure one in the previous step.

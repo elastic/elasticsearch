@@ -56,10 +56,10 @@ The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 
-<<dimension,`dimension`>>::
+`dimension`::
 
-    This parameter marks the field as a time series dimension field. Accepts
-    `true` or `false` (default).
+    Marks the field as a time series dimension. Accepts `true` or `false`
+    (default).
 
 <<doc-values,`doc_values`>>::
 
@@ -157,4 +157,3 @@ The following parameters are accepted by `keyword` fields:
 include::constant-keyword.asciidoc[]
 
 include::wildcard.asciidoc[]
-

@@ -123,7 +123,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     public void awaitAndClear(ActionListener<Void> listener) {
         // We never terminate the phaser
-        logger.trace("awaiting and clearing memory tracker");
+        logger.info("awaiting and clearing memory tracker");
         assert stopPhaser.isTerminated() == false;
         // If there are no registered parties or no unarrived parties then there is a flaw
         // in the register/arrive/unregister logic in another method that uses the phaser
@@ -137,8 +137,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     int newPhase = stopPhaser.arriveAndAwaitAdvance();
                     assert newPhase > 0;
                     clear();
-                    logger.trace("completed awaiting and clearing memory tracker");
-                    phase.incrementAndGet();
+                    int anotherNewPhase = phase.incrementAndGet();
+                    logger.info("completed awaiting and clearing memory tracker new phase [{}] and [{}]", newPhase, anotherNewPhase);
                     listener.onResponse(null);
                 } catch (Exception e) {
                     logger.warn("failed to wait for all refresh requests to complete", e);
@@ -442,7 +442,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         if (stopPhaser.register() != localPhase) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
-            logger.trace(
+            logger.info(
                 () -> new ParameterizedMessage("[{}] not refreshing anomaly detector memory as node is shutting down", jobId)
             );
             listener.onFailure(new EsRejectedExecutionException("Couldn't run ML memory update - node is shutting down"));

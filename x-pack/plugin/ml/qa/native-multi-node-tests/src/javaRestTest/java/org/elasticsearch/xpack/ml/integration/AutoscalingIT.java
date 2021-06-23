@@ -52,6 +52,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml", "DEBUG")
                 .put("logger.org.elasticsearch.xpack.ml.process.MlMemoryTracker", "TRACE")
                 .build()
             ).get();
@@ -63,6 +64,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             .cluster()
             .prepareUpdateSettings()
             .setTransientSettings(Settings.builder()
+                .putNull("logger.org.elasticsearch.xpack.ml")
                 .putNull("logger.org.elasticsearch.xpack.ml.process.MlMemoryTracker")
                 .build()
             ).get();

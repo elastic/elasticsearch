@@ -44,6 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -381,7 +382,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     }
 
     void processQuery(Query query, ParseContext context) {
-        ParseContext.Document doc = context.doc();
+        Document doc = context.doc();
         PercolatorFieldType pft = (PercolatorFieldType) this.fieldType();
         QueryAnalyzer.Result result;
         result = QueryAnalyzer.analyze(query);

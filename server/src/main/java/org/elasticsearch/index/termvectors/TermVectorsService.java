@@ -20,20 +20,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.termvectors.TermVectorsFilter;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVersion;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -283,7 +283,7 @@ public class TermVectorsService  {
         MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
         ParsedDocument parsedDocument = documentParser.parseDocument(source, mappingLookup);
         // select the right fields and generate term vectors
-        ParseContext.Document doc = parsedDocument.rootDoc();
+        Document doc = parsedDocument.rootDoc();
         Set<String> seenFields = new HashSet<>();
         Collection<DocumentField> documentFields = new HashSet<>();
         for (IndexableField field : doc.getFields()) {

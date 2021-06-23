@@ -87,10 +87,10 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -3708,7 +3708,7 @@ public class IndexShardTests extends IndexShardTestCase {
         String id = randomRealisticUnicodeOfLengthBetween(1, 10);
         ParsedDocument deleteTombstone = ParsedDocument.deleteTombstone(id);
         assertThat(deleteTombstone.docs(), hasSize(1));
-        ParseContext.Document deleteDoc = deleteTombstone.docs().get(0);
+        Document deleteDoc = deleteTombstone.docs().get(0);
         assertThat(deleteDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
             containsInAnyOrder(IdFieldMapper.NAME, VersionFieldMapper.NAME,
                 SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME));
@@ -3718,7 +3718,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final String reason = randomUnicodeOfLength(200);
         ParsedDocument noopTombstone = ParsedDocument.noopTombstone(reason);
         assertThat(noopTombstone.docs(), hasSize(1));
-        ParseContext.Document noopDoc = noopTombstone.docs().get(0);
+        Document noopDoc = noopTombstone.docs().get(0);
         assertThat(noopDoc.getFields().stream().map(IndexableField::name).collect(Collectors.toList()),
             containsInAnyOrder(VersionFieldMapper.NAME, SourceFieldMapper.NAME, SeqNoFieldMapper.TOMBSTONE_NAME,
                 SeqNoFieldMapper.NAME, SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME));

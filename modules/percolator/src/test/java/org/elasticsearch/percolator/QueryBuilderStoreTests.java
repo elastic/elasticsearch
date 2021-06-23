@@ -19,13 +19,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -68,7 +69,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 for (int i = 0; i < queryBuilders.length; i++) {
                     queryBuilders[i] = new TermQueryBuilder(randomAlphaOfLength(4), randomAlphaOfLength(8));
                     ParseContext parseContext = mock(ParseContext.class);
-                    ParseContext.Document document = new ParseContext.Document();
+                    Document document = new Document();
                     when(parseContext.doc()).thenReturn(document);
                     PercolatorFieldMapper.createQueryBuilderField(version,
                         fieldMapper, queryBuilders[i], parseContext);

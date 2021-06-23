@@ -55,11 +55,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.StringBinaryIndexFieldData;
 import org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -961,7 +961,7 @@ public class WildcardFieldMapper extends FieldMapper {
         } else {
             value =  parser.textOrNull();
         }
-        ParseContext.Document parseDoc = context.doc();
+        Document parseDoc = context.doc();
 
         List<IndexableField> fields = new ArrayList<>();
         if (value != null) {

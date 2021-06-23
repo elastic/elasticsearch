@@ -9,8 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
@@ -21,7 +19,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -29,121 +26,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 public abstract class ParseContext {
-
-    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
-    public static class Document implements Iterable<IndexableField> {
-
-        private final Document parent;
-        private final String path;
-        private final String prefix;
-        private final List<IndexableField> fields;
-        private Map<Object, IndexableField> keyedFields;
-
-        private Document(String path, Document parent) {
-            fields = new ArrayList<>();
-            this.path = path;
-            this.prefix = path.isEmpty() ? "" : path + ".";
-            this.parent = parent;
-        }
-
-        public Document() {
-            this("", null);
-        }
-
-        /**
-         * Return the path associated with this document.
-         */
-        public String getPath() {
-            return path;
-        }
-
-        /**
-         * Return a prefix that all fields in this document should have.
-         */
-        public String getPrefix() {
-            return prefix;
-        }
-
-        /**
-         * Return the parent document, or null if this is the root document.
-         */
-        public Document getParent() {
-            return parent;
-        }
-
-        @Override
-        public Iterator<IndexableField> iterator() {
-            return fields.iterator();
-        }
-
-        public List<IndexableField> getFields() {
-            return fields;
-        }
-
-        public void addAll(List<? extends IndexableField> fields) {
-            this.fields.addAll(fields);
-        }
-
-        public void add(IndexableField field) {
-            // either a meta fields or starts with the prefix
-            assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-            fields.add(field);
-        }
-
-        /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
-        public void addWithKey(Object key, IndexableField field) {
-            if (keyedFields == null) {
-                keyedFields = new HashMap<>();
-            } else if (keyedFields.containsKey(key)) {
-                throw new IllegalStateException("Only one field can be stored per key");
-            }
-            keyedFields.put(key, field);
-            add(field);
-        }
-
-        /** Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}. */
-        public IndexableField getByKey(Object key) {
-            return keyedFields == null ? null : keyedFields.get(key);
-        }
-
-        public IndexableField[] getFields(String name) {
-            List<IndexableField> f = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    f.add(field);
-                }
-            }
-            return f.toArray(new IndexableField[f.size()]);
-        }
-
-        public IndexableField getField(String name) {
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    return field;
-                }
-            }
-            return null;
-        }
-
-        public String get(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.stringValue() != null) {
-                    return f.stringValue();
-                }
-            }
-            return null;
-        }
-
-        public BytesRef getBinaryValue(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.binaryValue() != null) {
-                    return f.binaryValue();
-                }
-            }
-            return null;
-        }
-
-    }
 
     private static class FilterParseContext extends ParseContext {
 

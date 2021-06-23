@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -78,7 +77,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.field("cyclic_test", "bar");
             b.field("int_to_str_test", 42);
         }));
-        ParseContext.Document doc = parsedDoc.rootDoc();
+        Document doc = parsedDoc.rootDoc();
         assertThat(doc.getFields("copy_test").length, equalTo(2));
         assertThat(doc.getFields("copy_test")[0].stringValue(), equalTo("foo"));
         assertThat(doc.getFields("copy_test")[1].stringValue(), equalTo("bar"));
@@ -126,7 +125,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document doc = docMapper.parse(source(b -> {
+        Document doc = docMapper.parse(source(b -> {
             b.field("copy_test", "foo");
             b.startObject("foo");
             {
@@ -154,7 +153,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document doc = docMapper.parse(source(b -> {
+        Document doc = docMapper.parse(source(b -> {
             b.field("copy_test", "foo");
             b.field("new_field", "bar");
         })).rootDoc();
@@ -190,7 +189,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
 
-        ParseContext.Document doc = docMapper.parse(source(b -> {
+        Document doc = docMapper.parse(source(b -> {
             b.field("copy_test", "foo");
             b.field("new_field", "bar");
         })).rootDoc();
@@ -675,7 +674,7 @@ public class CopyToMapperTests extends MapperServiceTestCase {
             for (String value : List.of("41.12,-71.34", "drm3btev3e86", "POINT (-71.34 41.12)")) {
                 BytesReference json = BytesReference.bytes(jsonBuilder().startObject().field("geopoint", value).endObject());
 
-                ParseContext.Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
+                Document doc = docMapper.parse(new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
 
                 IndexableField[] fields = doc.getFields("geopoint");
                 assertThat(fields.length, equalTo(2));

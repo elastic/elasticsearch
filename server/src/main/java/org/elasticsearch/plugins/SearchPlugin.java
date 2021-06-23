@@ -20,6 +20,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
@@ -132,6 +133,7 @@ public interface SearchPlugin {
      * computation for the request cache. This helps differentiate between queries that
      * are otherwise identical.
      */
+    @Nullable
     default CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
         return null;
     }

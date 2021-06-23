@@ -116,7 +116,8 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
         @Override
         public int compareTo(FieldGrantExcludeGroup o) {
-            return Integer.compare(hashCode(), o.hashCode());
+            final int compare = Arrays.compare(grantedFields, o.grantedFields);
+            return compare == 0 ? Arrays.compare(excludedFields, o.excludedFields) : compare;
         }
     }
 }

@@ -219,7 +219,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertThat(response.getSnapshots(), hasSize(2));
         assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(snapshot1));
         assertThat(response.getSnapshots().get(1).snapshotId().getName(), equalTo(snapshot2));
-        assertThat(response.getSnapshots().get(0).userMetadata(), equalTo(originalMetadata));
+        assertThat(response.getSnapshots().get(1).userMetadata(), equalTo(originalMetadata));
     }
 
 

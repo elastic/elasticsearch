@@ -187,8 +187,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         });
     }
 
-    public void persistProgress() {
-        persistProgress(client, taskParams.getId(), () -> {});
+    public void persistProgress(Runnable runnable) {
+        persistProgress(client, taskParams.getId(), runnable);
     }
 
     // Visible for testing
@@ -231,6 +231,12 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 if (progressToStore.equals(previous)) {
                     LOGGER.debug(() -> new ParameterizedMessage(
                         "[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId));
+                    runnable.run();
+                    return;
+                }
+
+                if (isCancelled()) {
+                    LOGGER.debug(() -> new ParameterizedMessage("[{}] aborting progress persist as task has been cancelled", jobId));
                     runnable.run();
                     return;
                 }

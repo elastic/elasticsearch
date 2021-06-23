@@ -1119,11 +1119,11 @@ public class OptimizerTests extends ESTestCase {
     }
 
     /**
-     * Once the root cause of https://github.com/elastic/elasticsearch/issues/45251 is fixed in the <code>sum</code> ES aggregation
-     * (can differentiate between <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>),
-     * remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and re-enable the following test.
+     * Once https://github.com/elastic/elasticsearch/issues/71582 is addressed (ES `sum` aggregation can differentiate between
+     * <code>SUM(all zeroes)</code> and <code>SUM(all nulls)</code>), remove the {@link OptimizerTests#testSumIsReplacedWithStats()}, and
+     * re-enable the following test.
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/45251")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71582")
     public void testSumIsNotReplacedWithStats() {
         FieldAttribute fa = getFieldAttribute();
         Sum sum = new Sum(EMPTY, fa);

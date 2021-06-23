@@ -160,7 +160,13 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
                     decision.add(new Decision.Single(Decision.Type.NO, DataTierAllocationDecider.NAME, "test"));
                 }
             } else {
-                decision.add(new Decision.Single(Decision.Type.NO, randomFrom(SOME_ALLOCATION_DECIDERS), "test"));
+                decision.add(
+                    new Decision.Single(
+                        Decision.Type.NO,
+                        randomValueOtherThan(SameShardAllocationDecider.NAME, () -> randomFrom(SOME_ALLOCATION_DECIDERS)),
+                        "test"
+                    )
+                );
             }
         } else if (randomBoolean()) {
             decision.add(new Decision.Single(Decision.Type.YES, FilterAllocationDecider.NAME, "test"));

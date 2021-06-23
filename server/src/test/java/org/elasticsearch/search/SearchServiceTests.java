@@ -1359,7 +1359,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testWaitOnRefreshTimeout() throws Exception {
-        createIndex("index", Settings.builder().put("index.refresh_interval", "-1").build());
+        createIndex("index", Settings.builder().put("index.refresh_interval", "60s").build());
         final SearchService service = getInstanceFromNode(SearchService.class);
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));

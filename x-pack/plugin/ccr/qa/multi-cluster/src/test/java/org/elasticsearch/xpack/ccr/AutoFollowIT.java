@@ -323,10 +323,10 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         // The data stream name shouldn't match with builtin ilm policies to avoid test instabilities.
         // (the manual rollover that happens in this test, may cause ilm to add `index.lifecycle.indexing_complete` setting,
         // which causes explicit follow index api call to fail in this test)
-        final String dataStreamName = "log-syslog-prod";
+        final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-logs-syslog-prod";
         // Because the builtin logs template isn't used, a template should be defined here.
         Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
-        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\": [\"log-syslog-*\"], \"data_stream\": {}}");
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\":[\"" + dataStreamName + "*\"],\"data_stream\":{}}");
         assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
         final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
@@ -346,7 +346,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
 
             // Create auto follow pattern
-            createAutoFollowPattern(client(), autoFollowPatternName, "log-syslog-*", "leader_cluster");
+            createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster");
 
             // Rollover and ensure only second backing index is replicated:
             try (RestClient leaderClient = buildLeaderClient()) {

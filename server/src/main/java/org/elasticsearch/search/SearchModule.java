@@ -317,6 +317,7 @@ public class SearchModule {
         return valuesSourceRegistry;
     }
 
+    @Nullable
     public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
         return requestCacheKeyDifferentiator;
     }

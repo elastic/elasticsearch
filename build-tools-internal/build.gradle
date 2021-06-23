@@ -234,7 +234,7 @@ dependencies {
   testImplementation 'org.mockito:mockito-core:1.9.5'
   testImplementation "org.hamcrest:hamcrest:${props.getProperty('hamcrest')}"
 
-  testImplementation testFixtures("org.elasticsearch:build-tools:$version")
+  testImplementation testFixtures("org.elasticsearch.gradle:build-tools:$version")
 
   integTestImplementation(platform("org.junit:junit-bom:${props.getProperty('junit5')}"))
   integTestImplementation("org.junit.jupiter:junit-jupiter") {

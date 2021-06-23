@@ -415,6 +415,13 @@ class NodeDeprecationChecks {
     }
 
     static DeprecationIssue checkRemovedSetting(final Settings settings, final Setting<?> removedSetting, final String url) {
+        return checkRemovedSetting(settings, removedSetting, url, DeprecationIssue.Level.CRITICAL);
+    }
+
+    static DeprecationIssue checkRemovedSetting(final Settings settings,
+                                                final Setting<?> removedSetting,
+                                                final String url,
+                                                DeprecationIssue.Level deprecationLevel) {
         if (removedSetting.exists(settings) == false) {
             return null;
         }
@@ -424,7 +431,7 @@ class NodeDeprecationChecks {
             String.format(Locale.ROOT, "setting [%s] is deprecated and will be removed in the next major version", removedSettingKey);
         final String details =
             String.format(Locale.ROOT, "the setting [%s] is currently set to [%s], remove this setting", removedSettingKey, value);
-        return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, null);
+        return new DeprecationIssue(deprecationLevel, message, url, details, null);
     }
 
     static DeprecationIssue javaVersionCheck(Settings nodeSettings, PluginsAndModules plugins, final ClusterState clusterState) {
@@ -547,18 +554,20 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
                                                                                    final PluginsAndModules pluginsAndModules,
                                                                                    final ClusterState clusterState) {
-        if (CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.exists(settings)) {
-            final String message = String.format(Locale.ROOT,
-                "setting [%s] is deprecated and will be removed in a future version",
-                CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey()
-            );
-            final String url =
-                "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes";
-            final String details =
-                "Found " + CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey() + " configured." +
-                    " Accounting for the disk usage of relocating shards is no longer optional.";
-            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, null);
+        DeprecationIssue nodeDeprecationIssue = getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(settings);
+        if (nodeDeprecationIssue != null) {
+            return nodeDeprecationIssue;
         }
-        return null;
+
+        // The setting is dynamic so it can be defined stored in the ClusterState settings
+        return getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(clusterState.metadata().settings());
+    }
+
+    private static DeprecationIssue getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(Settings settings) {
+        return checkRemovedSetting(settings,
+            CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            DeprecationIssue.Level.WARNING
+        );
     }
 }

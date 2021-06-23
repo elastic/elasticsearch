@@ -11,6 +11,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.ClusterState;
@@ -759,21 +761,50 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false).build();
+        boolean settingValue = randomBoolean();
+        String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
+        Settings deprecatedSetting = Settings.builder().put(settingKey, settingValue).build();
 
-        DeprecationIssue issue = NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(settings, null, null);
-        final String expectedUrl =
-            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes";
-        final String expectedDetails =
-            "Found cluster.routing.allocation.disk.include_relocations configured." +
-                " Accounting for the disk usage of relocating shards is no longer optional.";
-        assertThat(issue, equalTo(
-            new DeprecationIssue(DeprecationIssue.Level.WARNING,
-                "setting [cluster.routing.allocation.disk.include_relocations] is deprecated and will be removed in a future version",
-                expectedUrl,
-                expectedDetails,
-                null
-            )));
+        final Settings nodeSettings;
+        final ClusterState clusterState;
+        if (randomBoolean()) {
+            nodeSettings = deprecatedSetting;
+            clusterState = ClusterState.EMPTY_STATE;
+        } else {
+            nodeSettings = Settings.EMPTY;
+            Metadata.Builder metadataBuilder = Metadata.builder();
+            if (randomBoolean()) {
+                metadataBuilder.transientSettings(deprecatedSetting);
+            } else {
+                metadataBuilder.persistentSettings(deprecatedSetting);
+            }
+            clusterState = ClusterState.builder(new ClusterName("test"))
+                .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
+                .build();
+        }
+
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%b], remove this setting",
+                settingKey,
+                settingValue),
+            null
+        );
+
+        assertThat(
+            NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(nodeSettings, null, clusterState),
+            equalTo(expectedIssue)
+        );
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                    "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
     }
 }

@@ -964,14 +964,17 @@ public class WildcardFieldMapper extends FieldMapper {
         ParseContext.Document parseDoc = context.doc();
 
         List<IndexableField> fields = new ArrayList<>();
-        createFields(value, parseDoc, fields);
+        if (value != null) {
+            if (value.length() <= ignoreAbove) {
+                createFields(value, parseDoc, fields);
+            } else {
+                context.addIgnoredField(name());
+            }
+        }
         parseDoc.addAll(fields);
     }
 
     void createFields(String value, Document parseDoc, List<IndexableField>fields) {
-        if (value == null || value.length() > ignoreAbove) {
-            return;
-        }
         String ngramValue = addLineEndChars(value);
         Field ngramField = new Field(fieldType().name(), ngramValue, ngramFieldType);
         fields.add(ngramField);

@@ -2750,8 +2750,8 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
             // token created from other tests
             assertThat(serviceTokenInfos.size(), greaterThanOrEqualTo(1));
-            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), contains("token2"));
-            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), contains("index"));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2785,7 +2785,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
             assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
             assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
-                contains("token2"));
+                hasItem("token2"));
         }
     }
 

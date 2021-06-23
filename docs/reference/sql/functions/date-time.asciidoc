@@ -266,7 +266,7 @@ subtraction from the date/datetime. If `null`, the function returns `null`.
 *Output*: datetime
 
 *Description*: Add the given number of date/time units to a date/datetime. If the number of units is negative then it's subtracted from
-the date/datetime. If any of the three arguments is `null` a `null` is returned.
+the date/datetime.
 
 [WARNING]
 If the second argument is a long there is possibility of truncation since an integer value will be extracted and
@@ -343,7 +343,7 @@ following two date/datetime expressions. If `null`, the function returns `null`.
 
 *Description*: Subtract the second argument from the third argument and return their difference in multiples of the unit
 specified in the first argument. If the second argument (start) is greater than the third argument (end),
-then negative values are returned. If any of the three arguments is `null`, a `null` is returned.
+then negative values are returned.
 
 [cols="^,^"]
 |===
@@ -428,7 +428,6 @@ DATE_PARSE(
 *Description*: Returns a date by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string, then `null` is returned.
 
 [NOTE]
 If the parsing pattern does not contain all valid date units (e.g. 'HH:mm:ss', 'dd-MM HH:mm:ss', etc.) an error is returned
@@ -472,7 +471,6 @@ DATETIME_FORMAT(
 *Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
 pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
@@ -514,7 +512,6 @@ DATETIME_PARSE(
 *Description*: Returns a datetime by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string `null` is returned.
 
 
 [NOTE]
@@ -564,7 +561,6 @@ TIME_PARSE(
 *Description*: Returns a time by parsing the 1st argument using the format specified in the 2nd argument. The parsing
 format pattern used is the one from
 https://docs.oracle.com/en/java/javase/14/docs/api/java.base/java/time/format/DateTimeFormatter.html[`java.time.format.DateTimeFormatter`].
-If any of the two arguments is `null` or an empty string `null` is returned.
 
 [NOTE]
 If the parsing pattern contains only date units (e.g. 'dd/MM/yyyy') an error is returned
@@ -612,9 +608,9 @@ DATE_PART(
 
 *Output*: integer
 
-*Description*: Extract the specified unit from a date/datetime. If any of the two arguments is `null` a `null` is returned.
-It's similar to <<sql-functions-datetime-extract>> but with different names and aliases for the units and
-provides more options (e.g.: `TZOFFSET`).
+*Description*: Extract the specified unit from a date/datetime. It's similar to
+<<sql-functions-datetime-extract>> but with different names and aliases for the
+units and provides more options (e.g.: `TZOFFSET`).
 
 [cols="^,^"]
 |===
@@ -701,9 +697,11 @@ should be truncated to. If `null`, the function returns `null`.
 
 *Output*: datetime/interval
 
-*Description*: Truncate the date/datetime/interval to the specified unit by setting all fields that are less significant than the specified
-one to zero (or one, for day, day of week and month). If any of the two arguments is `null` a `null` is returned.
-If the first argument is `week` and the second argument is of `interval` type, an error is thrown since the `interval` data type doesn't support a `week` time unit.
+*Description*: Truncate the date/datetime/interval to the specified unit by
+setting all fields that are less significant than the specified one to zero (or
+one, for day, day of week and month). If the first argument is `week` and the
+second argument is of `interval` type, an error is thrown since the `interval`
+data type doesn't support a `week` time unit.
 
 [cols="^,^"]
 |===
@@ -789,10 +787,10 @@ FORMAT(
 *Output*: string
 
 *Description*: Returns the date/datetime/time as a string using the
-https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format] specified in the 2nd argument. The formatting
-pattern used is the one from
-https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft SQL Server Format Specification].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+https://docs.microsoft.com/en-us/sql/t-sql/functions/format-transact-sql#arguments[format]
+specified in the 2nd argument. The formatting pattern used is the one from
+https://docs.microsoft.com/en-us/dotnet/standard/base-types/custom-date-and-time-format-strings[Microsoft
+SQL Server Format Specification].
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
@@ -839,10 +837,10 @@ TO_CHAR(
 
 *Output*: string
 
-*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
-pattern conforms to
-https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template Patterns for Date/Time Formatting].
-If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+*Description*: Returns the date/datetime/time as a string using the format
+specified in the 2nd argument. The formatting pattern conforms to
+https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template
+Patterns for Date/Time Formatting].
 
 [NOTE]
 If the 1st argument is of type `time`, then the pattern specified by the 2nd argument cannot contain date related units

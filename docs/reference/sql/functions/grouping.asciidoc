@@ -43,7 +43,7 @@ bucket_key = Math.floor(value / interval) * interval
 ----
 
 [NOTE]
-The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `NULL`; as such the histogram places all missing values in the `NULL` group.
+The histogram in SQL does *NOT* return empty buckets for missing intervals as the traditional <<search-aggregations-bucket-histogram-aggregation, histogram>> and  <<search-aggregations-bucket-datehistogram-aggregation, date histogram>>. Such behavior does not fit conceptually in SQL which treats all missing values as `null`; as such the histogram places all missing values in the `null` group.
 
 `Histogram` can be applied on either numeric fields:
 

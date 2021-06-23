@@ -49,16 +49,13 @@ COUNT(expression) <1>
 
 *Input*:
 
-<1> a field name, wildcard (`*`) or any numeric value
+<1> a field name, wildcard (`*`) or any numeric value. For `COUNT(*)` or
+`COUNT(<literal>)`, all values are considered, including `null` or missing
+ones). For `COUNT(<field_name>)`, `null` values are not considered.
 
-*Output*: numeric value. If this field contains only `null` values, the function
-returns `null`. Otherwise, the function ignores `null` values in this field.
+*Output*: numeric value
 
 *Description*: Returns the total number (count) of input values.
-
-In case of `COUNT(*)` or `COUNT(<literal>)`, _all_ values are considered (including `null` or missing ones).
-
-In case of `COUNT(<field_name>)` `null` values are not considered.
 
 
 ["source","sql",subs="attributes,macros"]

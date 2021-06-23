@@ -118,14 +118,23 @@ import java.util.Map;
     }
 
     void analyzeStoredFields(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
-        // We can't record the disk usages of stored fields in Lucene Codec as we need to record them for each chunk,
-        // which is expensive; otherwise, bulk merge won't work.
         final StoredFieldsReader storedFieldsReader = reader.getFieldsReader().getMergeInstance();
         directory.resetBytesRead();
         final TrackingSizeStoredFieldVisitor visitor = new TrackingSizeStoredFieldVisitor();
-        for (int docID = 0; docID < reader.maxDoc(); docID++) {
+        int docID = 0;
+        final int skipMask = 0x1FF; // 511
+        while (docID < reader.maxDoc()) {
             cancellationChecker.logEvent();
             storedFieldsReader.visitDocument(docID, visitor);
+            // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
+            // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
+            // to avoid missing some skew documents. But, documents are stored in chunks in compressed format and a chunk can
+            // have up to 4096 docs, we need to skip a large number of docs to avoid loading/decompressing some chunks.
+            if ((docID & skipMask) == skipMask) {
+                docID = Math.max(docID + 5120, reader.maxDoc() - 512); // always visit both ends
+            } else {
+                docID++;
+            }
         }
         if (visitor.fields.isEmpty() == false) {
             // Computing the compression ratio for each chunk would provide a better estimate for each field individually.

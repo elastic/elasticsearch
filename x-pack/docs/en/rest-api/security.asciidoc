@@ -129,6 +129,7 @@ security enabled or to allow a client to configure itself to communicate with
 a secured {es} cluster
 
 * <<security-api-node-enrollment, Enroll a new node>>
+* <<security-api-kibana-enrollment, Enroll a new kibana instance>>
 
 
 include::security/authenticate.asciidoc[]
@@ -139,6 +140,7 @@ include::security/clear-privileges-cache.asciidoc[]
 include::security/clear-api-key-cache.asciidoc[]
 include::security/clear-service-token-caches.asciidoc[]
 include::security/create-api-keys.asciidoc[]
+include::security/enroll-kibana.asciidoc[]
 include::security/put-app-privileges.asciidoc[]
 include::security/create-role-mappings.asciidoc[]
 include::security/create-roles.asciidoc[]

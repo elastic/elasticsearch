@@ -20,6 +20,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
 import org.elasticsearch.xpack.core.ssl.KeyConfig;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -70,11 +71,9 @@ public class CreateEnrollmentToken {
         return this.create(user, password, NodeEnrollmentAction.NAME);
     }
 
-    // TBD: Awaiting Enroll Kibana API to be merged
-    //
-    /*public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
-    //    return this.create(user, password, KibanaEnrollmentAction.NAME);
-    }*/
+    public String createKibanaEnrollmentToken(String user, SecureString password) throws Exception {
+        return this.create(user, password, KibanaEnrollmentAction.NAME);
+    }
 
     protected String create(String user, SecureString password, String action) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(environment.settings()) != true) {

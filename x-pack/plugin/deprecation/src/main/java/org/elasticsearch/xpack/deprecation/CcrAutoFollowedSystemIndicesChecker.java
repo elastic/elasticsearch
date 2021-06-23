@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ccr.CcrAutoFollowInfoFetcher;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -42,7 +41,8 @@ public class CcrAutoFollowedSystemIndicesChecker implements DeprecationChecker {
             "An auto followed index follows a remote system index",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/migrating-7.14.html#breaking_714_ccr_changes",
             "Auto followed index [" + localIndexName
-                + "] follows a remote system index and this behaviour will change in the next major version."
+                + "] follows a remote system index and this behaviour will change in the next major version.",
+            null
         );
     }
 

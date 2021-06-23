@@ -247,7 +247,7 @@ public class SnapshotLifecycleTaskTests extends ESTestCase {
                              Collections.emptyList(),
                              Collections.emptyList(), "snapshot started", endTime, 3, Collections.singletonList(
                                  new SnapshotShardFailure("nodeId", new ShardId("index", "uuid", 0), "forced failure")),
-                             req.includeGlobalState(), req.userMetadata(), startTime
+                             req.includeGlobalState(), req.userMetadata(), startTime, Collections.emptyMap()
                          ));
                  })) {
             final AtomicBoolean historyStoreCalled = new AtomicBoolean(false);

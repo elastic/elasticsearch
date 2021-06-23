@@ -38,10 +38,7 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
     protected void onCancelled() {
         String reason = getReasonCancelled();
         LOGGER.trace(() -> new ParameterizedMessage("[{}] Cancelling job task because: {}", jobId, reason));
-        killJob(reason);
-    }
-
-    void killJob(String reason) {
+        isClosing = true;
         autodetectProcessManager.killProcess(this, false, reason);
     }
 
@@ -51,7 +48,12 @@ public class JobTask extends AllocatedPersistentTask implements OpenJobAction.Jo
 
     public void closeJob(String reason) {
         isClosing = true;
-        autodetectProcessManager.closeJob(this, false, reason);
+        autodetectProcessManager.closeJob(this, reason);
+    }
+
+    public void killJob(String reason) {
+        isClosing = true;
+        autodetectProcessManager.killProcess(this, true, reason);
     }
 
     void setAutodetectProcessManager(AutodetectProcessManager autodetectProcessManager) {

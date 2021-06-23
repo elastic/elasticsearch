@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.MlTasks.RESET_IN_PROGRESS;
 
 public class DatafeedNodeSelector {
 
@@ -77,6 +78,9 @@ public class DatafeedNodeSelector {
     public PersistentTasksCustomMetadata.Assignment selectNode() {
         if (MlMetadata.getMlMetadata(clusterState).isUpgradeMode()) {
             return AWAITING_UPGRADE;
+        }
+        if (MlMetadata.getMlMetadata(clusterState).isResetMode()) {
+            return RESET_IN_PROGRESS;
         }
 
         AssignmentFailure assignmentFailure = checkAssignment();

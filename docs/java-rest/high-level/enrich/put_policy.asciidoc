@@ -5,12 +5,12 @@
 --
 
 [id="{upid}-{api}"]
-=== Create or update enrich policy API
+=== Create enrich policy API
 
 [id="{upid}-{api}-request"]
 ==== Request
 
-Creates or updates an enrich policy.
+Creates an enrich policy.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

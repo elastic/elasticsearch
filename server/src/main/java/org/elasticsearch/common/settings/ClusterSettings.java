@@ -221,6 +221,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING,
+            DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING,
             DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING,
             SameShardAllocationDecider.CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING,
@@ -395,6 +397,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
             MultiBucketConsumerService.MAX_BUCKET_SETTING,
             SearchService.LOW_LEVEL_CANCELLATION_SETTING,
             SearchService.MAX_OPEN_SCROLL_CONTEXT,
+            SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER,
             Node.WRITE_PORTS_FILE_SETTING,
             Node.NODE_NAME_SETTING,
             Node.NODE_ATTRIBUTES,
@@ -428,7 +431,6 @@ public final class ClusterSettings extends AbstractScopedSettings {
             PluginsService.MANDATORY_SETTING,
             BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING,
             BootstrapSettings.MEMORY_LOCK_SETTING,
-            BootstrapSettings.SYSTEM_CALL_FILTER_SETTING,
             BootstrapSettings.CTRLHANDLER_SETTING,
             KeyStoreWrapper.SEED_SETTING,
             IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING,
@@ -476,7 +478,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
             FsHealthService.ENABLED_SETTING,
             FsHealthService.REFRESH_INTERVAL_SETTING,
             FsHealthService.SLOW_PATH_LOGGING_THRESHOLD_SETTING,
-            IndexingPressure.MAX_INDEXING_BYTES);
+            IndexingPressure.MAX_INDEXING_BYTES,
+            ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN);
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();
 

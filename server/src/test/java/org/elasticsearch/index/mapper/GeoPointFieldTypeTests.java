@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.script.ScriptCompiler;
+
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -15,7 +17,8 @@ import java.util.Map;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new GeoPointFieldMapper.Builder("field", false).build(new ContentPath()).fieldType();
+        MappedFieldType mapper
+            = new GeoPointFieldMapper.Builder("field", ScriptCompiler.NONE, false).build(new ContentPath()).fieldType();
 
         Map<String, Object> jsonPoint = Map.of("type", "Point", "coordinates", List.of(42.0, 27.1));
         Map<String, Object> otherJsonPoint = Map.of("type", "Point", "coordinates", List.of(30.0, 50.0));
@@ -38,11 +41,9 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a list of points in [lat,lon] array format with one malformed
-        // TODO Point Field parsers have a weird `ignore_malformed` impl that still throws errors
-        // on many types of malformed input
-        // sourceValue = List.of(List.of(42,0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
-        // assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
-        // assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+        sourceValue = List.of(List.of(42.0, 27.1), List.of("a", "b"), List.of(30.0, 50.0));
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
 
         // Test a single point in well-known text format.
         sourceValue = "POINT (42.0 27.1)";

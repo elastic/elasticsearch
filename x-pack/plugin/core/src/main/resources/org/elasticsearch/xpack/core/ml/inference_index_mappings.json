@@ -44,6 +44,9 @@
       "definition": {
         "enabled": false
       },
+      "binary_definition": {
+        "type": "binary"
+      },
       "compression_version": {
         "type": "long"
       },
@@ -135,7 +138,7 @@
           "supplied": {
             "type": "boolean"
           }
-        } 
+        }
       }
     }
   }

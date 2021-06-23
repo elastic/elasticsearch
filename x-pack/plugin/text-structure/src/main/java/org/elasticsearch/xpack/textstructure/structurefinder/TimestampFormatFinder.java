@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.grok.Grok;
 
 import java.time.DateTimeException;
@@ -479,25 +479,20 @@ public final class TimestampFormatFinder {
 
             TimestampMatch match = checkCandidate(candidate, generatedTimestamp, null, true, timeoutChecker);
             if (match != null) {
-                return new CandidateTimestampFormat(
-                    example -> {
+                return new CandidateTimestampFormat(example -> {
 
-                        // Modify the built-in candidate so it prefers to return the user supplied format
-                        // if at all possible, and only falls back to standard logic for other situations
-                        try {
-                            // TODO consider support for overriding the locale too
-                            // But since Grok only supports English and German date words ingest
-                            // via Grok will fall down at an earlier stage for other languages...
-                            javaTimeFormatter.parse(example);
-                            return Collections.singletonList(overrideFormat);
-                        } catch (DateTimeException e) {
-                            return candidate.javaTimestampFormatSupplier.apply(example);
-                        }
-                    },
-                    candidate.simplePattern.pattern(),
-                    candidate.strictGrokPattern,
-                    candidate.outputGrokPatternName
-                );
+                    // Modify the built-in candidate so it prefers to return the user supplied format
+                    // if at all possible, and only falls back to standard logic for other situations
+                    try {
+                        // TODO consider support for overriding the locale too
+                        // But since Grok only supports English and German date words ingest
+                        // via Grok will fall down at an earlier stage for other languages...
+                        javaTimeFormatter.parse(example);
+                        return Collections.singletonList(overrideFormat);
+                    } catch (DateTimeException e) {
+                        return candidate.javaTimestampFormatSupplier.apply(example);
+                    }
+                }, candidate.simplePattern.pattern(), candidate.strictGrokPattern, candidate.outputGrokPatternName);
             }
         }
 
@@ -1069,8 +1064,10 @@ public final class TimestampFormatFinder {
         }
     }
 
-    @SuppressForbidden(reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
-        + "but here we are explicitly setting the locale on the formatter in a subsequent call")
+    @SuppressForbidden(
+        reason = "DateTimeFormatter.ofLocalizedDate() is forbidden because it uses the default locale, "
+            + "but here we are explicitly setting the locale on the formatter in a subsequent call"
+    )
     private static DateTimeFormatter makeShortLocalizedDateTimeFormatterForLocale(Locale locale) {
         return DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT).withLocale(locale).withZone(ZoneOffset.UTC);
     }
@@ -1842,11 +1839,8 @@ public final class TimestampFormatFinder {
                 format = adjustFractionalSecondsFromEndOfExample(example, format);
             }
 
-            assert Character.isLetter(format.charAt(format.length() - 1)) : "Unexpected format ["
-                + format
-                + "] from example ["
-                + example
-                + "]";
+            assert Character.isLetter(format.charAt(format.length() - 1))
+                : "Unexpected format [" + format + "] from example [" + example + "]";
             assert format.length() == example.length() : "Unexpected format [" + format + "] from example [" + example + "]";
 
             return Collections.singletonList(format);

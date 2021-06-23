@@ -27,12 +27,9 @@ Retrieves usage information for {dfanalytics-jobs}.
 [[ml-get-dfanalytics-stats-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
-privileges:
+Requires the `monitor_ml` cluster privilege. This privilege is included in the 
+`machine_learning_user` built-in role.
 
-* cluster: `monitor_ml`
-  
-For more information, see <<security-privileges>> and {ml-docs-setup-privileges}.
 
 [[ml-get-dfanalytics-stats-path-params]]
 == {api-path-parms-title}

@@ -10,8 +10,9 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -245,7 +246,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 parsedRequest.add(r);
             };
             MultiSearchRequest.readMultiLineFormat(new BytesArray(originalBytes), xContentType.xContent(),
-                    consumer, null, null, null, null, null, xContentRegistry(), true);
+                    consumer, null, null, null, null, null, xContentRegistry(), true,
+                RestApiVersion.current());
             assertEquals(originalRequest, parsedRequest);
         }
     }
@@ -276,8 +278,12 @@ public class MultiSearchRequestTests extends ESTestCase {
             MultiSearchRequest.writeSearchRequestParams(request, builder);
             Map<String, Object> map =
                 XContentHelper.convertToMap(XContentType.JSON.xContent(), BytesReference.bytes(builder).streamInput(), false);
-            final String value = (String) map.get("expand_wildcards");
-            assertEquals(expectedValue, value);
+            if (options.equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
+                final String value = (String) map.get("expand_wildcards");
+                assertEquals(expectedValue, value);
+            } else {
+                assertNull(map.get("expand_wildcards"));
+            }
         }
     }
 

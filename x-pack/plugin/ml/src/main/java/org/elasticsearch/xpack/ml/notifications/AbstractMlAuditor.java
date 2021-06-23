@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessageFactory;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
@@ -30,6 +31,8 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
         super(
             new OriginSettingClient(client, ML_ORIGIN),
             NotificationsIndex.NOTIFICATIONS_INDEX,
+            MlIndexTemplateRegistry.COMPOSABLE_TEMPLATE_SWITCH_VERSION,
+            MlIndexTemplateRegistry.NOTIFICATIONS_LEGACY_TEMPLATE,
             MlIndexTemplateRegistry.NOTIFICATIONS_TEMPLATE,
             clusterService.getNodeName(),
             messageFactory,
@@ -44,6 +47,15 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
 
     private void setResetMode(boolean value) {
         isResetMode = value;
+    }
+
+    @Override
+    protected void indexDoc(ToXContent toXContent) {
+        if (isResetMode) {
+            logger.trace("Skipped writing the audit message backlog as reset_mode is enabled");
+        } else {
+            super.indexDoc(toXContent);
+        }
     }
 
     @Override

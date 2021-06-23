@@ -1,7 +1,7 @@
 [[api-conventions]]
 == API conventions
 
-The *Elasticsearch* REST APIs are exposed using JSON over HTTP.
+The {es} REST APIs are exposed over HTTP.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -19,17 +19,17 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
 In multi-target syntax, you can use a comma-separated list to run a request on
-multiple resources, such as data streams, indices, or index aliases:
+multiple resources, such as data streams, indices, or aliases:
 `test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
 wildcard (`*`) expressions to target resources that match a pattern: `test*` or
 `*test` or `te*t` or `*test*`.
 
 You can exclude targets using the `-` character: `test*,-test3`.
 
-IMPORTANT: Index aliases are resolved after wildcard expressions. This can
-result in a request that targets an excluded alias. For example, if `test3` is
-an index alias, the pattern `test*,-test3` still targets the indices for
-`test3`. To avoid this, exclude the concrete indices for the alias instead.
+IMPORTANT: Aliases are resolved after wildcard expressions. This can result in a
+request that targets an excluded alias. For example, if `test3` is an index
+alias, the pattern `test*,-test3` still targets the indices for `test3`. To
+avoid this, exclude the concrete indices for the alias instead.
 
 Multi-target APIs that can target indices support the following query
 string parameters:
@@ -47,21 +47,19 @@ string parameter:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 
-NOTE: Single index APIs, such as the <<docs>> and
-<<indices-aliases,single-index `alias` APIs>>, do not support multi-target
-syntax.
+NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
+not support multi-target syntax.
 
-[[hidden-indices]]
+[[hidden]]
 ==== Hidden data streams and indices
 
 For most APIs, wildcard expressions do not match hidden data streams and indices
 by default. To match hidden data streams and indices using a wildcard
 expression, you must specify the `expand_wildcards` query parameter.
 
-You can create hidden data streams by setting
-<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
-index template. You can hide indices using the <<index-hidden,`index.hidden`>>
-index setting.
+You can create hidden data streams by setting `data_stream.hidden` to `true` in
+the stream's matching <<indices-put-template,index template>>. You can hide
+indices using the <<index-hidden,`index.hidden`>> index setting.
 
 The backing indices for data streams are hidden automatically. Some features,
 such as {ml}, store information in hidden indices.
@@ -683,7 +681,7 @@ should also be passed with a media type value that indicates the format
 of the source, such as `application/json`.
 
 [discrete]
-==== Content-Type Requirements
+==== Content-type requirements
 
 The type of the content sent in a request body must be specified using
 the `Content-Type` header. The value of this header must map to one of
@@ -691,9 +689,11 @@ the supported formats that the API supports. Most APIs support JSON,
 YAML, CBOR, and SMILE. The bulk and multi-search APIs support NDJSON,
 JSON, and SMILE; other types will result in an error response.
 
-Additionally, when using the `source` query string parameter, the
-content type must be specified using the `source_content_type` query
-string parameter.
+When using the `source` query string parameter, the content type must be
+specified using the `source_content_type` query string parameter.
+
+{es} only supports UTF-8-encoded JSON. {es} ignores any other encoding headings
+sent with a request. Responses are also UTF-8 encoded.
 
 [[url-access-control]]
 === URL-based access control

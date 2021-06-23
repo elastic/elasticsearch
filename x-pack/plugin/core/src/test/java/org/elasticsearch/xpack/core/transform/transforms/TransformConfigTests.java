@@ -9,14 +9,18 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.RemoteClusterMinimumVersionValidation;
 import org.elasticsearch.xpack.core.common.validation.SourceDestValidator.SourceDestValidation;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
@@ -28,10 +32,13 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.TestMatchers.matchesPattern;
 import static org.elasticsearch.xpack.core.transform.transforms.DestConfigTests.randomDestConfig;
 import static org.elasticsearch.xpack.core.transform.transforms.SourceConfigTests.randomInvalidSourceConfig;
@@ -41,6 +48,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.contains;
 
 public class TransformConfigTests extends AbstractSerializingTransformTestCase<TransformConfig> {
 
@@ -227,7 +235,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "test_match_all");
         assertNotNull(transformConfig.getSource().getQueryConfig());
-        assertTrue(transformConfig.getSource().getQueryConfig().isValid());
+        assertNotNull(transformConfig.getSource().getQueryConfig().getQuery());
 
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = transformConfig.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -537,7 +545,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertEquals(Version.V_7_11_0, transformConfigRewritten.getVersion());
     }
 
-    public void testGetAdditionalValidations_WithNoRuntimeMappings() throws IOException {
+    public void testGetAdditionalSourceDestValidations_WithNoRuntimeMappings() throws IOException {
         String transformWithRuntimeMappings = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {\"index\":\"src\"},"
@@ -555,10 +563,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         TransformConfig transformConfig = createTransformConfigFromString(transformWithRuntimeMappings, "body_id", true);
-        assertThat(transformConfig.getAdditionalValidations(), is(empty()));
+        assertThat(transformConfig.getAdditionalSourceDestValidations(), is(empty()));
     }
 
-    public void testGetAdditionalValidations_WithRuntimeMappings() throws IOException {
+    public void testGetAdditionalSourceDestValidations_WithRuntimeMappings() throws IOException {
         String json = "{"
             + " \"id\" : \"body_id\","
             + " \"source\" : {"
@@ -579,13 +587,72 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             + "} } } } }";
 
         TransformConfig transformConfig = createTransformConfigFromString(json, "body_id", true);
-        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalValidations();
+        List<SourceDestValidation> additiionalValidations = transformConfig.getAdditionalSourceDestValidations();
         assertThat(additiionalValidations, hasSize(1));
         assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
         RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
             (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
         assertThat(remoteClusterMinimumVersionValidation.getMinExpectedVersion(), is(equalTo(Version.V_7_12_0)));
         assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
+    }
+
+    public void testGroupByStayInOrder() throws IOException {
+        String json = "{"
+            + " \"id\" : \"" + transformId +"\","
+            + " \"source\" : {"
+            + "   \"index\":\"src\""
+            + "},"
+            + " \"dest\" : {\"index\": \"dest\"},"
+            + " \"pivot\" : {"
+            + " \"group_by\": {"
+            + "   \"time\": {"
+            + "     \"date_histogram\": {"
+            + "       \"field\": \"timestamp\","
+            + "       \"fixed_interval\": \"1d\""
+            + "} },"
+            + "   \"alert\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"alert\""
+            + "} },"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"avg\": {"
+            + "     \"avg\": {"
+            + "       \"field\": \"points\""
+            + "} } } } }";
+        TransformConfig transformConfig = createTransformConfigFromString(json, transformId, true);
+        List<String> originalGroups = new ArrayList<>(transformConfig.getPivotConfig().getGroupConfig().getGroups().keySet());
+        assertThat(
+            originalGroups,
+            contains("time", "alert", "id")
+        );
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            // Wire serialization order guarantees
+            TransformConfig serialized = this.copyInstance(transformConfig);
+            List<String> serializedGroups = new ArrayList<>(serialized.getPivotConfig().getGroupConfig().getGroups().keySet());
+            assertThat(serializedGroups, equalTo(originalGroups));
+            CompositeAggregationBuilder compositeAggregationBuilder = createCompositeAggregationSources(serialized.getPivotConfig());
+            assertThat(
+                compositeAggregationBuilder.sources().stream().map(CompositeValuesSourceBuilder::name).collect(Collectors.toList()),
+                equalTo(originalGroups)
+            );
+
+            // Now test xcontent serialization and parsing on wire serialized object
+            XContentType xContentType = randomFrom(XContentType.values()).canonical();
+            BytesReference ref = XContentHelper.toXContent(serialized, xContentType, getToXContentParams(), false);
+            XContentParser parser = this.createParser(XContentFactory.xContent(xContentType), ref);
+            TransformConfig parsed = doParseInstance(parser);
+            List<String> parsedGroups = new ArrayList<>(parsed.getPivotConfig().getGroupConfig().getGroups().keySet());
+            assertThat(parsedGroups, equalTo(originalGroups));
+            compositeAggregationBuilder = createCompositeAggregationSources(parsed.getPivotConfig());
+            assertThat(
+                compositeAggregationBuilder.sources().stream().map(CompositeValuesSourceBuilder::name).collect(Collectors.toList()),
+                equalTo(originalGroups)
+            );
+        }
     }
 
     private TransformConfig createTransformConfigFromString(String json, String id) throws IOException {
@@ -596,5 +663,23 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         final XContentParser parser = XContentType.JSON.xContent()
             .createParser(xContentRegistry(), DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json);
         return TransformConfig.fromXContent(parser, id, lenient);
+    }
+
+    private CompositeAggregationBuilder createCompositeAggregationSources(PivotConfig config) throws IOException {
+        CompositeAggregationBuilder compositeAggregation;
+
+        try (XContentBuilder builder = jsonBuilder()) {
+            config.toCompositeAggXContent(builder);
+            XContentParser parser = builder.generator()
+                .contentType()
+                .xContent()
+                .createParser(
+                    xContentRegistry(),
+                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    BytesReference.bytes(builder).streamInput()
+                );
+            compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, "composite_agg");
+        }
+        return compositeAggregation;
     }
 }

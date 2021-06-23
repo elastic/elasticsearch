@@ -38,12 +38,12 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
         return false;
     }
 
-    public abstract XContentBuilder getMapping() throws IOException;
+    public abstract XContentBuilder getMapping(Version version) throws IOException;
 
     public void testSimpleBoundingBoxTest() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -121,7 +121,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     public void testLimit2BoundingBox() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 
@@ -188,7 +188,7 @@ abstract class AbstractGeoBoundingBoxQueryIT extends ESIntegTestCase {
     public void testCompleteLonRange() throws Exception {
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, version).build();
-        XContentBuilder xContentBuilder = getMapping();
+        XContentBuilder xContentBuilder = getMapping(version);
         assertAcked(prepareCreate("test").setSettings(settings).setMapping(xContentBuilder));
         ensureGreen();
 

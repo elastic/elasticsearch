@@ -13,7 +13,7 @@ import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -251,7 +251,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalAggregations subAggs = buildEmptySubAggregations();
-        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + otherBucketKey == null ? 0 : 1);
+        List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter<?> filter : filters) {
             InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key().toString(), 0, subAggs, keyed);
             buckets.add(bucket);
@@ -389,8 +389,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                  * Without sub.isNoop we always end up in the `collectXXX` modes even if
                  * the sub-aggregators opt out of traditional collection.
                  */
+                segmentsCounted++;
                 collectCount(ctx, live);
             } else {
+                segmentsCollected++;
                 collectSubs(ctx, live, sub);
             }
             return LeafBucketCollector.NO_OP_COLLECTOR;
@@ -520,7 +522,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
             IntPredicate[] docFilters = new IntPredicate[filters().size()];
             for (int filterOrd = 0; filterOrd < filters().size(); filterOrd++) {
-                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx); 
+                docFilters[filterOrd] = filters().get(filterOrd).matchingDocIds(ctx);
             }
             return new LeafBucketCollectorBase(sub, null) {
                 @Override

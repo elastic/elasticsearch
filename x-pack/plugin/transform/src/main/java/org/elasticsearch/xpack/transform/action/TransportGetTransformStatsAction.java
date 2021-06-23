@@ -19,9 +19,10 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
@@ -39,6 +40,8 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointService;
 import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
+import org.elasticsearch.xpack.transform.transforms.TransformNodeAssignments;
+import org.elasticsearch.xpack.transform.transforms.TransformNodes;
 import org.elasticsearch.xpack.transform.transforms.TransformTask;
 
 import java.util.ArrayList;
@@ -58,6 +61,7 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
     private final TransformConfigManager transformConfigManager;
     private final TransformCheckpointService transformCheckpointService;
     private final Client client;
+    private final Settings nodeSettings;
 
     @Inject
     public TransportGetTransformStatsAction(
@@ -65,9 +69,10 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        Settings settings
     ) {
-        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client);
+        this(GetTransformStatsAction.NAME, transportService, actionFilters, clusterService, transformServices, client, settings);
     }
 
     protected TransportGetTransformStatsAction(
@@ -76,12 +81,14 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices,
-        Client client
+        Client client,
+        Settings settings
     ) {
         super(name, clusterService, transportService, actionFilters, Request::new, Response::new, Response::new, ThreadPool.Names.SAME);
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformCheckpointService = transformServices.getCheckpointService();
         this.client = client;
+        this.nodeSettings = settings;
     }
 
     @Override
@@ -132,28 +139,36 @@ public class TransportGetTransformStatsAction extends TransportTasksAction<Trans
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> finalListener) {
-        final ClusterState state = clusterService.state();
-        TransformNodes.warnIfNoTransformNodes(state);
+        final ClusterState clusterState = clusterService.state();
+        TransformNodes.warnIfNoTransformNodes(clusterState);
 
         transformConfigManager.expandTransformIds(
             request.getId(),
             request.getPageParams(),
             request.isAllowNoMatch(),
             ActionListener.wrap(hitsAndIds -> {
-                request.setExpandedIds(hitsAndIds.v2());
-                final TransformNodeAssignments transformNodeAssignments = TransformNodes.transformTaskNodes(hitsAndIds.v2(), state);
+                boolean hasAnyTransformNode = TransformNodes.hasAnyTransformNode(clusterState.getNodes());
+                boolean requiresRemote = hitsAndIds.v2().v2().stream().anyMatch(config -> config.getSource().requiresRemoteCluster());
+                if (hasAnyTransformNode && TransformNodes.redirectToAnotherNodeIfNeeded(
+                        clusterState, nodeSettings, requiresRemote, transportService, actionName, request, Response::new, finalListener)) {
+                    return;
+                }
+
+                request.setExpandedIds(hitsAndIds.v2().v1());
+                final TransformNodeAssignments transformNodeAssignments =
+                    TransformNodes.transformTaskNodes(hitsAndIds.v2().v1(), clusterState);
 
                 ActionListener<Response> doExecuteListener = ActionListener.wrap(response -> {
-                    PersistentTasksCustomMetadata tasksInProgress = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+                    PersistentTasksCustomMetadata tasksInProgress = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
                     if (tasksInProgress != null) {
                         // Mutates underlying state object with the assigned node attributes
-                        response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, state));
+                        response.getTransformsStats().forEach(dtsasi -> setNodeAttributes(dtsasi, tasksInProgress, clusterState));
                     }
                     collectStatsForTransformsWithoutTasks(
                         request,
                         response,
                         transformNodeAssignments.getWaitingForAssignment(),
-                        state,
+                        clusterState,
                         ActionListener.wrap(
                             finalResponse -> finalListener.onResponse(
                                 new Response(

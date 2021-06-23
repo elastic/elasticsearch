@@ -85,11 +85,10 @@ public class GeoTileGridAggregatorFactory extends ValuesSourceAggregatorFactory 
                 parent,
                 cardinality,
                 metadata) -> {
-                CellIdSource cellIdSource = new CellIdSource(
+                GeoTileCellIdSource cellIdSource = new GeoTileCellIdSource(
                     (ValuesSource.GeoPoint) valuesSource,
                     precision,
-                    geoBoundingBox,
-                    GeoTileUtils::longEncode
+                    geoBoundingBox
                 );
                 return new GeoTileGridAggregator(
                     name,

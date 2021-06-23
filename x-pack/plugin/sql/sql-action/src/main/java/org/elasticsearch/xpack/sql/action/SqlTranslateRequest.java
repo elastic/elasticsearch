@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -34,9 +35,9 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
         super();
     }
 
-    public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, ZoneId zoneId,
-                               int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
-        super(query, params, filter, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
+    public SqlTranslateRequest(String query, List<SqlTypedParamValue> params, QueryBuilder filter, Map<String, Object> runtimeMappings,
+                               ZoneId zoneId, int fetchSize, TimeValue requestTimeout, TimeValue pageTimeout, RequestInfo requestInfo) {
+        super(query, params, filter, runtimeMappings, zoneId, fetchSize, requestTimeout, pageTimeout, requestInfo);
     }
 
     public SqlTranslateRequest(StreamInput in) throws IOException {
@@ -72,6 +73,10 @@ public class SqlTranslateRequest extends AbstractSqlQueryRequest {
             null,
             requestInfo(),
             false,
+            false,
+            null,
+            runtimeMappings(),
+            null,
             false,
             null).toXContent(builder, params);
     }

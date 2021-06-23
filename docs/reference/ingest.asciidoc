@@ -489,9 +489,10 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 [[template-snippets]]
-To access field values, enclose the field name in double curly brackets `{{ }}`
-to create a https://mustache.github.io[Mustache] template snippet. You can use
-template snippets to dynamically set field names.
+Several processor parameters support https://mustache.github.io[Mustache]
+template snippets. To access field values in a template snippet, enclose the
+field name in triple curly brackets:`{{{field-name}}}`. You can use template
+snippets to dynamically set field names.
 
 [source,console]
 ----
@@ -501,8 +502,8 @@ PUT _ingest/pipeline/my-pipeline
     {
       "set": {
         "description": "Set dynamic '<service>' field to 'code' value",
-        "field": "{{service}}",
-        "value": "{{code}}"
+        "field": "{{{service}}}",
+        "value": "{{{code}}}"
       }
     }
   ]
@@ -518,6 +519,7 @@ Processors can access the following metadata fields by name:
 * `_index`
 * `_id`
 * `_routing`
+* `_dynamic_templates`
 
 [source,console]
 ----
@@ -528,7 +530,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Set '_routing' to 'geoip.country_iso_code' value",
         "field": "_routing",
-        "value": "{{geoip.country_iso_code}}"
+        "value": "{{{geoip.country_iso_code}}}"
       }
     }
   ]
@@ -536,10 +538,34 @@ PUT _ingest/pipeline/my-pipeline
 ----
 
 Use a Mustache template snippet to access metadata field values. For example,
-`{{_routing}}` retrieves a document's routing value.
+`{{{_routing}}}` retrieves a document's routing value.
+
+[source,console]
+----
+PUT _ingest/pipeline/my-pipeline
+{
+  "processors": [
+    {
+      "set": {
+        "description": "Use geo_point dynamic template for address field",
+        "field": "_dynamic_templates",
+        "value": {
+          "address": "geo_point"       
+        }
+      }
+    }
+  ]
+}
+----
+
+The set processor above tells ES to use the dynamic template named `geo_point`
+for the field `address` if this field is not defined in the mapping of the index
+yet. This processor overrides the dynamic template for the field `address` if 
+already defined in the bulk request, but has no effect on other dynamic 
+templates defined in the bulk request.
 
 WARNING: If you <<create-document-ids-automatically,automatically generate>>
-document IDs, you cannot use `{{_id}}` in a processor. {es} assigns
+document IDs, you cannot use `{{{_id}}}` in a processor. {es} assigns
 auto-generated `_id` values after ingest.
 
 [discrete]
@@ -566,7 +592,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Index the ingest timestamp as 'event.ingested'",
         "field": "event.ingested",
-        "value": "{{_ingest.timestamp}}"
+        "value": "{{{_ingest.timestamp}}}"
       }
     }
   ]
@@ -575,7 +601,7 @@ PUT _ingest/pipeline/my-pipeline
 
 [discrete]
 [[handling-pipeline-failures]]
-=== Handing pipeline failures
+=== Handling pipeline failures
 
 A pipeline's processors run sequentially. By default, pipeline processing stops
 when one of these processors fails or encounters an error.
@@ -683,7 +709,7 @@ PUT _ingest/pipeline/my-pipeline
       "set": {
         "description": "Index document to 'failed-<index>'",
         "field": "_index",
-        "value": "failed-{{ _index }}"
+        "value": "failed-{{{ _index }}}"
       }
     }
   ]

@@ -21,8 +21,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.ValidationException;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -33,6 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -48,12 +50,15 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
 
@@ -89,7 +94,13 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params, ClusterState clusterState) {
+    public PersistentTasksCustomMetadata.Assignment getAssignment(TransformTaskParams params,
+                                                                  Collection<DiscoveryNode> candidateNodes,
+                                                                  ClusterState clusterState) {
+        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
+            return new PersistentTasksCustomMetadata.Assignment(null,
+                "Transform task will not be assigned as a feature reset is in progress.");
+        }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {
             String reason = "Not starting transform ["
@@ -102,14 +113,14 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
-            clusterState,
-            (node) -> nodeCanRunThisTransform(node, params, null)
+            clusterState, candidateNodes,
+            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
         );
 
         if (discoveryNode == null) {
             Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
             for (DiscoveryNode node : clusterState.getNodes()) {
-                nodeCanRunThisTransform(node, params, explainWhyAssignmentFailed);
+                nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
             }
             String reason = "Not starting transform ["
                 + params.getId()
@@ -122,38 +133,6 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         }
 
         return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
-    }
-
-    public static boolean nodeCanRunThisTransform(DiscoveryNode node, TransformTaskParams params, Map<String, String> explain) {
-        // version of the transform run on a node that has at least the same version
-        if (node.getVersion().onOrAfter(params.getVersion()) == false) {
-            if (explain != null) {
-                explain.put(
-                    node.getId(),
-                    "node has version: " + node.getVersion() + " but transform requires at least " + params.getVersion()
-                );
-            }
-            return false;
-        }
-
-        // transform enabled?
-        if (node.getRoles().contains(Transform.TRANSFORM_ROLE) == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "not a transform node");
-            }
-            return false;
-        }
-
-        // does the transform require a remote and remote is enabled?
-        if (params.requiresRemote() && node.isRemoteClusterClient() == false) {
-            if (explain != null) {
-                explain.put(node.getId(), "transform requires a remote connection but remote is disabled");
-            }
-            return false;
-        }
-
-        // we found no reason that the transform can not run on this node
-        return true;
     }
 
     static List<String> verifyIndicesPrimaryShardsAreActive(ClusterState clusterState, IndexNameExpressionResolver resolver) {
@@ -302,12 +281,19 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
         // <3> Validate the transform, assigning it to the indexer, and get the field mappings
         ActionListener<TransformConfig> getTransformConfigListener = ActionListener.wrap(config -> {
-            if (config.isValid()) {
+            ValidationException validationException = config.validate(null);
+            if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
                 SchemaUtil.getDestinationFieldMappings(buildTask.getParentTaskClient(), config.getDestination().getIndex(),
                         getFieldMappingsListener);
             } else {
-                markAsFailed(buildTask, TransformMessages.getMessage(TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId));
+                auditor.error(transformId, validationException.getMessage());
+                markAsFailed(
+                    buildTask,
+                    TransformMessages.getMessage(
+                        TransformMessages.TRANSFORM_CONFIGURATION_INVALID, transformId, validationException.getMessage()
+                    )
+                );
             }
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CONFIGURATION, transformId);

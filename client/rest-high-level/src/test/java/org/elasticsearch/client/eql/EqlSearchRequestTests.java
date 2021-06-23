@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchModule;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.ql.TestUtils.randomRuntimeMappings;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequest, org.elasticsearch.xpack.eql.action.EqlSearchRequest> {
@@ -50,6 +51,9 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
                 eqlSearchRequest.filter(QueryBuilders.termQuery(randomAlphaOfLength(10), randomInt(100)));
             }
         }
+        if (randomBoolean()) {
+            eqlSearchRequest.runtimeMappings(randomRuntimeMappings());
+        }
         return eqlSearchRequest;
     }
 
@@ -70,6 +74,7 @@ public class EqlSearchRequestTests extends AbstractRequestTestCase<EqlSearchRequ
         assertThat(serverInstance.indices(), equalTo(clientTestInstance.indices()));
         assertThat(serverInstance.fetchSize(), equalTo(clientTestInstance.fetchSize()));
         assertThat(serverInstance.size(), equalTo(clientTestInstance.size()));
+        assertThat(serverInstance.runtimeMappings(), equalTo(clientTestInstance.runtimeMappings()));
     }
 
     @Override

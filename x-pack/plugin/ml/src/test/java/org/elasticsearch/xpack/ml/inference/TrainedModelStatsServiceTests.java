@@ -238,6 +238,86 @@ public class TrainedModelStatsServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateStatsResetMode() {
+        String aliasName = MlStatsIndex.writeAlias();
+        String concreteIndex = ".ml-stats-000001";
+        IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
+
+        // create a valid index routing so persistence will occur
+        RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        addToRoutingTable(concreteIndex, routingTableBuilder);
+        RoutingTable routingTable = routingTableBuilder.build();
+
+        // cannot mock OriginSettingClient as it is final so mock the client
+        Client client = mock(Client.class);
+        OriginSettingClient originSettingClient = new OriginSettingClient(client, "modelstatsservicetests");
+        ClusterService clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        ResultsPersisterService persisterService = mock(ResultsPersisterService.class);
+
+        TrainedModelStatsService service = new TrainedModelStatsService(persisterService,
+            originSettingClient, resolver, clusterService, threadPool);
+
+        InferenceStats.Accumulator accumulator = new InferenceStats.Accumulator("testUpdateStatsUpgradeMode", "test-node", 1L);
+
+        {
+            // test with reset mode turned on
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
+                .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
+                .settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                );
+
+            // now set the upgrade mode
+            Metadata.Builder metadata = Metadata.builder()
+                .put(indexMetadata)
+                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(true).build());
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-enabled"))
+                .routingTable(routingTable)
+                .metadata(metadata)
+                .build();
+            ClusterChangedEvent change = new ClusterChangedEvent("created-from-test", clusterState, clusterState);
+
+            service.setClusterState(change);
+
+            // queue some stats to be persisted
+            service.queueStats(accumulator.currentStats(Instant.now()), false);
+
+            service.updateStats();
+            verify(persisterService, times(0)).bulkIndexWithRetry(any(), any(), any(), any());
+        }
+        {
+            // This time turn off reset mode
+
+            IndexMetadata.Builder indexMetadata = IndexMetadata.builder(concreteIndex)
+                .putAlias(AliasMetadata.builder(aliasName).isHidden(true).build())
+                .settings(Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                );
+
+            Metadata.Builder metadata = Metadata.builder()
+                .put(indexMetadata)
+                .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isResetMode(false).build());
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("upgrade-mode-test-upgrade-disabled"))
+                .routingTable(routingTable)
+                .metadata(metadata)
+                .build();
+
+            ClusterChangedEvent change = new ClusterChangedEvent("created-from-test", clusterState, clusterState);
+
+            service.setClusterState(change);
+            service.updateStats();
+            verify(persisterService, times(1)).bulkIndexWithRetry(any(), any(), any(), any());
+        }
+    }
+
     private static void addToRoutingTable(String concreteIndex, RoutingTable.Builder routingTable) {
         Index index = new Index(concreteIndex, "_uuid");
         ShardId shardId = new ShardId(index, 0);

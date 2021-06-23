@@ -8,6 +8,7 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.analysis.MockTokenizer;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.PreConfiguredTokenFilter;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.CombinedFieldsQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -69,9 +71,11 @@ import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.boostingQuery;
+import static org.elasticsearch.index.query.QueryBuilders.combinedFieldsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.fuzzyQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchPhrasePrefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
@@ -2113,6 +2117,44 @@ public class HighlighterSearchIT extends ESIntegTestCase {
         }
     }
 
+    public void testCombinedFieldsQueryHighlight() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc")
+                .startObject("properties")
+                    .startObject("field1")
+                        .field("type", "text")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                    .startObject("field2")
+                        .field("type", "text")
+                        .field("index_options", "offsets")
+                        .field("term_vector", "with_positions_offsets")
+                    .endObject()
+                .endObject()
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").setMapping(mapping));
+        ensureGreen();
+
+        client().prepareIndex("test")
+            .setSource("field1", "The quick brown fox jumps over", "field2", "The quick brown fox jumps over")
+            .get();
+        refresh();
+
+        for (String highlighterType : ALL_TYPES) {
+            CombinedFieldsQueryBuilder multiMatchQueryBuilder = combinedFieldsQuery("the quick brown fox", "field1", "field2");
+            SearchSourceBuilder source = searchSource()
+                    .query(multiMatchQueryBuilder)
+                    .highlighter(highlight()
+                            .highlighterType(highlighterType)
+                            .field(new Field("field1").requireFieldMatch(true).preTags("<field1>").postTags("</field1>")));
+
+            SearchResponse searchResponse = client().search(searchRequest("test").source(source)).actionGet();
+            assertHitCount(searchResponse, 1L);
+            assertHighlight(searchResponse, 0, "field1", 0,
+                    equalTo("<field1>The</field1> <field1>quick</field1> <field1>brown</field1> <field1>fox</field1> jumps over"));
+        }
+    }
+
     public void testPostingsHighlighterOrderByScore() throws Exception {
         assertAcked(prepareCreate("test").setMapping(type1PostingsffsetsMapping()));
         ensureGreen();
@@ -2868,7 +2910,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
 
         client().prepareIndex("test").setId("1").setSource(jsonBuilder().startObject()
             .startArray("foo")
-                .startObject().field("text", "brown").endObject()
+                .startObject().field("text", "brown shoes").endObject()
                 .startObject().field("text", "cow").endObject()
             .endArray()
             .field("text", "brown")
@@ -2884,7 +2926,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(2));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
             assertThat(field.getFragments()[1].string(), equalTo("<em>cow</em>"));
 
             searchResponse = client().prepareSearch()
@@ -2895,17 +2937,27 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
 
             searchResponse = client().prepareSearch()
-                .setQuery(nestedQuery("foo", prefixQuery("foo.text", "bro"), ScoreMode.None))
+                .setQuery(nestedQuery("foo", matchPhraseQuery("foo.text", "brown shoes"), ScoreMode.None))
                 .highlighter(new HighlightBuilder()
-                    .field(new Field("foo.text").highlighterType("plain")))
+                    .field(new Field("foo.text").highlighterType(type)))
                 .get();
             assertHitCount(searchResponse, 1);
             field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> <em>shoes</em>"));
+
+            searchResponse = client().prepareSearch()
+                .setQuery(nestedQuery("foo", matchPhrasePrefixQuery("foo.text", "bro"), ScoreMode.None))
+                .highlighter(new HighlightBuilder()
+                    .field(new Field("foo.text").highlighterType(type)))
+                .get();
+            assertHitCount(searchResponse, 1);
+            field = searchResponse.getHits().getAt(0).getHighlightFields().get("foo.text");
+            assertThat(field.getFragments().length, equalTo(1));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>brown</em> shoes"));
         }
 
         // For unified and fvh highlighters we just check that the nested query is correctly extracted

@@ -79,7 +79,7 @@ greater false positives. Note: This parameter is only relevant for `term` and
 `recursive` strategies.
 | `0.025`
 
-|`orientation` 
+|`orientation`
 a|Optional. Vertex order for the shape's coordinates list.
 
 This parameter sets and returns only a `RIGHT` (counterclockwise) or `LEFT`
@@ -648,43 +648,6 @@ IMPORTANT: You cannot index the `circle` type using the default
 <<geoshape-indexing-approach,BKD tree indexing approach>>. Instead, use a
 <<ingest-circle-processor,circle ingest processor>> to approximate the circle as
 a <<geo-polygon,`polygon`>>.
-
-The `circle` type requires a `geo_shape` field mapping with the deprecated
-`recursive` Prefix Tree strategy.
-
-[source,console]
-----
-PUT /circle-example
-{
-  "mappings": {
-    "properties": {
-      "location": {
-        "type": "geo_shape",
-        "strategy": "recursive"
-      }
-    }
-  }
-}
-----
-// TEST[warning:Parameter [strategy] is deprecated and will be removed in a future version]
-
-The following request indexes a `circle` geo-shape.
-
-[source,console]
-----
-POST /circle-example/_doc
-{
-  "location" : {
-    "type" : "circle",
-    "coordinates" : [101.0, 1.0],
-    "radius" : "100m"
-  }
-}
-----
-// TEST[continued]
-
-Note: The inner `radius` field is required. If not specified, then
-the units of the `radius` will default to `METERS`.
 
 *NOTE:* Neither GeoJSON or WKT support a point-radius circle type.
 

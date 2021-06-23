@@ -14,6 +14,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -49,8 +50,20 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     public static QueryToFilterAdapter<?> build(IndexSearcher searcher, String key, Query query) throws IOException {
         query = searcher.rewrite(query);
+        if (query instanceof ConstantScoreQuery) {
+            /*
+             * Unwrap constant score because it gets in the way of us
+             * understanding what the queries are trying to do and we
+             * don't use the score at all anyway. Effectively we always
+             * run in constant score mode.
+             */
+            query = ((ConstantScoreQuery) query).getQuery();
+        }
         if (query instanceof TermQuery) {
             return new TermQueryToFilterAdapter(searcher, key, (TermQuery) query);
+        }
+        if (query instanceof DocValuesFieldExistsQuery) {
+            return new DocValuesFieldExistsAdapter(searcher, key, (DocValuesFieldExistsQuery) query);
         }
         if (query instanceof MatchAllDocsQuery) {
             return new MatchAllQueryToFilterAdapter(searcher, key, (MatchAllDocsQuery) query);
@@ -82,7 +95,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      */
     private int scorersPreparedWhileEstimatingCost;
 
-    private QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
+    QueryToFilterAdapter(IndexSearcher searcher, String key, Q query) {
         this.searcher = searcher;
         this.key = key;
         this.query = query;
@@ -276,114 +289,5 @@ public class QueryToFilterAdapter<Q extends Query> {
             weight = searcher().createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
         }
         return weight;
-    }
-
-    /**
-     * Special case when the filter can't match anything.
-     */
-    private static class MatchNoneQueryToFilterAdapter extends QueryToFilterAdapter<MatchNoDocsQuery> {
-        private MatchNoneQueryToFilterAdapter(IndexSearcher searcher, String key, MatchNoDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return this;
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> false;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            return 0;
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return 0;
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_none");
-        }
-    }
-
-    /**
-     * Filter that matches every document.
-     */
-    private static class MatchAllQueryToFilterAdapter extends QueryToFilterAdapter<MatchAllDocsQuery> {
-        private int resultsFromMetadata;
-
-        private MatchAllQueryToFilterAdapter(IndexSearcher searcher, String key, MatchAllDocsQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        QueryToFilterAdapter<?> union(Query extraQuery) throws IOException {
-            return QueryToFilterAdapter.build(searcher(), key(), extraQuery);
-        }
-
-        @Override
-        IntPredicate matchingDocIds(LeafReaderContext ctx) throws IOException {
-            return l -> true;
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            return canUseMetadata.get() ? 0 : ctx.reader().maxDoc();
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "match_all");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
-    }
-
-    private static class TermQueryToFilterAdapter extends QueryToFilterAdapter<TermQuery> {
-        private int resultsFromMetadata;
-
-        private TermQueryToFilterAdapter(IndexSearcher searcher, String key, TermQuery query) {
-            super(searcher, key, query);
-        }
-
-        @Override
-        long count(LeafReaderContext ctx, FiltersAggregator.Counter counter, Bits live) throws IOException {
-            if (countCanUseMetadata(counter, live)) {
-                resultsFromMetadata++;
-                return ctx.reader().docFreq(query().getTerm());
-            }
-            return super.count(ctx, counter, live);
-        }
-
-        @Override
-        long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-            if (canUseMetadata.get()) {
-                return 0;
-            }
-            return super.estimateCountCost(ctx, canUseMetadata);
-        }
-
-        @Override
-        void collectDebugInfo(BiConsumer<String, Object> add) {
-            super.collectDebugInfo(add);
-            add.accept("specialized_for", "term");
-            add.accept("results_from_metadata", resultsFromMetadata);
-        }
     }
 }

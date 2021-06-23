@@ -7,16 +7,21 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.NotEqualMessageBuilder;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -76,10 +81,13 @@ public class MatchAssertion extends Assertion {
             }
         }
 
-        if (expectedValue.equals(actualValue) == false) {
-            NotEqualMessageBuilder message = new NotEqualMessageBuilder();
-            message.compare(getField(), true, actualValue, expectedValue);
-            throw new AssertionError(getField() + " didn't match expected value:\n" + message);
+        if (expectedValue instanceof Map) {
+            assertThat(actualValue, instanceOf(Map.class));
+            assertMap((Map<?, ?>) actualValue, matchesMap((Map<?, ?>) expectedValue));
+        } else if (expectedValue instanceof List) {
+            assertThat(actualValue, instanceOf(List.class));
+            assertMap((List<?>) actualValue, matchesList((List<?>) expectedValue));
         }
+        assertThat(actualValue, equalTo(expectedValue));
     }
 }

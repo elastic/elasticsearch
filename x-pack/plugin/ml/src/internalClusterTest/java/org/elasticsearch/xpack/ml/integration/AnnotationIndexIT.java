@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
 import org.elasticsearch.xpack.core.ml.action.SetResetModeAction;
 import org.elasticsearch.xpack.core.ml.action.SetUpgradeModeAction;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
@@ -61,7 +62,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
         AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         auditor.info("whatever", "blah");
 
-        // Creating a document in the .ml-notifications-000001 index should cause .ml-annotations
+        // Creating a document in the .ml-notifications-000002 index should cause .ml-annotations
         // to be created, as it should get created as soon as any other ML index exists
 
         assertBusy(() -> {
@@ -78,7 +79,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
             AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
             auditor.info("whatever", "blah");
 
-            // Creating a document in the .ml-notifications-000001 index would normally cause .ml-annotations
+            // Creating a document in the .ml-notifications-000002 index would normally cause .ml-annotations
             // to be created, but in this case it shouldn't as we're doing an upgrade
 
             assertBusy(() -> {
@@ -98,7 +99,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
 
     public void testNotCreatedWhenAfterOtherMlIndexAndResetInProgress() throws Exception {
 
-        client().execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.enabled()).actionGet();
+        client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.enabled()).actionGet();
 
         try {
 
@@ -117,7 +118,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
                 assertEquals(0, numberOfAnnotationsAliases());
             });
         } finally {
-            client().execute(SetResetModeAction.INSTANCE, SetResetModeAction.Request.disabled()).actionGet();
+            client().execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true)).actionGet();
         }
     }
 

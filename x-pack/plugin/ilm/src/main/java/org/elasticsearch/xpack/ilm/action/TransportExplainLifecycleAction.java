@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
@@ -58,8 +59,8 @@ public class TransportExplainLifecycleAction
     }
 
     @Override
-    protected void doMasterOperation(ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
-            ActionListener<ExplainLifecycleResponse> listener) {
+    protected void doMasterOperation(Task task, ExplainLifecycleRequest request, String[] concreteIndices, ClusterState state,
+                                     ActionListener<ExplainLifecycleResponse> listener) {
         Map<String, IndexLifecycleExplainResponse> indexResponses = new HashMap<>();
         for (String index : concreteIndices) {
             IndexMetadata idxMetadata = state.metadata().index(index);

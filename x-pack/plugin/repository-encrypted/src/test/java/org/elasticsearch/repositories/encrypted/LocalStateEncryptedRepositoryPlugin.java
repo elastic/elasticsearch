@@ -6,28 +6,20 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
-import org.apache.lucene.index.IndexCommit;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.nio.file.Path;
 import java.security.GeneralSecurityException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
@@ -94,37 +86,15 @@ public final class LocalStateEncryptedRepositoryPlugin extends LocalStateComposi
         }
 
         @Override
-        public void snapshotShard(
-            Store store,
-            MapperService mapperService,
-            SnapshotId snapshotId,
-            IndexId indexId,
-            IndexCommit snapshotIndexCommit,
-            String shardStateIdentifier,
-            IndexShardSnapshotStatus snapshotStatus,
-            Version repositoryMetaVersion,
-            Map<String, Object> userMetadata,
-            ActionListener<String> listener
-        ) {
+        public void snapshotShard(SnapshotShardContext context) {
             snapshotShardLock.lock();
             try {
                 while (snapshotShardBlock.get()) {
                     snapshotShardCondition.await();
                 }
-                super.snapshotShard(
-                    store,
-                    mapperService,
-                    snapshotId,
-                    indexId,
-                    snapshotIndexCommit,
-                    shardStateIdentifier,
-                    snapshotStatus,
-                    repositoryMetaVersion,
-                    userMetadata,
-                    listener
-                );
+                super.snapshotShard(context);
             } catch (InterruptedException e) {
-                listener.onFailure(e);
+                context.onFailure(e);
             } finally {
                 snapshotShardLock.unlock();
             }

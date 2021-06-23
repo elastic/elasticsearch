@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -25,9 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -103,19 +102,10 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            mountSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any repository name in its ILM execution state");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
-                }
-            });
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+                f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            assertThat(e.getMessage(),
+                is("snapshot repository is not present for policy [" + policyName + "] and index [" + indexName + "]"));
         }
 
         {
@@ -132,19 +122,10 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 ClusterState.builder(emptyClusterState()).metadata(Metadata.builder().put(indexMetadata, true).build()).build();
 
             MountSnapshotStep mountSnapshotStep = createRandomInstance();
-            mountSnapshotStep.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    fail("expecting a failure as the index doesn't have any snapshot name in its ILM execution state");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(IllegalStateException.class));
-                    assertThat(e.getMessage(),
-                        is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
-                }
-            });
+            Exception e = expectThrows(IllegalStateException.class, () -> PlainActionFuture.<Boolean, Exception>get(
+                f -> mountSnapshotStep.performAction(indexMetadata, clusterState, null, f)));
+            assertThat(e.getMessage(),
+                is("snapshot name was not generated for policy [" + policyName + "] and index [" + indexName + "]"));
         }
     }
 
@@ -170,17 +151,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                  getRestoreSnapshotRequestAssertingClient(repository, snapshotName, indexName, RESTORED_INDEX_PREFIX, indexName)) {
             MountSnapshotStep step =
                 new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
-            step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                @Override
-                public void onResponse(boolean complete) {
-                    assertThat(complete, is(true));
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    fail("expecting successful response but got: [" + e.getMessage() + "]");
-                }
-            });
+            assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
         }
     }
 
@@ -207,17 +178,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             try (NoOpClient clientPropagatingOKResponse = getClientTriggeringResponse(responseWithOKStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingOKResponse,
                     RESTORED_INDEX_PREFIX, randomStorageType());
-                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                    @Override
-                    public void onResponse(boolean complete) {
-                        assertThat(complete, is(true));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("expecting successful response but got: [" + e.getMessage() + "]");
-                    }
-                });
+                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
             }
         }
 
@@ -226,17 +187,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             try (NoOpClient clientPropagatingACCEPTEDResponse = getClientTriggeringResponse(responseWithACCEPTEDStatus)) {
                 MountSnapshotStep step = new MountSnapshotStep(randomStepKey(), randomStepKey(), clientPropagatingACCEPTEDResponse,
                     RESTORED_INDEX_PREFIX, randomStorageType());
-                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                    @Override
-                    public void onResponse(boolean complete) {
-                        assertThat(complete, is(true));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("expecting successful response but got: [" + e.getMessage() + "]");
-                    }
-                });
+                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
             }
         }
     }
@@ -295,17 +246,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                          indexName, RESTORED_INDEX_PREFIX, indexNameSnippet)) {
                 MountSnapshotStep step =
                     new MountSnapshotStep(randomStepKey(), randomStepKey(), client, RESTORED_INDEX_PREFIX, randomStorageType());
-                step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-                    @Override
-                    public void onResponse(boolean complete) {
-                        assertThat(complete, is(true));
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("expecting successful response but got: [" + e.getMessage() + "]");
-                    }
-                });
+                assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, clusterState, null, f)));
             }
         }
     }
@@ -341,6 +282,9 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings()[0], is(LifecycleSettings.LIFECYCLE_NAME));
                 assertThat(mountSearchableSnapshotRequest.mountedIndexName(), is(restoredIndexPrefix + indexName));
                 assertThat(mountSearchableSnapshotRequest.snapshotIndexName(), is(expectedSnapshotIndexName));
+
+                // invoke the awaiting listener with a very generic 'response', just to fulfill the contract
+                listener.onResponse((Response) new RestoreSnapshotResponse((RestoreInfo) null));
             }
         };
     }

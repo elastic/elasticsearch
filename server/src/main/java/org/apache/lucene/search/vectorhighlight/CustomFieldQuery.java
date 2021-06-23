@@ -12,6 +12,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.CombinedFieldQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -72,6 +73,11 @@ public class CustomFieldQuery extends FieldQuery {
             // This statement should be removed when https://issues.apache.org/jira/browse/LUCENE-7484 is merged.
             SynonymQuery synQuery = (SynonymQuery) sourceQuery;
             for (Term term : synQuery.getTerms()) {
+                flatten(new TermQuery(term), reader, flatQueries, boost);
+            }
+        } else if (sourceQuery instanceof CombinedFieldQuery) {
+            CombinedFieldQuery combinedFieldQuery = (CombinedFieldQuery) sourceQuery;
+            for (Term term : combinedFieldQuery.getTerms()) {
                 flatten(new TermQuery(term), reader, flatQueries, boost);
             }
         } else if (sourceQuery instanceof ESToParentBlockJoinQuery) {

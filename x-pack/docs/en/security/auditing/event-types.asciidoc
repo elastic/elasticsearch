@@ -2,136 +2,456 @@
 [[audit-event-types]]
 === Audit event types
 
-When you are <<enable-audit-logging,auditing security events>>, a single client request
-might generate multiple audit events, across multiple cluster nodes. The common
-`request.id` attribute can be used to correlate the associated events.
+When you are <<enable-audit-logging,auditing security events>>, a single client
+request might generate multiple audit events, across multiple cluster nodes.
+The common `request.id` attribute can be used to correlate the associated events.
 
-|======
-| Event action | Description | Example
+To specify the type of events you want to include in the auditing output, add
+one or more of the following values for
+<<xpack-sa-lf-events-include,`xpack.security.audit.logfile.events.include`>> in
+`elasticsearch.yml`.
 
-| `access_denied`
-| Logged when an authenticated user attempts to execute an action they do not
+[[event-access-denied]]
+`access_denied`::
+Logged when an authenticated user attempts to execute an action they do not
 have the necessary <<security-privileges,privilege>> to perform.
-| `{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_denied", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:admin/auto_create", "request.name":"CreateIndexRequest", "indices":["<index-{now/d+1d}>"]}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_denied", "authentication.type":"REALM", "user.name":"user1",
+"user.realm":"default_native", "user.roles":["test_role"], "origin.type":
+"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
+"action":"indices:admin/auto_create", "request.name":"CreateIndexRequest",
+"indices":["<index-{now/d+1d}>"]}
+====
 
-| `access_granted`
-| Logged when an authenticated user attempts to execute an action they have the
-necessary privilege to perform. When the `system_access_granted` event is
-included, all system (internal) actions are also logged. The default setting
-does not log system actions to avoid cluttering the logs.
-| `{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_granted", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:data/write/bulk", "request.name":"BulkRequest"}`
+[[event-access-granted]]
+`access_granted`::
+Logged when an authenticated user attempts to execute an action they have the
+necessary privilege to perform. These events will be logged only for non-system
+users.
++
+If you want to include `access_granted` events for all users (including
+internal users such as `_xpack`), add
+<<event-system-granted,`system_access_granted`>> to the list of
+event types in addition to `access_granted`. The `system_access_granted`
+privilege is not included by default to avoid cluttering the logs.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"access_granted", "authentication.type":"REALM", "user.name":"user1", "user
+realm":"default_native", "user.roles":["test_role"], "origin.type":"rest",
+"origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw",
+"action":"indices:data/write/bulk", "request.name":"BulkRequest"}
+====
 
-| `anonymous_access_denied`
-| Logged when a request is denied due to missing authentication credentials.
-| `{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"anonymous_access_denied", "origin.type":"rest", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
+[[event-anonymous-access-denied]]
+`anonymous_access_denied`::
+Logged when a request is denied due to missing authentication credentials.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"anonymous_access_denied", "origin.type":"rest", "origin.address":
+"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty",
+"request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+====
 
-| `authentication_failed`
-| Logged when the authentication credentials cannot be matched to a known user.
-| `{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}`
+[[event-authentication-failed]]
+`authentication_failed`::
+Logged when the authentication credentials cannot be matched to a known user.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_failed", "user.name":"elastic", "origin.type":"rest",
+"origin.address":"[::1]:51504", "url.path":"/_security/user/user1",
+"url.query":"pretty", "request.method":"POST",
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+====
 
-| `authentication_success`
-| Logged when a user successfully authenticates.
-| `{"type":"audit", "timestamp":"2020-12-30T22:03:35,018+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"authentication_success", "authentication.type":"REALM", "user.name":"elastic", "user.realm":"reserved", "origin.type":"rest", "origin.address":"[::1]:51014", "realm":"reserved", "url.path":"/twitter/_search", "url.query":"pretty", "request.method":"POST", "request.id":"nHV3UMOoSiu-TaSPWCfxGg"}`
+[[event-authentication-success]]
+`authentication_success`::
+Logged when a user successfully authenticates.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:03:35,018+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"authentication_success", "authentication.type":"REALM", "user.name":
+"elastic", "user.realm":"reserved", "origin.type":"rest", "origin.address":
+"[::1]:51014", "realm":"reserved", "url.path":"/twitter/_search",
+"url.query":"pretty", "request.method":"POST",
+"request.id":"nHV3UMOoSiu-TaSPWCfxGg"}
+====
 
-| `change_disable_user`
-| Logged when the <<security-api-enable-user,enable user API>> is invoked to
+[[event-change-disable-user]]
+`change_disable_user`::
+Logged when the <<security-api-enable-user,enable user API>> is invoked to
 disable a native or a built-in user.
-| `{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg", "change":{"disable":{"user":{"name":"user1"}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg",
+"change":{"disable":{"user":{"name":"user1"}}}}
+====
 
-| `change_enable_user`
-| Logged when the <<security-api-enable-user,enable user API>> is invoked to
+[[event-change-enable-user]]
+`change_enable_user`::
+Logged when the <<security-api-enable-user,enable user API>> is invoked to
 enable a native or a built-in user.
-| `{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ", "change":{"enable":{"user":{"name":"user1"}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ",
+"change":{"enable":{"user":{"name":"user1"}}}}
+====
 
-| `change_password`
-| Logged when the <<security-api-change-password,change password API>> is
+[[event-change-password]]
+`change_password`::
+Logged when the <<security-api-change-password,change password API>> is
 invoked to change the password of a native or built-in user.
-| `{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw", "change":{"password":{"user":{"name":"user1"}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw",
+"change":{"password":{"user":{"name":"user1"}}}}
+====
 
-| `connection_denied`
-| Logged when an incoming TCP connection does not pass the
+
+[[event-create-service-token]]
+`create_service_token`::
+Logged when the <<security-api-create-service-token,create service account token API>> is
+invoked to create a new index-based token for a service account.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"create_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"create":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}`
+====
+
+[[event-connection-denied]]
+`connection_denied`::
+Logged when an incoming TCP connection does not pass the
 <<ip-filtering,IP filter>> for a specific profile.
-| `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20",
+"transport.profile":".http", "rule":"deny 10.10.0.0/16"}
+====
 
-| `connection_granted`
-| Logged when an incoming TCP connection passes the <<ip-filtering,IP filter>>
+[[event-connection-granted]]
+`connection_granted`::
+Logged when an incoming TCP connection passes the <<ip-filtering,IP filter>>
 for a specific profile.
-| `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_granted", "origin.type":"rest", "origin.address":"::1", "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":
+"connection_granted", "origin.type":"rest", "origin.address":"::1",
+"transport.profile":".http", "rule":"allow ::1,127.0.0.1"}
+====
 
-| `create_apikey`
-| Logged when the <<security-api-create-api-key,create API key>> or the
+[[event-create-apikey]]
+`create_apikey`::
+Logged when the <<security-api-create-api-key,create API key>> or the
 <<security-api-grant-api-key, grant API key>> APIs are invoked to create a new
 API key.
-| `{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":
+"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":
+{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":
+["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":
+["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],
+"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],
+"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":
+["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}
+====
 
-| `delete_privileges`
-| Logged when the
+[[event-delete-privileges]]
+`delete_privileges`::
+Logged when the
 <<security-api-delete-privilege,delete application privileges API>> is invoked
 to remove one or more application privileges.
-| `{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g", "delete":{"privileges":{"application":"myapp","privileges":["read"]}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g",
+"delete":{"privileges":{"application":"myapp","privileges":["read"]}}}
+====
 
-| `delete_role`
-| Logged when the <<security-api-delete-role,delete role API>> is invoked to
+[[event-delete-role]]
+`delete_role`::
+Logged when the <<security-api-delete-role,delete role API>> is invoked to
 delete a role.
-| `{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw", "delete":{"role":{"name":"my_admin_role"}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":
+"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw",
+"delete":{"role":{"name":"my_admin_role"}}}
+====
 
-| `delete_role_mapping`
-| Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
+[[event-delete-role-mapping]]
+`delete_role_mapping`::
+Logged when the <<security-api-delete-role-mapping,delete role mapping API>>
 is invoked to delete a role mapping.
-| `{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", "delete":{"role_mapping":{"name":"mapping1"}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g",
+"delete":{"role_mapping":{"name":"mapping1"}}}
+====
 
-| `delete_user`
-| Logged when the <<security-api-delete-user,delete user API>> is invoked to
+[[event-delete-service-token]]
+`delete_service_token`::
+Logged when the <<security-api-delete-service-token,delete service account token API>> is
+invoked to delete an index-based token for a service account.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2021-04-30T23:17:42,952+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"delete_service_token", "request.id":"az9a1Db5QrebDMacQ8yGKc",
+"delete":{"service_token":{"namespace":"elastic","service":"fleet-server","name":"token1"}}}
+====
+
+[[event-delete-user]]
+`delete_user`::
+Logged when the <<security-api-delete-user,delete user API>> is invoked to
 delete a specific native user.
-| `{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw", "delete":{"user":{"name":"jacknich"}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw",
+"delete":{"user":{"name":"jacknich"}}}
+====
 
-| `invalidate_apikeys`
-| Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
+[[event-invalidate-apikeys]]
+`invalidate_apikeys`::
+Logged when the <<security-api-invalidate-api-key,invalidate API key API>> is
 invoked to invalidate one or more API keys.
-| `{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ", "invalidate":{"apikeys":{"owned_by_authenticated_user":false,"user":{"name":"myuser","realm":"native1"}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.
+action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ",
+"invalidate":{"apikeys":{"owned_by_authenticated_user":false,
+"user":{"name":"myuser","realm":"native1"}}}}
+====
 
-| `put_privileges`
-| Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
+[[event-put-privileges]]
+`put_privileges`::
+Logged when the <<security-api-put-privileges,create or update privileges API>> is invoked
 to add or update one or more application privileges.
-| `{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA", "put":{"privileges":[{"application":"myapp","name":"read","actions":["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":
+"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change",
+"event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA",
+"put":{"privileges":[{"application":"myapp","name":"read","actions":
+["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}
+====
 
-| `put_role`
-| Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
+[[event-put-role]]
+`put_role`::
+Logged when the <<security-api-put-role,create or update role API>> is invoked to create or
 update a role.
-| `{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ", "put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],"indices":[{"names":["apm*"],"privileges":["all"],"field_security":{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ",
+"put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],
+"indices":[{"names":["apm*"],"privileges":["all"],"field_security":
+{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},
+{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\":
+{\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}
+====
 
-| `put_role_mapping`
-| Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
+[[event-put-role-mapping]]
+`put_role_mapping`::
+Logged when the <<security-api-put-role-mapping,create or update role mapping API>> is
 invoked to create or update a role mapping.
-| `{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", "put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.
+action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA",
+"put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":
+{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}
+====
 
-| `put_user`
-| Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
+[[event-put-user]]
+`put_user`::
+Logged when the <<security-api-put-user,create or update user API>> is invoked to create or
 update a native user. Note that user updates can also change the
 user's password.
-| `{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA", "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],"full_name":"Jack Sparrow","email":"jack@blackpearl.com","has_password":true,"metadata":{"cunning":10}}}}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change",
+"event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA",
+"put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],
+"full_name":"Jack Sparrow","email":"jack@blackpearl.com",
+"has_password":true,"metadata":{"cunning":10}}}}
+====
 
-| `realm_authentication_failed`
-| Logged for every realm that fails to present a valid authentication token.
-| `{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "realm":"myTestRealm1", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}`
+[[event-realm-auth-failed]]
+`realm_authentication_failed`::
+Logged for every realm that fails to present a valid authentication token.
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":
+"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest",
+"origin.address":"[::1]:51504", "realm":"myTestRealm1", "url.path":
+"/_security/user/user1", "url.query":"pretty", "request.method":"POST",
+"request.id":"POv8p_qeTl2tb5xoFl0HIg"}
+====
 
-| `run_as_denied`
-| Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+[[event-runas-denied]]
+`run_as_denied`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
 another user that they do not have the necessary
 <<security-privileges,privileges>> to do so.
-| `{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_denied", "user.name":"user1", "user.run_as.name":"user1", "user.realm":"default_native", "user.run_as.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_denied", "user.name":"user1", "user.run_as.name":"user1",
+"user.realm":"default_native", "user.run_as.realm":"default_native",
+"user.roles":["test_role"], "origin.type":"rest", "origin.address":
+"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA",
+"action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
+====
 
-| `run_as_granted`
-| Logged when an authenticated user attempts to <<run-as-privilege,run as>>
+[[event-runas-granted]]
+`run_as_granted`::
+Logged when an authenticated user attempts to <<run-as-privilege,run as>>
 another user that they have the necessary privileges to do so.
-| `{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1", "user.realm":"reserved", "user.run_as.realm":"default_native", "user.roles":["superuser"], "origin.type":"rest", "origin.address":"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":
+"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1",
+"user.realm":"reserved", "user.run_as.realm":"default_native",
+"user.roles":["superuser"], "origin.type":"rest", "origin.address":
+"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":
+"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}
+====
 
-| `tampered_request`
-| Logged when the {security-features} detect that the request has been tampered
+[[event-system-granted]]
+`system_access_granted`::
+Logs <<event-access-granted,`access_granted`>> events only for
+<<internal-users,internal users>>, such as `_xpack`. If you include this setting
+in addition to `access_granted`, then `access_granted` events are
+logged for _all_ users.
++
+NOTE: This event type is disabled by default to avoid cluttering the logs.
+
+[[event-tampered-request]]
+`tampered_request`::
+Logged when the {security-features} detect that the request has been tampered
 with. Typically relates to `search/scroll` requests when the scroll ID is
 believed to have been tampered with.
-| `{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id": "0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action": "tampered_request", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
-|======
++
+.Example
+[%collapsible%open]
+====
+[source,js]
+{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id":
+"0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action":
+"tampered_request", "origin.address":"[::1]:50543", "url.path":
+"/twitter/_async_search", "url.query":"pretty", "request.method":"POST",
+"request.id":"TqA9OisyQ8WTl1ivJUV1AA"}
+====
 
 [discrete]
 [[audit-event-attributes]]
@@ -313,6 +633,8 @@ request bodies of the corresponding security APIs.
 `apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":
                              <boolean>, "user":{"name": <string>, "realm": <string>}}`.
 
+`service_token`       ::   An object like `{"namespace":<string>,"service":<string>,"name":<string>}`.
+
 ==== Extra audit event attributes for specific events
 
 There are a few events that have some more attributes in addition to those
@@ -330,6 +652,8 @@ that have been previously described:
                             this instead denotes the name of the _impersonated_ user.
                             If authenticated using an API key, this is
                             the name of the API key owner.
+                            If authenticated using a service account token, this is the
+                            service account principal, i.e. `namespace/service_name`.
   `user.realm`         ::   Name of the realm to which the _effective_ user
                             belongs. If authenticated using an API key, this is
                             the name of the realm to which the API key owner belongs.
@@ -343,16 +667,26 @@ that have been previously described:
                             uses the <<run-as-privilege, run as authorization functionality>>.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
 * `authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
                              If the request authentication token is invalid or
                              unparsable, this information might be missing.
-
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+                                 If the request authentication token is invalid or unparsable,
+                                 this information might be missing.
 * `realm_authentication_failed`:
   `user.name`          ::    The name of the user that failed authentication.
   `realm`              ::    The name of the realm that rejected this authentication.
@@ -360,7 +694,10 @@ that have been previously described:
                              in the chain.**
 
 * `run_as_denied` and `run_as_granted`:
-  `user.roles`         ::    The role names of the user as an array.
+  `user.roles`         ::    The role names as an array of the _authenticated_ user which is being
+                             granted or denied the _impersonation_ action.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _authenticated_ user which is being
                              granted or denied the _impersonation_ action.
   `user.realm`         ::    The realm name that the _authenticated_ user belongs to.
@@ -372,6 +709,8 @@ that have been previously described:
   `user.roles`         ::    The role names of the user as an array. If authenticated
                              using an API key, this contains the
                              role names of the API key owner.
+                             If authenticated as a <<service-accounts,service account>>,
+                             this is always an empty array.
   `user.name`          ::    The name of the _effective_ user. This is usually the
                              same as the _authenticated_ user, but if using the
                              <<run-as-privilege, run as authorization functionality>>
@@ -391,7 +730,11 @@ that have been previously described:
                              (_impersonator_) user belongs to.
   `authentication.type`::   Method used to authenticate the user.
                             Possible values are `REALM`, `API_KEY`, `TOKEN`, `ANONYMOUS` or `INTERNAL`.
-  `api_key.id`         ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
+  `apikey.id`          ::   API key ID returned by the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-  `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
+  `apikey.name`        ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
+  `authentication.token.name` :: Name of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.
+  `authentication.token.type` :: Type of the <<service-accounts,service account>> token.
+                                 This attribute is only provided for authentication using a service account token.

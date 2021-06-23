@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.eql.optimizer;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
@@ -67,6 +67,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
@@ -334,7 +335,7 @@ public class OptimizerTests extends ESTestCase {
         Filter filterChild = basicFilter(left);
         Filter filterParent = new Filter(EMPTY, filterChild, right);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filterParent);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filterParent);
 
         assertEquals(Filter.class, result.getClass());
         Expression condition = ((Filter) result).condition();
@@ -359,7 +360,7 @@ public class OptimizerTests extends ESTestCase {
         OrderBy order = new OrderBy(EMPTY, rel(), emptyList());
         Filter filter = new Filter(EMPTY, order, left);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filter);
 
         assertEquals(OrderBy.class, result.getClass());
         OrderBy o = (OrderBy) result;
@@ -386,7 +387,7 @@ public class OptimizerTests extends ESTestCase {
         Sequence s = sequence(rule1, rule2);
         Filter filter = new Filter(EMPTY, s, left);
 
-        LogicalPlan result = new Optimizer.PushDownAndCombineFilters().apply(filter);
+        LogicalPlan result = new PushDownAndCombineFilters().apply(filter);
 
         assertEquals(Filter.class, result.getClass());
         Filter f = (Filter) result;

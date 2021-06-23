@@ -1,0 +1,93 @@
+[role="xpack"]
+[[security-api-saml-complete-logout]]
+=== SAML complete logout API
+++++
+<titleabbrev>SAML complete logout</titleabbrev>
+++++
+
+Verifies the logout response sent from the SAML IdP.
+
+NOTE: This API is intended for use by custom web applications other than {kib}.
+If you are using {kib}, see the <<saml-guide>>.
+
+[[security-api-saml-complete-logout-request]]
+==== {api-request-title}
+
+`POST /_security/saml/complete_logout`
+
+[[security-api-saml-complete-logout-desc]]
+==== {api-description-title}
+
+The SAML IdP may send a logout response back to the SP after handling
+the <<security-api-saml-logout,SP-initiated SAML Single Logout>>.
+This API verifies the response by ensuring the content is relevant
+and validating its signature. An empty response is returned if
+the verification process is successful.
+The response can be sent by the IdP with either the HTTP-Redirect or
+the HTTP-Post binding. The caller of this API must prepare the request
+accordingly so that this API can handle either of them.
+
+{es} exposes all the necessary SAML related functionality via the SAML APIs.
+These APIs are used internally by {kib} in order to provide SAML based
+authentication, but can also be used by other custom web applications or other
+clients. See also <<security-api-saml-authenticate,SAML authenticate API>>,
+<<security-api-saml-prepare-authentication,SAML prepare authentication API>>,
+<<security-api-saml-invalidate,SAML invalidate API>>, and
+<<security-api-saml-logout,SAML logout API>>.
+
+[[security-api-saml-complete-logout-request-body]]
+==== {api-request-body-title}
+
+`realm`::
+  (Required, string) The name of the SAML realm in {es} for which the configuration is
+  used to verify the logout response.
+
+`ids`::
+  (Required, array) A json array with all the valid SAML Request Ids that the caller of
+  the API has for the current user.
+
+`query_string`::
+  (Optional, string) If the SAML IdP sends the logout response with the HTTP-Redirect
+  binding, this field must be set to the query string of the redirect URI.
+
+`queryString`::
+deprecated:[7.14.0, "Use query_string instead"]
+  See `query_string`
+
+`content`::
+  (Optional, string) If the SAML IdP sends the logout response with the HTTP-Post
+  binding, this field must be set to the value of the `SAMLResponse` form parameter
+  from the logout response.
+
+[[security-api-saml-complete-logout-example]]
+==== {api-examples-title}
+
+The following example verifies the logout response sent by the SAML IdP
+using the HTTP-Redirect binding:
+
+[source,console]
+--------------------------------------------------
+POST /_security/saml/complete_logout
+{
+  "realm": "saml1",
+  "ids": [ "_1c368075e0b3..." ],
+  "query_string": "SAMLResponse=fZHLasMwEEVbfb1bf...&SigAlg=http%3A%2F%2Fwww.w3.org%2F2000%2F09%2Fxmldsig%23rsa-sha1&Signature=CuCmFn%2BLqnaZGZJqK..."
+}
+--------------------------------------------------
+// TEST[skip:can't test this without a valid SAML Logout Response]
+
+If the logout response is sent with the HTTP-Post binding, it can be verified
+as the follows:
+
+[source,console]
+--------------------------------------------------
+POST /_security/saml/complete_logout
+{
+  "realm": "saml1",
+  "ids": [ "_1c368075e0b3..." ],
+  "content": "PHNhbWxwOkxvZ291dFJlc3BvbnNlIHhtbG5zOnNhbWxwPSJ1cm46..."
+}
+--------------------------------------------------
+// TEST[skip:can't test this without a valid SAML Logout Response]
+
+The API returns an empty response on success.

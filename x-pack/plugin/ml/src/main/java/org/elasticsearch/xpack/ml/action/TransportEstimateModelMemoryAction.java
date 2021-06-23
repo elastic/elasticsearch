@@ -200,11 +200,12 @@ public class TransportEstimateModelMemoryAction
             return 0;
         }
 
-        // 10MB is a pretty conservative estimate of the memory requirement for categorization,
+        // 20MB is a pretty conservative estimate of the memory requirement for categorization,
         // providing categorization is working well and not creating large numbers of inappropriate
         // categories.  Often it is considerably less, but it's very hard to predict from simple
-        // statistics.
-        long memoryPerPartitionMb = 10;
+        // statistics, and we have seen some data sets that legitimately create hundreds of
+        // categories, so it's best to allow for this.
+        long memoryPerPartitionMb = 20;
 
         long relevantPartitionFieldCardinalityEstimate = 1;
         if (analysisConfig.getPerPartitionCategorizationConfig().isEnabled()) {
@@ -224,6 +225,10 @@ public class TransportEstimateModelMemoryAction
             if (analysisConfig.getPerPartitionCategorizationConfig().isStopOnWarn() == false) {
                 memoryPerPartitionMb *= 2;
             }
+        } else {
+            // Stop-on-warn is not an option for unpartitioned categorization, so bump up the
+            // estimate like we do when stop-on-warn is disabled with per-partition categorization.
+            memoryPerPartitionMb *= 2;
         }
 
         return ByteSizeValue.ofMb(memoryPerPartitionMb * relevantPartitionFieldCardinalityEstimate).getBytes();

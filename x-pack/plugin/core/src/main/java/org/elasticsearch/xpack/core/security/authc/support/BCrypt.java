@@ -15,7 +15,7 @@
 */
 package org.elasticsearch.xpack.core.security.authc.support;
 
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.settings.SecureString;
 
 import java.security.SecureRandom;

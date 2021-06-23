@@ -15,13 +15,13 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -29,35 +29,35 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
+import org.elasticsearch.cluster.metadata.MetadataIndexTemplateServiceTests;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -71,7 +71,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.generateMapping;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -334,7 +333,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             .build();
         rolloverRequest.getCreateIndexRequest().settings(settings);
         final CreateIndexClusterStateUpdateRequest createIndexRequest = MetadataRolloverService.prepareDataStreamCreateIndexRequest(
-            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest());
+            dataStream.getName(), newWriteIndexName, rolloverRequest.getCreateIndexRequest(), null);
         for (String settingKey : settings.keySet()) {
             assertThat(settings.get(settingKey), equalTo(createIndexRequest.settings().get(settingKey)));
         }
@@ -502,7 +501,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -558,9 +557,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
@@ -569,29 +572,22 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     return null;
                 }
             };
-            MappingLookup mappingLookup = new MappingLookup(
-                Mapping.EMPTY,
-                List.of(mockedTimestampField, dateFieldMapper),
-                List.of(),
-                List.of(),
-                null,
-                null,
-                null);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            DocumentMapper documentMapper = mock(DocumentMapper.class);
-            when(documentMapper.mappers()).thenReturn(mappingLookup);
-            when(documentMapper.type()).thenReturn("_doc");
-            CompressedXContent mapping =
-                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName(), "date") + "}");
-            when(documentMapper.mappingSource()).thenReturn(mapping);
-            RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
-            when(routingFieldMapper.required()).thenReturn(false);
-            when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);
-            IndicesService indicesService = mockIndicesServices(documentMapper);
+            MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+            root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
+            Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                mapping,
+                List.of(mockedTimestampField, dateFieldMapper),
+                List.of(),
+                List.of());
+            IndicesService indicesService = mockIndicesServices(mappingLookup);
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
@@ -602,7 +598,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -656,9 +652,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
-            DateFieldMapper dateFieldMapper
-                = new DateFieldMapper.Builder("@timestamp", DateFieldMapper.Resolution.MILLISECONDS, null, false, Version.CURRENT)
-                .build(new ContentPath());
+            DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+                "@timestamp",
+                DateFieldMapper.Resolution.MILLISECONDS,
+                null,
+                ScriptCompiler.NONE,
+                false,
+                Version.CURRENT).build(new ContentPath());
             MappedFieldType mockedTimestampFieldType = mock(MappedFieldType.class);
             when(mockedTimestampFieldType.name()).thenReturn("_data_stream_timestamp");
             MetadataFieldMapper mockedTimestampField = new MetadataFieldMapper(mockedTimestampFieldType) {
@@ -667,29 +667,22 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     return null;
                 }
             };
-            MappingLookup mappingLookup = new MappingLookup(
-                Mapping.EMPTY,
+            MetadataFieldMapper[] metadataFieldMappers = {new MetadataIndexTemplateServiceTests.MetadataTimestampFieldMapper(true)};
+            RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+            root.add(new DateFieldMapper.Builder(dataStream.getTimeStampField().getName(), DateFieldMapper.Resolution.MILLISECONDS,
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, ScriptCompiler.NONE, true, Version.CURRENT));
+            Mapping mapping = new Mapping(root.build(new ContentPath("")), metadataFieldMappers, Collections.emptyMap());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                mapping,
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
-                List.of(),
-                null,
-                null,
-                null);
+                List.of());
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
             AllocationService allocationService = mock(AllocationService.class);
             when(allocationService.reroute(any(ClusterState.class), any(String.class))).then(i -> i.getArguments()[0]);
-            DocumentMapper documentMapper = mock(DocumentMapper.class);
-            when(documentMapper.mappers()).thenReturn(mappingLookup);
-            when(documentMapper.type()).thenReturn("_doc");
-            CompressedXContent mapping =
-                new CompressedXContent("{\"_doc\":" + generateMapping(dataStream.getTimeStampField().getName(), "date") + "}");
-            when(documentMapper.mappingSource()).thenReturn(mapping);
-            RoutingFieldMapper routingFieldMapper = mock(RoutingFieldMapper.class);
-            when(routingFieldMapper.required()).thenReturn(false);
-            when(documentMapper.routingFieldMapper()).thenReturn(routingFieldMapper);
-            IndicesService indicesService = mockIndicesServices(documentMapper);
+            IndicesService indicesService = mockIndicesServices(mappingLookup);
             IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
             when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
 
@@ -700,7 +693,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-                mockIndexNameExpressionResolver);
+                mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -755,7 +748,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         IndexNameExpressionResolver mockIndexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(mockIndexNameExpressionResolver.resolveDateMathExpression(any())).then(returnsFirstArg());
         MetadataRolloverService rolloverService = new MetadataRolloverService(null, createIndexService, metadataIndexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         String newIndexName = useDataStream == false && randomBoolean() ? "logs-index-9" : null;
 
@@ -805,7 +798,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
             new AliasValidator(), null, xContentRegistry());
         MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,
-            mockIndexNameExpressionResolver);
+            mockIndexNameExpressionResolver, EmptySystemIndices.INSTANCE);
 
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -820,7 +813,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         return mockIndicesServices(null);
     }
 
-    private IndicesService mockIndicesServices(DocumentMapper documentMapper) throws Exception {
+    private IndicesService mockIndicesServices(MappingLookup mappingLookup) throws Exception {
         /*
          * Throws Exception because Eclipse uses the lower bound for
          * CheckedFunction's exception type so it thinks the "when" call
@@ -835,7 +828,7 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 when(indexService.index()).thenReturn(indexMetadata.getIndex());
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
-                when(mapperService.documentMapper()).thenReturn(documentMapper);
+                when(mapperService.mappingLookup()).thenReturn(mappingLookup);
                 when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 //noinspection unchecked

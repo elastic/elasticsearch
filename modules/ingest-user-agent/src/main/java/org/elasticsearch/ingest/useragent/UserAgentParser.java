@@ -153,14 +153,14 @@ final class UserAgentParser {
         return name;
     }
 
-    public Details parse(String agentString) {
+    public Details parse(String agentString, boolean extractDeviceType) {
         Details details = cache.get(name, agentString);
 
         if (details == null) {
             VersionedName userAgent = findMatch(uaPatterns, agentString);
             VersionedName operatingSystem = findMatch(osPatterns, agentString);
             VersionedName device = findMatch(devicePatterns, agentString);
-            String deviceType = deviceTypeParser.findDeviceType(agentString, userAgent, operatingSystem, device);
+            String deviceType = extractDeviceType ? deviceTypeParser.findDeviceType(agentString, userAgent, operatingSystem, device) : null;
             details = new Details(userAgent, operatingSystem, device, deviceType);
             cache.put(name, agentString, details);
         }

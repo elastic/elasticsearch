@@ -10,7 +10,7 @@ package org.elasticsearch.client.eql;
 
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -20,7 +20,10 @@ import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+
+import static java.util.Collections.emptyMap;
 
 public class EqlSearchRequest implements Validatable, ToXContentObject {
 
@@ -32,6 +35,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private String eventCategoryField = "event.category";
     private String resultPosition = "tail";
     private List<FieldAndFormat> fetchFields;
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -55,6 +59,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
     static final String KEY_FETCH_FIELDS = "fields";
+    static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
 
     public EqlSearchRequest(String indices, String query) {
         indices(indices);
@@ -86,6 +91,9 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         builder.field(KEY_KEEP_ON_COMPLETION, keepOnCompletion);
         if (fetchFields != null) {
             builder.field(KEY_FETCH_FIELDS, fetchFields);
+        }
+        if (runtimeMappings != null && runtimeMappings.isEmpty() == false) {
+            builder.field(KEY_RUNTIME_MAPPINGS, runtimeMappings);
         }
         builder.endObject();
         return builder;
@@ -158,6 +166,15 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
 
     public EqlSearchRequest fetchFields(List<FieldAndFormat> fetchFields) {
         this.fetchFields = fetchFields;
+        return this;
+    }
+
+    public Map<String, Object> runtimeMappings() {
+        return runtimeMappings;
+    }
+
+    public EqlSearchRequest runtimeMappings(Map<String, Object> runtimeMappings) {
+        this.runtimeMappings = runtimeMappings;
         return this;
     }
 
@@ -243,7 +260,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             Objects.equals(keepAlive, that.keepAlive) &&
             Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
             Objects.equals(resultPosition, that.resultPosition) &&
-            Objects.equals(fetchFields, that.fetchFields);
+            Objects.equals(fetchFields, that.fetchFields) &&
+            Objects.equals(runtimeMappings, that.runtimeMappings);
     }
 
     @Override
@@ -262,7 +280,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             keepAlive,
             keepOnCompletion,
             resultPosition,
-            fetchFields);
+            fetchFields,
+            runtimeMappings);
     }
 
     public String[] indices() {

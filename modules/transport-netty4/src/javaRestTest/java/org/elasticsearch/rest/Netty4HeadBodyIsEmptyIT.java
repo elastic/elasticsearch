@@ -12,6 +12,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matcher;
 
@@ -98,6 +99,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/71664")
     public void testTemplateExists() throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -118,11 +120,14 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
                 request.setOptions(expectWarnings(
                     "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
                     "[.deprecation-indexing-template,.slm-history,.watch-history-14,ilm-history,logs," +
-                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
+                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation.elasticsearch-default]," +
                     ".slm-history => [.slm-history-5*]," +
                     ".watch-history-14 => [.watcher-history-14*],ilm-history => [ilm-history-5*]," +
                     "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +
-                    "); this template [template] may be ignored in favor of a composable template at index creation time"));
+                    "); this template [template] may be ignored in favor of a composable template at index creation time",
+                    RestPutIndexTemplateAction.DEPRECATION_WARNING));
+            } else {
+                request.setOptions(expectWarnings(RestPutIndexTemplateAction.DEPRECATION_WARNING));
             }
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);

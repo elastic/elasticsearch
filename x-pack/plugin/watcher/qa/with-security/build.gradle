@@ -1,5 +1,6 @@
-apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 dependencies {
   yamlRestTestImplementation project(path: ':x-pack:plugin:watcher:qa:common')

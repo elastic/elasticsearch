@@ -43,7 +43,7 @@ public class NestedValueFetcher implements ValueFetcher {
         List<Object> nestedEntriesToReturn = new ArrayList<>();
         Map<String, Object> filteredSource = new HashMap<>();
         Map<String, Object> stub = createSourceMapStub(filteredSource);
-        List<?> nestedValues = XContentMapValues.extractNestedValue(nestedFieldPath, lookup.source());
+        List<?> nestedValues = XContentMapValues.extractNestedSources(nestedFieldPath, lookup.source());
         if (nestedValues == null) {
             return Collections.emptyList();
         }

@@ -28,6 +28,7 @@ final class ProcessContext {
     private final JobTask jobTask;
     private volatile AutodetectCommunicator autodetectCommunicator;
     private volatile ProcessState state;
+    private volatile KillBuilder latestKillRequest = null;
 
     ProcessContext(JobTask jobTask) {
         this.jobTask = jobTask;
@@ -44,6 +45,17 @@ final class ProcessContext {
 
     private void setAutodetectCommunicator(AutodetectCommunicator autodetectCommunicator) {
         this.autodetectCommunicator = autodetectCommunicator;
+    }
+
+    boolean shouldBeKilled() {
+        return latestKillRequest != null;
+    }
+
+    void killIt() {
+        if (latestKillRequest == null) {
+            throw new IllegalArgumentException("Unable to kill job as previous request is not completed");
+        }
+        latestKillRequest.kill();
     }
 
     ProcessStateName getState() {
@@ -117,6 +129,7 @@ final class ProcessContext {
 
         void kill() {
             if (autodetectCommunicator == null) {
+                latestKillRequest = this;
                 return;
             }
             String jobId = jobTask.getJobId();

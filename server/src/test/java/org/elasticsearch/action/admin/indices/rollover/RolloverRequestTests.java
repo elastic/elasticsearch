@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -18,12 +19,14 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParseException;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
@@ -60,7 +63,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .field("max_primary_shard_size", "55gb")
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(4));
         MaxAgeCondition maxAgeCondition = (MaxAgeCondition)conditions.get(MaxAgeCondition.NAME);
@@ -97,7 +100,7 @@ public class RolloverRequestTests extends ESTestCase {
                     .startObject("alias1").endObject()
                 .endObject()
             .endObject();
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
         Map<String, Condition<?>> conditions = request.getConditions();
         assertThat(conditions.size(), equalTo(2));
         assertThat(request.getCreateIndexRequest().mappings(), containsString("not_analyzed"));
@@ -118,7 +121,7 @@ public class RolloverRequestTests extends ESTestCase {
                 .endObject()
             .endObject();
 
-        request.fromXContent(createParser(builder));
+        request.fromXContent(false, createParser(builder));
 
         CreateIndexRequest createIndexRequest = request.getCreateIndexRequest();
         String mapping = createIndexRequest.mappings();
@@ -167,7 +170,7 @@ public class RolloverRequestTests extends ESTestCase {
         }
         builder.endObject();
         BytesReference mutated = XContentTestUtils.insertRandomFields(xContentType, BytesReference.bytes(builder), null, random());
-        expectThrows(XContentParseException.class, () -> request.fromXContent(createParser(xContentType.xContent(), mutated)));
+        expectThrows(XContentParseException.class, () -> request.fromXContent(false, createParser(xContentType.xContent(), mutated)));
     }
 
     public void testSameConditionCanOnlyBeAddedOnce() {
@@ -184,6 +187,63 @@ public class RolloverRequestTests extends ESTestCase {
         assertNotNull(validationException);
         assertEquals(1, validationException.validationErrors().size());
         assertEquals("rollover target is missing", validationException.validationErrors().get(0));
+    }
+
+    public void testParsingWithType() throws Exception {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("conditions")
+                    .field("max_age", "10d")
+                    .field("max_docs", 100)
+                .endObject()
+                .startObject("mappings")
+                    .startObject("type1")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .startObject("settings")
+                    .field("number_of_shards", 10)
+                .endObject()
+                .startObject("aliases")
+                    .startObject("alias1").endObject()
+                .endObject()
+            .endObject();
+
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent,
+            BytesReference.bytes(builder).utf8ToString(), RestApiVersion.V_7)) {
+            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            request.fromXContent(true, parser);
+            Map<String, Condition<?>> conditions = request.getConditions();
+            assertThat(conditions.size(), equalTo(2));
+            assertThat(request.getCreateIndexRequest().mappings(),
+                equalTo("{\"_doc\":{\"properties\":{\"field1\":{\"index\":\"not_analyzed\",\"type\":\"string\"}}}}"));
+        }
+    }
+
+    public void testTypedRequestWithoutIncludeTypeName() throws IOException {
+        final XContentBuilder builder = XContentFactory.jsonBuilder()
+            .startObject()
+                .startObject("mappings")
+                    .startObject("_doc")
+                        .startObject("properties")
+                            .startObject("field1")
+                                .field("type", "string")
+                                .field("index", "not_analyzed")
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endObject();
+        try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent,
+            BytesReference.bytes(builder).utf8ToString(), RestApiVersion.V_7)) {
+            final RolloverRequest request = new RolloverRequest(randomAlphaOfLength(10), randomAlphaOfLength(10));
+            expectThrows(IllegalArgumentException.class, () -> request.fromXContent(false, parser));
+        }
     }
 
     private static List<Consumer<RolloverRequest>> conditionsGenerator = new ArrayList<>();

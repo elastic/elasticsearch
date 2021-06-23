@@ -74,8 +74,10 @@ NOTE: Using `_all` in a request fails if any snapshots are unavailable.
 Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
 [role="child_attributes"]
-[[get-snapshot-api-request-body]]
-==== {api-request-body-title}
+[[get-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::
@@ -86,9 +88,48 @@ If `true`, the request ignores snapshots that are unavailable, such as those tha
 
 `verbose`::
 (Optional, Boolean)
-If `true`, returns all available information about a snapshot. Defaults to `true`.
+If `true`, returns additional information about each snapshot such as the
+version of Elasticsearch which took the snapshot, the start and end times of
+the snapshot, and the number of shards snapshotted. Defaults to `true`. If
+`false`, omits the additional information.
+
+`index_details`::
+(Optional, Boolean)
+If `true`, returns additional information about each index in the snapshot
+comprising the number of shards in the index, the total size of the index in
+bytes, and the maximum number of segments per shard in the index. Defaults to
+`false`, meaning that this information is omitted.
+
+`sort`::
+(Optional, string)
+Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorting by snapshot start time stamp.
 +
-If `false`, omits additional information about the snapshot, such as version information, start and end times, and the number of snapshotted shards.
+.Valid values for `sort`
+[%collapsible%open]
+====
+`start_time`::
+  Sort snapshots by their start time stamp and break ties by snapshot name.
+
+`duration`::
+  Sort snapshots by their duration and break ties by snapshot name.
+
+`name`::
+  Sort snapshots by their name.
+
+`index_count`::
+  Sort snapshots by the number of indices they contain and break ties by snapshot name.
+====
+
+`size`::
+(Optional, integer)
+ Maximum number of snapshots to return. Defaults to `0` which means return all that match the request without limit.
+
+`order`::
+(Optional, string)
+Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `asc`, meaning ascending order.
+
+NOTE: The pagination parameters `size`, `order`, and `sort` are not supported when using `verbose=false` and the sort order for
+requests with `verbose=false` is undefined.
 
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]
@@ -113,6 +154,33 @@ Build ID of the {es} version used to create the snapshot.
 `indices`::
 (array)
 List of indices included in the snapshot.
+
+`index_details`::
+(object)
+Details of each index in the snapshot, keyed by index name. Only present if the
+`?index_details` query parameter is set, and only contains details for indices
+that were completely snapshotted in a sufficiently recent version of {es}.
++
+.Properties of `index_details`
+[%collapsible%open]
+====
+`shard_count`::
+(integer)
+Number of shards in this index.
+
+`size`::
+(string)
+Total size of all shards in this index. Only present if the `?human` query
+paramter is set.
+
+`size_in_bytes`::
+(long)
+Total size of all shards in this index, in bytes.
+
+`max_segments_per_shard`::
+(integer)
+Maximum number of segments per shard in this index snapshot.
+====
 
 `data_streams`::
 (array)

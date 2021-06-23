@@ -35,7 +35,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -43,6 +42,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -97,40 +97,11 @@ public class MatchQueryParser {
         }
     }
 
-    public enum ZeroTermsQuery implements Writeable {
-        NONE(0),
-        ALL(1),
-        // this is used internally to make sure that query_string and simple_query_string
-        // ignores query part that removes all tokens.
-        NULL(2);
-
-        private final int ordinal;
-
-        ZeroTermsQuery(int ordinal) {
-            this.ordinal = ordinal;
-        }
-
-        public static ZeroTermsQuery readFromStream(StreamInput in) throws IOException {
-            int ord = in.readVInt();
-            for (ZeroTermsQuery zeroTermsQuery : ZeroTermsQuery.values()) {
-                if (zeroTermsQuery.ordinal == ord) {
-                    return zeroTermsQuery;
-                }
-            }
-            throw new ElasticsearchException("unknown serialized type [" + ord + "]");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVInt(this.ordinal);
-        }
-    }
-
     public static final int DEFAULT_PHRASE_SLOP = 0;
 
     public static final boolean DEFAULT_LENIENCY = false;
 
-    public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
+    public static final ZeroTermsQueryOption DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQueryOption.NONE;
 
     protected final SearchExecutionContext context;
 
@@ -157,7 +128,7 @@ public class MatchQueryParser {
 
     protected boolean lenient = DEFAULT_LENIENCY;
 
-    protected ZeroTermsQuery zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
+    protected ZeroTermsQueryOption zeroTermsQuery = DEFAULT_ZERO_TERMS_QUERY;
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
@@ -213,7 +184,7 @@ public class MatchQueryParser {
         this.lenient = lenient;
     }
 
-    public void setZeroTermsQuery(ZeroTermsQuery zeroTermsQuery) {
+    public void setZeroTermsQuery(ZeroTermsQueryOption zeroTermsQuery) {
         this.zeroTermsQuery = zeroTermsQuery;
     }
 
@@ -277,7 +248,7 @@ public class MatchQueryParser {
             default:
                 throw new IllegalStateException("No type found for [" + type + "]");
         }
-        return query == null ? zeroTermsQuery() : query;
+        return query == null ? zeroTermsQuery.asQuery() : query;
     }
 
     protected Analyzer getAnalyzer(MappedFieldType fieldType, boolean quoted) {
@@ -287,19 +258,6 @@ public class MatchQueryParser {
             return quoted ? tsi.getSearchQuoteAnalyzer() : tsi.getSearchAnalyzer();
         } else {
             return analyzer;
-        }
-    }
-
-    protected Query zeroTermsQuery() {
-        switch (zeroTermsQuery) {
-            case NULL:
-                return null;
-            case NONE:
-                return Queries.newMatchNoDocsQuery("Matching no documents because no terms present");
-            case ALL:
-                return Queries.newMatchAllQuery();
-            default:
-                throw new IllegalStateException("unknown zeroTermsQuery " + zeroTermsQuery);
         }
     }
 
@@ -606,8 +564,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzePhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.phraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.phraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -619,8 +576,7 @@ public class MatchQueryParser {
         @Override
         protected Query analyzeMultiPhrase(String field, TokenStream stream, int slop) throws IOException {
             try {
-                checkForPositions(field);
-                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements);
+                return fieldType.multiPhraseQuery(stream, slop, enablePositionIncrements, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -631,10 +587,7 @@ public class MatchQueryParser {
 
         private Query analyzePhrasePrefix(String field, TokenStream stream, int slop, int positionCount) throws IOException {
             try {
-                if (positionCount > 1) {
-                    checkForPositions(field);
-                }
-                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions);
+                return fieldType.phrasePrefixQuery(stream, slop, maxExpansions, context);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 if (lenient) {
                     return newLenientFieldQuery(field, e);
@@ -782,12 +735,6 @@ public class MatchQueryParser {
                 return clauses.get(0);
             } else {
                 return new SpanNearQuery(clauses.toArray(new SpanQuery[0]), 0, true);
-            }
-        }
-
-        private void checkForPositions(String field) {
-            if (fieldType.getTextSearchInfo().hasPositions() == false) {
-                throw new IllegalStateException("field:[" + field + "] was indexed without position data; cannot run PhraseQuery");
             }
         }
     }

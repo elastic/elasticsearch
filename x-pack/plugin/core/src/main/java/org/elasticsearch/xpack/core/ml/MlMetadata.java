@@ -13,8 +13,8 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,6 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
@@ -101,6 +103,13 @@ public class MlMetadata implements Metadata.Custom {
 
     public Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+    }
+
+    public Map<String, DatafeedConfig> getDatafeedsByJobIds(Set<String> jobIds) {
+        return datafeeds.values()
+            .stream()
+            .filter(df -> jobIds.contains(df.getJobId()))
+            .collect(Collectors.toMap(DatafeedConfig::getJobId, Function.identity()));
     }
 
     public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {

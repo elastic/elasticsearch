@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.job;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
@@ -156,6 +156,10 @@ public class NodeLoad {
         return new Builder(nodeId);
     }
 
+    public static Builder builder(NodeLoad nodeLoad) {
+        return new Builder(nodeLoad);
+    }
+
     public static class Builder {
         private long maxMemory;
         private int maxJobs;
@@ -166,8 +170,27 @@ public class NodeLoad {
         private long assignedJobMemory;
         private long numAllocatingJobs;
 
+        public Builder(NodeLoad nodeLoad) {
+            this.maxMemory = nodeLoad.maxMemory;
+            this.maxJobs = nodeLoad.maxJobs;
+            this.nodeId = nodeLoad.nodeId;
+            this.useMemory = nodeLoad.useMemory;
+            this.error = nodeLoad.error;
+            this.numAssignedJobs = nodeLoad.numAssignedJobs;
+            this.assignedJobMemory = nodeLoad.assignedJobMemory;
+            this.numAllocatingJobs = nodeLoad.numAllocatingJobs;
+        }
+
         public Builder(String nodeId) {
             this.nodeId = nodeId;
+        }
+
+        public long getFreeMemory() {
+            return Math.max(maxMemory - assignedJobMemory, 0L);
+        }
+
+        public int remainingJobs() {
+            return Math.max(maxJobs - (int)numAssignedJobs, 0);
         }
 
         public String getNodeId() {

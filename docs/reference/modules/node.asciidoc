@@ -275,10 +275,11 @@ node.roles: [ data_cold ]
 [[data-frozen-node]]
 ==== [x-pack]#Frozen data node#
 
-Frozen data nodes store searchable snapshots mounted with the `shared_cache`
-option exclusively.
+The frozen tier stores <<partially-mounted,partially mounted indices>>
+exclusively. We recommend you use dedicated nodes in the frozen tier.
 
 To create a dedicated frozen node, set:
+
 [source,yaml]
 ----
 node.roles: [ data_frozen ]
@@ -363,6 +364,10 @@ xpack.ml.enabled: true <2>
 <1> The `remote_cluster_client` role is optional but strongly recommended.
 Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
 <2> The `xpack.ml.enabled` setting is enabled by default.
+
+NOTE: If you use {ccs} in your {anomaly-jobs}, the `remote_cluster_client` role 
+is also required on all master-eligible nodes. Otherwise, the {dfeed} cannot 
+start.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#

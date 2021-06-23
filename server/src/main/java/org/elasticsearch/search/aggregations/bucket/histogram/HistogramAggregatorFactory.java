@@ -44,7 +44,8 @@ public final class HistogramAggregatorFactory extends ValuesSourceAggregatorFact
             HistogramAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
             NumericHistogramAggregator::new,
-                true);
+            true
+        );
     }
 
     public HistogramAggregatorFactory(String name,

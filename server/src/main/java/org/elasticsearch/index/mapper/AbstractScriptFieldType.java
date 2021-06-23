@@ -28,6 +28,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
@@ -58,8 +59,8 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     }
 
     @Override
-    public final MappedFieldType asMappedFieldType() {
-        return this;
+    public final Collection<MappedFieldType> asMappedFieldTypes() {
+        return Collections.singleton(this);
     }
 
     @Override
@@ -140,17 +141,17 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
     }
 
     @Override
-    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
+    public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) {
+    public Query multiPhraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("phrase", "text"));
     }
 
     @Override
-    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions) {
+    public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext context) {
         throw new IllegalArgumentException(unsupported("phrase prefix", "text"));
     }
 
@@ -227,7 +228,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
         abstract RuntimeField newRuntimeField(Factory scriptFactory);
 
         @Override
-        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+        protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
                 return newRuntimeField(parseFromSourceFactory);
             }
@@ -249,7 +250,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             return script.get();
         }
 
-        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
+        private static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
             Script script = Script.parse(scriptObject);
             if (script.getType() == ScriptType.STORED) {
                 throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");

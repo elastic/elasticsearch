@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.action.PutCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
+import org.elasticsearch.xpack.core.ml.action.ResetJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.StopDatafeedAction;
@@ -87,61 +88,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
-    private final List<Job.Builder> jobs = new ArrayList<>();
-    private final List<DatafeedConfig> datafeeds = new ArrayList<>();
-
-    @Override
-    protected void cleanUpResources() {
-        cleanUpDatafeeds();
-        cleanUpJobs();
-    }
-
-    private void cleanUpDatafeeds() {
-        for (DatafeedConfig datafeed : datafeeds) {
-            try {
-                stopDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteDatafeed(datafeed.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    private void cleanUpJobs() {
-        for (Job.Builder job : jobs) {
-            try {
-                closeJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-            try {
-                deleteJob(job.getId());
-            } catch (Exception e) {
-                // ignore
-            }
-        }
-    }
-
-    protected void registerJob(Job.Builder job) {
-        if (jobs.add(job) == false) {
-            throw new IllegalArgumentException("job [" + job.getId() + "] is already registered");
-        }
-    }
-
-    protected void registerDatafeed(DatafeedConfig datafeed) {
-        if (datafeeds.add(datafeed) == false) {
-            throw new IllegalArgumentException("datafeed [" + datafeed.getId() + "] is already registered");
-        }
-    }
-
-    protected List<Job.Builder> getJobs() {
-        return jobs;
-    }
-
     protected PutJobAction.Response putJob(Job.Builder job) {
         PutJobAction.Request request = new PutJobAction.Request(job);
         return client().execute(PutJobAction.INSTANCE, request).actionGet();
@@ -176,6 +122,11 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
     protected AcknowledgedResponse deleteJob(String jobId) {
         DeleteJobAction.Request request = new DeleteJobAction.Request(jobId);
         return client().execute(DeleteJobAction.INSTANCE, request).actionGet();
+    }
+
+    protected AcknowledgedResponse resetJob(String jobId) {
+        ResetJobAction.Request request = new ResetJobAction.Request(jobId);
+        return client().execute(ResetJobAction.INSTANCE, request).actionGet();
     }
 
     protected PutDatafeedAction.Response putDatafeed(DatafeedConfig datafeed) {

@@ -18,6 +18,7 @@ import org.elasticsearch.test.rest.yaml.section.MatchAssertion;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -158,5 +159,54 @@ public class AssertionTests extends AbstractClientYamlTestFragmentParserTestCase
         o = expectedValue.get("foo");
         assertThat(o, instanceOf(String.class));
         assertThat(o.toString(), equalTo("bar"));
+    }
+
+    public void testCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { value: 42.2, error: 0.001 } }"
+        );
+
+        CloseToAssertion closeToAssertion = CloseToAssertion.parse(parser);
+
+        assertThat(closeToAssertion, notNullValue());
+        assertThat(closeToAssertion.getField(), equalTo("field"));
+        assertThat(closeToAssertion.getExpectedValue(), instanceOf(Double.class));
+        assertThat((Double) closeToAssertion.getExpectedValue(), equalTo(42.2));
+        assertThat(closeToAssertion.getError(), equalTo(0.001));
+        closeToAssertion.doAssert(42.2 + randomDoubleBetween(-0.001, 0.001, false), closeToAssertion.getExpectedValue());
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> closeToAssertion.doAssert(
+                42.2 + (randomBoolean() ? 1 : -1) * randomDoubleBetween(0.001001, 10, false),
+                closeToAssertion.getExpectedValue()
+            )
+        );
+        assertThat(e.getMessage(), containsString("Expected: a numeric value within <0.001> of <42.2>"));
+    }
+
+    public void testInvalidCloseTo() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: 42 }"
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got Integer"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: {  } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("expected a map with value and error but got a map with 0 fields"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, value: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("error is missing or not a number"));
+
+        parser = createParser(YamlXContent.yamlXContent,
+            "{ field: { foo: 13, bar: 15 } }"
+        );
+        exception = expectThrows(IllegalArgumentException.class, () ->  CloseToAssertion.parse(parser));
+        assertThat(exception.getMessage(), equalTo("value is missing or not a number"));
     }
 }

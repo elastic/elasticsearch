@@ -42,13 +42,14 @@ teardown:
         snapshot: test_snapshot_2
         wait_for_completion: true
         body: |
-          { "include_global_state": true }
+          { "include_global_state": true, "indices": "-*" }
 
   - match: { snapshot.snapshot: test_snapshot_2 }
   - match: { snapshot.state : SUCCESS }
   - is_true: snapshot.include_global_state
   - is_true: snapshot.version
   - gt: { snapshot.version_id: 0}
+  - length: { snapshot.indices: 0 }
 
   - do:
       cluster.put_settings:

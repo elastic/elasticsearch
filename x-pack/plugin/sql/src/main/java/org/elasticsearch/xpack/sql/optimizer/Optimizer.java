@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -27,19 +27,12 @@ import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -111,6 +104,8 @@ import java.util.function.Consumer;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -148,7 +143,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new SimplifyCase(),
                 // boolean
                 new BooleanSimplification(),
-                new BooleanLiteralsOnTheRight(),
+                new LiteralsOnTheRight(),
                 new BinaryComparisonSimplification(),
                 // needs to occur before BinaryComparison combinations (see class)
                 new PropagateEquals(),
@@ -165,7 +160,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneOrderByNestedFields(),
                 new PruneCast(),
                 // order by alignment of the aggs
-                new SortAggregateOnOrderBy()
+                new SortAggregateOnOrderBy(),
+                new PushDownAndCombineFilters()
         );
 
         Batch aggregate = new Batch("Aggregation Rewrite",
@@ -655,7 +651,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class FoldNull extends OptimizerExpressionRule {
+    static class FoldNull extends OptimizerExpressionRule<Expression> {
 
         FoldNull() {
             super(TransformDirection.UP);
@@ -721,58 +717,57 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SimplifyConditional extends OptimizerExpressionRule {
+    static class SimplifyConditional extends OptimizerExpressionRule<ConditionalFunction> {
 
         SimplifyConditional() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof ConditionalFunction) {
-                List<Expression> children = e.children();
-                // optimize nullIf
-                if (e instanceof NullIf) {
-                    NullIf nullIf = (NullIf) e;
-                    if (Expressions.isNull(nullIf.left()) || Expressions.isNull(nullIf.right())) {
-                        return nullIf.left();
+        protected Expression rule(ConditionalFunction cf) {
+            Expression e = cf;
+            List<Expression> children = e.children();
+            // optimize nullIf
+            if (e instanceof NullIf) {
+                NullIf nullIf = (NullIf) e;
+                if (Expressions.isNull(nullIf.left()) || Expressions.isNull(nullIf.right())) {
+                    return nullIf.left();
+                }
+            }
+            if (e instanceof ArbitraryConditionalFunction) {
+                ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
+
+                // exclude any nulls found
+                List<Expression> newChildren = new ArrayList<>();
+                for (Expression child : children) {
+                    if (Expressions.isNull(child) == false) {
+                        newChildren.add(child);
+
+                        // For Coalesce find the first non-null foldable child (if any) and break early
+                        if (e instanceof Coalesce && child.foldable()) {
+                            break;
+                        }
                     }
                 }
-                if (e instanceof ArbitraryConditionalFunction) {
-                    ArbitraryConditionalFunction c = (ArbitraryConditionalFunction) e;
 
-                    // exclude any nulls found
-                    List<Expression> newChildren = new ArrayList<>();
-                    for (Expression child : children) {
-                        if (Expressions.isNull(child) == false) {
-                            newChildren.add(child);
+                // update expression
+                if (newChildren.size() < children.size()) {
+                    e = c.replaceChildren(newChildren);
+                }
 
-                            // For Coalesce find the first non-null foldable child (if any) and break early
-                            if (e instanceof Coalesce && child.foldable()) {
-                                break;
-                            }
+                // there's no need for a conditional if all the children are the same (this includes the case of just one value)
+                if (e instanceof Coalesce && children.size() > 0) {
+                    Expression firstChild = children.get(0);
+                    boolean sameChild = true;
+                    for (int i = 1; i < children.size(); i++) {
+                        Expression child = children.get(i);
+                        if (firstChild.semanticEquals(child) == false) {
+                            sameChild = false;
+                            break;
                         }
                     }
-
-                    // update expression
-                    if (newChildren.size() < children.size()) {
-                        e = c.replaceChildren(newChildren);
-                    }
-
-                    // there's no need for a conditional if all the children are the same (this includes the case of just one value)
-                    if (e instanceof Coalesce && children.size() > 0) {
-                        Expression firstChild = children.get(0);
-                        boolean sameChild = true;
-                        for (int i = 1; i < children.size(); i++) {
-                            Expression child = children.get(i);
-                            if (firstChild.semanticEquals(child) == false) {
-                                sameChild = false;
-                                break;
-                            }
-                        }
-                        if (sameChild) {
-                            return firstChild;
-                        }
+                    if (sameChild) {
+                        return firstChild;
                     }
                 }
             }
@@ -780,79 +775,35 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SimplifyCase extends OptimizerExpressionRule {
+    static class SimplifyCase extends OptimizerExpressionRule<Case> {
 
         SimplifyCase() {
             super(TransformDirection.DOWN);
         }
 
         @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof Case) {
-                Case c = (Case) e;
-
-                // Remove or foldable conditions that fold to FALSE
-                // Stop at the 1st foldable condition that folds to TRUE
-                List<IfConditional> newConditions = new ArrayList<>();
-                for (IfConditional conditional : c.conditions()) {
-                    if (conditional.condition().foldable()) {
-                        Boolean res = (Boolean) conditional.condition().fold();
-                        if (res == Boolean.TRUE) {
-                            newConditions.add(conditional);
-                            break;
-                        }
-                    } else {
+        protected Expression rule(Case c) {
+            Expression e = c;
+            // Remove or foldable conditions that fold to FALSE
+            // Stop at the 1st foldable condition that folds to TRUE
+            List<IfConditional> newConditions = new ArrayList<>();
+            for (IfConditional conditional : c.conditions()) {
+                if (conditional.condition().foldable()) {
+                    Boolean res = (Boolean) conditional.condition().fold();
+                    if (res == Boolean.TRUE) {
                         newConditions.add(conditional);
+                        break;
                     }
+                } else {
+                    newConditions.add(conditional);
                 }
+            }
 
-                if (newConditions.size() < c.children().size()) {
-                    return c.replaceChildren(combine(newConditions, c.elseResult()));
-                }
+            if (newConditions.size() < c.children().size()) {
+                e = c.replaceChildren(combine(newConditions, c.elseResult()));
             }
 
             return e;
-        }
-    }
-
-    static class BinaryComparisonSimplification extends OptimizerExpressionRule {
-
-        BinaryComparisonSimplification() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            return e instanceof BinaryComparison ? simplify((BinaryComparison) e) : e;
-        }
-
-        private Expression simplify(BinaryComparison bc) {
-            Expression l = bc.left();
-            Expression r = bc.right();
-
-            // true for equality
-            if (bc instanceof Equals || bc instanceof GreaterThanOrEqual || bc instanceof LessThanOrEqual) {
-                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-            }
-            if (bc instanceof NullEquals) {
-                if (l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-                }
-                if (Expressions.isNull(r)) {
-                    return new IsNull(bc.source(), l);
-                }
-            }
-
-            // false for equality
-            if (bc instanceof NotEquals || bc instanceof GreaterThan || bc instanceof LessThan) {
-                if (l.nullable() == Nullability.FALSE && r.nullable() == Nullability.FALSE && l.semanticEquals(r)) {
-                    return new Literal(bc.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-                }
-            }
-
-            return bc;
         }
     }
 
@@ -1032,7 +983,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
     // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
     // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
-    // and SUM(all nulls)
+    // and SUM(all nulls) (https://github.com/elastic/elasticsearch/issues/71582)
     // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
     static class ReplaceSumWithStats extends OptimizerBasicRule {
 
@@ -1197,29 +1148,40 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class SkipQueryIfFoldingProjection extends OptimizerRule<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            Holder<LocalRelation> optimizedPlan = new Holder<>();
-            plan.forEachDown(Project.class, p -> {
-                List<Object> values = extractConstants(p.projections());
-                if (values.size() == p.projections().size() && (p.child() instanceof EsRelation) == false &&
-                    isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
-                    optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
+            List<LogicalPlan> leaves = plan.collectLeaves();
+
+            List<LogicalPlan> projectOrAggregates = plan.collect(p ->
+                p instanceof Project || p instanceof Aggregate);
+
+            if (leaves.size() == 1 && projectOrAggregates.size() == 1) {
+                LogicalPlan leaf = leaves.get(0);
+                LogicalPlan projectOrAggregate = projectOrAggregates.get(0);
+
+                List<Object> foldedValues = null;
+
+                // exclude LocalRelations that have been introduced by earlier optimizations (skipped ESRelations)
+                boolean isNonSkippedLocalRelation = leaf instanceof LocalRelation
+                    && ((LocalRelation) leaf).executable() instanceof EmptyExecutable == false;
+
+                if (projectOrAggregate instanceof Project && isNonSkippedLocalRelation) {
+                    foldedValues = extractConstants(((Project) projectOrAggregate).projections());
+                } else if (projectOrAggregate instanceof Aggregate) {
+                    Aggregate a = (Aggregate) projectOrAggregate;
+                    List<Object> folded = extractConstants(a.aggregates());
+
+                    boolean onlyConstantAggregations = leaf instanceof EsRelation
+                        && folded.size() == a.aggregates().size()
+                        && a.groupings().isEmpty();
+
+                    if (isNonSkippedLocalRelation || onlyConstantAggregations) {
+                        foldedValues = folded;
+                    }
                 }
-            });
 
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
-            }
-
-            plan.forEachDown(Aggregate.class, a -> {
-                List<Object> values = extractConstants(a.aggregates());
-                if (values.size() == a.aggregates().size() && a.groupings().isEmpty()
-                    && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
-                    optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
+                if (foldedValues != null) {
+                    return new LocalRelation(projectOrAggregate.source(),
+                        new SingletonExecutable(projectOrAggregate.output(), foldedValues.toArray()));
                 }
-            });
-
-            if (optimizedPlan.get() != null) {
-                return optimizedPlan.get();
             }
 
             return plan;
@@ -1247,14 +1209,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             return values;
         }
 
-        /**
-         * Check if the plan doesn't model a query with FROM clause on a table
-         * that its filter (WHERE clause) is folded to FALSE.
-         */
-        private static boolean isNotQueryWithFromClauseAndFilterFoldedToFalse(UnaryPlan plan) {
-            return ((plan.child() instanceof LocalRelation) == false || (plan.child() instanceof LocalRelation &&
-                (((LocalRelation) plan.child()).executable() instanceof EmptyExecutable) == false));
-        }
     }
 
     abstract static class OptimizerBasicRule extends Rule<LogicalPlan, LogicalPlan> {

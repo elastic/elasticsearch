@@ -118,7 +118,7 @@ comes online, replication resumes between the clusters.
 
 image::images/ccr-arch-bi-directional.png[Bi-directional configuration where each cluster contains both a leader index and follower indices]
 
-NOTE: This configuration is useful for index-only workloads, where no updates
+This configuration is particularly useful for index-only workloads, where no updates
 to document values occur. In this configuration, documents indexed by {es} are
 immutable. Clients are located in each datacenter alongside the {es}
 cluster, and do not communicate with clusters in different datacenters.
@@ -189,6 +189,18 @@ failure), the follower shard enters into a retry loop. Otherwise, the
 follower shard pauses
 <<ccr-pause-replication,until you resume it>>.
 
+[discrete]
+[[ccr-update-leader-index]]
+==== Processing updates
+You can't manually modify a follower index's mappings or aliases. To make
+changes, you must update the leader index. Because they are read-only, follower
+indices reject writes in all configurations. 
+
+For example, you index a document named `doc_1` in Datacenter A, which
+replicates to Datacenter B. If a client connects to Datacenter B and attempts
+to update `doc_1`, the request fails. To update `doc_1`, the client must
+connect to Datacenter A and update the document in the leader index.
+
 When a follower shard receives operations from the leader shard, it places
 those operations in a write buffer. The follower shard submits bulk write
 requests using operations from the write buffer. If the write buffer exceeds
@@ -213,8 +225,6 @@ h| Update type h| Automatic  h| As needed
 
 For example, changing the number of replicas on the leader index is not
 replicated by the follower index, so that setting might not be retrieved.
-
-NOTE: You cannot manually modify a follower index's mappings or aliases.
 
 If you apply a non-dynamic settings change to the leader index that is
 needed by the follower index, the follower index closes itself, applies the

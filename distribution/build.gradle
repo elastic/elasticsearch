@@ -8,12 +8,12 @@
 
 
 import org.apache.tools.ant.filters.FixCrLfFilter
-import org.elasticsearch.gradle.ConcatFilesTask
-import org.elasticsearch.gradle.DependenciesInfoTask
-import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.NoticeTask
+import org.elasticsearch.gradle.internal.ConcatFilesTask
+import org.elasticsearch.gradle.internal.DependenciesInfoTask
+import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.elasticsearch.gradle.internal.NoticeTask
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -21,6 +21,11 @@ import java.nio.file.Path
 plugins {
   id 'base'
 }
+
+configurations {
+  log4jConfig
+}
+
 /*****************************************************************************
  *                  Third party dependencies report                          *
  *****************************************************************************/
@@ -44,7 +49,7 @@ tasks.register("generateDependenciesReport", ConcatFilesTask) {
     '8',
     'https://catalog.redhat.com/software/containers/ubi8/ubi-minimal/5c359a62bed8bd75a2c3fba8',
     'Custom;https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf',
-    'https://oss-dependencies.elastic.co/redhat/ubi/ubi-minimal-8-source.tar.gz'
+    'https://oss-dependencies.elastic.co/red-hat-universal-base-image-minimal/8/ubi-minimal-8-source.tar.gz'
   ]
   additionalLines << rhelUbiFields.join(',')
 }
@@ -145,7 +150,7 @@ void copyModule(TaskProvider<Sync> copyTask, Project module) {
       exclude 'config/log4j2.properties'
 
       eachFile { details ->
-        String name = module.plugins.hasPlugin('elasticsearch.esplugin') ? module.esplugin.name : module.es_meta_plugin.name
+        String name = module.plugins.hasPlugin('elasticsearch.internal-es-plugin') ? module.esplugin.name : module.es_meta_plugin.name
         // Copy all non config/bin files
         // Note these might be unde a subdirectory in the case of a meta plugin
         if ((details.relativePath.pathString ==~ /([^\/]+\/)?(config|bin)\/.*/) == false) {
@@ -632,4 +637,13 @@ subprojects {
   dependencies {
     "${configuration.name}" project(path: subproject.path, configuration:'default')
   }
+}
+
+// This artifact makes it possible for other projects to pull
+// in the final log4j2.properties configuration, as it appears in the
+// archive distribution.
+artifacts.add('log4jConfig', file("${defaultOutputs}/log4j2.properties")) {
+  type 'file'
+  name 'log4j2.properties'
+  builtBy 'buildDefaultLog4jConfig'
 }

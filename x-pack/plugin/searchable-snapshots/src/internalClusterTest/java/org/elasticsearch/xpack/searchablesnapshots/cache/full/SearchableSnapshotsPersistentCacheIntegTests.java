@@ -173,13 +173,21 @@ public class SearchableSnapshotsPersistentCacheIntegTests extends BaseSearchable
         createRepository(fsRepoName, FsRepository.TYPE);
 
         final String indexName = prefix + "index";
-        createAndPopulateIndex(
+        createIndex(
             indexName,
             Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(0, 1))
                 .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                .build()
         );
+        ensureGreen(indexName);
+
+        final int numDocs = scaledRandomIntBetween(1_000, 5_000);
+        try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), numDocs)) {
+            waitForDocs(numDocs, indexer);
+        }
+        refresh(indexName);
 
         final String snapshotName = prefix + "snapshot";
         createFullSnapshot(fsRepoName, snapshotName);

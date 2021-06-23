@@ -1312,8 +1312,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public void cleanUpFeature(
         ClusterService clusterService,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+    ) {
         logger.info("Starting machine learning feature reset");
+
+        final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
@@ -1337,25 +1340,43 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             )
         );
 
-        Map<String, Boolean> results = new ConcurrentHashMap<>();
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> cleanedUpIndicesListener = ActionListener.wrap(
+            success -> {
+                if (memoryTracker.get() != null) {
+                    memoryTracker.get().awaitAndClear(ActionListener.wrap(
+                        cacheCleared -> unsetResetModeListener.onResponse(success),
+                        clearFailed -> {
+                            logger.error("failed to clear memory tracker cache via machine learning reset feature API", clearFailed);
+                            unsetResetModeListener.onResponse(success);
+                        }
+                    ));
+                    return;
+                }
+                unsetResetModeListener.onResponse(success);
+            },
+            failure -> {
+                logger.error("failed to clear .ml-* indices via reset feature API", failure);
+                unsetResetModeListener.onFailure(failure);
+            }
+        );
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(
             listTasksResponse -> {
                 listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
                 if (results.values().stream().allMatch(b -> b)) {
-                    // Call into the original listener to clean up the indices
-                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+                    // Call into the original listener to clean up the indices and then clear ml memory cache
+                    SystemIndexPlugin.super.cleanUpFeature(clusterService, client, cleanedUpIndicesListener);
                 } else {
                     final List<String> failedComponents = results.entrySet().stream()
                         .filter(result -> result.getValue() == false)
                         .map(Map.Entry::getKey)
                         .collect(Collectors.toList());
-                    unsetResetModeListener.onFailure(
+                    cleanedUpIndicesListener.onFailure(
                         new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                     );
                 }
             },
-            unsetResetModeListener::onFailure
+            cleanedUpIndicesListener::onFailure
         );
 
         ActionListener<StopDataFrameAnalyticsAction.Response> afterDataframesStopped = ActionListener.wrap(dataFrameStopResponse -> {

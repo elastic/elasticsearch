@@ -100,7 +100,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             QueryToFilterAdapter<?> mergedFilter = filter.union(rewrittenTopLevelQuery);
             if (mergedFilter.isInefficientUnion()) {
                 /*
-                 * For now we any complex union kicks us out of filter by filter
+                 * For now any complex union kicks us out of filter by filter
                  * mode. Its possible that this de-optimizes many "filters"
                  * aggregations but likely correct when "range", "date_histogram",
                  * or "terms" are converted to this agg. We investigated a sort

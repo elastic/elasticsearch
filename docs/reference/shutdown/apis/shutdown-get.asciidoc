@@ -64,6 +64,7 @@ with this API:
 GET /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 // TEST[continued]
+// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
 
 Which returns the following response:
 [source,console-result]
@@ -92,4 +93,4 @@ Which returns the following response:
 }
 --------------------------------------------------
 // TESTRESPONSE[s/1624406108685/$body.nodes.0.shutdown_startedmillis/]
-// TESTRESPONSE[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
+// TESTRESPONSE[s/USpTGYaBSIKbgSUJR2Z9lg/$body.nodes.0.node_id/]

@@ -18,8 +18,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -70,6 +70,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
@@ -388,7 +389,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
-            public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+            public Set<String> getMatchingFieldNames(String pattern) {
                 throw new UnsupportedOperationException();
             }
 
@@ -493,6 +494,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             }
 
             @Override
+            public boolean enableRewriteToFilterByFilter() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
             public void close() {
                 throw new UnsupportedOperationException();
             }
@@ -536,9 +542,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             inv -> mapperService.mappingLookup().objectMappers().get(inv.getArguments()[0].toString()));
         when(searchExecutionContext.getMatchingFieldNames(anyObject())).thenAnswer(
             inv -> mapperService.mappingLookup().getMatchingFieldNames(inv.getArguments()[0].toString())
-        );
-        when(searchExecutionContext.getMatchingFieldTypes(anyObject())).thenAnswer(
-            inv -> mapperService.mappingLookup().getMatchingFieldTypes(inv.getArguments()[0].toString())
         );
         when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
         when(searchExecutionContext.lookup()).thenReturn(new SearchLookup(mapperService::fieldType, (ft, s) -> {

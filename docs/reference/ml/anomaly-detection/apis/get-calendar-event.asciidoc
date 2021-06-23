@@ -43,17 +43,21 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=calendar-id]
 == {api-request-body-title}
 
 `end`::
-(Optional, string) Specifies to get events with timestamps earlier than this
-time.
+    (Optional, string) Specifies to get events with timestamps earlier than this
+    time. Defaults to unset, which means results are not
+    limited to specific timestamps.
 
 `from`::
-(Optional, integer) Skips the specified number of events.
+    (Optional, integer) Skips the specified number of events. Defaults to `0`.
 
 `size`::
-(Optional, integer) Specifies the maximum number of events to obtain.
+    (Optional, integer) Specifies the maximum number of events to obtain.
+    Defaults to `100`.
 
 `start`::
-(Optional, string) Specifies to get events with timestamps after this time.
+    (Optional, string) Specifies to get events with timestamps after this time.
+    Defaults to unset, which means results are not limited to
+    specific timestamps.
 
 [[ml-get-calendar-event-results]]
 == {api-response-body-title}

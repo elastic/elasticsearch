@@ -4,7 +4,7 @@
 :include-xpack:         true
 :es-test-dir:           {elasticsearch-root}/docs/src/test
 :plugins-examples-dir:  {elasticsearch-root}/plugins/examples
-:dependencies-dir:      {elasticsearch-root}/buildSrc
+:dependencies-dir:      {elasticsearch-root}/build-tools-internal
 :xes-repo-dir:          {elasticsearch-root}/x-pack/docs/{lang}
 :es-repo-dir:           {elasticsearch-root}/docs/reference
 

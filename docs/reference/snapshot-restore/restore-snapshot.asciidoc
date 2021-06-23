@@ -73,9 +73,8 @@ name. If no index template matches the stream, it cannot
 ====
 // end::rename-restored-data-stream-tag[]
 
-To prevent index aliases from being restored together with associated indices,
-set `include_aliases` to `false`. This option doesn't affect data stream
-aliases. Restoring a data stream restores its aliases.
+To prevent aliases from being restored with their associated data streams and
+indices, set `include_aliases` to `false`.
 
 [source,console]
 -----------------------------------

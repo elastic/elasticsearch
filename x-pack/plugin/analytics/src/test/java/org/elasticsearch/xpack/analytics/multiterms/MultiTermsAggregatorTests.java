@@ -21,7 +21,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -80,7 +80,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
         logger.info(fieldType);
         return new MultiTermsAggregationBuilder("my_terms").terms(
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(fieldName).build()
             )
@@ -89,7 +89,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
@@ -118,35 +118,35 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testIntegersFloatsAndStrings() throws IOException {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 1),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 2),
                     new FloatDocValuesField(FLOAT_FIELD, 2.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
@@ -168,35 +168,35 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testNullFields() throws IOException {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD, FLOAT_FIELD }, null, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.elasticsearch.core.List.of(
                 new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))));
-            iw.addDocument(org.elasticsearch.common.collect.List.of(
+            iw.addDocument(org.elasticsearch.core.List.of(
                 new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f)));
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 2),
                     new FloatDocValuesField(FLOAT_FIELD, 2.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
-            iw.addDocument(org.elasticsearch.common.collect.List.of(new NumericDocValuesField("wrong_val", 3)));
+            iw.addDocument(org.elasticsearch.core.List.of(new NumericDocValuesField("wrong_val", 3)));
         }, h -> {
             assertThat(h.getBuckets(), hasSize(2));
             assertThat(h.getBuckets().get(0).getKey(), contains(equalTo("a"), equalTo(3L), equalTo(1.0)));
@@ -209,7 +209,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testMissingFields() throws IOException {
         testCase(
             new MatchAllDocsQuery(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).setMissing("z").build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setMissing(0).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(FLOAT_FIELD).setMissing(-1.0f).build()
@@ -217,37 +217,37 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             null,
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new FloatDocValuesField(FLOAT_FIELD, 1.0f), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
                 );
-                iw.addDocument(org.elasticsearch.common.collect.List.of(
+                iw.addDocument(org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 1), new FloatDocValuesField(FLOAT_FIELD, 1.0f)));
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 2),
                         new FloatDocValuesField(FLOAT_FIELD, 2.0f),
                         new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3),
                         new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                         new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3),
                         new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                         new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                     )
                 );
-                iw.addDocument(org.elasticsearch.common.collect.List.of(new NumericDocValuesField("wrong_val", 3)));
+                iw.addDocument(org.elasticsearch.core.List.of(new NumericDocValuesField("wrong_val", 3)));
             },
             h -> {
                 assertThat(h.getBuckets(), hasSize(6));
@@ -270,19 +270,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testSortedNumericDocValues() throws IOException {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")), new SortedNumericDocValuesField(INT_FIELD, 1))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")), new SortedNumericDocValuesField(INT_FIELD, 2))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")), new SortedNumericDocValuesField(INT_FIELD, 3))
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")), new SortedNumericDocValuesField(INT_FIELD, 3))
             );
         }, h -> {
@@ -299,7 +299,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testMultiValues() throws IOException {
         testCase(new MatchAllDocsQuery(), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
                     new SortedNumericDocValuesField(INT_FIELD, 1),
@@ -307,7 +307,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("c")),
                     new SortedNumericDocValuesField(INT_FIELD, 2),
@@ -336,7 +336,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testScripts() throws IOException {
         testCase(
             new MatchAllDocsQuery(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setScript(
                     new Script(ScriptType.INLINE, MockScriptEngine.NAME, ADD_ONE_SCRIPT, Collections.singletonMap("fieldname", INT_FIELD))
@@ -346,23 +346,23 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             null,
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 1), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 2), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
             },
@@ -383,35 +383,35 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testFilter() throws IOException {
         testCase(new TermQuery(new Term(KEYWORD_FIELD, "a")), new String[] { KEYWORD_FIELD, INT_FIELD }, null, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new StringField(KEYWORD_FIELD, "a", Field.Store.NO)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new StringField(KEYWORD_FIELD, "b", Field.Store.NO)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 1),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new StringField(KEYWORD_FIELD, "a", Field.Store.NO)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 2),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new StringField(KEYWORD_FIELD, "a", Field.Store.NO)
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")),
                     new StringField(KEYWORD_FIELD, "a", Field.Store.NO)
@@ -434,35 +434,35 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
             b.subAggregation(new MaxAggregationBuilder("max_float").field(FLOAT_FIELD));
         }, iw -> {
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 1.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 2.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 1),
                     new FloatDocValuesField(FLOAT_FIELD, 3.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 2),
                     new FloatDocValuesField(FLOAT_FIELD, 4.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
                 )
             );
             iw.addDocument(
-                org.elasticsearch.common.collect.List.of(
+                org.elasticsearch.core.List.of(
                     new NumericDocValuesField(INT_FIELD, 3),
                     new FloatDocValuesField(FLOAT_FIELD, 5.0f),
                     new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a"))
@@ -492,30 +492,30 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testFormatter() throws IOException {
         testCase(
             new MatchAllDocsQuery(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(KEYWORD_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
             ),
             null,
             iw -> {
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("b")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 1), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 2), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
                 iw.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new NumericDocValuesField(INT_FIELD, 3), new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef("a")))
                 );
             },
@@ -536,7 +536,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testDates() throws IOException {
         testCase(
             new MatchAllDocsQuery(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
             ),
@@ -563,7 +563,7 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
     public void testMinDocCount() throws IOException {
         testCase(
             new MatchAllDocsQuery(),
-            org.elasticsearch.common.collect.List.of(
+            org.elasticsearch.core.List.of(
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(DATE_FIELD).build(),
                 new MultiValuesSourceFieldConfig.Builder().setFieldName(INT_FIELD).setFormat("0000").build()
             ),

@@ -13,11 +13,11 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.xpack.security.operator.actions.RestGetActionsAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.xpack.security.operator.actions.RestGetActionsAction;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -34,6 +34,6 @@ public class OperatorPrivilegesTestPlugin extends Plugin implements ActionPlugin
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(new RestGetActionsAction());
+        return org.elasticsearch.core.List.of(new RestGetActionsAction());
     }
 }

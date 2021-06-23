@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.core.Set;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -47,7 +48,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     public static List<?> fetchSourceValue(MappedFieldType fieldType, Object sourceValue, String format) throws IOException {
         String field = fieldType.name();
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(searchExecutionContext.sourcePath(field)).thenReturn(org.elasticsearch.common.collect.Set.of(field));
+        when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, format);
         SourceLookup lookup = new SourceLookup();
@@ -62,7 +63,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
 
         ValueFetcher fetcher = fieldType.valueFetcher(searchExecutionContext, null);
         SourceLookup lookup = new SourceLookup();
-        lookup.setSource(Collections.singletonMap(field, org.elasticsearch.common.collect.List.of(values)));
+        lookup.setSource(Collections.singletonMap(field, org.elasticsearch.core.List.of(values)));
         return fetcher.fetchValues(lookup);
     }
 }

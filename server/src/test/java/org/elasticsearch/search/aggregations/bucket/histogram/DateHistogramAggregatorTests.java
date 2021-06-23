@@ -21,7 +21,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
@@ -172,14 +172,14 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             StringTerms.Bucket a = terms.getBucketByKey("a");
             InternalDateHistogram adh = a.getAggregations().get("dh");
             assertThat(adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z")
+                equalTo(org.elasticsearch.core.List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z")
             ));
 
             StringTerms.Bucket b = terms.getBucketByKey("b");
             InternalDateHistogram bdh = b.getAggregations().get("dh");
             assertThat(
                 bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2020-01-01T00:00Z"))
+                equalTo(org.elasticsearch.core.List.of("2020-01-01T00:00Z"))
             );
         });
         builder = new TermsAggregationBuilder("k2").field("k2").subAggregation(builder);
@@ -190,7 +190,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             InternalDateHistogram ak1adh = ak1a.getAggregations().get("dh");
             assertThat(
                 ak1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z"))
+                equalTo(org.elasticsearch.core.List.of("2020-01-01T00:00Z", "2021-01-01T00:00Z"))
             );
 
             StringTerms.Bucket b = terms.getBucketByKey("b");
@@ -199,13 +199,13 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             InternalDateHistogram bk1adh = bk1a.getAggregations().get("dh");
             assertThat(
                 bk1adh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2021-01-01T00:00Z"))
+                equalTo(org.elasticsearch.core.List.of("2021-01-01T00:00Z"))
             );
             StringTerms.Bucket bk1b = bk1.getBucketByKey("b");
             InternalDateHistogram bk1bdh = bk1b.getAggregations().get("dh");
             assertThat(
                 bk1bdh.getBuckets().stream().map(bucket -> bucket.getKey().toString()).collect(toList()),
-                equalTo(org.elasticsearch.common.collect.List.of("2020-01-01T00:00Z"))
+                equalTo(org.elasticsearch.core.List.of("2020-01-01T00:00Z"))
             );
         });
     }
@@ -1194,7 +1194,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testNanosDoesUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(true, true, DateFormatter.forPattern("yyyy")),
-            org.elasticsearch.common.collect.List.of("2017", "2018"),
+            org.elasticsearch.core.List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             true
         );
@@ -1203,7 +1203,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testFarFutureDoesNotUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyyyy")),
-            org.elasticsearch.common.collect.List.of("402017", "402018"),
+            org.elasticsearch.core.List.of("402017", "402018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR),
             false
         );
@@ -1212,7 +1212,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testMissingValueDoesNotUseFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
-            org.elasticsearch.common.collect.List.of("2017", "2018"),
+            org.elasticsearch.core.List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE).calendarInterval(DateHistogramInterval.YEAR).missing("2020"),
             false
         );
@@ -1221,8 +1221,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testExtendedBoundsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
-            org.elasticsearch.common.collect.List.of("2017", "2018"),
-            org.elasticsearch.common.collect.List.of("2016", "2017", "2018", "2019"),
+            org.elasticsearch.core.List.of("2017", "2018"),
+            org.elasticsearch.core.List.of("2016", "2017", "2018", "2019"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
                 .calendarInterval(DateHistogramInterval.YEAR)
                 .extendedBounds(new LongBounds("2016", "2019"))
@@ -1234,8 +1234,8 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
     public void testHardBoundsUsesFromRange() throws IOException {
         aggregationImplementationChoiceTestCase(
             aggregableDateFieldType(false, true, DateFormatter.forPattern("yyyy")),
-            org.elasticsearch.common.collect.List.of("2016", "2017", "2018", "2019"),
-            org.elasticsearch.common.collect.List.of("2017", "2018"),
+            org.elasticsearch.core.List.of("2016", "2017", "2018", "2019"),
+            org.elasticsearch.core.List.of("2017", "2018"),
             new DateHistogramAggregationBuilder("test").field(AGGREGABLE_DATE)
                 .calendarInterval(DateHistogramInterval.YEAR)
                 .hardBounds(new LongBounds("2017", "2019")),
@@ -1249,10 +1249,10 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             long start = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2020-01-01T00:00:01");
             for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS; i++) {
                 long date = start + i;
-                iw.addDocument(org.elasticsearch.common.collect.List.of(new LongPoint("f", date), new NumericDocValuesField("f", date)));
+                iw.addDocument(org.elasticsearch.core.List.of(new LongPoint("f", date), new NumericDocValuesField("f", date)));
             }
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(org.elasticsearch.common.collect.List.of());
+                iw.addDocument(org.elasticsearch.core.List.of());
             }
         };
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
@@ -1301,7 +1301,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
             for (String d : data) {
                 long instant = asLong(d, ft);
                 indexWriter.addDocument(
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new SortedNumericDocValuesField(AGGREGABLE_DATE, instant),
                         new LongPoint(AGGREGABLE_DATE, instant)
                     )
@@ -1319,7 +1319,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 context.searcher().search(context.query(), agg);
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
                 result = (InternalDateHistogram) result.reduce(
-                    org.elasticsearch.common.collect.List.of(result),
+                    org.elasticsearch.core.List.of(result),
                     ReduceContext.forFinalReduction(context.bigArrays(), null, context.multiBucketConsumer(), PipelineTree.EMPTY)
                 );
                 assertThat(

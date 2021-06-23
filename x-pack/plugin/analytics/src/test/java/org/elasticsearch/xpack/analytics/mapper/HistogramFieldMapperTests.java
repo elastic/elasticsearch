@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.analytics.mapper;
 
-import org.elasticsearch.common.collect.Map;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -35,7 +36,7 @@ public class HistogramFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AnalyticsPlugin(Settings.EMPTY));
+        return List.of(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.core.List;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.mockito.Mockito;
 
@@ -123,7 +124,7 @@ public class DeleteStepTests extends AbstractStepMasterTimeoutTestCase<DeleteSte
 
         DataStream dataStream =
             new DataStream(dataStreamName, createTimestampField("@timestamp"),
-            org.elasticsearch.common.collect.List.of(sourceIndexMetadata.getIndex()));
+            List.of(sourceIndexMetadata.getIndex()));
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
             Metadata.builder().put(sourceIndexMetadata, true).put(dataStream).build()
         ).build();

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata.State;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -50,6 +51,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
@@ -1733,7 +1735,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         Metadata.Builder mdBuilder = Metadata.builder()
             .put(backingIndex, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(backingIndex.getIndex())));
+                org.elasticsearch.core.List.of(backingIndex.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -1921,25 +1923,25 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 .put(indexBuilder(".external-sys-idx", Settings.EMPTY).state(State.OPEN).system(true)))
             .build();
         SystemIndices systemIndices = new SystemIndices(
-            org.elasticsearch.common.collect.Map.of(
+            Map.of(
                 "ml",
                 new Feature(
                     "ml",
                     "ml indices",
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
                 new Feature("watcher", "watcher indices",
-                    org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".watches", "watches index"))),
+                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches", "watches index"))),
                 "stack-component",
                 new Feature("stack-component", "stack component",
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new SystemIndexDescriptor(
                             ".external-sys-idx",
                             "external",
                             Type.EXTERNAL_UNMANAGED,
-                            org.elasticsearch.common.collect.List.of("stack-component", "other")
+                            org.elasticsearch.core.List.of("stack-component", "other")
                         )
                     )
                 )
@@ -2027,7 +2029,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index1, false)
             .put(index2, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                 org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())));
+                 org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2048,7 +2050,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index1, false)
             .put(index2, false)
             .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())));
+                org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())));
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2134,10 +2136,10 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"), Arrays.asList(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"), Arrays.asList(index3.getIndex(), index4.getIndex())))
             .put(new DataStream(dataStream3, createTimestampField("@timestamp"), Arrays.asList(index5.getIndex(), index6.getIndex())));
-        mdBuilder.put(dataStreamAlias1, dataStream1);
-        mdBuilder.put(dataStreamAlias1, dataStream2);
-        mdBuilder.put(dataStreamAlias2, dataStream2);
-        mdBuilder.put(dataStreamAlias3, dataStream3);
+        mdBuilder.put(dataStreamAlias1, dataStream1, null);
+        mdBuilder.put(dataStreamAlias1, dataStream2, true);
+        mdBuilder.put(dataStreamAlias2, dataStream2, null);
+        mdBuilder.put(dataStreamAlias3, dataStream3, null);
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
 
         {
@@ -2184,6 +2186,12 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             Index[] result = indexNameExpressionResolver.concreteIndices(state, indicesOptions, false, "my-alias*");
             assertThat(result, arrayWithSize(0));
         }
+        {
+            IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
+            Index result = indexNameExpressionResolver.concreteWriteIndex(state, indicesOptions, dataStreamAlias1, false, true);
+            assertThat(result, notNullValue());
+            assertThat(result.getName(), backingIndexEqualTo(dataStream2, 2));
+        }
     }
 
     public void testDataStreamsWithWildcardExpression() {
@@ -2199,9 +2207,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
+                org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
+                org.elasticsearch.core.List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         {
@@ -2253,9 +2261,9 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(index3, false)
             .put(index4, false)
             .put(new DataStream(dataStream1, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index1.getIndex(), index2.getIndex())))
+                org.elasticsearch.core.List.of(index1.getIndex(), index2.getIndex())))
             .put(new DataStream(dataStream2, createTimestampField("@timestamp"),
-                org.elasticsearch.common.collect.List.of(index3.getIndex(), index4.getIndex())));
+                org.elasticsearch.core.List.of(index3.getIndex(), index4.getIndex())));
 
         ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
         IndicesOptions indicesOptions = IndicesOptions.STRICT_EXPAND_OPEN;
@@ -2402,14 +2410,14 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             .put(indexBuilder(".ml-stuff", settings).state(State.OPEN).system(true))
             .put(indexBuilder("some-other-index").state(State.OPEN));
         SystemIndices systemIndices = new SystemIndices(
-            org.elasticsearch.common.collect.Map.of("ml",
+            Map.of("ml",
                 new Feature("ml", "ml indices",
-                    org.elasticsearch.common.collect.List.of(
+                    org.elasticsearch.core.List.of(
                         new SystemIndexDescriptor(".ml-meta", "ml meta"), new SystemIndexDescriptor(".ml-stuff", "other ml"))
                 ),
                 "watcher",
                 new Feature("watcher", "watcher indices",
-                    org.elasticsearch.common.collect.List.of(new SystemIndexDescriptor(".watches", "watches index")))
+                    org.elasticsearch.core.List.of(new SystemIndexDescriptor(".watches", "watches index")))
             )
         );
         indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);

@@ -29,12 +29,13 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -150,7 +151,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
         final SecurityIndexManager frozenSecurityIndex = this.securityIndex.freeze();
         if (false == frozenSecurityIndex.indexExists()) {
-            listener.onResponse(org.elasticsearch.common.collect.List.of());
+            listener.onResponse(List.of());
         } else if (false == frozenSecurityIndex.isAvailable()) {
             listener.onFailure(frozenSecurityIndex.getUnavailableReason());
         } else {

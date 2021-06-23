@@ -12,7 +12,7 @@ import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
@@ -41,29 +41,29 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final Map<String, Object> apiKeyMetadata = randomMetadata();
         CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("api-key", roles, null, null, apiKeyMetadata);
 
-        Map<String, Object> expected = new HashMap<>(org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> expected = new HashMap<>(org.elasticsearch.core.Map.of(
             "name", "api-key",
-            "role_descriptors", org.elasticsearch.common.collect.Map.of(
-                "r1", org.elasticsearch.common.collect.Map.of(
-                    "applications", org.elasticsearch.common.collect.List.of(),
-                    "cluster", org.elasticsearch.common.collect.List.of("all"),
-                    "indices", org.elasticsearch.common.collect.List.of(
-                        org.elasticsearch.common.collect.Map.of(
-                            "names", org.elasticsearch.common.collect.List.of("ind-x"),
-                            "privileges", org.elasticsearch.common.collect.List.of("all"),
+            "role_descriptors", org.elasticsearch.core.Map.of(
+                "r1", org.elasticsearch.core.Map.of(
+                    "applications", org.elasticsearch.core.List.of(),
+                    "cluster", org.elasticsearch.core.List.of("all"),
+                    "indices", org.elasticsearch.core.List.of(
+                        org.elasticsearch.core.Map.of(
+                            "names", org.elasticsearch.core.List.of("ind-x"),
+                            "privileges", org.elasticsearch.core.List.of("all"),
                             "allow_restricted_indices", false)),
-                    "metadata", org.elasticsearch.common.collect.Map.of(),
-                    "run_as", org.elasticsearch.common.collect.List.of()),
-                "r2", org.elasticsearch.common.collect.Map.of(
-                    "applications", org.elasticsearch.common.collect.List.of(),
-                    "cluster", org.elasticsearch.common.collect.List.of("all"),
-                    "indices", org.elasticsearch.common.collect.List.of(
-                        org.elasticsearch.common.collect.Map.of(
-                            "names", org.elasticsearch.common.collect.List.of("ind-y"),
-                            "privileges", org.elasticsearch.common.collect.List.of("all"),
+                    "metadata", org.elasticsearch.core.Map.of(),
+                    "run_as", org.elasticsearch.core.List.of()),
+                "r2", org.elasticsearch.core.Map.of(
+                    "applications", org.elasticsearch.core.List.of(),
+                    "cluster", org.elasticsearch.core.List.of("all"),
+                    "indices", org.elasticsearch.core.List.of(
+                        org.elasticsearch.core.Map.of(
+                            "names", org.elasticsearch.core.List.of("ind-y"),
+                            "privileges", org.elasticsearch.core.List.of("all"),
                             "allow_restricted_indices", false)),
-                    "metadata", org.elasticsearch.common.collect.Map.of(),
-                    "run_as", org.elasticsearch.common.collect.List.of()))
+                    "metadata", org.elasticsearch.core.Map.of(),
+                    "run_as", org.elasticsearch.core.List.of()))
         ));
         if (apiKeyMetadata != null) {
             expected.put("metadata", apiKeyMetadata);
@@ -126,12 +126,12 @@ public class CreateApiKeyRequestTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public static Map<String, Object> randomMetadata() {
         return randomFrom(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "status", "active",
                 "level", 42,
-                "nested", org.elasticsearch.common.collect.Map.of("foo", "bar")),
-            org.elasticsearch.common.collect.Map.of("status", "active"),
-            org.elasticsearch.common.collect.Map.of(),
+                "nested", org.elasticsearch.core.Map.of("foo", "bar")),
+            org.elasticsearch.core.Map.of("status", "active"),
+            org.elasticsearch.core.Map.of(),
             null);
     }
 }

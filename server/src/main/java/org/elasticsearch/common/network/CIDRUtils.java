@@ -9,7 +9,7 @@
 package org.elasticsearch.common.network;
 
 import org.apache.lucene.util.FutureArrays;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.net.InetAddress;
 

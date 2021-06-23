@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
+
 import javax.crypto.Cipher;
 import javax.crypto.SecretKeyFactory;
 import javax.net.ssl.SSLContext;
-
 import java.security.NoSuchAlgorithmException;
 
 import static org.hamcrest.Matchers.contains;

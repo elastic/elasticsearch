@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.action;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.document.DocumentField;
@@ -204,7 +204,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Event, Void> PARSER =
-                new ConstructingObjectParser<>("eql/search_response_event", true, 
+                new ConstructingObjectParser<>("eql/search_response_event", true,
                     args -> new Event((String) args[0], (String) args[1], (BytesReference) args[2], (Map<String, DocumentField>) args[3]));
 
         static {

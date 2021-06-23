@@ -12,7 +12,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -28,6 +28,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.contains;
@@ -373,7 +374,7 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
         assertNull(before.metadata().index("test2").getAliases().get("alias").writeIndex());
         assertNull(before.metadata().getIndicesLookup().get("alias").getWriteIndex());
 
-        ClusterState after = service.applyAliasActions(before, Collections.singletonList(new AliasAction.RemoveIndex("test")));
+        ClusterState after = service.applyAliasActions(before, singletonList(new AliasAction.RemoveIndex("test")));
         assertNull(after.metadata().index("test2").getAliases().get("alias").writeIndex());
         assertThat(after.metadata().getIndicesLookup().get("alias").getWriteIndex(),
             equalTo(after.metadata().index("test2")));
@@ -402,13 +403,13 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         {
             // Add a non-hidden alias to one index
-            ClusterState testState = service.applyAliasActions(originalState, Collections.singletonList(
+            ClusterState testState = service.applyAliasActions(originalState, singletonList(
                 new AliasAction.Add("test1", "alias", null, null, null, null, randomFrom(false, null))
             ));
 
             // Adding the same alias as hidden to another index should throw
             Exception ex = expectThrows(IllegalStateException.class, () -> // Add a non-hidden alias to one index
-                service.applyAliasActions(testState, Collections.singletonList(
+                service.applyAliasActions(testState, singletonList(
                     new AliasAction.Add("test2", "alias", null, null, null, null, true)
                 )));
             assertThat(ex.getMessage(), containsString("alias [alias] has is_hidden set to true on indices"));
@@ -416,13 +417,13 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         {
             // Add a hidden alias to one index
-            ClusterState testState = service.applyAliasActions(originalState, Collections.singletonList(
+            ClusterState testState = service.applyAliasActions(originalState, singletonList(
                 new AliasAction.Add("test1", "alias", null, null, null, null, true)
             ));
 
             // Adding the same alias as non-hidden to another index should throw
             Exception ex = expectThrows(IllegalStateException.class, () -> // Add a non-hidden alias to one index
-                service.applyAliasActions(testState, Collections.singletonList(
+                service.applyAliasActions(testState, singletonList(
                     new AliasAction.Add("test2", "alias", null, null, null, null, randomFrom(false, null))
                 )));
             assertThat(ex.getMessage(), containsString("alias [alias] has is_hidden set to true on indices"));
@@ -430,24 +431,24 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
         {
             // Add a non-hidden alias to one index
-            ClusterState testState = service.applyAliasActions(originalState, Collections.singletonList(
+            ClusterState testState = service.applyAliasActions(originalState, singletonList(
                 new AliasAction.Add("test1", "alias", null, null, null, null, randomFrom(false, null))
             ));
 
             // Adding the same alias as non-hidden should be OK
-            service.applyAliasActions(testState, Collections.singletonList(
+            service.applyAliasActions(testState, singletonList(
                     new AliasAction.Add("test2", "alias", null, null, null, null, randomFrom(false, null))
             ));
         }
 
         {
             // Add a hidden alias to one index
-            ClusterState testState = service.applyAliasActions(originalState, Collections.singletonList(
+            ClusterState testState = service.applyAliasActions(originalState, singletonList(
                 new AliasAction.Add("test1", "alias", null, null, null, null, true)
             ));
 
             // Adding the same alias as hidden should be OK
-            service.applyAliasActions(testState, Collections.singletonList(
+            service.applyAliasActions(testState, singletonList(
                 new AliasAction.Add("test2", "alias", null, null, null, null, true)
             ));
         }
@@ -505,26 +506,61 @@ public class MetadataIndexAliasesServiceTests extends ESTestCase {
 
     public void testDataStreamAliases() {
         ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(Arrays.asList(
-            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), Collections.emptyList());
+            new Tuple<>("logs-foobar", 1), new Tuple<>("metrics-foobar", 1)), emptyList());
 
-        ClusterState result = service.applyAliasActions(state, org.elasticsearch.common.collect.List.of(
-            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar"),
-            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar")
+        ClusterState result = service.applyAliasActions(state, org.elasticsearch.core.List.of(
+            new AliasAction.AddDataStreamAlias("foobar", "logs-foobar", null),
+            new AliasAction.AddDataStreamAlias("foobar", "metrics-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(),
             containsInAnyOrder("logs-foobar", "metrics-foobar"));
 
-        result = service.applyAliasActions(result, Collections.singletonList(
+        result = service.applyAliasActions(result, singletonList(
             new AliasAction.RemoveDataStreamAlias("foobar", "logs-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), notNullValue());
         assertThat(result.metadata().dataStreamAliases().get("foobar").getDataStreams(), containsInAnyOrder("metrics-foobar"));
 
-        result = service.applyAliasActions(result, Collections.singletonList(
+        result = service.applyAliasActions(result, singletonList(
             new AliasAction.RemoveDataStreamAlias("foobar", "metrics-foobar", null)
         ));
         assertThat(result.metadata().dataStreamAliases().get("foobar"), nullValue());
+    }
+
+    public void testDataStreamAliasesWithWriteFlag() {
+        ClusterState state = DataStreamTestHelper.getClusterStateWithDataStreams(Arrays.asList(
+            new Tuple<>("logs-http-emea", 1), new Tuple<>("logs-http-nasa", 1)), emptyList());
+
+        ClusterState result = service.applyAliasActions(state, Arrays.asList(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", true),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-emea"));
+
+        result = service.applyAliasActions(state, Arrays.asList(
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-emea", false),
+            new AliasAction.AddDataStreamAlias("logs-http", "logs-http-nasa", true)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(),
+            containsInAnyOrder("logs-http-nasa", "logs-http-emea"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, singletonList(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-emea", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), notNullValue());
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getDataStreams(), contains("logs-http-nasa"));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http").getWriteDataStream(), equalTo("logs-http-nasa"));
+
+        result = service.applyAliasActions(result, singletonList(
+            new AliasAction.RemoveDataStreamAlias("logs-http", "logs-http-nasa", null)
+        ));
+        assertThat(result.metadata().dataStreamAliases().get("logs-http"), nullValue());
     }
 
     private ClusterState applyHiddenAliasMix(ClusterState before, Boolean isHidden1, Boolean isHidden2) {

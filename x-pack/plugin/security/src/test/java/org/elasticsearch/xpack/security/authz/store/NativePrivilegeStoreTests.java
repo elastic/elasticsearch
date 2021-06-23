@@ -129,14 +129,14 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testGetSinglePrivilegeByName() throws Exception {
-        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = org.elasticsearch.common.collect.List.of(
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = org.elasticsearch.core.List.of(
             new ApplicationPrivilegeDescriptor("myapp", "admin",
                 newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()
         ));
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("myapp"),
-            org.elasticsearch.common.collect.List.of("admin"), future);
+        store.getPrivileges(org.elasticsearch.core.List.of("myapp"),
+            org.elasticsearch.core.List.of("admin"), future);
         assertThat(requests, iterableWithSize(1));
         assertThat(requests.get(0), instanceOf(SearchRequest.class));
         SearchRequest request = (SearchRequest) requests.get(0);
@@ -155,8 +155,8 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
     public void testGetMissingPrivilege() throws InterruptedException, ExecutionException, TimeoutException {
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("myapp"),
-            org.elasticsearch.common.collect.List.of("admin"), future);
+        store.getPrivileges(org.elasticsearch.core.List.of("myapp"),
+            org.elasticsearch.core.List.of("admin"), future);
         final SearchHit[] hits = new SearchHit[0];
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
             new SearchHits(hits, new TotalHits(hits.length, TotalHits.Relation.EQUAL_TO), 0f),
@@ -270,7 +270,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         );
 
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("myapp", "yourapp"), null, future);
+        store.getPrivileges(org.elasticsearch.core.List.of("myapp", "yourapp"), null, future);
 
         final SearchHit[] hits = buildHits(sourcePrivileges);
         listener.get().onResponse(new SearchResponse(new SearchResponseSections(
@@ -278,28 +278,28 @@ public class NativePrivilegeStoreTests extends ESTestCase {
             null, null, false, false, null, 1),
             "_scrollId1", 1, 1, 0, 1, null, null));
 
-        assertEquals(org.elasticsearch.common.collect.Set.of("myapp"),
-            store.getApplicationNamesCache().get(org.elasticsearch.common.collect.Set.of("myapp", "yourapp")));
-        assertEquals(org.elasticsearch.common.collect.Set.copyOf(sourcePrivileges), store.getDescriptorsCache().get("myapp"));
+        assertEquals(org.elasticsearch.core.Set.of("myapp"),
+            store.getApplicationNamesCache().get(org.elasticsearch.core.Set.of("myapp", "yourapp")));
+        assertEquals(org.elasticsearch.core.Set.copyOf(sourcePrivileges), store.getDescriptorsCache().get("myapp"));
         assertResult(sourcePrivileges, future);
 
         // The 2nd call should use cache and success
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("myapp", "yourapp"), null, future2);
+        store.getPrivileges(org.elasticsearch.core.List.of("myapp", "yourapp"), null, future2);
         listener.get().onResponse(null);
         assertResult(sourcePrivileges, future2);
 
         // The 3rd call should use cache when the application name is part of the original query
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future3 = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("myapp"), null, future3);
+        store.getPrivileges(org.elasticsearch.core.List.of("myapp"), null, future3);
         listener.get().onResponse(null);
         // Does not cache the name expansion if descriptors of the literal name is already cached
-        assertNull(store.getApplicationNamesCache().get(org.elasticsearch.common.collect.Set.of("myapp")));
+        assertNull(store.getApplicationNamesCache().get(org.elasticsearch.core.Set.of("myapp")));
         assertResult(sourcePrivileges, future3);
     }
 
     public void testGetPrivilegesCacheWithApplicationAndPrivilegeName() throws Exception {
-        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = org.elasticsearch.common.collect.List.of(
+        final List<ApplicationPrivilegeDescriptor> sourcePrivileges = org.elasticsearch.core.List.of(
             new ApplicationPrivilegeDescriptor("myapp", "admin", newHashSet("action:admin/*", "action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "user", newHashSet("action:login", "data:read/*"), emptyMap()),
             new ApplicationPrivilegeDescriptor("myapp", "author", newHashSet("action:login", "data:read/*", "data:write/*"), emptyMap())
@@ -317,12 +317,12 @@ public class NativePrivilegeStoreTests extends ESTestCase {
         // Not caching names with no wildcard
         assertNull(store.getApplicationNamesCache().get(singleton("myapp")));
         // All privileges are cached
-        assertEquals(org.elasticsearch.common.collect.Set.copyOf(sourcePrivileges), store.getDescriptorsCache().get("myapp"));
+        assertEquals(org.elasticsearch.core.Set.copyOf(sourcePrivileges), store.getDescriptorsCache().get("myapp"));
         assertResult(sourcePrivileges.subList(1, 2), future);
 
         // 2nd call with more privilege names can still use the cache
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(Collections.singletonList("myapp"), org.elasticsearch.common.collect.List.of("user", "author"), future2);
+        store.getPrivileges(Collections.singletonList("myapp"), org.elasticsearch.core.List.of("user", "author"), future2);
         listener.get().onResponse(null);
         assertResult(sourcePrivileges.subList(1, 3), future2);
     }
@@ -361,7 +361,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // The 2nd call should use cache should translated to match all since it has a "*"
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future2 = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("a", "b", "*", "c"), null, future2);
+        store.getPrivileges(org.elasticsearch.core.List.of("a", "b", "*", "c"), null, future2);
         assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
         assertEquals(1, store.getApplicationNamesCache().count());
         assertResult(emptyList(), future2);
@@ -375,7 +375,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
 
         // The 4th call is also match all
         final PlainActionFuture<Collection<ApplicationPrivilegeDescriptor>> future4 = new PlainActionFuture<>();
-        store.getPrivileges(org.elasticsearch.common.collect.List.of("*"), null, future4);
+        store.getPrivileges(org.elasticsearch.core.List.of("*"), null, future4);
         assertEquals(emptySet(), store.getApplicationNamesCache().get(singleton("*")));
         assertEquals(1, store.getApplicationNamesCache().count());
         assertResult(emptyList(), future4);
@@ -543,7 +543,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testInvalidate() {
-        store.getApplicationNamesCache().put(singleton("*"), org.elasticsearch.common.collect.Set.of());
+        store.getApplicationNamesCache().put(singleton("*"), org.elasticsearch.core.Set.of());
         store.getDescriptorsCache().put("app-1",
             singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
         store.getDescriptorsCache().put("app-2",
@@ -554,7 +554,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     }
 
     public void testInvalidateAll() {
-        store.getApplicationNamesCache().put(singleton("*"), org.elasticsearch.common.collect.Set.of());
+        store.getApplicationNamesCache().put(singleton("*"), org.elasticsearch.core.Set.of());
         store.getDescriptorsCache().put("app-1",
             singleton(new ApplicationPrivilegeDescriptor("app-1", "read", emptySet(), emptyMap())));
         store.getDescriptorsCache().put("app-2",

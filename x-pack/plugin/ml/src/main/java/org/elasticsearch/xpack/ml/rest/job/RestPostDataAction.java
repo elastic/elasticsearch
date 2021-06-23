@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -30,7 +30,7 @@ public class RestPostDataAction extends BaseRestHandler {
     public List<Route> routes() {
         final String msg = "Posting data directly to anomaly detection jobs is deprecated, " +
             "in a future major version it will be compulsory to use a datafeed";
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data")
                 .deprecated(msg, RestApiVersion.V_7).build(),
             Route.builder(POST, PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID + "}/_data")

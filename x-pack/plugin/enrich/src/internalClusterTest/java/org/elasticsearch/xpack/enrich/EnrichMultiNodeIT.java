@@ -47,9 +47,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.enrich.MatchProcessorTests.mapOf;
 import static org.elasticsearch.test.NodeRoles.ingestOnlyNode;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
+import static org.elasticsearch.xpack.enrich.MatchProcessorTests.mapOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;

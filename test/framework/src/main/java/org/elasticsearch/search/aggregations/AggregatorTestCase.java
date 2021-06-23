@@ -41,14 +41,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +53,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -196,7 +196,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     protected <A extends Aggregator> A createAggregator(AggregationBuilder builder, AggregationContext context) throws IOException {
         QueryRewriteContext rewriteContext = new QueryRewriteContext(
             xContentRegistry(),
-            new NamedWriteableRegistry(org.elasticsearch.common.collect.List.of()),
+            new NamedWriteableRegistry(org.elasticsearch.core.List.of()),
             null,
             context::nowInMillis
         );
@@ -296,7 +296,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
             randomInt(),
             () -> 0L,
             () -> false,
-            q -> q
+            q -> q,
+            true
         );
         releasables.add(context);
         return context;
@@ -315,7 +316,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * any {@link ObjectMapper}s but testing nested objects will require adding some.
      */
     protected List<ObjectMapper> objectMappers() {
-        return org.elasticsearch.common.collect.List.of();
+        return org.elasticsearch.core.List.of();
     }
 
     /**
@@ -360,8 +361,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, org.elasticsearch.common.collect.Set.of(),
-            org.elasticsearch.common.collect.Set.of(), org.elasticsearch.common.collect.Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, org.elasticsearch.core.Set.of(),
+            org.elasticsearch.core.Set.of(), org.elasticsearch.core.Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, Version.CURRENT, bitsetFilterCache::getBitSetProducer)).when(subContext)
             .getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
@@ -480,7 +481,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
         } else {
             root.preCollection();
-            searcher.search(rewritten, MultiBucketCollector.wrap(true, org.elasticsearch.common.collect.List.of(root)));
+            searcher.search(rewritten, MultiBucketCollector.wrap(true, org.elasticsearch.core.List.of(root)));
             root.postCollection();
             aggs.add(root.buildTopLevel());
         }
@@ -607,7 +608,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexReaderContext ctx = searcher.getTopReaderContext();
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -624,7 +624,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         aggregator.postCollection();
         InternalAggregation r = aggregator.buildTopLevel();
         r = r.reduce(
-            org.elasticsearch.common.collect.List.of(r),
+            org.elasticsearch.core.List.of(r),
             ReduceContext.forFinalReduction(
                 context.bigArrays(),
                 getMockScriptService(),
@@ -642,7 +642,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
-        aggregator.collectDebugInfo(debug::put);
+        aggregator.collectDebugInfo((key, value) -> {
+            Object old = debug.put(key, value);
+            assertNull("debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]", old);
+        });
         allDebug.put(prefix + aggregator.name(), debug);
         for (Aggregator sub : aggregator.subAggregators()) {
             collectDebugInfo(aggregator.name() + ".", sub, allDebug);

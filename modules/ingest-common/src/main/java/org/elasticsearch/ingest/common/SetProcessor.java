@@ -105,7 +105,7 @@ public final class SetProcessor extends AbstractProcessor {
             if (copyFrom == null) {
                 Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
                 valueSource = ValueSource.wrap(
-                    value, scriptService, org.elasticsearch.common.collect.Map.of(Script.CONTENT_TYPE_OPTION, mediaType)
+                    value, scriptService, org.elasticsearch.core.Map.of(Script.CONTENT_TYPE_OPTION, mediaType)
                 );
             } else {
                 Object value = config.remove("value");

@@ -8,6 +8,16 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContentObject;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.jdk.JarHell;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -17,20 +27,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Objects;
+import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-
-import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.JarHell;
-import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
 /**
  * An in-memory representation of the plugin descriptor.

@@ -37,7 +37,7 @@ public class ConfigurationTests extends PackagingTestCase {
 
     public void test50StrictDuplicateDetectionDeprecationWarning() throws Exception {
         withCustomConfig(tempConf -> {
-            final List<String> jvmOptions = org.elasticsearch.common.collect.List.of("-Des.xcontent.strict_duplicate_detection=false");
+            final List<String> jvmOptions = org.elasticsearch.core.List.of("-Des.xcontent.strict_duplicate_detection=false");
             Files.write(tempConf.resolve("jvm.options"), jvmOptions, CREATE, APPEND);
             startElasticsearch();
             stopElasticsearch();

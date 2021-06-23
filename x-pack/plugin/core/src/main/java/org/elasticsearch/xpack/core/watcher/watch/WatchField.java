@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 
 public final class WatchField {
     public static final ParseField TRIGGER = new ParseField("trigger");

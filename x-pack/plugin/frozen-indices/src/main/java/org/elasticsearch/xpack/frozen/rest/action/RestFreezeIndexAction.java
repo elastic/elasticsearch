@@ -25,9 +25,7 @@ public final class RestFreezeIndexAction extends XPackRestHandler {
 
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(
-            new Route(POST, "/{index}/_freeze"),
-            new Route(POST, "/{index}/_unfreeze")));
+        return unmodifiableList(asList(new Route(POST, "/{index}/_freeze"), new Route(POST, "/{index}/_unfreeze")));
     }
 
     @Override

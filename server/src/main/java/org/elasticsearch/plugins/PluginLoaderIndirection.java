@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader;
+
 import java.util.List;
 
 /**

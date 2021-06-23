@@ -19,7 +19,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
@@ -347,49 +347,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * @return all mapped field types, including runtime fields defined in the request
-     */
-    public Collection<MappedFieldType> getAllFieldTypes() {
-        return getMatchingFieldTypes("*");
-    }
-
-    /**
-     * Returns all mapped field types that match a given pattern
-     *
-     * Includes any runtime fields that have been defined in the request. Note
-     * that a runtime field with the same name as a mapped field will override
-     * the mapped field.
-     *
-     * @param pattern the field name pattern
-     */
-    public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
-        Collection<MappedFieldType> mappedFieldTypes = mappingLookup.getMatchingFieldTypes(pattern);
-        if (runtimeMappings.isEmpty()) {
-            return mappedFieldTypes;
-        }
-
-        Map<String, MappedFieldType> mappedByName = new HashMap<>();
-        mappedFieldTypes.forEach(ft -> mappedByName.put(ft.name(), ft));
-
-        if ("*".equals(pattern)) {
-            mappedByName.putAll(runtimeMappings);
-        } else if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcard
-            if (runtimeMappings.containsKey(pattern) == false) {
-                return mappedFieldTypes;
-            }
-            mappedByName.put(pattern, runtimeMappings.get(pattern));
-        } else {
-            for (String name : runtimeMappings.keySet()) {
-                if (Regex.simpleMatch(pattern, name)) {
-                    mappedByName.put(name, runtimeMappings.get(name));
-                }
-            }
-        }
-        return mappedByName.values();
-    }
-
-    /**
      * Returns the {@link MappedFieldType} for the provided field name.
      * If the field is not mapped, the behaviour depends on the index.query.parse.allow_unmapped_fields setting, which defaults to true.
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
@@ -705,12 +662,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         }
         Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
             mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
-        }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
+        return RuntimeField.collectFieldTypes(runtimeFields.values());
     }
 
     /**

@@ -38,7 +38,7 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
         .filter(Setting::isDynamic)
         .filter(setting -> false == setting.isOperatorOnly())
         .collect(Collectors.toSet());
-    private static final Set<Setting<?>> IP_FILTER_SETTINGS = org.elasticsearch.common.collect.Set.of(
+    private static final Set<Setting<?>> IP_FILTER_SETTINGS = org.elasticsearch.core.Set.of(
         IP_FILTER_ENABLED_HTTP_SETTING,
         IP_FILTER_ENABLED_SETTING,
         TRANSPORT_FILTER_ALLOW_SETTING,

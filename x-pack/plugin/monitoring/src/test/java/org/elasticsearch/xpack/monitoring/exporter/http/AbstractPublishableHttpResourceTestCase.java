@@ -18,8 +18,8 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -29,7 +29,6 @@ import org.mockito.ArgumentCaptor;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.HashMap;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 

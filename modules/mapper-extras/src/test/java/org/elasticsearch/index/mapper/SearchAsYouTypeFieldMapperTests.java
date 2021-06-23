@@ -124,7 +124,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Collection<? extends Plugin> getPlugins() {
-        return org.elasticsearch.common.collect.List.of(new MapperExtrasPlugin());
+        return org.elasticsearch.core.List.of(new MapperExtrasPlugin());
     }
 
     @Override
@@ -140,11 +140,11 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
         NamedAnalyzer simple = new NamedAnalyzer("simple", AnalyzerScope.INDEX, new SimpleAnalyzer());
         NamedAnalyzer whitespace = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer());
         return new IndexAnalyzers(
-            org.elasticsearch.common.collect.Map.of(
+            org.elasticsearch.core.Map.of(
                 "default", dflt, "standard", standard, "keyword", keyword, "simple", simple, "whitespace", whitespace
             ),
-            org.elasticsearch.common.collect.Map.of(),
-            org.elasticsearch.common.collect.Map.of()
+            org.elasticsearch.core.Map.of(),
+            org.elasticsearch.core.Map.of()
         );
     }
 

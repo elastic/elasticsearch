@@ -8,8 +8,12 @@
 
 package org.elasticsearch.search.profile.aggregation;
 
+import io.github.nik9000.mapmatcher.MapMatcher;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -30,6 +34,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.diversifiedSampler;
@@ -41,9 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasEntry;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -54,7 +58,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     private static final String INITIALIZE = AggregationTimingType.INITIALIZE.toString();
     private static final String BUILD_AGGREGATION = AggregationTimingType.BUILD_AGGREGATION.toString();
     private static final String REDUCE = AggregationTimingType.REDUCE.toString();
-    private static final Set<String> BREAKDOWN_KEYS = org.elasticsearch.common.collect.Set.of(
+    private static final Set<String> BREAKDOWN_KEYS = org.elasticsearch.core.Set.of(
         INITIALIZE,
         BUILD_LEAF_COLLECTOR,
         COLLECT,
@@ -70,6 +74,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     );
 
     private static final String TOTAL_BUCKETS = "total_buckets";
+    private static final String BUILT_BUCKETS = "built_buckets";
     private static final String DEFERRED = "deferred_aggregators";
     private static final String COLLECTION_STRAT = "collection_strategy";
     private static final String RESULT_STRAT = "result_strategy";
@@ -89,7 +94,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("idx")
-                .setSettings(org.elasticsearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                .setSettings(org.elasticsearch.core.Map.of("number_of_shards", 1, "number_of_replicas", 0))
                 .addMapping("type", STRING_FIELD, "type=keyword", NUMBER_FIELD, "type=integer", TAG_FIELD, "type=keyword").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
 
@@ -139,10 +144,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(breakdown.get(COLLECT), greaterThan(0L));
             assertThat(breakdown.get(BUILD_AGGREGATION).longValue(), greaterThan(0L));
             assertThat(breakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> debug = histoAggResult.getDebugInfo();
-            assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
-            assertThat(((Number) debug.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry(TOTAL_BUCKETS, greaterThan(0L)).entry(BUILT_BUCKETS, greaterThan(0))
+            );
         }
     }
 
@@ -183,11 +188,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(histoBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
-            assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
-            assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
-            assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry(TOTAL_BUCKETS, greaterThan(0L)).entry(BUILT_BUCKETS, greaterThan(0))
+            );
 
             ProfileResult termsAggResult = histoAggResult.getProfiledChildren().get(0);
             assertThat(termsAggResult, notNullValue());
@@ -209,23 +213,33 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgAggResult.getQueryName(), equalTo("AvgAggregator"));
             assertThat(avgAggResult.getLuceneDescription(), equalTo("avg"));
             assertThat(avgAggResult.getTime(), greaterThan(0L));
-            Map<String, Long> avgBreakdown = termsAggResult.getTimeBreakdown();
+            Map<String, Long> avgBreakdown = avgAggResult.getTimeBreakdown();
             assertThat(avgBreakdown, notNullValue());
             assertThat(avgBreakdown.keySet(), equalTo(BREAKDOWN_KEYS));
             assertThat(avgBreakdown.get(INITIALIZE), greaterThan(0L));
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(
+                avgAggResult.getDebugInfo(),
+                matchesMap().entry(BUILT_BUCKETS, greaterThan(0))
+            );
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
 
-    private void assertRemapTermsDebugInfo(ProfileResult termsAggResult) {
-        assertThat(termsAggResult.getDebugInfo(), hasEntry(COLLECTION_STRAT, "remap using many bucket ords"));
-        assertThat(termsAggResult.getDebugInfo(), hasEntry(RESULT_STRAT, "terms"));
-        assertThat(termsAggResult.getDebugInfo(), hasEntry(HAS_FILTER, false));
-        assertThat(termsAggResult.getDebugInfo().toString(), (int) termsAggResult.getDebugInfo().get(SEGMENTS_WITH_SINGLE), greaterThan(0));
+    private void assertRemapTermsDebugInfo(ProfileResult termsAggResult, String... deferredAggregators) {
+        MapMatcher matcher = matchesMap().entry(TOTAL_BUCKETS, greaterThan(0L))
+            .entry(BUILT_BUCKETS, greaterThan(0))
+            .entry(COLLECTION_STRAT, "remap using many bucket ords")
+            .entry(RESULT_STRAT, "terms")
+            .entry(HAS_FILTER, false)
+            .entry(SEGMENTS_WITH_SINGLE, greaterThan(0))
+            .entry(SEGMENTS_WITH_MULTI, 0);
+        if (deferredAggregators.length > 0) {
+            matcher = matcher.entry(DEFERRED, org.elasticsearch.core.List.of(deferredAggregators));
+        }
+        assertMap(termsAggResult.getDebugInfo(), matcher);
     }
 
     public void testMultiLevelProfileBreadthFirst() {
@@ -257,10 +271,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(histoBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
-            assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
-            assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry(TOTAL_BUCKETS, greaterThan(0L)).entry(BUILT_BUCKETS, greaterThan(0))
+            );
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(1));
 
             ProfileResult termsAggResult = histoAggResult.getProfiledChildren().get(0);
@@ -275,7 +289,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(termsBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(termsBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(termsBreakdown.get(REDUCE), equalTo(0L));
-            assertRemapTermsDebugInfo(termsAggResult);
+            assertRemapTermsDebugInfo(termsAggResult, "avg");
             assertThat(termsAggResult.getProfiledChildren().size(), equalTo(1));
 
             ProfileResult avgAggResult = termsAggResult.getProfiledChildren().get(0);
@@ -290,7 +304,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(COLLECT), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(
+                avgAggResult.getDebugInfo(),
+                matchesMap().entry(BUILT_BUCKETS, greaterThan(0))
+            );
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -326,9 +343,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(diversifyBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(diversifyAggResult.getDebugInfo(), equalTo(
-                org.elasticsearch.common.collect.Map.of(DEFERRED, org.elasticsearch.common.collect.List.of("max"))));
-            assertThat(diversifyAggResult.getProfiledChildren().size(), equalTo(1));
+            assertMap(
+                diversifyAggResult.getDebugInfo(),
+                matchesMap().entry(BUILT_BUCKETS, greaterThan(0)).entry(DEFERRED, org.elasticsearch.core.List.of("max"))
+            );
 
             ProfileResult maxAggResult = diversifyAggResult.getProfiledChildren().get(0);
             assertThat(maxAggResult, notNullValue());
@@ -344,7 +362,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(diversifyBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(maxAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -388,10 +406,10 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(histoBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(histoBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(histoBreakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> histoDebugInfo = histoAggResult.getDebugInfo();
-            assertThat(histoDebugInfo, notNullValue());
-            assertThat(histoDebugInfo.keySet(), equalTo(org.elasticsearch.common.collect.Set.of(TOTAL_BUCKETS)));
-            assertThat(((Number) histoDebugInfo.get(TOTAL_BUCKETS)).longValue(), greaterThan(0L));
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry(TOTAL_BUCKETS, greaterThan(0L)).entry(BUILT_BUCKETS, greaterThan(0))
+            );
             assertThat(histoAggResult.getProfiledChildren().size(), equalTo(2));
 
             Map<String, ProfileResult> histoAggResultSubAggregations = histoAggResult.getProfiledChildren().stream()
@@ -429,7 +447,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(avgAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -445,7 +463,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(maxAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             ProfileResult stringsAggResult = histoAggResultSubAggregations.get("strings");
@@ -480,7 +498,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(avgAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = stringsAggResultSubAggregations.get("max");
@@ -496,7 +514,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(maxAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
 
             tagsAggResult = stringsAggResultSubAggregations.get("tags");
@@ -532,7 +550,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(avgBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(avgBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(avgBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(avgAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(avgAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(avgAggResult.getProfiledChildren().size(), equalTo(0));
 
             maxAggResult = tagsAggResultSubAggregations.get("max");
@@ -548,7 +566,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(maxBreakdown.get(POST_COLLECTION), greaterThan(0L));
             assertThat(maxBreakdown.get(BUILD_AGGREGATION), greaterThan(0L));
             assertThat(maxBreakdown.get(REDUCE), equalTo(0L));
-            assertThat(maxAggResult.getDebugInfo(), equalTo(org.elasticsearch.common.collect.Map.of()));
+            assertMap(maxAggResult.getDebugInfo(), matchesMap().entry(BUILT_BUCKETS, greaterThan(0)));
             assertThat(maxAggResult.getProfiledChildren().size(), equalTo(0));
         }
     }
@@ -581,7 +599,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
      */
     public void testFilterByFilter() throws InterruptedException, IOException {
         assertAcked(client().admin().indices().prepareCreate("dateidx")
-            .setSettings(org.elasticsearch.common.collect.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+            .setSettings(org.elasticsearch.core.Map.of("number_of_shards", 1, "number_of_replicas", 0))
             .addMapping("_doc", "date", "type=date").get());
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
@@ -599,7 +617,7 @@ public class AggregationProfilerIT extends ESIntegTestCase {
         assertSearchResponse(response);
         Map<String, ProfileShardResult> profileResults = response.getProfileResults();
         assertThat(profileResults, notNullValue());
-        assertThat(profileResults.size(), equalTo(getNumShards("idx").numPrimaries));
+        assertThat(profileResults.size(), equalTo(getNumShards("dateidx").numPrimaries));
         for (ProfileShardResult profileShardResult : profileResults.values()) {
             assertThat(profileShardResult, notNullValue());
             AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
@@ -620,33 +638,121 @@ public class AggregationProfilerIT extends ESIntegTestCase {
             assertThat(breakdown.get(COLLECT), equalTo(0L));
             assertThat(breakdown.get(BUILD_AGGREGATION).longValue(), greaterThan(0L));
             assertThat(breakdown.get(REDUCE), equalTo(0L));
-            Map<String, Object> debug = histoAggResult.getDebugInfo();
-            assertThat(debug, notNullValue());
-            assertThat(debug.keySet(), equalTo(org.elasticsearch.common.collect.Set.of("delegate", "delegate_debug")));
-            assertThat(debug.get("delegate"), equalTo("RangeAggregator.FromFilters"));
-            Map<?, ?> delegate = (Map<?, ?>) debug.get("delegate_debug");
-            assertThat(
-                delegate.keySet(),
-                equalTo(org.elasticsearch.common.collect.Set.of("average_docs_per_range", "ranges", "delegate", "delegate_debug"))
+            assertMap(
+                histoAggResult.getDebugInfo(),
+                matchesMap().entry(BUILT_BUCKETS, greaterThan(0))
+                    .entry("delegate", "RangeAggregator.FromFilters")
+                    .entry(
+                        "delegate_debug",
+                        matchesMap().entry("average_docs_per_range", equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2))
+                            .entry("ranges", 1)
+                            .entry("delegate", "FiltersAggregator.FilterByFilter")
+                            .entry(
+                                "delegate_debug",
+                                matchesMap().entry("segments_with_deleted_docs", 0)
+                                    .entry("segments_with_doc_count_field", 0)
+                                    .entry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
+                                    .entry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
+                                    .entry("estimate_cost_time", greaterThanOrEqualTo(0L)) // ~1,276,734 nanos is normal
+                                    .entry("segments_counted", 0)
+                                    .entry("segments_collected", greaterThan(0))
+                                    .entry(
+                                        "filters",
+                                        matchesList().item(
+                                            matchesMap().entry("scorers_prepared_while_estimating_cost", greaterThan(0))
+                                                .entry("query", "DocValuesFieldExistsQuery [field=date]")
+                                                .entry("specialized_for", "docvalues_field_exists")
+                                                .entry("results_from_metadata", 0)
+                                        )
+                                    )
+                            )
+                    )
             );
-            assertThat(
-                ((Number) delegate.get("average_docs_per_range")).doubleValue(),
-                equalTo(RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2)
+        }
+    }
+
+    public void testDateHistogramFilterByFilterDisabled() throws InterruptedException, IOException {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey(), false))
+        );
+        try {
+            assertAcked(
+                client().admin()
+                    .indices()
+                    .prepareCreate("date_filter_by_filter_disabled")
+                    .setSettings(org.elasticsearch.core.Map.of("number_of_shards", 1, "number_of_replicas", 0))
+                    .addMapping("_doc", "date", "type=date", "keyword", "type=keyword")
+                    .get()
             );
-            assertThat(((Number) delegate.get("ranges")).longValue(), equalTo(1L));
-            assertThat(delegate.get("delegate"), equalTo("FiltersAggregator.FilterByFilter"));
-            Map<?, ?> delegateDebug = (Map<?, ?>) delegate.get("delegate_debug");
-            assertThat(delegateDebug, hasEntry("segments_with_deleted_docs", 0));
-            assertThat(delegateDebug, hasEntry("segments_with_doc_count_field", 0));
-            assertThat(delegateDebug, hasEntry("max_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
-            assertThat(delegateDebug, hasEntry("estimated_cost", (long) RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2));
-            assertThat((long) delegateDebug.get("estimate_cost_time"), greaterThanOrEqualTo(0L));  // ~1,276,734 nanos is normal
-            List<?> filtersDebug = (List<?>) delegateDebug.get("filters");
-            assertThat(filtersDebug, hasSize(1));
-            Map<?, ?> queryDebug = (Map<?, ?>) filtersDebug.get(0);
-            assertThat(queryDebug, hasKey("scorers_prepared_while_estimating_cost"));
-            assertThat((int) queryDebug.get("scorers_prepared_while_estimating_cost"), greaterThan(0));
-            assertThat(queryDebug, hasEntry("query", "DocValuesFieldExistsQuery [field=date]"));
+            List<IndexRequestBuilder> builders = new ArrayList<>();
+            for (int i = 0; i < RangeAggregator.DOCS_PER_RANGE_TO_USE_FILTERS * 2; i++) {
+                String date = Instant.ofEpochSecond(i).toString();
+                builders.add(
+                    client().prepareIndex("date_filter_by_filter_disabled", "_doc")
+                        .setSource(
+                            jsonBuilder().startObject()
+                                .field("date", date)
+                                .endObject()
+                        )
+                );
+            }
+            indexRandom(true, false, builders);
+
+            SearchResponse response = client().prepareSearch("date_filter_by_filter_disabled")
+                .setProfile(true)
+                .addAggregation(new DateHistogramAggregationBuilder("histo").field("date").calendarInterval(DateHistogramInterval.MONTH))
+                .get();
+            assertSearchResponse(response);
+            Map<String, ProfileShardResult> profileResults = response.getProfileResults();
+            assertThat(profileResults, notNullValue());
+            assertThat(profileResults.size(), equalTo(getNumShards("date_filter_by_filter_disabled").numPrimaries));
+            for (ProfileShardResult profileShardResult : profileResults.values()) {
+                assertThat(profileShardResult, notNullValue());
+                AggregationProfileShardResult aggProfileResults = profileShardResult.getAggregationProfileResults();
+                assertThat(aggProfileResults, notNullValue());
+                List<ProfileResult> aggProfileResultsList = aggProfileResults.getProfileResults();
+                assertThat(aggProfileResultsList, notNullValue());
+                assertThat(aggProfileResultsList.size(), equalTo(1));
+                ProfileResult histoAggResult = aggProfileResultsList.get(0);
+                assertThat(histoAggResult, notNullValue());
+                assertThat(histoAggResult.getQueryName(), equalTo("DateHistogramAggregator.FromDateRange"));
+                assertThat(histoAggResult.getLuceneDescription(), equalTo("histo"));
+                assertThat(histoAggResult.getProfiledChildren().size(), equalTo(0));
+                assertThat(histoAggResult.getTime(), greaterThan(0L));
+                Map<String, Long> breakdown = histoAggResult.getTimeBreakdown();
+                assertMap(
+                    breakdown,
+                    matchesMap().entry(INITIALIZE, greaterThan(0L))
+                        .entry(INITIALIZE + "_count", greaterThan(0L))
+                        .entry(BUILD_LEAF_COLLECTOR, greaterThan(0L))
+                        .entry(BUILD_LEAF_COLLECTOR + "_count", greaterThan(0L))
+                        .entry(COLLECT, greaterThan(0L))
+                        .entry(COLLECT + "_count", greaterThan(0L))
+                        .entry(POST_COLLECTION, greaterThan(0L))
+                        .entry(POST_COLLECTION + "_count", 1L)
+                        .entry(BUILD_AGGREGATION, greaterThan(0L))
+                        .entry(BUILD_AGGREGATION + "_count", greaterThan(0L))
+                        .entry(REDUCE, 0L)
+                        .entry(REDUCE + "_count", 0L)
+                );
+                Map<String, Object> debug = histoAggResult.getDebugInfo();
+                assertMap(
+                    debug,
+                    matchesMap().entry("delegate", "RangeAggregator.NoOverlap")
+                        .entry("built_buckets", 1)
+                        .entry("delegate_debug", matchesMap().entry("ranges", 1).entry("average_docs_per_range", 10000.0))
+                );
+            }
+        } finally {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull(SearchService.ENABLE_REWRITE_AGGS_TO_FILTER_BY_FILTER.getKey()))
+            );
         }
     }
 }

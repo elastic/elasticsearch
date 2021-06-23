@@ -48,18 +48,19 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.List;
-import org.elasticsearch.common.collect.Map;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -90,7 +91,9 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItemInArray;
@@ -709,7 +712,7 @@ public class DataStreamIT extends ESIntegTestCase {
         GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
         assertThat(
             response.getDataStreamAliases(),
-            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo")))))
+            equalTo(Map.of("metrics-foo", List.of(new DataStreamAlias("foo", List.of("metrics-foo"), null))))
         );
     }
 
@@ -737,7 +740,7 @@ public class DataStreamIT extends ESIntegTestCase {
         );
     }
 
-    public void testDataStreamAliasesMixedExpressionValidation() throws Exception {
+    public void testAddDataStreamAliasesMixedExpressionValidation() throws Exception {
         createIndex("metrics-myindex");
         putComposableIndexTemplate("id1", List.of("metrics-*"));
         String dataStreamName = "metrics-foo";
@@ -749,6 +752,49 @@ public class DataStreamIT extends ESIntegTestCase {
         aliasesAddRequest.addAliasAction(addAction);
         Exception e = expectThrows(IllegalArgumentException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
         assertThat(e.getMessage(), equalTo("expressions [metrics-*] that match with both data streams and regular indices are disallowed"));
+    }
+
+    public void testUpdateDataStreamsWithWildcards() throws Exception {
+        putComposableIndexTemplate("id1", List.of("metrics-*"));
+        String dataStreamName = "metrics-foo";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+        {
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(
+                new AliasActions(AliasActions.Type.ADD).index("metrics-foo").aliases("my-alias1", "my-alias2")
+            );
+            assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+            assertThat(response.getDataStreamAliases().keySet(), containsInAnyOrder("metrics-foo"));
+            assertThat(
+                response.getDataStreamAliases().get("metrics-foo"),
+                containsInAnyOrder(
+                    new DataStreamAlias("my-alias1", List.of("metrics-foo"), null),
+                    new DataStreamAlias("my-alias2", List.of("metrics-foo"), null)
+                )
+            );
+            assertThat(response.getAliases().size(), equalTo(0));
+        }
+        // ADD doesn't resolve wildcards:
+        {
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.ADD).index("metrics-foo").aliases("my-alias*"));
+            expectThrows(InvalidAliasNameException.class, () -> client().admin().indices().aliases(aliasesAddRequest).actionGet());
+        }
+        // REMOVE does resolve wildcards:
+        {
+            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
+            if (randomBoolean()) {
+                aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).index("metrics-*").aliases("my-*"));
+            } else {
+                aliasesAddRequest.addAliasAction(new AliasActions(AliasActions.Type.REMOVE).index("_all").aliases("_all"));
+            }
+            assertAcked(client().admin().indices().aliases(aliasesAddRequest).actionGet());
+            GetAliasesResponse response = client().admin().indices().getAliases(new GetAliasesRequest()).actionGet();
+            assertThat(response.getDataStreamAliases(), anEmptyMap());
+            assertThat(response.getAliases().size(), equalTo(0));
+        }
     }
 
     public void testDataStreamAliasesUnsupportedParametersValidation() throws Exception {
@@ -800,18 +846,6 @@ public class DataStreamIT extends ESIntegTestCase {
                 () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
             );
             assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support search_routing"));
-        }
-        {
-            AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")
-                .aliases("my-alias")
-                .writeIndex(randomBoolean());
-            IndicesAliasesRequest aliasesAddRequest = new IndicesAliasesRequest();
-            aliasesAddRequest.addAliasAction(addAction);
-            Exception e = expectThrows(
-                IllegalArgumentException.class,
-                () -> client().admin().indices().aliases(aliasesAddRequest).actionGet()
-            );
-            assertThat(e.getMessage(), equalTo("aliases that point to data streams don't support is_write_index"));
         }
         {
             AliasActions addAction = new AliasActions(AliasActions.Type.ADD).index("metrics-*")

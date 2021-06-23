@@ -217,7 +217,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return org.elasticsearch.common.collect.List.of(new AnalyticsPlugin(Settings.EMPTY));
+        return org.elasticsearch.core.List.of(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override

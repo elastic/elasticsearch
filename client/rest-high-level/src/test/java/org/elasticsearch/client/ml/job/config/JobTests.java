@@ -9,7 +9,7 @@ package org.elasticsearch.client.ml.job.config;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -159,6 +159,9 @@ public class JobTests extends AbstractXContentTestCase<Job> {
         }
         if (randomBoolean()) {
             builder.setAllowLazyOpen(randomBoolean());
+        }
+        if (randomBoolean()) {
+            builder.setBlocked(BlockedTests.createRandom());
         }
         return builder;
     }

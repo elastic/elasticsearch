@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.transform.rest.action.compat;
 
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENE
 public class RestGetTransformActionDeprecated extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_DEPRECATED)
                 .deprecated(TransformMessages.REST_DEPRECATED_ENDPOINT, RestApiVersion.V_7).build(),
             Route.builder(GET, TransformField.REST_BASE_PATH_TRANSFORMS_BY_ID_DEPRECATED)

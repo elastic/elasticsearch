@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.deprecation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.core.Set;
+import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -19,12 +24,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -41,6 +42,13 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
+
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+
 public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testCheckDefaults() {
@@ -54,7 +62,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(Settings.EMPTY, pluginsAndModules)
+            c -> c.apply(Settings.EMPTY, pluginsAndModules, ClusterState.EMPTY_STATE)
         );
 
         final DeprecationIssue expected = new DeprecationIssue(
@@ -63,7 +71,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_packaging_changes",
             "Java 11 will be required for future versions of Elasticsearch, this node is running version ["
                 + JavaVersion.current().toString() + "]. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
-                + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.");
+                + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
+            null);
 
         if (isJvmEarlierThan11()) {
             assertThat(issues, hasItem(expected));
@@ -81,7 +90,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [pidfile] is deprecated in favor of setting [node.pidfile]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-pidfile",
-            "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]");
+            "the setting [pidfile] is currently set to [" + pidfile + "], instead set [node.pidfile] to [" + pidfile + "]", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Environment.PIDFILE_SETTING});
     }
@@ -95,7 +104,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [processors] is deprecated in favor of setting [node.processors]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.4/breaking-changes-7.4.html#deprecate-processors",
-            "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]");
+            "the setting [processors] is currently set to [" + processors + "], instead set [node.processors] to [" + processors + "]",
+            null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{EsExecutors.PROCESSORS_SETTING});
     }
@@ -125,7 +135,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 Locale.ROOT,
                 "Found realms without order config: [%s]. In next major release, node will fail to start with missing realm order.",
                 RealmSettings.realmSettingPrefix(invalidRealm) + RealmSettings.ORDER_SETTING_KEY
-            )
+            ),
+            null
         ), deprecationIssues.get(0));
     }
 
@@ -135,7 +146,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings =
             Settings.builder()
                 .put("xpack.security.authc.realms." + realmIdentifier.getType() + "." + realmIdentifier.getName() + ".enabled", "false")
-            .build();
+                .build();
         final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
         final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
         assertTrue(deprecationIssues.isEmpty());
@@ -296,6 +307,56 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         }
     }
 
+    public void testCheckReservedPrefixedRealmNames() {
+        final Settings.Builder builder = Settings.builder();
+        final boolean invalidFileRealmName = randomBoolean();
+        final boolean invalidNativeRealmName = randomBoolean();
+        final boolean invalidOtherRealmName = (false == invalidFileRealmName && false == invalidNativeRealmName) || randomBoolean();
+
+        final List<String> invalidRealmNames = new ArrayList<>();
+
+        final String fileRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidFileRealmName) {
+            builder.put("xpack.security.authc.realms.file." + "_" + fileRealmName + ".order", -20);
+            invalidRealmNames.add("xpack.security.authc.realms.file." + "_" + fileRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.file." + fileRealmName + ".order", -20);
+        }
+
+        final String nativeRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidNativeRealmName) {
+            builder.put("xpack.security.authc.realms.native." + "_" + nativeRealmName + ".order", -10);
+            invalidRealmNames.add("xpack.security.authc.realms.native." + "_" + nativeRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.native." + nativeRealmName + ".order", -10);
+        }
+
+        final int otherRealmId = randomIntBetween(0, 9);
+        final String otherRealmName = randomAlphaOfLengthBetween(4, 12);
+        if (invalidOtherRealmName) {
+            builder.put("xpack.security.authc.realms.type_" + otherRealmId + "." + "_" + otherRealmName + ".order", 0);
+            invalidRealmNames.add("xpack.security.authc.realms.type_" + otherRealmId + "." + "_" + otherRealmName);
+        } else {
+            builder.put("xpack.security.authc.realms.type_" + otherRealmId + "." + otherRealmName + ".order", 0);
+        }
+
+        final Settings settings = builder.build();
+        final PluginsAndModules pluginsAndModules = new PluginsAndModules(Collections.emptyList(), Collections.emptyList());
+        final List<DeprecationIssue> deprecationIssues = getDeprecationIssues(settings, pluginsAndModules);
+
+        assertEquals(1, deprecationIssues.size());
+
+        final DeprecationIssue deprecationIssue = deprecationIssues.get(0);
+        assertEquals("Realm names cannot start with [_] in a future major release.", deprecationIssue.getMessage());
+        assertEquals("https://www.elastic.co/guide/en/elasticsearch/reference" +
+            "/7.14/deprecated-7.14.html#reserved-prefixed-realm-names", deprecationIssue.getUrl());
+        assertEquals("Found realm " + (invalidRealmNames.size() == 1 ? "name" : "names")
+                + " with reserved prefix [_]: ["
+                + Strings.collectionToDelimitedString(invalidRealmNames.stream().sorted().collect(Collectors.toList()), "; ") + "]. "
+                + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+            deprecationIssue.getDetails());
+    }
+
     public void testThreadPoolListenerQueueSize() {
         final int size = randomIntBetween(1, 4);
         final Settings settings = Settings.builder().put("thread_pool.listener.queue_size", size).build();
@@ -305,7 +366,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.queue_size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
-            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting");
+            "the setting [thread_pool.listener.queue_size] is currently set to [" + size + "], remove this setting", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.queue_size"});
     }
@@ -319,7 +380,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [thread_pool.listener.size] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.x/breaking-changes-7.7.html#deprecate-listener-thread-pool",
-            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting");
+            "the setting [thread_pool.listener.size] is currently set to [" + size + "], remove this setting", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new String[]{"thread_pool.listener.size"});
     }
@@ -334,7 +395,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.cache.max_size] is deprecated in favor of grouped setting [script.context.*.cache_max_size]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_cache_size",
             "the setting [script.cache.max_size] is currently set to [" + size + "], instead set [script.context.*.cache_max_size] " +
-                "to [" + size + "] where * is a script context");
+                "to [" + size + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_SIZE_SETTING});
     }
@@ -349,7 +410,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.cache.expire] is deprecated in favor of grouped setting [script.context.*.cache_expire]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_expire",
             "the setting [script.cache.expire] is currently set to [" + expire + "], instead set [script.context.*.cache_expire] to " +
-                "[" + expire + "] where * is a script context");
+                "[" + expire + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_CACHE_EXPIRE_SETTING});
     }
@@ -364,7 +425,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             "setting [script.max_compilations_rate] is deprecated in favor of grouped setting [script.context.*.max_compilations_rate]",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.9/breaking-changes-7.9.html#deprecate_general_script_compile_rate",
             "the setting [script.max_compilations_rate] is currently set to [" + rate +
-                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context");
+                "], instead set [script.context.*.max_compilations_rate] to [" + rate + "] where * is a script context", null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{ScriptService.SCRIPT_GENERAL_MAX_COMPILATIONS_RATE_SETTING});
     }
@@ -384,7 +445,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 RemoteClusterService.ENABLE_REMOTE_CLUSTERS.getKey(),
                 value,
                 "node.remote_cluster_client"
-            ));
+            ), null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{RemoteClusterService.ENABLE_REMOTE_CLUSTERS});
     }
@@ -398,14 +459,14 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             DeprecationIssue.Level.CRITICAL,
             "setting [node.local_storage] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html#deprecate-node-local-storage",
-            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting"
+            "the setting [node.local_storage] is currently set to [" + value + "], remove this setting", null
         );
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{Node.NODE_LOCAL_STORAGE_SETTING});
     }
 
     public void testDeprecatedBasicLicenseSettings() {
-        Collection<Setting<Boolean>> deprecatedXpackSettings = org.elasticsearch.common.collect.Set.of(
+        Collection<Setting<Boolean>> deprecatedXpackSettings = Set.of(
             XPackSettings.ENRICH_ENABLED_SETTING,
             XPackSettings.FLATTENED_ENABLED,
             XPackSettings.INDEX_LIFECYCLE_ENABLED,
@@ -427,7 +488,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [" + deprecatedSetting.getKey() + "] is deprecated and will be removed in the next major version",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.8/breaking-changes-7.8.html" +
                     "#deprecate-basic-license-feature-enabled",
-                "the setting [" + deprecatedSetting.getKey() + "] is currently set to [" + value + "], remove this setting"
+                "the setting [" + deprecatedSetting.getKey() + "] is currently set to [" + value + "], remove this setting", null
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{deprecatedSetting});
@@ -453,7 +514,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [" + legacyRoleSetting.getKey() + "] is deprecated in favor of setting [node.roles]",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#breaking_80_settings_changes",
                 "the setting [" + legacyRoleSetting.getKey() + "] is currently set to ["
-                    + value + "], instead set [node.roles] to [" + roles + "]"
+                    + value + "], instead set [node.roles] to [" + roles + "]", null
             );
             assertThat(issues, hasItem(expected));
             assertSettingDeprecationsAndWarnings(new Setting<?>[]{legacyRoleSetting});
@@ -465,14 +526,16 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final Settings settings =
             Settings.builder().put(BootstrapSettings.SYSTEM_CALL_FILTER_SETTING.getKey(), boostrapSystemCallFilter).build();
         final PluginsAndModules pluginsAndModules =
-            new PluginsAndModules(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of());
+            new PluginsAndModules(org.elasticsearch.core.List.of(), org.elasticsearch.core.List.of());
         final List<DeprecationIssue> issues =
-            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings, pluginsAndModules));
+            DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
+                c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE));
         final DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
             "setting [bootstrap.system_call_filter] is deprecated and will be removed in the next major version",
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-system-call-filter-setting",
-            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting");
+            "the setting [bootstrap.system_call_filter] is currently set to [" + boostrapSystemCallFilter + "], remove this setting",
+            null);
         assertThat(issues, hasItem(expected));
         assertSettingDeprecationsAndWarnings(new Setting<?>[]{BootstrapSettings.SYSTEM_CALL_FILTER_SETTING});
     }
@@ -508,7 +571,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     private List<DeprecationIssue> getDeprecationIssues(Settings settings, PluginsAndModules pluginsAndModules) {
         final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
             DeprecationChecks.NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, pluginsAndModules)
+            c -> c.apply(settings, pluginsAndModules, ClusterState.EMPTY_STATE)
         );
 
         if (isJvmEarlierThan11()) {
@@ -528,13 +591,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     }
 
     private String randomRealmTypeOtherThanFileOrNative() {
-        return randomValueOtherThanMany(t -> org.elasticsearch.common.collect.Set.of("file", "native").contains(t),
+        return randomValueOtherThanMany(t -> Set.of("file", "native").contains(t),
             () -> randomAlphaOfLengthBetween(4, 12));
     }
 
     public void testMultipleDataPaths() {
         final Settings settings = Settings.builder().putList("path.data", Arrays.asList("d1", "d2")).build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -550,13 +613,13 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoMultipleDataPaths() {
         Settings settings = Settings.builder().put("path.data", "data").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null);
         assertThat(issue, nullValue());
     }
 
     public void testDataPathsList() {
         final Settings settings = Settings.builder().putList("path.data", "d1").build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
         assertThat(issue, not(nullValue()));
         assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
         assertThat(
@@ -572,7 +635,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
     public void testNoDataPathsListDefault() {
         final Settings settings = Settings.builder().build();
-        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null);
         assertThat(issue, nullValue());
     }
 
@@ -581,22 +644,125 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir())
             .put(Environment.PATH_SHARED_DATA_SETTING.getKey(), createTempDir()).build();
 
-        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null);
+        DeprecationIssue issue = NodeDeprecationChecks.checkSharedDataPathSetting(settings, null, null);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/7.13/breaking-changes-7.13.html#deprecate-shared-data-path-setting";
         assertThat(issue, equalTo(
             new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
-                "Found shared data path configured. Discontinue use of this setting."
+                "Found shared data path configured. Discontinue use of this setting.",
+                null)));
+    }
+
+    public void testSingleDataNodeWatermarkSettingExplicit() {
+        Settings settings = Settings.builder()
+            .put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), false)
+            .build();
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS, c -> c.apply(settings,
+            null, null));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        assertThat(issues, hasItem(
+            new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+                "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+                    " will not be available in a future version",
+                expectedUrl,
+                "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured to false." +
+                    " Discontinue use of this setting or set it to true.",
+                null
             )));
+
+        assertWarnings("setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node=false] is deprecated and" +
+            " will not be available in a future version");
+    }
+
+    public void testSingleDataNodeWatermarkSettingDefault() {
+        DiscoveryNode node1 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode node2 = new DiscoveryNode(randomAlphaOfLength(5), buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode master = new DiscoveryNode(randomAlphaOfLength(6), buildNewFakeTransportAddress(), Collections.emptyMap(),
+            Collections.singleton(DiscoveryNodeRole.MASTER_ROLE),
+            Version.CURRENT);
+        ClusterStateCreationUtils.state(node1, node1, node1);
+
+        final List<DeprecationIssue> issues = DeprecationChecks.filterChecks(DeprecationChecks.NODE_SETTINGS_CHECKS,
+            c -> c.apply(Settings.EMPTY,
+                null, ClusterStateCreationUtils.state(node1, node1, node1)));
+
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/" +
+                "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
+        DeprecationIssue deprecationIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
+            "the default value [false] of setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node]" +
+                " is deprecated and will be changed to true in a future version." +
+                " This cluster has only one data node and behavior will therefore change when upgrading",
+            expectedUrl,
+            "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] defaulting to false" +
+                " on a single data node cluster. Set it to true to avoid this warning." +
+                " Consider using [cluster.routing.allocation.disk.threshold_enabled] to disable disk based allocation", null);
+
+        assertThat(issues, hasItem(deprecationIssue));
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(master
+            , master, master)),
+            nullValue());
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
+            node1, node1, node2)),
+            nullValue());
+
+        assertThat(NodeDeprecationChecks.checkSingleDataNodeWatermarkSetting(Settings.EMPTY, null, ClusterStateCreationUtils.state(node1,
+            master, node1, master)),
+            equalTo(deprecationIssue));
+    }
+
+    public void testMonitoringExporterPassword() {
+        // test for presence of deprecated exporter passwords
+        final int numExporterPasswords = randomIntBetween(1, 3);
+        final String[] exporterNames = new String[numExporterPasswords];
+        final Settings.Builder b = Settings.builder();
+        for (int k = 0; k < numExporterPasswords; k++) {
+            exporterNames[k] = randomAlphaOfLength(5);
+            b.put("xpack.monitoring.exporters." + exporterNames[k] + ".auth.password", "_pass");
+        }
+        final Settings settings = b.build();
+
+        DeprecationIssue issue = NodeDeprecationChecks.checkMonitoringExporterPassword(settings, null, null);
+        final String expectedUrl =
+            "https://www.elastic.co/guide/en/elasticsearch/reference/7.7/monitoring-settings.html#http-exporter-settings";
+        final String joinedNames = Arrays
+            .stream(exporterNames)
+            .map(s -> "xpack.monitoring.exporters." + s + ".auth.password")
+            .sorted()
+            .collect(Collectors.joining(","));
+
+        assertThat(issue, equalTo(new DeprecationIssue(
+            DeprecationIssue.Level.CRITICAL,
+            String.format(
+                Locale.ROOT,
+                "non-secure passwords for monitoring exporters [%s] are deprecated and will be removed in the next major version",
+                joinedNames
+            ),
+            expectedUrl,
+            String.format(
+                Locale.ROOT,
+                "replace the non-secure monitoring exporter password setting(s) [%s] with their secure 'auth.secure_password' replacement",
+                joinedNames
+            ), null)));
+
+        // test for absence of deprecated exporter passwords
+        issue = NodeDeprecationChecks.checkMonitoringExporterPassword(Settings.builder().build(), null, null);
+        assertThat(issue, nullValue());
     }
 
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
         Settings settings = Settings.builder()
             .put(CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey(), false).build();
 
-        DeprecationIssue issue = NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(settings, null);
+        DeprecationIssue issue = NodeDeprecationChecks.checkClusterRoutingAllocationIncludeRelocationsSetting(settings, null, null);
         final String expectedUrl =
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes";
         final String expectedDetails =
@@ -606,7 +772,8 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             new DeprecationIssue(DeprecationIssue.Level.WARNING,
                 "setting [cluster.routing.allocation.disk.include_relocations] is deprecated and will be removed in a future version",
                 expectedUrl,
-                expectedDetails
+                expectedDetails,
+                null
             )));
     }
 }

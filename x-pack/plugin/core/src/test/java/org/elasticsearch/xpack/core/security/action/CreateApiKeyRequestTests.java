@@ -11,7 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
@@ -77,7 +78,7 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         final String name = randomAlphaOfLengthBetween(1, 256);
         CreateApiKeyRequest request = new CreateApiKeyRequest();
         request.setName(name);
-        request.setMetadata(org.elasticsearch.common.collect.Map.of("_foo", "bar"));
+        request.setMetadata(Map.of("_foo", "bar"));
         final ActionRequestValidationException ve = request.validate();
         assertNotNull(ve);
         assertThat(ve.validationErrors().size(), equalTo(1));

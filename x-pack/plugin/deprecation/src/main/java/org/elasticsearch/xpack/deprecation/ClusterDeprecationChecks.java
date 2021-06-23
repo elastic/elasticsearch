@@ -14,13 +14,12 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.PipelineConfiguration;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -62,7 +61,8 @@ public class ClusterDeprecationChecks {
                 "User-Agent ingest plugin will always use ECS-formatted output",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#ingest-user-agent-ecs-always",
-                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig + " uses the [ecs] option which needs to be removed to work in 8.0");
+                "Ingest pipelines " + pipelinesWithDeprecatedEcsConfig +
+                    " uses the [ecs] option which needs to be removed to work in 8.0", null);
         }
         return null;
     }
@@ -93,7 +93,7 @@ public class ClusterDeprecationChecks {
                 "Index templates " + templatesOverLimit + " have a number of fields which exceeds the automatic field expansion " +
                     "limit of [" + maxClauseCount + "] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                     "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and " +
-                    "multi_match to fail if fields are not explicitly specified in the query.");
+                    "multi_match to fail if fields are not explicitly specified in the query.", null);
         }
         return null;
     }
@@ -127,7 +127,7 @@ public class ClusterDeprecationChecks {
                     "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html#fieldnames-enabling",
                     "Index templates " + templatesContainingFieldNames + " use the deprecated `enable` setting for the `"
                             + FieldNamesFieldMapper.NAME + "` field. Using this setting in new index mappings will throw an error "
-                                    + "in the next major version and needs to be removed from existing mappings and templates.");
+                                    + "in the next major version and needs to be removed from existing mappings and templates.", null);
         }
         return null;
     }
@@ -165,7 +165,7 @@ public class ClusterDeprecationChecks {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#ilm-poll-interval-limit",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
-                    "currently set to [" + pollIntervalString + "], but must be 1s or greater");
+                    "currently set to [" + pollIntervalString + "], but must be 1s or greater", null);
         }
         return null;
     }
@@ -186,7 +186,7 @@ public class ClusterDeprecationChecks {
             "Some index templates contain multiple mapping types",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/removal-of-types.html",
             "Index templates " + templatesWithMultipleTypes
-            + " define multiple types and so will cause errors when used in index creation"
-            );
+            + " define multiple types and so will cause errors when used in index creation",
+            null);
     }
 }

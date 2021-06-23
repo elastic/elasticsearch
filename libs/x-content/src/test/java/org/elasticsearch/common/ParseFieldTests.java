@@ -8,6 +8,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.CoreMatchers.is;

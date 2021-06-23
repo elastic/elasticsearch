@@ -98,7 +98,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -151,7 +151,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
     public static final RequestOptions LEGACY_TEMPLATE_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings ->
-            org.elasticsearch.common.collect.List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
+            org.elasticsearch.core.List.of(RestPutIndexTemplateAction.DEPRECATION_WARNING).equals(warnings) == false).build();
 
     public void testIndicesExists() throws IOException {
         // Index present
@@ -1713,7 +1713,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
 
         // Create-only specified but an template exists already
         PutIndexTemplateRequest goodTemplate = new PutIndexTemplateRequest("t2")
-            .patterns(org.elasticsearch.common.collect.List.of("qa-*", "prod-*"));
+            .patterns(org.elasticsearch.core.List.of("qa-*", "prod-*"));
         assertTrue(execute(goodTemplate, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
             .isAcknowledged());
         goodTemplate.create(true);
@@ -1870,7 +1870,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         PutIndexTemplateRequest putTemplate1 = new PutIndexTemplateRequest("template-1")
-            .patterns(org.elasticsearch.common.collect.List.of("pattern-1", "name-1"))
+            .patterns(org.elasticsearch.core.List.of("pattern-1", "name-1"))
             .alias(new Alias("alias-1"));
         assertThat(execute(putTemplate1, client.indices()::putTemplate, client.indices()::putTemplateAsync, LEGACY_TEMPLATE_OPTIONS)
             .isAcknowledged(),
@@ -2109,7 +2109,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(dataStreamStat.getDataStream(), equalTo(dataStreamName));
         assertThat(dataStreamStat.getBackingIndices(), equalTo(1));
         assertThat(dataStreamStat.getMaximumTimestamp(), equalTo(0L)); // No data in here
-        assertThat(dataStreamStat.getStoreSize().getBytes(), not(equalTo(0L))); // but still takes up some space on disk
+        // Only asserting existence of store stats, testing any concrete value makes this test flaky.
+        assertThat(dataStreamStat.getStoreSize(), notNullValue());
 
         DeleteDataStreamRequest deleteDataStreamRequest = new DeleteDataStreamRequest(dataStreamName);
         response = execute(deleteDataStreamRequest, indices::deleteDataStream, indices::deleteDataStreamAsync);
@@ -2179,8 +2180,8 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         Settings settings = Settings.builder().put("index.number_of_shards", 1).build();
         CompressedXContent mappings = new CompressedXContent("{\"properties\":{\"host_name\":{\"type\":\"keyword\"}}}");
         AliasMetadata alias = AliasMetadata.builder("alias").writeIndex(true).build();
-        Template template = new Template(settings, mappings, org.elasticsearch.common.collect.Map.of("alias", alias));
-        List<String> pattern = org.elasticsearch.common.collect.List.of("pattern");
+        Template template = new Template(settings, mappings, org.elasticsearch.core.Map.of("alias", alias));
+        List<String> pattern = org.elasticsearch.core.List.of("pattern");
         ComposableIndexTemplate indexTemplate =
             new ComposableIndexTemplate(pattern, template, Collections.emptyList(), 1L, 1L, new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest putComposableIndexTemplateRequest =
@@ -2193,7 +2194,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         SimulateIndexTemplateRequest simulateIndexTemplateRequest = new SimulateIndexTemplateRequest("pattern");
         AliasMetadata simulationAlias = AliasMetadata.builder("simulation-alias").writeIndex(true).build();
         ComposableIndexTemplate simulationTemplate = new ComposableIndexTemplate(pattern, new Template(null, null,
-            org.elasticsearch.common.collect.Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L,
+            org.elasticsearch.core.Map.of("simulation-alias", simulationAlias)), Collections.emptyList(), 2L, 1L,
             new HashMap<>(), null, null);
         PutComposableIndexTemplateRequest newIndexTemplateReq =
             new PutComposableIndexTemplateRequest().name("used-for-simulation").create(true).indexTemplate(indexTemplate);

@@ -10,7 +10,7 @@ import joptsimple.OptionSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;

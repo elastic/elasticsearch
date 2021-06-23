@@ -13,6 +13,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
@@ -35,7 +36,7 @@ public class CardinalityWithRequestBreakerIT extends ESIntegTestCase {
         indexRandom(true, IntStream.range(0, randomIntBetween(10, 1000))
             .mapToObj(i ->
                 client().prepareIndex("test", "_doc").setId("id_" + i)
-                    .setSource(org.elasticsearch.common.collect.Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
+                    .setSource(Map.of("field0", randomAlphaOfLength(5), "field1", randomAlphaOfLength(5)))
                 ).toArray(IndexRequestBuilder[]::new));
 
         client().admin().cluster().prepareUpdateSettings()

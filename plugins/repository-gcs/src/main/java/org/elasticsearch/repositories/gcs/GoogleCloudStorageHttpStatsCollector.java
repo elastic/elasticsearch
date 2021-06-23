@@ -12,7 +12,7 @@ import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpRequest;
 import com.google.api.client.http.HttpResponse;
 import com.google.api.client.http.HttpResponseInterceptor;
-import org.elasticsearch.common.collect.List;
+import org.elasticsearch.core.List;
 
 import java.util.Locale;
 import java.util.function.Consumer;

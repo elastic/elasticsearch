@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.watcher.rest.action;
 
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -35,7 +35,7 @@ public class RestPutWatchAction extends WatcherRestHandler implements RestReques
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_watcher/watch/{id}")
                 .replaces(POST, URI_BASE + "/watcher/watch/{id}", RestApiVersion.V_7).build(),
             Route.builder(PUT, "/_watcher/watch/{id}")

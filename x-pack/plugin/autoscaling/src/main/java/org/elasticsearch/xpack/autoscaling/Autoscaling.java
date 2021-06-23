@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
+import org.elasticsearch.xpack.autoscaling.existence.FrozenExistenceDeciderService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
@@ -88,7 +89,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     }
 
     Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
-        this.autoscalingExtensions = new ArrayList<>(org.elasticsearch.common.collect.List.of(this));
+        this.autoscalingExtensions = new ArrayList<>(org.elasticsearch.core.List.of(this));
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
@@ -107,7 +108,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.clusterService.set(clusterService);
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new AutoscalingCalculateCapacityService.Holder(this),
             autoscalingLicenseChecker,
             new AutoscalingMemoryInfoService(clusterService, client)
@@ -116,12 +117,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     @Override
     public List<Setting<?>> getSettings() {
-        return org.elasticsearch.common.collect.List.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT);
+        return org.elasticsearch.core.List.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
             new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
             new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
@@ -139,7 +140,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new RestGetAutoscalingCapacityHandler(),
             new RestDeleteAutoscalingPolicyHandler(),
             new RestGetAutoscalingPolicyHandler(),
@@ -149,7 +150,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new NamedWriteableRegistry.Entry(Metadata.Custom.class, AutoscalingMetadata.NAME, AutoscalingMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, AutoscalingMetadata.NAME, AutoscalingMetadata.AutoscalingMetadataDiff::new),
             new NamedWriteableRegistry.Entry(
@@ -176,13 +177,18 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 FrozenStorageDeciderService.NAME,
                 FrozenStorageDeciderService.FrozenReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                FrozenExistenceDeciderService.NAME,
+                FrozenExistenceDeciderService.FrozenExistenceReason::new
             )
         );
     }
 
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
     }
@@ -195,7 +201,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     @Override
     public Collection<AutoscalingDeciderService> deciders() {
         assert allocationDeciders.get() != null;
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             new FixedAutoscalingDeciderService(),
             new ReactiveStorageDeciderService(
                 clusterService.get().getSettings(),
@@ -208,7 +214,8 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 allocationDeciders.get()
             ),
             new FrozenShardsDeciderService(),
-            new FrozenStorageDeciderService()
+            new FrozenStorageDeciderService(),
+            new FrozenExistenceDeciderService()
         );
     }
 

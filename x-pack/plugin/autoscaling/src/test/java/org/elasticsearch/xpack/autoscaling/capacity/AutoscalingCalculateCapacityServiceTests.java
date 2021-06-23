@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCase {
     public void testMultiplePoliciesFixedCapacity() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
         Set<String> policyNames = IntStream.range(0, randomIntBetween(1, 10))
             .mapToObj(i -> "test_ " + randomAlphaOfLength(10))
@@ -113,7 +113,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         FixedAutoscalingDeciderService defaultOff = new FixedAutoscalingDeciderService();
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(defaultOn, defaultOff)
+            org.elasticsearch.core.Set.of(defaultOn, defaultOff)
         );
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(
@@ -122,7 +122,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                         AutoscalingMetadata.NAME,
                         new AutoscalingMetadata(
                             new TreeMap<>(
-                                org.elasticsearch.common.collect.Map.of(
+                                org.elasticsearch.core.Map.of(
                                     "test",
                                     new AutoscalingPolicyMetadata(new AutoscalingPolicy("test", randomRoles(), new TreeMap<>()))
                                 )
@@ -137,7 +137,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 .get("test")
                 .results()
                 .keySet(),
-            equalTo(org.elasticsearch.common.collect.Set.of(defaultOn.name()))
+            equalTo(org.elasticsearch.core.Set.of(defaultOn.name()))
         );
     }
 
@@ -150,7 +150,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             settings.put(FixedAutoscalingDeciderService.MEMORY.getKey(), randomByteSizeValue());
         }
         settings.put(FixedAutoscalingDeciderService.NODES.getKey(), randomIntBetween(1, 10));
-        return new TreeMap<>(org.elasticsearch.common.collect.Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));
+        return new TreeMap<>(org.elasticsearch.core.Map.of(FixedAutoscalingDeciderService.NAME, settings.build()));
     }
 
     private AutoscalingCapacity calculateFixedDeciderCapacity(Settings configuration) {
@@ -177,7 +177,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         boolean hasDataRole = roleNames.stream().anyMatch(r -> r.equals("data") || r.startsWith("data_"));
 
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
         SnapshotShardSizeInfo snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             ImmutableOpenMap.<InternalSnapshotsInfoService.SnapshotShard, Long>builder().build()
@@ -191,7 +191,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
 
         assertSame(state, context.state());
-        assertThat(context.nodes(), equalTo(org.elasticsearch.common.collect.Set.of()));
+        assertThat(context.nodes(), equalTo(org.elasticsearch.core.Set.of()));
         assertThat(context.currentCapacity(), equalTo(AutoscalingCapacity.ZERO));
         assertThat(context.info(), sameInstance(info));
         assertThat(context.snapshotShardSizeInfo(), sameInstance(snapshotShardSizeInfo));
@@ -205,13 +205,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .nodes(
                 DiscoveryNodes.builder()
                     .add(
-                        new DiscoveryNode(
-                            "nodeId",
-                            buildNewFakeTransportAddress(),
-                            org.elasticsearch.common.collect.Map.of(),
-                            roles,
-                            Version.CURRENT
-                        )
+                        new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), org.elasticsearch.core.Map.of(), roles, Version.CURRENT)
                     )
             )
             .build();
@@ -240,7 +234,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             DiscoveryNode node = new DiscoveryNode(
                 nodeId,
                 buildNewFakeTransportAddress(),
-                org.elasticsearch.common.collect.Map.of(),
+                org.elasticsearch.core.Map.of(),
                 useOtherRoles ? otherRoles : roles,
                 Version.CURRENT
             );
@@ -322,13 +316,13 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
     public void testValidateDeciderName() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
         String badDeciderName = randomValueOtherThan(FixedAutoscalingDeciderService.NAME, () -> randomAlphaOfLength(8));
         AutoscalingPolicy policy = new AutoscalingPolicy(
             randomAlphaOfLength(8),
             randomRoles(),
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of(badDeciderName, Settings.EMPTY))
+            new TreeMap<>(org.elasticsearch.core.Map.of(badDeciderName, Settings.EMPTY))
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
         assertThat(exception.getMessage(), equalTo("unknown decider [" + badDeciderName + "]"));
@@ -337,7 +331,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     public void testValidateDeciderRoles() {
         Set<String> roles = randomRoles();
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService() {
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService() {
 
                 @Override
                 public List<DiscoveryNodeRole> roles() {
@@ -356,7 +350,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         AutoscalingPolicy policy = new AutoscalingPolicy(
             FixedAutoscalingDeciderService.NAME,
             badRoles,
-            new TreeMap<>(org.elasticsearch.common.collect.Map.of(FixedAutoscalingDeciderService.NAME, Settings.EMPTY))
+            new TreeMap<>(org.elasticsearch.core.Map.of(FixedAutoscalingDeciderService.NAME, Settings.EMPTY))
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
         assertThat(
@@ -367,12 +361,12 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
     public void testValidateNotEmptyDeciders() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
         String policyName = randomAlphaOfLength(8);
         AutoscalingPolicy policy = new AutoscalingPolicy(
             policyName,
-            new TreeSet<>(randomBoolean() ? org.elasticsearch.common.collect.Set.of() : org.elasticsearch.common.collect.Set.of("master")),
+            new TreeSet<>(randomBoolean() ? org.elasticsearch.core.Set.of() : org.elasticsearch.core.Set.of("master")),
             new TreeMap<>()
         );
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
@@ -384,9 +378,9 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
     public void testValidateSettingName() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
-        Set<String> legalNames = org.elasticsearch.common.collect.Set.of(
+        Set<String> legalNames = org.elasticsearch.core.Set.of(
             FixedAutoscalingDeciderService.STORAGE.getKey(),
             FixedAutoscalingDeciderService.MEMORY.getKey(),
             FixedAutoscalingDeciderService.NODES.getKey()
@@ -396,7 +390,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             randomAlphaOfLength(8),
             randomRoles(),
             new TreeMap<>(
-                org.elasticsearch.common.collect.Map.of(
+                org.elasticsearch.core.Map.of(
                     FixedAutoscalingDeciderService.NAME,
                     Settings.builder().put(badSettingName, randomAlphaOfLength(1)).build()
                 )
@@ -411,14 +405,14 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
 
     public void testValidateSettingValue() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
-            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+            org.elasticsearch.core.Set.of(new FixedAutoscalingDeciderService())
         );
         String value = randomValueOtherThanMany(s -> Character.isDigit(s.charAt(0)), () -> randomAlphaOfLength(5));
         AutoscalingPolicy policy = new AutoscalingPolicy(
             randomAlphaOfLength(8),
             randomRoles(),
             new TreeMap<>(
-                org.elasticsearch.common.collect.Map.of(
+                org.elasticsearch.core.Map.of(
                     FixedAutoscalingDeciderService.NAME,
                     Settings.builder().put(FixedAutoscalingDeciderService.STORAGE.getKey(), value).build()
                 )

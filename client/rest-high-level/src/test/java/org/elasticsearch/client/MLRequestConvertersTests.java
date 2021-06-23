@@ -62,6 +62,7 @@ import org.elasticsearch.client.ml.PutFilterRequest;
 import org.elasticsearch.client.ml.PutJobRequest;
 import org.elasticsearch.client.ml.PutTrainedModelAliasRequest;
 import org.elasticsearch.client.ml.PutTrainedModelRequest;
+import org.elasticsearch.client.ml.ResetJobRequest;
 import org.elasticsearch.client.ml.RevertModelSnapshotRequest;
 import org.elasticsearch.client.ml.SetUpgradeModeRequest;
 import org.elasticsearch.client.ml.StartDataFrameAnalyticsRequest;
@@ -98,7 +99,7 @@ import org.elasticsearch.client.ml.job.config.MlFilter;
 import org.elasticsearch.client.ml.job.config.MlFilterTests;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -247,6 +248,21 @@ public class MLRequestConvertersTests extends ESTestCase {
         deleteJobRequest = new DeleteJobRequest(jobId);
         deleteJobRequest.setWaitForCompletion(false);
         request = MLRequestConverters.deleteJob(deleteJobRequest);
+        assertEquals(Boolean.toString(false), request.getParameters().get("wait_for_completion"));
+    }
+
+    public void testResetJob() {
+        String jobId = randomAlphaOfLength(10);
+        ResetJobRequest resetJobRequest = new ResetJobRequest(jobId);
+
+        Request request = MLRequestConverters.resetJob(resetJobRequest);
+        assertEquals(HttpPost.METHOD_NAME, request.getMethod());
+        assertEquals("/_ml/anomaly_detectors/" + jobId + "/_reset", request.getEndpoint());
+        assertNull(request.getParameters().get("wait_for_completion"));
+
+        resetJobRequest = new ResetJobRequest(jobId);
+        resetJobRequest.setWaitForCompletion(false);
+        request = MLRequestConverters.resetJob(resetJobRequest);
         assertEquals(Boolean.toString(false), request.getParameters().get("wait_for_completion"));
     }
 

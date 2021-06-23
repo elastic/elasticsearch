@@ -10,7 +10,6 @@ package org.elasticsearch.repositories.blobstore.testkit;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -24,6 +23,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
@@ -72,11 +73,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return org.elasticsearch.common.collect.List.of(
-            TestPlugin.class,
-            LocalStateCompositeXPackPlugin.class,
-            SnapshotRepositoryTestKit.class
-        );
+        return List.of(TestPlugin.class, LocalStateCompositeXPackPlugin.class, SnapshotRepositoryTestKit.class);
     }
 
     @Before
@@ -311,7 +308,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             BigArrays bigArrays,
             RecoverySettings recoverySettings
         ) {
-            return org.elasticsearch.common.collect.Map.of(
+            return org.elasticsearch.core.Map.of(
                 DISRUPTABLE_REPO_TYPE,
                 metadata -> new DisruptableRepository(
                     metadata,

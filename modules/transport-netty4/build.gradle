@@ -122,8 +122,6 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSL',
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
-    'io.netty.internal.tcnative.SSLSession',
-    'io.netty.internal.tcnative.SSLSessionCache',
 
     // from io.netty.handler.ssl.util.BouncyCastleSelfSignedCertGenerator (netty)
     'org.bouncycastle.cert.X509v3CertificateBuilder',
@@ -217,4 +215,15 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.util.internal.shaded.org.jctools.util.UnsafeRefArrayAccess',
     'io.netty.handler.ssl.util.OpenJdkSelfSignedCertGenerator'
   )
+}
+
+tasks.named('splitPackagesAudit').configure {
+  // transport is owned by server, these should be renamed to netty specific
+  ignoreClasses 'org.elasticsearch.transport.CopyBytesServerSocketChannel',
+    'org.elasticsearch.transport.CopyBytesSocketChannel',
+    'org.elasticsearch.transport.Netty4NioSocketChannel',
+    'org.elasticsearch.transport.Netty4Plugin',
+    'org.elasticsearch.transport.NettyAllocator',
+    'org.elasticsearch.transport.NettyByteBufSizer',
+    'org.elasticsearch.transport.SharedGroupFactory'
 }

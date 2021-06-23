@@ -26,7 +26,9 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.license.XPackLicenseState;
@@ -40,9 +42,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
-import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotAllocator;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.searchablesnapshots.allocation.SearchableSnapshotAllocator;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,8 +57,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.getDataTiersPreference;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 /**
  * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
@@ -68,7 +69,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     MountSearchableSnapshotRequest,
     RestoreSnapshotResponse> {
 
-    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = org.elasticsearch.common.collect.List.of(
+    private static final Collection<Setting<String>> DATA_TIER_ALLOCATION_SETTINGS = List.of(
         DataTierAllocationDecider.INDEX_ROUTING_EXCLUDE_SETTING,
         DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING,
         DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING,
@@ -229,10 +230,11 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
                 }
             }
 
-            Settings indexSettings = Settings.builder()
+            final Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0) // can be overridden
                 .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, false) // can be overridden
-                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, getDataTiersPreference(request.storage()))
+                .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false) // can be overridden
+                .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, request.storage().defaultDataTiersPreference())
                 .put(request.indexSettings())
                 .put(
                     buildIndexSettings(

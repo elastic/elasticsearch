@@ -31,14 +31,6 @@ You assign variables to each part of the data to construct a successful
 dissect pattern. Remember, tell dissect _exactly_ what you want you want to
 match on.
 
-
-[NOTE]
-====
-ASDLKJASLDKF
-
-ASDFLKJA;SLDrF
-====
-
 The first part of the data looks like an IP address, so you
 can assign a variable like `%{clientip}`. The next two characters are dashes
 with a space on either side. You can assign a variable for each dash, or a

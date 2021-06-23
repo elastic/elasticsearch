@@ -72,7 +72,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MappingLookup mappingLookup = createMappingLookup(org.elasticsearch.common.collect.List.of(new KeywordFieldType("field")));
+        MappingLookup mappingLookup = createMappingLookup(org.elasticsearch.core.List.of(new KeywordFieldType("field")));
         ScriptService scriptService = mock(ScriptService.class);
 
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -179,7 +179,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
 
     public void testDLSWithLimitedPermissions() throws Exception {
         ShardId shardId = new ShardId("_index", "_na_", 0);
-        MappingLookup mappingLookup = createMappingLookup(org.elasticsearch.common.collect.List.of(
+        MappingLookup mappingLookup = createMappingLookup(org.elasticsearch.core.List.of(
             new KeywordFieldType("field"),
             new KeywordFieldType("f1"),
             new KeywordFieldType("f2"))

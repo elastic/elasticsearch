@@ -30,7 +30,8 @@ public class GeoIpTaskStateSerializationTests extends AbstractSerializingTestCas
         GeoIpTaskState state = GeoIpTaskState.EMPTY;
         int databaseCount = randomInt(20);
         for (int i = 0; i < databaseCount; i++) {
-            GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(randomLong(), randomInt(), randomInt(), randomAlphaOfLength(32));
+            GeoIpTaskState.Metadata metadata = new GeoIpTaskState.Metadata(randomLong(), randomInt(), randomInt(),
+                randomAlphaOfLength(32), randomLong());
             state = state.put(randomAlphaOfLengthBetween(5, 10), metadata);
         }
         return state;

@@ -21,7 +21,9 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -84,7 +86,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMappingForName() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("mapping", org.elasticsearch.common.collect.Map.of(
+        templateDef.put("mapping", org.elasticsearch.core.Map.of(
             "field1_{name}", "{dynamic_type}", "test", Collections.singletonList("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
@@ -95,7 +97,7 @@ public class DynamicTemplateTests extends ESTestCase {
     public void testMappingForNameRuntime() throws IOException {
         Map<String, Object> templateDef = new HashMap<>();
         templateDef.put("match_mapping_type", "string");
-        templateDef.put("runtime", org.elasticsearch.common.collect.Map.of(
+        templateDef.put("runtime", org.elasticsearch.core.Map.of(
             "field1_{name}", "{dynamic_type}", "test", Collections.singletonList("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
@@ -214,13 +216,38 @@ public class DynamicTemplateTests extends ESTestCase {
     }
 
     public void testMatchTypeTemplateRuntime() {
-        Map<String, Object> templateDef = new HashMap<>();
-        templateDef.put("match_mapping_type", "string");
-        templateDef.put("runtime", Collections.emptyMap());
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
-        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.isRuntimeMapping());
+        List<XContentFieldType> runtimeFieldTypes =
+            Arrays.stream(XContentFieldType.values()).filter(XContentFieldType::supportsRuntimeField).collect(Collectors.toList());
+        for (XContentFieldType runtimeFieldType : runtimeFieldTypes) {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match_mapping_type", runtimeFieldType.name().toLowerCase(Locale.ROOT));
+            templateDef.put("runtime", Collections.emptyMap());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef, Version.CURRENT);
+            assertTrue(template.isRuntimeMapping());
+            for (XContentFieldType xContentFieldType : XContentFieldType.values()) {
+                if (xContentFieldType == runtimeFieldType) {
+                    assertTrue(template.match(null, "a.b", "b", xContentFieldType));
+                } else {
+                    assertFalse(template.match(null, "a.b", "b", xContentFieldType));
+                }
+            }
+        }
+    }
+
+    public void testMatchTypeTemplateRuntimeUnsupported() {
+        List<XContentFieldType> xContentFieldTypes = Arrays.stream(XContentFieldType.values())
+            .filter(xContentFieldType -> xContentFieldType.supportsRuntimeField() == false).collect(Collectors.toList());
+        for (XContentFieldType xContentFieldType : xContentFieldTypes) {
+            String fieldType = xContentFieldType.name().toLowerCase(Locale.ROOT);
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match_mapping_type", fieldType);
+            templateDef.put("runtime", Collections.emptyMap());
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef,
+                Version.CURRENT));
+            assertEquals("Dynamic template [my_template] defines a runtime field but type [" +
+                    fieldType + "] is not supported as runtime field",
+                e.getMessage());
+        }
     }
 
     public void testSupportedMatchMappingTypesRuntime() {

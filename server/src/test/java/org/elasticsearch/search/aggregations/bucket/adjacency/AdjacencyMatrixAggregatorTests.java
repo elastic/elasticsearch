@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.bucket.adjacency;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.List;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -54,20 +55,20 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
     public void testNoFilters() throws IOException {
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder(
             "dummy",
-            org.elasticsearch.common.collect.Map.of()
+            org.elasticsearch.core.Map.of()
         );
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> iw.addDocument(org.elasticsearch.common.collect.List.of()), r -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> iw.addDocument(List.of()), r -> {
             InternalAdjacencyMatrix result = (InternalAdjacencyMatrix) r;
-            assertThat(result.getBuckets(), equalTo(org.elasticsearch.common.collect.List.of()));
+            assertThat(result.getBuckets(), equalTo(List.of()));
         });
     }
 
     public void testAFewFilters() throws IOException {
         AdjacencyMatrixAggregationBuilder aggregationBuilder = new AdjacencyMatrixAggregationBuilder(
             "dummy",
-            org.elasticsearch.common.collect.Map.of("a", new MatchAllQueryBuilder(), "b", new MatchAllQueryBuilder())
+            org.elasticsearch.core.Map.of("a", new MatchAllQueryBuilder(), "b", new MatchAllQueryBuilder())
         );
-        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> iw.addDocument(org.elasticsearch.common.collect.List.of()), r -> {
+        testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> iw.addDocument(List.of()), r -> {
             InternalAdjacencyMatrix result = (InternalAdjacencyMatrix) r;
             assertThat(result.getBuckets(), hasSize(3));
             InternalAdjacencyMatrix.InternalBucket a = result.getBucketByKey("a");

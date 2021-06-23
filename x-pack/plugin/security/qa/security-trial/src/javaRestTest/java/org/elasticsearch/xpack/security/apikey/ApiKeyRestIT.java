@@ -13,7 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.XContentTestUtils;
@@ -122,10 +122,10 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Request request = new Request("POST", "_security/api_key/grant");
         request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(SYSTEM_USER, SYSTEM_USER_PASSWORD)));
-        final Map<String, Object> requestBody = org.elasticsearch.common.collect.Map.ofEntries(
-            org.elasticsearch.common.collect.Map.entry("grant_type", "password"),
-            org.elasticsearch.common.collect.Map.entry("username", END_USER),
-            org.elasticsearch.common.collect.Map.entry("password", END_USER_PASSWORD.toString())
+        final Map<String, Object> requestBody = org.elasticsearch.core.Map.ofEntries(
+            org.elasticsearch.core.Map.entry("grant_type", "password"),
+            org.elasticsearch.core.Map.entry("username", END_USER),
+            org.elasticsearch.core.Map.entry("password", END_USER_PASSWORD.toString())
         );
         request.setJsonEntity(XContentTestUtils.convertToXContent(requestBody, XContentType.JSON).utf8ToString());
 

@@ -164,7 +164,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                     Map<String, Object> indexRuntimeMappings = runtimeMappings.computeIfAbsent(index.index(), i -> new HashMap<>());
                     Set<String> indexMappedfields = mappedFields.computeIfAbsent(
                         index.index(),
-                        i -> org.elasticsearch.common.collect.Set.of()
+                        i -> org.elasticsearch.core.Set.of()
                     );
                     for (Map.Entry<String, Object> e : map.entrySet()) {
                         String name = e.getKey();
@@ -212,7 +212,9 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                             // Try the next one
                         }
                         // Strings are funny, the regular dynamic mapping puts them in "name.keyword" so we follow along.
-                        indexRuntimeMappings.put(name + ".keyword", runtimeFieldLoadingFromSource("keyword"));
+                        Map<String, Object> keyword = new HashMap<>(runtimeFieldLoadingFromSource("keyword"));
+                        keyword.put("script", "emit(params._source." + name + ");");
+                        indexRuntimeMappings.put(name + ".keyword", keyword);
                     }
                     return true;
                 }

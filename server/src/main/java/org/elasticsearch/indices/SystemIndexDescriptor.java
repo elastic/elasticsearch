@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,7 +43,7 @@ import static java.util.Collections.unmodifiableList;
  * indices that are managed internally to Elasticsearch, a descriptor can also include information for
  * creating the system index, upgrading its mappings, and creating an alias.
  */
-public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> {
+public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<SystemIndexDescriptor> {
     /** A pattern, either with a wildcard or simple regex. Indices that match one of these patterns are considered system indices. */
     private final String indexPattern;
 
@@ -104,6 +105,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
     private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
 
     /**
+     * The thread pools that actions will use to operate on this descriptor's system indices
+     */
+    private final ExecutorNames executorNames;
+
+    /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
@@ -111,7 +117,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
         this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME,
-            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_UNMANAGED, emptyList(), emptyList());
+            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_UNMANAGED, emptyList(), emptyList(), null);
     }
 
     /**
@@ -125,7 +131,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
         this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME,
-            Version.CURRENT.minimumCompatibilityVersion(), type, allowedElasticProductOrigins, emptyList());
+            Version.CURRENT.minimumCompatibilityVersion(), type, allowedElasticProductOrigins, emptyList(), null);
     }
 
     /**
@@ -164,7 +170,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
-        List<SystemIndexDescriptor> priorSystemIndexDescriptors
+        List<SystemIndexDescriptor> priorSystemIndexDescriptors,
+        ExecutorNames executorNames
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -259,6 +266,18 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             }
         }
 
+        if (Objects.nonNull(executorNames)) {
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForGet()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForSearch()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+            if (ThreadPool.THREAD_POOL_TYPES.containsKey(executorNames.threadPoolForWrite()) == false) {
+                throw new IllegalArgumentException(executorNames.threadPoolForGet() + " is not a valid thread pool");
+            }
+        }
+
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
@@ -298,12 +317,16 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             sortedPriorSystemIndexDescriptors = unmodifiableList(copy);
         }
         this.priorSystemIndexDescriptors = sortedPriorSystemIndexDescriptors;
+        this.executorNames = Objects.nonNull(executorNames)
+            ? executorNames
+            : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
     }
 
 
     /**
      * @return The pattern of index names that this descriptor will be used for.
      */
+    @Override
     public String getIndexPattern() {
         return indexPattern;
     }
@@ -334,6 +357,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
      * @param metadata The current metadata to get the list of matching indices from
      * @return A list of index names that match this descriptor
      */
+    @Override
     public List<String> getMatchingIndices(Metadata metadata) {
         ArrayList<String> matchingIndices = new ArrayList<>();
         metadata.indices().keysIt().forEachRemaining(indexName -> {
@@ -456,6 +480,14 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         return null;
     }
 
+    /**
+     * @return The names of thread pools that should be used for operations on this
+     *    system index.
+     */
+    public ExecutorNames getThreadPoolNames() {
+        return this.executorNames;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -524,6 +556,7 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         private Type type = Type.INTERNAL_MANAGED;
         private List<String> allowedElasticProductOrigins = emptyList();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = emptyList();
+        private ExecutorNames executorNames;
 
         private Builder() {}
 
@@ -607,6 +640,11 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
             return this;
         }
 
+        public Builder setThreadPools(ExecutorNames executorNames) {
+            this.executorNames = executorNames;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -627,7 +665,8 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
                 minimumNodeVersion,
                 type,
                 allowedElasticProductOrigins,
-                priorSystemIndexDescriptors
+                priorSystemIndexDescriptors,
+                executorNames
             );
         }
     }
@@ -714,4 +753,5 @@ public class SystemIndexDescriptor implements Comparable<SystemIndexDescriptor> 
         }
         return Version.fromString(value);
     }
+
 }

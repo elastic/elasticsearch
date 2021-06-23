@@ -13,7 +13,7 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -72,7 +72,7 @@ public class FileTokensToolTests extends CommandTestCase {
         Files.createDirectories(confDir);
         hasher = getFastStoredHashAlgoForTests();
 
-        Files.write(confDir.resolve("service_tokens"), org.elasticsearch.common.collect.List.of(
+        Files.write(confDir.resolve("service_tokens"), org.elasticsearch.core.List.of(
             "elastic/fleet-server/server_1:" + new String(hasher.hash(token1)),
             "elastic/fleet-server/server_2:" + new String(hasher.hash(token2)),
             "elastic/fleet-server/server_3:" + new String(hasher.hash(token3))
@@ -131,22 +131,22 @@ public class FileTokensToolTests extends CommandTestCase {
         final String tokenName1 = randomAlphaOfLengthBetween(3, 8);
         final ServiceAccountTokenId accountTokenId =
             FileTokensTool.parsePrincipalAndTokenName(
-                org.elasticsearch.common.collect.List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
+                org.elasticsearch.core.List.of("elastic/fleet-server", tokenName1), Settings.EMPTY);
         assertEquals("elastic/fleet-server", accountTokenId.getAccountId().asPrincipal());
         assertEquals(tokenName1, accountTokenId.getTokenName());
 
         final UserException e2 = expectThrows(UserException.class,
             () -> FileTokensTool.parsePrincipalAndTokenName(
-                org.elasticsearch.common.collect.List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
+                org.elasticsearch.core.List.of(randomAlphaOfLengthBetween(6, 16)), Settings.EMPTY));
         assertThat(e2.getMessage(), containsString("Missing token-name argument"));
 
         final UserException e3 = expectThrows(UserException.class,
-            () -> FileTokensTool.parsePrincipalAndTokenName(org.elasticsearch.common.collect.List.of(), Settings.EMPTY));
+            () -> FileTokensTool.parsePrincipalAndTokenName(org.elasticsearch.core.List.of(), Settings.EMPTY));
         assertThat(e3.getMessage(), containsString("Missing service-account-principal and token-name arguments"));
 
         final UserException e4 = expectThrows(UserException.class,
             () -> FileTokensTool.parsePrincipalAndTokenName(
-                org.elasticsearch.common.collect.List.of(randomAlphaOfLengthBetween(6, 16),
+                org.elasticsearch.core.List.of(randomAlphaOfLengthBetween(6, 16),
                     randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
                 Settings.EMPTY));
         assertThat(e4.getMessage(), containsString(

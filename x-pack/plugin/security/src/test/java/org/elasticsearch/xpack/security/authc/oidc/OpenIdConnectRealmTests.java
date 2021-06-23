@@ -12,7 +12,7 @@ import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.openid.connect.sdk.Nonce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -116,13 +116,13 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
-        Map<String, Object> claimsWithObject = org.elasticsearch.common.collect.Map.of(
-            "groups", org.elasticsearch.common.collect.List.of(
-                org.elasticsearch.common.collect.Map.of("key1", org.elasticsearch.common.collect.List.of("value1", "value2")),
-                org.elasticsearch.common.collect.Map.of("key2", org.elasticsearch.common.collect.List.of("value1", "value2")))
+        Map<String, Object> claimsWithObject = org.elasticsearch.core.Map.of(
+            "groups", org.elasticsearch.core.List.of(
+                org.elasticsearch.core.Map.of("key1", org.elasticsearch.core.List.of("value1", "value2")),
+                org.elasticsearch.core.Map.of("key2", org.elasticsearch.core.List.of("value1", "value2")))
         );
-        Map<String, Object> claimsWithNumber = org.elasticsearch.common.collect.Map.of(
-            "groups", org.elasticsearch.common.collect.List.of(2, "value2"));
+        Map<String, Object> claimsWithNumber = org.elasticsearch.core.Map.of(
+            "groups", org.elasticsearch.core.List.of(2, "value2"));
         Exception e = expectThrows(Exception.class, () -> authenticateWithOidc(principal, roleMapper, false, false,
             REALM_NAME, claimsWithObject));
         Exception e2 = expectThrows(Exception.class, () -> authenticateWithOidc(principal, roleMapper, false, false,
@@ -142,17 +142,17 @@ public class OpenIdConnectRealmTests extends OpenIdConnectTestCase {
             listener.onResponse(new HashSet<>(Arrays.asList("kibana_user", "role1")));
             return null;
         }).when(roleMapper).resolveRoles(any(UserRoleMapper.UserData.class), any(ActionListener.class));
-        Map<String, Object> claims = org.elasticsearch.common.collect.Map.of(
+        Map<String, Object> claims = org.elasticsearch.core.Map.of(
             "string", "String",
             "number", 232,
             "boolean", true,
-            "string_array", org.elasticsearch.common.collect.List.of("one", "two", "three"),
-            "number_array", org.elasticsearch.common.collect.List.of(1, 2, 3),
-            "boolean_array", org.elasticsearch.common.collect.List.of(true, false, true),
-            "object", org.elasticsearch.common.collect.Map.of("key", org.elasticsearch.common.collect.List.of("value1", "value2")),
-            "object_array", org.elasticsearch.common.collect.List.of(
-                org.elasticsearch.common.collect.Map.of("key1", org.elasticsearch.common.collect.List.of("value1", "value2")),
-                org.elasticsearch.common.collect.Map.of("key2", org.elasticsearch.common.collect.List.of("value1", "value2")))
+            "string_array", org.elasticsearch.core.List.of("one", "two", "three"),
+            "number_array", org.elasticsearch.core.List.of(1, 2, 3),
+            "boolean_array", org.elasticsearch.core.List.of(true, false, true),
+            "object", org.elasticsearch.core.Map.of("key", org.elasticsearch.core.List.of("value1", "value2")),
+            "object_array", org.elasticsearch.core.List.of(
+                org.elasticsearch.core.Map.of("key1", org.elasticsearch.core.List.of("value1", "value2")),
+                org.elasticsearch.core.Map.of("key2", org.elasticsearch.core.List.of("value1", "value2")))
         );
         AuthenticationResult result = authenticateWithOidc(principal, roleMapper, false, false, REALM_NAME, claims);
         assertThat(result, notNullValue());

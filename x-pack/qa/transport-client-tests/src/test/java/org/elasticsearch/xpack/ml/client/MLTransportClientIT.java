@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.client;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.ESXPackSmokeClientTestCase;
 import org.elasticsearch.xpack.core.XPackClient;

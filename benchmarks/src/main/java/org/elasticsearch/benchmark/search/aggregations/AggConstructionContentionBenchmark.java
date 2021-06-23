@@ -15,12 +15,12 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -68,9 +68,9 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
@@ -88,7 +88,7 @@ import java.util.function.Function;
 @State(Scope.Benchmark)
 @Threads(Threads.MAX)
 public class AggConstructionContentionBenchmark {
-    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.common.collect.List.of());
+    private final SearchModule searchModule = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of());
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
     private final PageCacheRecycler recycler = new PageCacheRecycler(Settings.EMPTY);
     private final Index index = new Index("test", "uuid");
@@ -109,19 +109,11 @@ public class AggConstructionContentionBenchmark {
     public void setup() {
         switch (breaker) {
             case "real":
-                breakerService = new HierarchyCircuitBreakerService(
-                    Settings.EMPTY,
-                    org.elasticsearch.common.collect.List.of(),
-                    clusterSettings
-                );
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, org.elasticsearch.core.List.of(), clusterSettings);
                 break;
             case "preallocate":
                 preallocateBreaker = true;
-                breakerService = new HierarchyCircuitBreakerService(
-                    Settings.EMPTY,
-                    org.elasticsearch.common.collect.List.of(),
-                    clusterSettings
-                );
+                breakerService = new HierarchyCircuitBreakerService(Settings.EMPTY, org.elasticsearch.core.List.of(), clusterSettings);
                 break;
             case "noop":
                 breakerService = new NoneCircuitBreakerService();
@@ -222,7 +214,7 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
-        public Collection<MappedFieldType> getMatchingFieldTypes(String pattern) {
+        public Set<String> getMatchingFieldNames(String pattern) {
             throw new UnsupportedOperationException();
         }
 
@@ -344,6 +336,11 @@ public class AggConstructionContentionBenchmark {
         @Override
         public Version indexVersionCreated() {
             return Version.CURRENT;
+        }
+
+        @Override
+        public boolean enableRewriteToFilterByFilter() {
+            return true;
         }
 
         @Override

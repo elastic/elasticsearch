@@ -38,17 +38,17 @@ import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
-import org.elasticsearch.bootstrap.JavaVersion;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.CheckedRunnable;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.io.PathUtilsForTesting;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -415,7 +415,7 @@ public abstract class ESTestCase extends LuceneTestCase {
                 // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
                 final List<String> filteredWarnings = warnings
                     .stream()
-                    .filter(k -> filteredWarnings().stream().anyMatch(s -> s.contains(k)))
+                    .filter(k -> filteredWarnings().stream().noneMatch(s -> k.contains(s)))
                     .collect(Collectors.toList());
                 assertThat("unexpected warning headers", filteredWarnings, empty());
             } else {
@@ -428,7 +428,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     protected List<String> filteredWarnings() {
         List<String> filtered = new ArrayList<>();
-        if (enableJodaDeprecationWarningsCheck()) {
+        filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
+        filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
+        if (enableJodaDeprecationWarningsCheck() == false) {
             filtered.add(JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
         if (JvmInfo.jvmInfo().getBundledJdk() == false) {
@@ -878,11 +880,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
-    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
-        final int size = randomIntBetween(minListSize, maxListSize);
+    public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
+        final int size = randomIntBetween(minMapSize, maxMapSize);
         Map<K, V> list = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Tuple<K, V> entry = valueConstructor.get();
+            Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;
@@ -911,6 +913,13 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static DateTimeZone randomDateTimeZone() {
         return DateTimeZone.forID(randomFrom(JODA_TIMEZONE_IDS));
+    }
+
+    /**
+     * generate a random epoch millis in a range 1 to 9999-12-31T23:59:59.999
+     */
+    public long randomMillisUpToYear9999() {
+        return randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
     }
 
     /**

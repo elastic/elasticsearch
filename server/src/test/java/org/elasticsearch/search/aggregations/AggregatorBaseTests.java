@@ -15,6 +15,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.List;
+import org.elasticsearch.core.Map;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -42,7 +44,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
                 context,
                 parent,
                 CardinalityUpperBound.NONE,
-                org.elasticsearch.common.collect.Map.of()
+                Map.of()
             );
         }
 
@@ -102,7 +104,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
 
     public void testShortcutIsApplicable() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
-        withAggregationContext(mapperService, org.elasticsearch.common.collect.List.of(source(b -> b.field("field", "abc"))), context -> {
+        withAggregationContext(mapperService, List.of(source(b -> b.field("field", "abc"))), context -> {
             for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
                 assertNotNull(
                     pointReaderShim(context(new MatchAllDocsQuery()), null, getVSConfig("number", type, true, context))

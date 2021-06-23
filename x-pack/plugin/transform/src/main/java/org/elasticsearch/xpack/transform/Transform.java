@@ -36,11 +36,12 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry.Entry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -424,8 +425,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         }
     }
 
-    @Override public Collection<String> getAssociatedIndexPatterns() {
-        return org.elasticsearch.common.collect.List.of(AUDIT_INDEX_PATTERN);
+    @Override public Collection<AssociatedIndexDescriptor> getAssociatedIndexDescriptors() {
+        return Collections.singletonList(new AssociatedIndexDescriptor(AUDIT_INDEX_PATTERN, "Audit index"));
     }
 
     @Override

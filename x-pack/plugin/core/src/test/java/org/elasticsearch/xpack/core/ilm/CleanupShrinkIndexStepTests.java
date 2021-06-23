@@ -89,7 +89,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         String indexName = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String shrinkIndexName = generateValidIndexName("shrink-", indexName);
-        Map<String, String> ilmCustom = org.elasticsearch.common.collect.Map.of("shrink_index_name", shrinkIndexName);
+        Map<String, String> ilmCustom = org.elasticsearch.core.Map.of("shrink_index_name", shrinkIndexName);
 
         IndexMetadata.Builder indexMetadataBuilder =
             IndexMetadata.builder(indexName).settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -118,7 +118,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
         String sourceIndex = randomAlphaOfLength(10);
         String policyName = "test-ilm-policy";
         String shrinkIndexName = generateValidIndexName("shrink-", sourceIndex);
-        Map<String, String> ilmCustom = org.elasticsearch.common.collect.Map.of("shrink_index_name", shrinkIndexName);
+        Map<String, String> ilmCustom = org.elasticsearch.core.Map.of("shrink_index_name", shrinkIndexName);
 
         IndexMetadata.Builder shrunkIndexMetadataBuilder = IndexMetadata.builder(shrinkIndexName)
             .settings(

@@ -44,7 +44,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -1686,7 +1686,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
 
         // data streams and their backing indices should _not_ be in the authorized list since the backing indices
         // do not match the requested pattern
-        List<String> dataStreams = org.elasticsearch.common.collect.List.of("logs-foo", "logs-foobar");
+        List<String> dataStreams = org.elasticsearch.core.List.of("logs-foo", "logs-foobar");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, GetAliasesAction.NAME, request);
         for (String dsName : dataStreams) {
             assertThat(authorizedIndices, hasItem(dsName));
@@ -1752,7 +1752,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.includeDataStreams(), is(true));
 
         // data streams and their backing indices should be in the authorized list
-        List<String> expectedDataStreams = org.elasticsearch.common.collect.List.of("logs-foo", "logs-foobar");
+        List<String> expectedDataStreams = org.elasticsearch.core.List.of("logs-foo", "logs-foobar");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, request);
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = metadata.dataStreams().get(dsName);
@@ -1821,7 +1821,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         assertThat(request.includeDataStreams(), is(true));
 
         // data streams and their backing indices should be included in the authorized list
-        List<String> expectedDataStreams = org.elasticsearch.common.collect.List.of("logs-foo", "logs-foobar");
+        List<String> expectedDataStreams = org.elasticsearch.core.List.of("logs-foo", "logs-foobar");
         final Set<String> authorizedIndices = buildAuthorizedIndices(user, SearchAction.NAME, request);
         for (String dsName : expectedDataStreams) {
             DataStream dataStream = metadata.dataStreams().get(dsName);

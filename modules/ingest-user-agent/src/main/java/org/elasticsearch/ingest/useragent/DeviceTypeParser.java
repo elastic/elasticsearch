@@ -35,7 +35,7 @@ public class DeviceTypeParser {
     private static final String AGENT_STRING_PARSER = "agent_string_parsers";
     private static final String robot = "Robot", tablet = "Tablet", desktop = "Desktop", phone = "Phone";
 
-    private final List<String> patternListKeys = org.elasticsearch.common.collect.List.of(
+    private final List<String> patternListKeys = org.elasticsearch.core.List.of(
         OS_PARSERS, BROWSER_PARSER, DEVICE_PARSER, AGENT_STRING_PARSER
     );
 

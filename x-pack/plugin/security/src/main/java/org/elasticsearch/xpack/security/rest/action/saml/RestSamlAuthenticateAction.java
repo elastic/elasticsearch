@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.security.rest.action.saml;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -71,7 +71,7 @@ public class RestSamlAuthenticateAction extends SamlBaseRestHandler implements R
 
     @Override
     public List<Route> routes() {
-        return org.elasticsearch.common.collect.List.of(
+        return org.elasticsearch.core.List.of(
             Route.builder(POST, "/_security/saml/authenticate")
                 .replaces(POST, "/_xpack/security/saml/authenticate", RestApiVersion.V_7).build()
         );

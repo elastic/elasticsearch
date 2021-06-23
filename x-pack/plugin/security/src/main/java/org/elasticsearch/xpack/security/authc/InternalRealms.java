@@ -110,7 +110,7 @@ public final class InternalRealms {
                 NativeRealmSettings.TYPE,
                 config -> {
                     final NativeRealm nativeRealm = new NativeRealm(config, nativeUsersStore, threadPool);
-                    securityIndex.addIndexStateListener(nativeRealm::onSecurityIndexStateChange);
+                    securityIndex.addStateListener(nativeRealm::onSecurityIndexStateChange);
                     return nativeRealm;
                 },
                 // active directory realm

@@ -44,7 +44,6 @@ public class BuildPlugin implements Plugin<Project> {
         project.getPluginManager().apply(DependenciesGraphPlugin.class);
 
         InternalPrecommitTasks.create(project, true);
-        project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
     }
 
     public static void configureLicenseAndNotice(final Project project) {

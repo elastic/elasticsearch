@@ -1,0 +1,51 @@
+--
+:api: reset-job 
+:request: ResetJobRequest
+:response: ResetJobResponse
+--
+[role="xpack"]
+[id="{upid}-{api}"]
+=== Reset {anomaly-jobs} API
+
+Resets an {anomaly-job} that exists in the cluster.
+
+[id="{upid}-{api}-request"]
+==== Reset {anomaly-jobs} request
+
+A +{request}+ object requires a non-null `jobId`.
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request]
+---------------------------------------------------
+<1> Constructing a new request referencing an existing `jobId`
+
+==== Optional arguments
+
+The following arguments are optional:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-request-wait-for-completion]
+---------------------------------------------------
+<1> Use to set whether the request should wait until the operation has completed
+before returning. Defaults to `true`.
+
+
+[id="{upid}-{api}-response"]
+==== Reset {anomaly-jobs} response
+
+The returned +{response}+ object indicates the acknowledgement of the job
+reset or the reset task depending on whether the request was set to wait
+for completion:
+
+["source","java",subs="attributes,callouts,macros"]
+---------------------------------------------------
+include-tagged::{doc-tests-file}[{api}-response]
+---------------------------------------------------
+<1> Whether job reset was acknowledged or not. It will be `null` when set
+to not wait for completion.
+<2> The ID of the job reset task. It will be `null` when set to wait for
+completion.
+
+include::../execution.asciidoc[]

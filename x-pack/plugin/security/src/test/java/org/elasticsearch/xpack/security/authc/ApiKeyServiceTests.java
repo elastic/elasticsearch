@@ -162,6 +162,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
     public void testCreateApiKeyWillUseBulkAction() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
@@ -399,7 +400,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
+        XContentBuilder docSource = service.newDocument(
+            getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),"test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT, metadata);
         if (invalidated) {
@@ -976,6 +978,25 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
     }
 
+    public void testCreationWillFailIfHashingThreadPoolIsSaturated() {
+        final EsRejectedExecutionException rejectedExecutionException = new EsRejectedExecutionException("rejected");
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(rejectedExecutionException);
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        final Authentication authentication = mock(Authentication.class);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), future);
+        final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        assertThat(e, is(rejectedExecutionException));
+    }
+
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
         final String apiKey1 = randomAlphaOfLength(16);
         final ApiKeyCredentials creds = new ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(apiKey1.toCharArray()));
@@ -1072,6 +1093,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
     public void testCreateApiKeyWillEnsureMetadataCompatibility() {
         when(securityIndex.getInstallableMappingVersion()).thenReturn(Version.V_7_12_0);
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
@@ -1130,7 +1152,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 List<RoleDescriptor> keyRoles,
                                                                 Version version) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(
-                new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
+                getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())), "test", authentication,
                 userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT,
                 randomBoolean() ? null : org.elasticsearch.core.Map.of(
                     randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));

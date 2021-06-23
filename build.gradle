@@ -345,7 +345,7 @@ tasks.named("wrapper").configure {
     println "Added checksum to wrapper properties"
     // Update build-tools to reflect the Gradle upgrade
     // TODO: we can remove this once we have tests to make sure older versions work.
-    project(':build-tools').file('src/main/resources/minimumGradleVersion').text = gradleVersion
+    project.file('build-tools-internal/src/main/resources/minimumGradleVersion').text = gradleVersion
     println "Updated minimum Gradle Version"
   }
 }

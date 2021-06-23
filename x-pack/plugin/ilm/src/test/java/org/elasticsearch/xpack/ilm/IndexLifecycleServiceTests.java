@@ -124,7 +124,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
         threadPool = new TestThreadPool("test");
         indexLifecycleService = new IndexLifecycleService(Settings.EMPTY, client, clusterService, threadPool,
-            clock, () -> now, null, null);
+            clock, () -> now, null, null, null);
         Mockito.verify(clusterService).addListener(indexLifecycleService);
         Mockito.verify(clusterService).addStateApplier(indexLifecycleService);
     }
@@ -461,7 +461,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testClusterChangedWaitsForTheStateToBeRecovered() {
         IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
-            systemUTC(), () -> now, null, null) {
+            systemUTC(), () -> now, null, null, null) {
 
             @Override
             void onMaster(ClusterState clusterState) {

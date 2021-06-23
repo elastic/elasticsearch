@@ -41,17 +41,12 @@ setup:
 
 ---
 "Get missing snapshot info throws an exception":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
+      catch: /snapshot_missing_exception.+ is missing/
       snapshot.get:
         repository: test_repo_get_1
         snapshot: test_nonexistent_snapshot
-
-  - is_true: failures.test_repo_get_1
-  - match: { failures.test_repo_get_1.type: snapshot_missing_exception }
 
 ---
 "Get missing snapshot info succeeds when ignore_unavailable is true":

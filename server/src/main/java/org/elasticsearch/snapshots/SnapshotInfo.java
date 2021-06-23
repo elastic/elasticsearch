@@ -456,7 +456,12 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
      * Constructs snapshot information from stream input
      */
     public static SnapshotInfo readFrom(final StreamInput in) throws IOException {
-        final Snapshot snapshot = new Snapshot(in);
+        final Snapshot snapshot;
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            snapshot = new Snapshot(in);
+        } else {
+            snapshot = new Snapshot("_unknown", new SnapshotId(in));
+        }
         final List<String> indices = in.readStringList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;
         final String reason = in.readOptionalString();
@@ -967,8 +972,11 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        // TODO: BWC
-        snapshot.writeTo(out);
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
+            snapshot.writeTo(out);
+        } else {
+            snapshot.getSnapshotId().writeTo(out);
+        }
         out.writeStringCollection(indices);
         if (state != null) {
             out.writeBoolean(true);

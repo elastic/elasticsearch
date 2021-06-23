@@ -2620,7 +2620,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::create-service-account-token-request
             CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
             // end::create-service-account-token-request
 
             // tag::create-service-account-token-execute
@@ -2632,7 +2632,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
             final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
             // end::create-service-account-token-response
-            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
             assertNotNull(tokenValue);
         }
 

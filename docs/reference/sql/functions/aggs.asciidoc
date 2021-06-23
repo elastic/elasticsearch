@@ -51,7 +51,7 @@ COUNT(expression) <1>
 
 <1> a field name, wildcard (`*`) or any numeric value. For `COUNT(*)` or
 `COUNT(<literal>)`, all values are considered, including `null` or missing
-ones). For `COUNT(<field_name>)`, `null` values are not considered.
+ones. For `COUNT(<field_name>)`, `null` values are not considered.
 
 *Output*: numeric value
 

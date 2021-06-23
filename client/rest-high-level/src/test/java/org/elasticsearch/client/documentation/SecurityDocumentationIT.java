@@ -130,6 +130,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -2619,7 +2620,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::create-service-account-token-request
             CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
             // end::create-service-account-token-request
 
             // tag::create-service-account-token-execute
@@ -2631,7 +2632,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
             final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
             // end::create-service-account-token-response
-            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
             assertNotNull(tokenValue);
         }
 
@@ -2749,9 +2750,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
-            assertThat(serviceTokenInfos.size(), equalTo(1));
-            assertThat(tokenName, equalTo("token2"));
-            assertThat(tokenSource, equalTo("index"));
+            // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
+            // token created from other tests
+            assertThat(serviceTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2783,8 +2786,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token2", "index")));
+            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2"));
         }
     }
 

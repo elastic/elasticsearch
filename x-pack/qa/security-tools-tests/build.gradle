@@ -18,6 +18,3 @@ tasks.named("forbiddenPatterns").configure {
   exclude '**/*.p12'
   exclude '**/*.der'
 }
-
-// these are just tests, no need to audit
-tasks.named("thirdPartyAudit").configure { enabled = false }

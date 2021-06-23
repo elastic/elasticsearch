@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.core.security.action.enrollment;
 
 import org.elasticsearch.action.ActionType;
 
-public final class NodeEnrollmentAction extends ActionType<NodeEnrollmentResponse> {
+public final class KibanaEnrollmentAction extends ActionType<KibanaEnrollmentResponse> {
 
-    public static final String NAME = "cluster:admin/xpack/security/enroll/node";
-    public static final NodeEnrollmentAction INSTANCE = new NodeEnrollmentAction();
+    public static final String NAME = "cluster:admin/xpack/security/enroll/kibana";
+    public static final KibanaEnrollmentAction INSTANCE = new KibanaEnrollmentAction();
 
-    private NodeEnrollmentAction() {
-        super(NAME, NodeEnrollmentResponse::new);
+    private KibanaEnrollmentAction() {
+        super(NAME, KibanaEnrollmentResponse::new);
     }
 }

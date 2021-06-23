@@ -36,16 +36,21 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndexClosedException;
+import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -56,10 +61,13 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 
 import java.time.ZoneId;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.StreamSupport;
 
@@ -79,6 +87,22 @@ import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        Set<Class<? extends Plugin>> plugins = new LinkedHashSet<>();
+        plugins.addAll(super.nodePlugins());
+        plugins.add(InternalSettingsPlugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), 10)
+            .put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true)
+            .build();
+    }
 
     public void testCreateAndRestorePartialSearchableSnapshot() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
@@ -512,7 +536,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             .get();
         assertSearchResponse(r1);
 
-        assertCacheState(client(), "index", 0, 1);
+        assertRequestCacheState(client(), "index", 0, 1);
 
         // The cached is actually used
         assertThat(client().admin().indices().prepareStats("index").setRequestCache(true).get().getTotal().getRequestCache()
@@ -524,7 +548,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
                     .timeZone(ZoneId.of("+01:00")).minDocCount(0).dateHistogramInterval(DateHistogramInterval.MONTH))
                 .get();
             assertSearchResponse(r2);
-            assertCacheState(client(), "index", i + 1, 1);
+            assertRequestCacheState(client(), "index", i + 1, 1);
             Histogram h1 = r1.getAggregations().get("histo");
             Histogram h2 = r2.getAggregations().get("histo");
             final List<? extends Histogram.Bucket> buckets1 = h1.getBuckets();
@@ -539,7 +563,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         }
     }
 
-    private static void assertCacheState(Client client, String index, long expectedHits, long expectedMisses) {
+    private static void assertRequestCacheState(Client client, String index, long expectedHits, long expectedMisses) {
         RequestCacheStats requestCacheStats = client.admin().indices().prepareStats(index)
             .setRequestCache(true)
             .get().getTotal().getRequestCache();
@@ -547,6 +571,74 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // correct we can see both values
         assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
             Arrays.asList(requestCacheStats.getHitCount(), requestCacheStats.getMissCount(), requestCacheStats.getEvictions()));
+    }
+
+    public void testQueryCacheOnFrozen() throws Exception {
+        assertAcked(client().admin().indices().prepareCreate("index")
+            .setMapping("f", "type=text")
+            .setSettings(Settings.builder()
+                .put(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING.getKey(), false)
+                .put(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.getKey(), true)
+                .put(IndexModule.INDEX_QUERY_CACHE_EVERYTHING_SETTING.getKey(), true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .get());
+        client().prepareIndex("index").setSource("f", "baz").get();
+        client().admin().indices().prepareRefresh("index").get();
+        ensureSearchable("index");
+
+        createRepository(
+            "repo",
+            "fs",
+            Settings.builder().put("location", randomRepoPath())
+        );
+
+        createFullSnapshot("repo", "snap");
+
+        assertAcked(client().admin().indices().prepareDelete("index"));
+
+        logger.info("--> restoring index [{}]", "index");
+
+        Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            "index",
+            "repo",
+            "snap",
+            "index",
+            indexSettingsBuilder.build(),
+            Strings.EMPTY_ARRAY,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureSearchable("index");
+
+        // the query cache has an "optimization" that disables it automatically if there is contention,
+        // so we run it in an assertBusy block which should eventually succeed
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index")
+                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get());
+            assertQueryCacheState(client(), "index", 0, 1);
+        });
+
+        assertBusy(() -> {
+            assertSearchResponse(client().prepareSearch("index")
+                .setQuery(QueryBuilders.constantScoreQuery(QueryBuilders.matchQuery("f", "baz"))).get());
+            assertQueryCacheState(client(), "index", 1, 1);
+        });
+    }
+
+    private static void assertQueryCacheState(Client client, String index, long expectedHits, long expectedMisses) {
+        QueryCacheStats queryCacheStats = client.admin().indices().prepareStats(index)
+            .setQueryCache(true)
+            .get().getTotal().getQueryCache();
+        // Check the hit count and miss count together so if they are not
+        // correct we can see both values
+        assertEquals(Arrays.asList(expectedHits, expectedMisses, 0L),
+            Arrays.asList(queryCacheStats.getHitCount(), queryCacheStats.getMissCount(), queryCacheStats.getEvictions()));
     }
 
 }

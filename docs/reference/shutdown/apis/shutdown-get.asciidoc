@@ -47,7 +47,7 @@ This API is only useful after a node has been registered for shutdown:
 
 [source,console]
 --------------------------------------------------
-PUT /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 {
   "type": "restart",
   "reason": "demonstrating how the node shutdown API works"
@@ -55,15 +55,15 @@ PUT /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
 // TEST[setup:node]
 // TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
-// TESTSETUP
 
 Once a node is in the process of shutting down, we can retrieve its status
 with this API:
 
 [source,console]
 --------------------------------------------------
-GET /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+GET /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
 --------------------------------------------------
+// TEST[continued]
 
 Which returns the following response:
 [source,console-result]

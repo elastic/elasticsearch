@@ -164,7 +164,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+        public MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
             return in.dynamicTemplateParserContext(dateFormatter);
         }
 
@@ -298,7 +298,7 @@ public abstract class ParseContext {
         private final MappingLookup mappingLookup;
         private final IndexSettings indexSettings;
         private final IndexAnalyzers indexAnalyzers;
-        private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
+        private final Function<DateFormatter, MappingParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
         private final Document document;
@@ -319,7 +319,7 @@ public abstract class ParseContext {
         public InternalParseContext(MappingLookup mappingLookup,
                                     IndexSettings indexSettings,
                                     IndexAnalyzers indexAnalyzers,
-                                    Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContext,
+                                    Function<DateFormatter, MappingParserContext> parserContext,
                                     SourceToParse source,
                                     XContentParser parser) {
             this.mappingLookup = mappingLookup;
@@ -336,7 +336,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
+        public MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter) {
             return parserContextFunction.apply(dateFormatter);
         }
 
@@ -548,7 +548,7 @@ public abstract class ParseContext {
      */
     public abstract Collection<String> getFieldNames();
 
-    public abstract Mapper.TypeParser.ParserContext dynamicTemplateParserContext(DateFormatter dateFormatter);
+    public abstract MappingParserContext dynamicTemplateParserContext(DateFormatter dateFormatter);
 
     /**
      * Return a new context that will be within a copy-to operation.

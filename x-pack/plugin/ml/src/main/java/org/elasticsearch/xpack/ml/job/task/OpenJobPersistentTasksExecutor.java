@@ -278,7 +278,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             listener::onFailure
         );
 
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singleton(jobId), datafeedListener);
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singleton(jobId), datafeedListener);
     }
 
     private void revertToCurrentSnapshot(String jobId, ActionListener<Boolean> listener) {

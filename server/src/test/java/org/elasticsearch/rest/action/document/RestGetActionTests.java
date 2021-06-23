@@ -44,7 +44,7 @@ public class RestGetActionTests extends RestActionTestCase {
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withPath("/some_index/some_type/some_id");
-        dispatchRequest(deprecatedRequest.withMethod(head).build());
+        dispatchRequest(deprecatedRequest.withMethod(method).build());
         assertWarnings(RestGetAction.TYPES_DEPRECATION_MESSAGE);
     }
 }

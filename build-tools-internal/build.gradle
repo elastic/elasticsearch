@@ -165,13 +165,13 @@ gradlePlugin {
  *         Java version                                                      *
  *****************************************************************************/
 
-if (JavaVersion.current() < JavaVersion.VERSION_11) {
-  throw new GradleException('At least Java 11 is required to build elasticsearch gradle tools')
-}
-
 def minCompilerJava = JavaVersion.toVersion(file('src/main/resources/minimumCompilerVersion').text)
 targetCompatibility = minCompilerJava
 sourceCompatibility = minCompilerJava
+
+if (JavaVersion.current() < JavaVersion.toVersion(minCompilerJava)) {
+  throw new GradleException("Java ${minCompilerJava} is required to build Elasticsearch but current Java is version ${JavaVersion.current()}.")
+}
 
 sourceSets {
   integTest {

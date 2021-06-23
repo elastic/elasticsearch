@@ -12,18 +12,14 @@ import org.apache.http.client.methods.HttpGet;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Validatable;
 
-/**
- * Retrieves information needed about configuration so that  new node can join a secured cluster
- */
-public final class NodeEnrollmentRequest implements Validatable {
+public final class KibanaEnrollmentRequest implements Validatable {
 
-    public static final NodeEnrollmentRequest INSTANCE = new NodeEnrollmentRequest();
-
-    private NodeEnrollmentRequest(){
-
+    public static final KibanaEnrollmentRequest INSTANCE = new KibanaEnrollmentRequest();
+    private KibanaEnrollmentRequest() {
     }
 
     public Request getRequest() {
-        return new Request(HttpGet.METHOD_NAME, "/_security/enroll/node");
+        return new Request(HttpGet.METHOD_NAME, "/_security/enroll/kibana");
     }
+
 }

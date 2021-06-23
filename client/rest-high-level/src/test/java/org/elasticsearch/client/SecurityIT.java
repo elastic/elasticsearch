@@ -34,6 +34,7 @@ import org.elasticsearch.client.security.user.privileges.GlobalPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivileges;
 import org.elasticsearch.client.security.user.privileges.IndicesPrivilegesTests;
 import org.elasticsearch.client.security.user.privileges.Role;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
@@ -206,6 +207,17 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));
         List<String> nodesAddresses = nodeEnrollmentResponse.getNodesAddresses();
         assertThat(nodesAddresses.size(), equalTo(1));
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testEnrollKibana() throws Exception {
+        KibanaEnrollmentResponse kibanaResponse =
+            execute(highLevelClient().security()::enrollKibana, highLevelClient().security()::enrollKibanaAsync, RequestOptions.DEFAULT);
+        assertThat(kibanaResponse, notNullValue());
+        assertThat(kibanaResponse.getHttpCa()
+            , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
+        assertNotNull(kibanaResponse.getPassword());
+        assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
     }
 
     private void deleteUser(User user) throws IOException {

@@ -8,27 +8,16 @@
 
 package org.elasticsearch.tools.launchers;
 
+import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
+
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileDescriptor;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
-import java.nio.channels.AsynchronousFileChannel;
-import java.nio.channels.FileChannel;
-import java.nio.channels.Selector;
 import java.nio.charset.Charset;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-import java.util.Random;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -36,6 +25,7 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 final class OutputBottomBanner {
 
+    @SuppressForbidden(reason = "System#out")
     public static void main(final String[] args) throws IOException {
         if (args.length != 2) {
             throw new IllegalArgumentException("expected two arguments, but provided " + Arrays.toString(args));
@@ -49,7 +39,7 @@ final class OutputBottomBanner {
             StringBuilder bannerBuilder = new StringBuilder();
             int lineCount = 0;
             // read banner from file using platform's charset
-            try (BufferedReader reader = new BufferedReader(new FileReader(bannerFileName))) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(bannerFileName, Charset.defaultCharset()))) {
                 while (true) {
                     String bannerLine;
                     while ((bannerLine = reader.readLine()) != null) {
@@ -90,7 +80,7 @@ final class OutputBottomBanner {
                     // this is reasonable because the assumption is that the input is a stream of lines
                     // so it only blocks for a short while
                     line = reader.readLine();
-                    System.out.printf("%s%n", line);
+                    System.out.printf(Locale.ROOT, "%s%n", line);
                 } else {
                     // avoid busy looping when no input lines and no banner
                     Thread.sleep(1000);
@@ -98,15 +88,15 @@ final class OutputBottomBanner {
             }
             Banner banner = bannerReference.get();
             // print banner
-            System.out.printf("%s%n", banner.banner);
+            System.out.printf(Locale.ROOT, "%s%n", banner.banner);
             // we can block indefinitely for input lines since the banner has already been printed
             while ((line = reader.readLine()) != null) {
                 // clear banner
-                System.out.printf("\u001b[%dF\u001b[J", banner.lineCount);
+                System.out.printf(Locale.ROOT, "\u001b[%dF\u001b[J", banner.lineCount);
                 // line overwrites banner
-                System.out.printf("%s%n", line);
+                System.out.printf(Locale.ROOT, "%s%n", line);
                 // append another banner
-                System.out.printf("%s%n", banner.banner);
+                System.out.printf(Locale.ROOT, "%s%n", banner.banner);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

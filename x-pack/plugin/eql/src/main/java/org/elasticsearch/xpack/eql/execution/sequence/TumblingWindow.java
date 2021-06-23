@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -57,6 +58,7 @@ import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLa
 public class TumblingWindow implements Executable {
 
     private static final int CACHE_MAX_SIZE = 64;
+    private static final short CB_BATCH_SIZE = 1024;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -89,7 +91,9 @@ public class TumblingWindow implements Executable {
     private boolean restartWindowFromTailQuery;
 
     private long startTime;
-    private long ramBytesUsed = 0;
+    private long totalRamBytesUsed = 0;
+    private long batchRamBytesUsed = 0;
+    private short iterations = 0;
 
     private static class WindowInfo {
         private final int baseStage;
@@ -637,13 +641,13 @@ public class TumblingWindow implements Executable {
     }
 
     private void addMemory(long bytes, CBLabel label) {
-        ramBytesUsed += bytes;
+        totalRamBytesUsed += bytes;
         circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label.toString());
     }
 
     private void clearCircuitBreaker() {
-        circuitBreaker.addWithoutBreaking(-ramBytesUsed);
-        ramBytesUsed = 0;
+        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
+        totalRamBytesUsed = 0;
     }
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
@@ -685,7 +689,12 @@ public class TumblingWindow implements Executable {
                     Ordinal o = criterion.ordinal(hit);
                     KeyAndOrdinal ko = new KeyAndOrdinal(k, o);
                     HitReference ht = new HitReference(cache(hit.getIndex()), hit.getId());
-                    addMemory(ko.ramBytesUsed() + ht.ramBytesUsed(), WRAP_VALUES);
+                    batchRamBytesUsed = RamUsageEstimator.sizeOf(ko) + RamUsageEstimator.sizeOf(ht);
+                    if (iterations++ == CB_BATCH_SIZE || hasNext() == false) {
+                        addMemory(batchRamBytesUsed, WRAP_VALUES);
+                        batchRamBytesUsed = 0;
+                        iterations = 0;
+                    }
                     return new Tuple<>(ko, ht);
                 }
             };

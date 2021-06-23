@@ -205,7 +205,7 @@ dependencies {
   api gradleApi()
 
   api "org.elasticsearch:build-conventions:$version"
-  api "org.elasticsearch:build-tools:$version"
+  api "org.elasticsearch.gradle:build-tools:$version"
 
   api 'commons-codec:commons-codec:1.12'
   api 'org.apache.commons:commons-compress:1.19'

@@ -109,6 +109,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         assert task instanceof CancellableTask : task + " not cancellable";
 
         getMultipleReposSnapshotInfo(
+            request.isSingleRepositoryRequest() == false,
             state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
             TransportGetRepositoriesAction.getRepositories(state, request.repositories()),
             request.snapshots(),
@@ -124,6 +125,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     private void getMultipleReposSnapshotInfo(
+        boolean isMultiRepoRequest,
         SnapshotsInProgress snapshotsInProgress,
         List<RepositoryMetadata> repos,
         String[] snapshots,
@@ -170,7 +172,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 size,
                 order,
                 groupedActionListener.delegateResponse((groupedListener, e) -> {
-                    if (repos.size() > 1 && e instanceof ElasticsearchException) {
+                    if (isMultiRepoRequest && e instanceof ElasticsearchException) {
                         groupedListener.onResponse(Tuple.tuple(Tuple.tuple(repoName, (ElasticsearchException) e), null));
                     } else {
                         groupedListener.onFailure(e);

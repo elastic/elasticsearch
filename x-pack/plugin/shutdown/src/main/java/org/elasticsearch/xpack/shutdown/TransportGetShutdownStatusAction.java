@@ -251,7 +251,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
                 new ParameterizedMessage(
-                    "shard [{}] [{}] of index [{}] cannot move, see Cluster Allocation Explain API for details",
+                    "shard [{}] [{}] of index [{}] cannot move, use the Cluster Allocation Explain API on this shard for details",
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
                     shardRouting.index().getName()

@@ -216,7 +216,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
             assertThat(
                 ObjectPath.eval("nodes.0.shard_migration.explanation", status),
-                allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
+                allOf(
+                    containsString(indexName),
+                    containsString("cannot move, use the Cluster Allocation Explain API on this shard for details")
+                )
             );
         }
 

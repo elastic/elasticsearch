@@ -138,7 +138,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
     private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
         try {
             SearchResponse response = searchResponse.actionGet();
-            assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            assertNotEquals("At least one shard should have failed but got " + response.toString(), 0, response.getFailedShards());
             return response;
         } catch (SearchPhaseExecutionException ex) {
             logger.info("All shards failed with", ex);

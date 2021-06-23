@@ -228,6 +228,7 @@ dependencies {
   api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
   api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
+  runtimeOnly "org.elasticsearch.gradle:reaper:$version"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "junit:junit:${props.getProperty('junit')}"
   testImplementation 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'

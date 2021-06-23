@@ -128,9 +128,9 @@ import java.util.Map;
             storedFieldsReader.visitDocument(docID, visitor);
             // As we already estimate the size of stored fields, we can trade off the accuracy for the speed of the estimate.
             // Here we only visit 1/11 documents instead of all documents. Ideally, we should visit 1 doc then skip 10 docs
-            // to avoid missing some skew documents. But, documents are stored in chunks in compressed format and a chunk can
+            // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can
             // have up to 4096 docs, we need to skip a large number of docs to avoid loading/decompressing some chunks.
-            if ((docID & skipMask) == skipMask) {
+            if ((docID & skipMask) == skipMask && docID < reader.maxDoc() - 512) {
                 docID = Math.max(docID + 5120, reader.maxDoc() - 512); // always visit both ends
             } else {
                 docID++;

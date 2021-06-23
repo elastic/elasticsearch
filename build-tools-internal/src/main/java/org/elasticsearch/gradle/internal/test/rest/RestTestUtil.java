@@ -28,14 +28,15 @@ import org.gradle.api.tasks.bundling.Zip;
  */
 public class RestTestUtil {
 
-    private RestTestUtil() {}
+    private RestTestUtil() {
+    }
 
     public static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
+                .getExtensions()
+                .getByName(TestClustersPlugin.EXTENSION_NAME);
         return testClusters.create(sourceSet.getName());
     }
 
@@ -69,15 +70,7 @@ public class RestTestUtil {
      * Setup the dependencies needed for the REST tests.
      */
     public static void setupDependencies(Project project, SourceSet sourceSet) {
-        BuildParams.withInternalBuild(
-            () -> { project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework")); }
-        ).orElse(() -> {
-            project.getDependencies()
-                .add(
-                    sourceSet.getImplementationConfigurationName(),
-                    "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch()
-                );
-        });
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
     }
 
 }

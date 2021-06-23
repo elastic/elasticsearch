@@ -73,7 +73,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
                 DeprecationIssue issue = entry.getKey();
                 String details = issue.getDetails() != null ? issue.getDetails() + " " : "";
                 return new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(),
-                    details + "(nodes impacted: " + entry.getValue() + ")");
+                    details + "(nodes impacted: " + entry.getValue() + ")", issue.getMeta());
             }).collect(Collectors.toList());
     }
 

@@ -14,7 +14,7 @@ import java.util.Locale;
 
 public enum TaskType {
 
-    TOKEN_CLASSIFICATION {
+    TOKEN_CLASSIFICATION { // TODO rename to NER. This is specifically a NER task
         public NlpTask.Processor createProcessor(BertTokenizer tokenizer) throws IOException {
             return new NerProcessor(tokenizer);
         }

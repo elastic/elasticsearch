@@ -123,7 +123,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
     public void awaitAndClear(ActionListener<Void> listener) {
         // We never terminate the phaser
-        logger.info("awaiting and clearing memory tracker");
+        logger.trace("awaiting and clearing memory tracker");
         assert stopPhaser.isTerminated() == false;
         // If there are no registered parties or no unarrived parties then there is a flaw
         // in the register/arrive/unregister logic in another method that uses the phaser
@@ -137,8 +137,8 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                     int newPhase = stopPhaser.arriveAndAwaitAdvance();
                     assert newPhase > 0;
                     clear();
-                    int anotherNewPhase = phase.incrementAndGet();
-                    logger.info("completed awaiting and clearing memory tracker new phase [{}] and [{}]", newPhase, anotherNewPhase);
+                    phase.incrementAndGet();
+                    logger.trace("completed awaiting and clearing memory tracker");
                     listener.onResponse(null);
                 } catch (Exception e) {
                     logger.warn("failed to wait for all refresh requests to complete", e);
@@ -361,6 +361,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
                 for (ActionListener<Void> listener : fullRefreshCompletionListeners) {
                     listener.onFailure(e);
                 }
+                logger.warn("ML memory tracker last update failed and listeners called", e);
                 // It's critical that we empty out the current listener list on
                 // error otherwise subsequent retries to refresh will be ignored
                 fullRefreshCompletionListeners.clear();
@@ -438,8 +439,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
 
         // The phaser prevents searches being started after the memory tracker's stop() method has returned
         // Note: `phase` is incremented if cache is reset via the feature reset API
-        int localPhase = phase.get();
-        if (stopPhaser.register() != localPhase) {
+        if (stopPhaser.register() != phase.get()) {
             // Phases above not equal to `phase` mean we've been stopped, so don't do any operations that involve external interaction
             stopPhaser.arriveAndDeregister();
             logger.info(

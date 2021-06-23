@@ -2923,9 +2923,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::kibana-enrollment-response
             SecureString password = response.getPassword(); // <1>
             String httoCa = response.getHttpCa(); // <2>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <3>
             // end::kibana-enrollment-response
-            assertThat(nodesAddresses.size(), equalTo(1)); // single-node cluster for docs tests
             assertThat(password.length(), equalTo(14));
         }
 

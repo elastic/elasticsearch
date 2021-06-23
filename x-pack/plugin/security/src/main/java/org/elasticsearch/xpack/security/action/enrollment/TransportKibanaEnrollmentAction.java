@@ -11,9 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
@@ -21,7 +18,6 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -41,7 +37,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import java.security.SecureRandom;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -101,26 +96,15 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
                     cee));
                 return;
             }
-            final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest().addMetric(NodesInfoRequest.Metric.HTTP.metricName());
-            client.execute(NodesInfoAction.INSTANCE, nodesInfoRequest, ActionListener.wrap(nodesInfoResponse -> {
-                final List<String> nodeList = new ArrayList<>();
-                for (NodeInfo nodeInfo : nodesInfoResponse.getNodes()) {
-                    nodeList.add(nodeInfo.getInfo(HttpInfo.class).getAddress().publishAddress().toString());
-                }
-                // Should we guard against setting the password of the kibana_system user multiple times?
-                final char[] password = generateKibanaSystemPassword();
-                final ChangePasswordRequest changePasswordRequest =
-                    new ChangePasswordRequestBuilder(client).username("kibana_system")
-                        .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
-                        .request();
-                client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
-                    logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
-                    listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa, nodeList));
-                }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
-            }, e -> {
-                logger.debug("Failed to enroll kibana instance. Error was [{}]", e.getMessage());
-                listener.onFailure(new ElasticsearchException("Failed to enroll kibana instance. Error was [" + e.getMessage() + "]", e));
-            }));
+            final char[] password = generateKibanaSystemPassword();
+            final ChangePasswordRequest changePasswordRequest =
+                new ChangePasswordRequestBuilder(client).username("kibana_system")
+                    .password(password, Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(environment.settings())))
+                    .request();
+            client.execute(ChangePasswordAction.INSTANCE, changePasswordRequest, ActionListener.wrap(response -> {
+                logger.debug("Successfully set the password for user [kibana_system] during kibana enrollment");
+                listener.onResponse(new KibanaEnrollmentResponse(new SecureString(password), httpCa));
+            }, e -> listener.onFailure(new ElasticsearchException("Failed to set the password for user [kibana_system]", e))));
         }
 
     }

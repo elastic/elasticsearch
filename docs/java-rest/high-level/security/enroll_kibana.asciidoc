@@ -24,8 +24,6 @@ include-tagged::{doc-tests-file}[{api-kibana-response]
 <1> The password for the `kibana_system` user
 <2> The CA certificate that has signed the certificate that the cluster uses for TLS on the HTTP layer,
 as a Base64 encoded string of the ASN.1 DER encoding of the certificate.
-<3> A list of addresses (`<hostname>:<port>`) where the nodes of the cluster listen for HTTPS connections
-
 
 [id="{upid}-{api}-execute-async"]
 ==== Asynchronous Execution

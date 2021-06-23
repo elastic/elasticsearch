@@ -22,8 +22,7 @@ public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<Kiba
     @Override protected KibanaEnrollmentResponse createTestInstance() {
         return new KibanaEnrollmentResponse(
             new SecureString(randomAlphaOfLength(14).toCharArray()),
-            randomAlphaOfLength(50),
-            randomList(10, () -> buildNewFakeTransportAddress().toString()));
+            randomAlphaOfLength(50));
     }
 
     @Override protected KibanaEnrollmentResponse doParseInstance(XContentParser parser) throws IOException {
@@ -41,7 +40,6 @@ public class KibanaEnrollmentResponseTests extends AbstractXContentTestCase<Kiba
             try (StreamInput in = out.bytes().streamInput()) {
                 KibanaEnrollmentResponse serialized = new KibanaEnrollmentResponse(in);
                 assertThat(response.getHttpCa(), is(serialized.getHttpCa()));
-                assertThat(response.getNodesAddresses(), is(serialized.getNodesAddresses()));
                 assertThat(response.getPassword(), is(serialized.getPassword()));
             }
         }

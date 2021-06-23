@@ -36,43 +36,31 @@ public class KibanaErnollmentResponseTests extends ESTestCase {
         final KibanaEnrollmentResponse response = KibanaEnrollmentResponse.fromXContent(createParser(xContentType.xContent(), xContent));
         assertThat(response.getPassword(), equalTo(password));
         assertThat(response.getHttpCa(), equalTo(httpCa));
-        assertThat(response.getNodesAddresses(), equalTo(nodesAddresses));
     }
 
     public void testEqualsHashCode() {
         final SecureString password = new SecureString(randomAlphaOfLength(14).toCharArray());
         final String httpCa = randomAlphaOfLength(50);
-        final List<String> nodesAddresses = randomList(2, 10, () -> buildNewFakeTransportAddress().toString());
-        KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa, nodesAddresses);
+        KibanaEnrollmentResponse kibanaEnrollmentResponse = new KibanaEnrollmentResponse(password, httpCa);
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
-            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(), original.getNodesAddresses()));
+            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa()));
 
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(kibanaEnrollmentResponse,
-            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa(), original.getNodesAddresses()),
+            (original) -> new KibanaEnrollmentResponse(original.getPassword(), original.getHttpCa()),
             KibanaErnollmentResponseTests::mutateTestItem);
     }
 
     private static KibanaEnrollmentResponse mutateTestItem(KibanaEnrollmentResponse original) {
-        switch (randomIntBetween(0, 3)) {
+        switch (randomIntBetween(0, 1)) {
             case 0:
                 return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
-                    original.getHttpCa(),
-                    original.getNodesAddresses());
+                    original.getHttpCa());
             case 1:
-                return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51), original.getNodesAddresses());
-            case 2:
-                return new KibanaEnrollmentResponse(original.getPassword(),
-                    original.getHttpCa(),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
-            case 3:
-                return new KibanaEnrollmentResponse(new SecureString(randomAlphaOfLength(14).toCharArray()),
-                    original.getHttpCa(),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
+                return new KibanaEnrollmentResponse(original.getPassword(), randomAlphaOfLength(51));
             default:
                 return new KibanaEnrollmentResponse(original.getPassword(),
-                    randomAlphaOfLength(51),
-                    original.getNodesAddresses().subList(0, original.getNodesAddresses().size() - 1));
+                    original.getHttpCa());
         }
     }
 }

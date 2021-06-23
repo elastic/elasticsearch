@@ -216,8 +216,6 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
         assertThat(kibanaResponse, notNullValue());
         assertThat(kibanaResponse.getHttpCa()
             , endsWith("OWFyeGNmcwovSDJReE1tSG1leXJRaWxYbXJPdk9PUDFTNGRrSTFXbFJLOFdaN3c9Ci0tLS0tRU5EIENFUlRJRklDQVRFLS0tLS0K"));
-        List<String> nodesAddresses = kibanaResponse.getNodesAddresses();
-        assertThat(nodesAddresses.size(), equalTo(1));
         assertNotNull(kibanaResponse.getPassword());
         assertThat(kibanaResponse.getPassword().toString().length(), equalTo(14));
     }

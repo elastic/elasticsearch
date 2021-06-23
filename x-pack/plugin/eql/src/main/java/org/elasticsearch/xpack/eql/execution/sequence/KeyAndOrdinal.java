@@ -35,7 +35,7 @@ public class KeyAndOrdinal implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + key().ramBytesUsed() + ordinal.ramBytesUsed();
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(key) + RamUsageEstimator.sizeOf(ordinal);
     }
 
     @Override

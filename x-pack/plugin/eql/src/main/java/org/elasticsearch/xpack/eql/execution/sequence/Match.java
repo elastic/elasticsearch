@@ -39,7 +39,7 @@ class Match implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + ordinal.ramBytesUsed() + hit.ramBytesUsed();
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(ordinal) + RamUsageEstimator.sizeOf(hit);
     }
 
     @Override

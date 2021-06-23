@@ -76,14 +76,7 @@ public class Sequence implements Comparable<Sequence>, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        long size = SHALLOW_SIZE + key.ramBytesUsed() + RamUsageEstimator.primitiveSizes.get(int.class);
-        for (Match match : matches) {
-            if (match != null) {
-                size += match.ramBytesUsed();
-            }
-        }
-        size += RamUsageEstimator.shallowSizeOf(matches);
-        return size;
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(key) + RamUsageEstimator.sizeOf(matches);
     }
 
     @Override

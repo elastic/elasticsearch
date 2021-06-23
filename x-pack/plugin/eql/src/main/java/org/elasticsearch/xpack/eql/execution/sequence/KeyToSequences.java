@@ -65,11 +65,7 @@ class KeyToSequences implements Accountable {
             if (until != null) {
                 size += until.ramBytesUsed();
             }
-            for (SequenceGroup sg : groups) {
-                if (sg != null) {
-                    size += sg.ramBytesUsed();
-                }
-            }
+            size += RamUsageEstimator.sizeOf(groups);
             return size;
         }
     }
@@ -155,10 +151,7 @@ class KeyToSequences implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        long size = SHALLOW_SIZE;
-        size += RamUsageEstimator.primitiveSizes.get(int.class);
-        size += RamUsageEstimator.sizeOfMap(keyToSequences);
-        return size;
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfMap(keyToSequences);
     }
 
     @Override

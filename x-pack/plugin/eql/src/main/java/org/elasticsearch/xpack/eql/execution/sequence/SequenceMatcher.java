@@ -299,14 +299,11 @@ public class SequenceMatcher implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        long bytes = SHALLOW_SIZE;
-        bytes += keyToSequences.ramBytesUsed();
-        bytes += stageToKeys.ramBytesUsed();
-        bytes += stats.ramBytesUsed();
-        if (limit != null) {
-            bytes += limit.ramBytesUsed();
-        }
-        return bytes;
+        return SHALLOW_SIZE
+                + RamUsageEstimator.sizeOf(keyToSequences)
+                + RamUsageEstimator.sizeOf(stageToKeys)
+                + (limit == null ? 0 : RamUsageEstimator.sizeOf(limit))
+                + RamUsageEstimator.sizeOf(stats);
     }
 
     @Override

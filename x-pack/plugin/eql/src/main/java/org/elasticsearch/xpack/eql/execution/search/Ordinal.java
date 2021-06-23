@@ -39,11 +39,7 @@ public class Ordinal implements Comparable<Ordinal>, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        long size = SHALLOW_SIZE;
-        size += RamUsageEstimator.sizeOf(timestamp);
-        size += RamUsageEstimator.sizeOf(implicitTiebreaker);
-        size += RamUsageEstimator.shallowSizeOf(tiebreaker);
-        return size;
+        return SHALLOW_SIZE;
     }
 
     @Override

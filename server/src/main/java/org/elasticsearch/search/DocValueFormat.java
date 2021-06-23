@@ -265,7 +265,7 @@ public interface DocValueFormat extends NamedWriteable {
                  */
                 isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
             }
-            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern);
+            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern).withZone(this.timeZone);
 
             this.parser = formatter.toDateMathParser();
             if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
@@ -393,6 +393,11 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String format(double value) {
             return format((long) value);
+        }
+
+        @Override
+        public long parseLong(String value, boolean roundUp, LongSupplier now) {
+            return GeoTileUtils.longEncode(value);
         }
     };
 

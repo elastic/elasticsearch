@@ -12,21 +12,21 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.IdsQueryBuilder;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -89,51 +90,52 @@ public class DeploymentManager {
             throw ExceptionsHelper.serverError("[{}] Could not create process as one already exists", task.getModelId());
         }
 
+        String taskConfigDocId = NlpTaskConfig.documentId(task.getModelId());
+
         ActionListener<Boolean> modelLoadedListener = ActionListener.wrap(
             success -> {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.process(processContext.process.get()));
 
-                TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
-                    TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
-                task.updatePersistentTaskState(startedState, ActionListener.wrap(
+                setTaskStateToStarted(task, ActionListener.wrap(
                     response -> logger.info("[{}] trained model loaded", task.getModelId()),
-                    task::markAsFailed
+                    e -> failTask(task,
+                        String.format(Locale.ROOT, "[%s] error setting task state to [%s] [%s]",
+                            task.getModelId(), TrainedModelDeploymentState.STARTED, e))
                 ));
             },
-            e -> failTask(task, e)
+            e -> failTask(task,
+                String.format(Locale.ROOT, "[%s] error loading model [%s]", task.getModelId(), e))
         );
 
         ActionListener<SearchResponse> configListener = ActionListener.wrap(
             searchResponse -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    failTask(task, new ResourceNotFoundException(
-                        Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId())));
+                    failTask(task, Messages.getMessage(Messages.TASK_CONFIG_NOT_FOUND, task.getModelId(), taskConfigDocId));
                     return;
                 }
 
                 NlpTaskConfig config = parseConfigDocLeniently(searchResponse.getHits().getAt(0));
                 NlpTask nlpTask = NlpTask.fromConfig(config);
                 processContext.nlpTask.set(nlpTask);
-                processContext.startProcess();
-                processContext.loadModel(modelLoadedListener);
+                startAndLoad(task, processContext, modelLoadedListener);
             },
-            e -> failTask(task, e)
+            e -> failTask(task,
+                String.format(Locale.ROOT, "[%s] search for task config failed with error [%s]", task.getModelId(), e))
         );
 
-        SearchRequest searchRequest = taskConfigSearchRequest(task.getModelId(), task.getIndex());
+        SearchRequest searchRequest = taskConfigSearchRequest(taskConfigDocId, task.getIndex());
         executeAsyncWithOrigin(client, ML_ORIGIN, SearchAction.INSTANCE, searchRequest, configListener);
     }
 
-    private SearchRequest taskConfigSearchRequest(String modelId, String index) {
+    private SearchRequest taskConfigSearchRequest(String documentId, String index) {
         return client.prepareSearch(index)
-            .setQuery(new IdsQueryBuilder().addIds(NlpTaskConfig.documentId(modelId)))
+            .setQuery(new IdsQueryBuilder().addIds(documentId))
             .setSize(1)
             .setTrackTotalHits(false)
             .request();
     }
 
-
-    public NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
+    NlpTaskConfig parseConfigDocLeniently(SearchHit hit) throws IOException {
 
         try (InputStream stream = hit.getSourceRef().streamInput();
              XContentParser parser = XContentFactory.xContent(XContentType.JSON)
@@ -142,6 +144,18 @@ public class DeploymentManager {
         } catch (IOException e) {
             logger.error(new ParameterizedMessage("failed to parse NLP task config [{}]", hit.getId()), e);
             throw e;
+        }
+    }
+
+    private void startAndLoad(TrainedModelDeploymentTask task,
+                              ProcessContext processContext,
+                              ActionListener<Boolean> loadedListener) {
+        try {
+            processContext.startProcess();
+            processContext.loadModel(loadedListener);
+        } catch (Exception e) {
+            failTask(task,
+                String.format(Locale.ROOT, "[%s] loading the model failed with error [%s]", task.getModelId(), e));
         }
     }
 
@@ -222,9 +236,25 @@ public class DeploymentManager {
         }
     }
 
-    private void failTask(TrainedModelDeploymentTask task, Exception e) {
-        logger.error(new ParameterizedMessage("[{}] failing model deployment task with error: ", task.getModelId()), e);
-        task.markAsFailed(e);
+    private void setTaskStateToStarted(TrainedModelDeploymentTask task,
+                                     ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
+        TrainedModelDeploymentTaskState startedState = new TrainedModelDeploymentTaskState(
+            TrainedModelDeploymentState.STARTED, task.getAllocationId(), null);
+        task.updatePersistentTaskState(startedState, listener);
+    }
+    private void failTask(TrainedModelDeploymentTask task,
+                          String reason) {
+
+        logger.error("[{}] failed with reason [{}]", task.getModelId(), reason);
+
+        TrainedModelDeploymentTaskState taskState =
+            new TrainedModelDeploymentTaskState(TrainedModelDeploymentState.FAILED, task.getAllocationId(), reason);
+
+        task.updatePersistentTaskState(taskState, ActionListener.wrap(
+            persistentTask -> {},
+            e -> logger.error(new ParameterizedMessage("[{}] error setting model deployment state to failed. " +
+                "Failure reason: [{}]", task.getModelId(), reason), e)
+        ));
     }
 
     class ProcessContext {

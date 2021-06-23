@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
@@ -35,6 +36,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testCRUD() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         String type = randomFrom("RESTART", "REMOVE");
 
@@ -65,6 +67,7 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testAllocationPreventedForRemoval() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -111,6 +114,7 @@ public class NodeShutdownIT extends ESRestTestCase {
      */
     @SuppressWarnings("unchecked")
     public void testShardsMoveOffRemovingNode() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
 
         final String indexName = "test-idx";
@@ -162,6 +166,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testShardsCanBeAllocatedAfterShutdownDeleted() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         putNodeShutdown(nodeIdToShutdown, "REMOVE");
 
@@ -184,6 +189,7 @@ public class NodeShutdownIT extends ESRestTestCase {
     }
 
     public void testStalledShardMigrationProperlyDetected() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         String nodeIdToShutdown = getRandomNodeId();
         int numberOfShards = randomIntBetween(1,5);
 

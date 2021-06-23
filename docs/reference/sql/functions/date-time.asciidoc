@@ -420,8 +420,9 @@ DATE_PARSE(
 
 *Input*:
 
-<1> date expression as a string. If `null`, the function returns `null`.
-<2> parsing pattern. If `null`, the function returns `null`.
+<1> date expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: date
 
@@ -463,8 +464,9 @@ DATETIME_FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null`, the function returns `null`.
-<2> format pattern. If `null`, the function returns `null`.
+<1> date/datetime/time expression. If `null` or an empty string, the function
+returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 
@@ -504,8 +506,9 @@ DATETIME_PARSE(
 
 *Input*:
 
-<1> datetime expression as a string. If `null`, the function returns `null`.
-<2> parsing pattern. If `null`, the function returns `null`.
+<1> datetime expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: datetime
 
@@ -553,8 +556,9 @@ TIME_PARSE(
 
 *Input*:
 
-<1> time expression as a string. If `null`, the function returns `null`.
-<2> parsing pattern. If `null`, the function returns `null`.
+<1> time expression as a string. If `null` or an empty string, the function
+returns `null`.
+<2> parsing pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: time
 
@@ -781,8 +785,9 @@ FORMAT(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null`, the function returns `null`.
-<2> format pattern. If `null`, the function returns `null`.
+<1> date/datetime/time expression. If `null` or an empty string, the function
+returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 
@@ -832,8 +837,9 @@ TO_CHAR(
 
 *Input*:
 
-<1> date/datetime/time expression. If `null`, the function returns `null`.
-<2> format pattern. If `null`, the function returns `null`.
+<1> date/datetime/time expression. If `null` or an empty string, the function
+returns `null`.
+<2> format pattern. If `null` or an empty string, the function returns `null`.
 
 *Output*: string
 

@@ -47,7 +47,7 @@ timed out.
 
 `<index>`::
 (Required, string)
-A single index or index alias that resolves to a single index.
+A single index. Index aliases are not supported.
 
 [role="child_attributes"]
 [[fleet-search-api-query-parms]]

@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -87,9 +86,6 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             .build();
         final SSLConfiguration transportSslConfiguration = new SSLConfiguration(transportSettings);
         when(sslService.getTransportSSLConfiguration()).thenReturn(transportSslConfiguration);
-        final ClusterService clusterService = mock(ClusterService.class);
-        final String clusterName = randomAlphaOfLengthBetween(6, 10);
-        when(clusterService.getClusterName()).thenReturn(new ClusterName(clusterName));
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
@@ -132,12 +128,11 @@ public class TransportNodeEnrollmentActionTests extends ESTestCase {
             Collections.emptySet());
 
         final TransportNodeEnrollmentAction action =
-            new TransportNodeEnrollmentAction(transportService, clusterService, sslService, client, mock(ActionFilters.class), env);
+            new TransportNodeEnrollmentAction(transportService, sslService, client, mock(ActionFilters.class), env);
         final NodeEnrollmentRequest request = new NodeEnrollmentRequest();
         final PlainActionFuture<NodeEnrollmentResponse> future = new PlainActionFuture<>();
         action.doExecute(mock(Task.class), request, future);
         final NodeEnrollmentResponse response = future.get();
-        assertThat(response.getClusterName(), equalTo(clusterName));
         assertSameCertificate(response.getHttpCaCert(), httpCaPath, "password".toCharArray(), true);
         assertSameCertificate(response.getTransportCert(), transportPath, "password".toCharArray(), false);
         assertThat(response.getNodesAddresses().size(), equalTo(numberOfNodes));

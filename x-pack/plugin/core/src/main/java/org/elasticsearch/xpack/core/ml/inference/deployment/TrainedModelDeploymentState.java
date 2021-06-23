@@ -16,7 +16,7 @@ import java.util.Locale;
 
 public enum TrainedModelDeploymentState implements Writeable {
 
-    STARTING, STARTED, STOPPING, STOPPED;
+    STARTING, STARTED, STOPPING, STOPPED, FAILED;
 
     public static TrainedModelDeploymentState fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

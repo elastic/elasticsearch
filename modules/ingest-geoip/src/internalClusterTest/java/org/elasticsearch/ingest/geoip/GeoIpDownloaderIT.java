@@ -219,6 +219,7 @@ public class GeoIpDownloaderIT extends AbstractGeoIpIT {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74358")
     @TestLogging(value = "org.elasticsearch.ingest.geoip:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/69972")
     public void testUseGeoIpProcessorWithDownloadedDBs() throws Exception {
         assumeTrue("only test with fixture to have stable results", ENDPOINT != null);

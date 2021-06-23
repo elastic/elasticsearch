@@ -245,6 +245,7 @@ public class NodeShutdownIT extends ESRestTestCase {
      * Ensures that attempting to delete the status of a node that is not registered for shutdown gives a 404 response code.
      */
     public void testDeleteNodeNotRegisteredForShutdown() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
         Request deleteReq = new Request("DELETE", "_nodes/this-node-doesnt-exist/shutdown");
         ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteReq));
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(404));

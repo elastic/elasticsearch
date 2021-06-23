@@ -17,8 +17,7 @@ plugins {
   id 'java-gradle-plugin'
   id 'groovy-gradle-plugin'
   id 'groovy'
-  id 'elasticsearch.internal-licenseheaders'
-  id 'elasticsearch.basic-build-tool-conventions'
+  id 'elasticsearch.build-tools'
   id 'elasticsearch.eclipse'
 }
 

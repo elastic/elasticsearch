@@ -19,34 +19,22 @@ public class InternalPrecommitTasks {
     /**
      * Adds a precommit task, which depends on non-test verification tasks.
      */
-    public static void create(Project project, boolean includeDependencyLicenses) {
-        project.getPluginManager().apply(JarHellPrecommitPlugin.class);
-        project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
+    public static void create(Project project, boolean withProductiveCode) {
         project.getPluginManager().apply(CheckstylePrecommitPlugin.class);
         project.getPluginManager().apply(ForbiddenApisPrecommitPlugin.class);
         project.getPluginManager().apply(ForbiddenPatternsPrecommitPlugin.class);
         project.getPluginManager().apply(LicenseHeadersPrecommitPlugin.class);
         project.getPluginManager().apply(FilePermissionsPrecommitPlugin.class);
         project.getPluginManager().apply(TestingConventionsPrecommitPlugin.class);
+        project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
+        project.getPluginManager().apply(JarHellPrecommitPlugin.class);
 
-        // tasks with just tests don't need dependency licenses, so this flag makes adding
+        // tasks with just tests don't need certain tasks to run, so this flag makes adding
         // the task optional
-        if (includeDependencyLicenses) {
+        if (withProductiveCode) {
+            project.getPluginManager().apply(ThirdPartyAuditPrecommitPlugin.class);
             project.getPluginManager().apply(DependencyLicensesPrecommitPlugin.class);
-        }
-
-        if (project.getPath().equals(":build-tools") == false) {
-            /*
-             * Sadly, build-tools can't have logger-usage-check because that
-             * would create a circular project dependency between build-tools
-             * (which provides NamingConventionsCheck) and :test:logger-usage
-             * which provides the logger usage check. Since the build tools
-             * don't use the logger usage check because they don't have any
-             * of Elaticsearch's loggers and :test:logger-usage actually does
-             * use the NamingConventionsCheck we break the circular dependency
-             * here.
-             */
-            project.getPluginManager().apply(LoggerUsagePrecommitPlugin.class);
+            project.getPluginManager().apply(SplitPackagesAuditPrecommitPlugin.class);
         }
     }
 }

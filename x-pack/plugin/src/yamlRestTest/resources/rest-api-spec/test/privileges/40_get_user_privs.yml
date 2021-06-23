@@ -281,8 +281,8 @@ teardown:
   - contains: { "indices" : { "names" : [ "test-1-*" ], "privileges" : [ "read" ] } }
   - contains: { "indices" : { "names" : [ "test-2-*" ], "privileges" : [ "read" ],
         "field_security" : [
-          { "grant" : [ "apps-*" ] },
-          { "grant" : [ "*" ], "except" : [ "secret-*", "private-*" ] }
+          { "grant" : [ "*" ], "except" : [ "secret-*", "private-*" ] },
+          { "grant" : [ "apps-*" ] }
         ],
         "query" : [
           "{\"term\":{\"test\":true}}",

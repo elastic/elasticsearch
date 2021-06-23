@@ -21,14 +21,15 @@ import org.elasticsearch.geometry.Rectangle;
 public class SimpleFeatureFactory {
 
     private final int extent;
-    private final Rectangle rectangle;
-    private final double pointXScale, pointYScale;
+    private final double pointXScale, pointYScale, pointXTranslate, pointYTranslate;
 
     public SimpleFeatureFactory(int z, int x, int y, int extent) {
         this.extent = extent;
-        rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
+        final Rectangle rectangle = FeatureFactoryUtils.getTileBounds(z, x, y);
         pointXScale = (double) extent / (rectangle.getMaxLon() - rectangle.getMinLon());
-        pointYScale = -(double) extent / (rectangle.getMaxLat() - rectangle.getMinLat());
+        pointYScale = (double) -extent / (rectangle.getMaxLat() - rectangle.getMinLat());
+        pointXTranslate = -pointXScale * rectangle.getMinX();
+        pointYTranslate = -pointYScale * rectangle.getMinY();
     }
 
     public void point(VectorTile.Tile.Feature.Builder featureBuilder, double lon, double lat) {
@@ -62,10 +63,10 @@ public class SimpleFeatureFactory {
     }
 
     private int lat(double lat) {
-        return (int) Math.round(pointYScale * (FeatureFactoryUtils.latToSphericalMercator(lat) - rectangle.getMinY())) + extent;
+        return (int) Math.round(pointYScale * FeatureFactoryUtils.latToSphericalMercator(lat) + pointYTranslate) + extent;
     }
 
     private int lon(double lon) {
-        return (int) Math.round(pointXScale * (FeatureFactoryUtils.lonToSphericalMercator(lon) - rectangle.getMinX()));
+        return (int) Math.round(pointXScale * FeatureFactoryUtils.lonToSphericalMercator(lon) + pointXTranslate);
     }
 }

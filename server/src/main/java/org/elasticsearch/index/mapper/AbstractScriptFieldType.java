@@ -228,7 +228,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
         abstract RuntimeField newRuntimeField(Factory scriptFactory);
 
         @Override
-        protected final RuntimeField createRuntimeField(Mapper.TypeParser.ParserContext parserContext) {
+        protected final RuntimeField createRuntimeField(MappingParserContext parserContext) {
             if (script.get() == null) {
                 return newRuntimeField(parseFromSourceFactory);
             }
@@ -250,7 +250,7 @@ abstract class AbstractScriptFieldType<LeafFactory> extends MappedFieldType impl
             return script.get();
         }
 
-        private static Script parseScript(String name, Mapper.TypeParser.ParserContext parserContext, Object scriptObject) {
+        private static Script parseScript(String name, MappingParserContext parserContext, Object scriptObject) {
             Script script = Script.parse(scriptObject);
             if (script.getType() == ScriptType.STORED) {
                 throw new IllegalArgumentException("stored scripts are not supported for runtime field [" + name + "]");

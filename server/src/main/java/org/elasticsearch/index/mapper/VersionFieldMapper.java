@@ -23,7 +23,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
     public static final String NAME = "_version";
     public static final String CONTENT_TYPE = "_version";
 
-    public static final TypeParser PARSER = new FixedTypeParser(c -> new VersionFieldMapper());
+    public static final VersionFieldMapper INSTANCE = new VersionFieldMapper();
+
+    public static final TypeParser PARSER = new FixedTypeParser(c -> INSTANCE);
 
     static final class VersionFieldType extends MappedFieldType {
 
@@ -55,10 +57,14 @@ public class VersionFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) {
-        // see InternalEngine.updateVersion to see where the real version value is set
-        final Field version = new NumericDocValuesField(NAME, -1L);
+        final Field version = versionField();
         context.version(version);
         context.doc().add(version);
+    }
+
+    public static Field versionField() {
+        // see InternalEngine.updateVersion to see where the real version value is set
+        return new NumericDocValuesField(NAME, -1L);
     }
 
     @Override

@@ -16,7 +16,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.unit.RelativeByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Iterator;
 import java.util.List;
@@ -45,6 +46,21 @@ public class DiskThresholdSettings {
             (s) -> validWatermarkSetting(s, "cluster.routing.allocation.disk.watermark.flood_stage"),
             new FloodStageValidator(),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<RelativeByteSizeValue> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.flood_stage.frozen", "95%",
+            (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s,  "cluster.routing.allocation.disk.watermark.flood_stage.frozen"),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<ByteSizeValue> CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING =
+        new Setting<>("cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom",
+            (settings) -> {
+                if (CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.exists(settings)) {
+                    return "-1";
+                } else {
+                    return "20GB";
+                }
+            },
+            (s) -> ByteSizeValue.parseBytesSizeValue(s,  "cluster.routing.allocation.disk.watermark.flood_stage.frozen.max_headroom"),
+            Setting.Property.Dynamic, Setting.Property.NodeScope);
     public static final Setting<TimeValue> CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING =
         Setting.positiveTimeSetting("cluster.routing.allocation.disk.reroute_interval", TimeValue.timeValueSeconds(60),
             Setting.Property.Dynamic, Setting.Property.NodeScope);
@@ -59,6 +75,8 @@ public class DiskThresholdSettings {
     private volatile TimeValue rerouteInterval;
     private volatile Double freeDiskThresholdFloodStage;
     private volatile ByteSizeValue freeBytesThresholdFloodStage;
+    private volatile RelativeByteSizeValue frozenFloodStage;
+    private volatile ByteSizeValue frozenFloodStageMaxHeadroom;
 
     static {
         assert Version.CURRENT.major == Version.V_7_0_0.major + 1; // this check is unnecessary in v9
@@ -69,6 +87,7 @@ public class DiskThresholdSettings {
         }
     }
 
+
     public DiskThresholdSettings(Settings settings, ClusterSettings clusterSettings) {
         final String lowWatermark = CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.get(settings);
         final String highWatermark = CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.get(settings);
@@ -76,11 +95,16 @@ public class DiskThresholdSettings {
         setHighWatermark(highWatermark);
         setLowWatermark(lowWatermark);
         setFloodStage(floodStage);
+        setFrozenFloodStage(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING.get(settings));
+        setFrozenFloodStageMaxHeadroom(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING.get(settings));
         this.rerouteInterval = CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING.get(settings);
         this.enabled = CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING, this::setLowWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING, this::setHighWatermark);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING, this::setFloodStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_SETTING, this::setFrozenFloodStage);
+        clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_FROZEN_MAX_HEADROOM_SETTING,
+            this::setFrozenFloodStageMaxHeadroom);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_REROUTE_INTERVAL_SETTING, this::setRerouteInterval);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING, this::setEnabled);
     }
@@ -242,6 +266,15 @@ public class DiskThresholdSettings {
             CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey());
     }
 
+    private void setFrozenFloodStage(RelativeByteSizeValue floodStage) {
+        this.frozenFloodStage = floodStage;
+    }
+
+    private void setFrozenFloodStageMaxHeadroom(ByteSizeValue maxHeadroom) {
+        this.frozenFloodStageMaxHeadroom = maxHeadroom;
+    }
+
+
     /**
      * Gets the raw (uninterpreted) low watermark value as found in the settings.
      */
@@ -280,6 +313,14 @@ public class DiskThresholdSettings {
         return freeBytesThresholdFloodStage;
     }
 
+    public ByteSizeValue getFreeBytesThresholdFrozenFloodStage(ByteSizeValue total) {
+        // flood stage bytes are reversed compared to percentage, so we special handle it.
+        RelativeByteSizeValue frozenFloodStage = this.frozenFloodStage;
+        if (frozenFloodStage.isAbsolute()) {
+            return frozenFloodStage.getAbsolute();
+        }
+        return ByteSizeValue.ofBytes(total.getBytes() - frozenFloodStage.calculateValue(total, frozenFloodStageMaxHeadroom).getBytes());
+    }
     public boolean isEnabled() {
         return enabled;
     }
@@ -304,6 +345,18 @@ public class DiskThresholdSettings {
         return freeBytesThresholdFloodStage.equals(ByteSizeValue.ZERO)
             ? Strings.format1Decimals(100.0 - freeDiskThresholdFloodStage, "%")
             : freeBytesThresholdFloodStage.toString();
+    }
+
+    String describeFrozenFloodStageThreshold(ByteSizeValue total) {
+        ByteSizeValue maxHeadroom = this.frozenFloodStageMaxHeadroom;
+        RelativeByteSizeValue floodStage = this.frozenFloodStage;
+        if (floodStage.isAbsolute()) {
+            return floodStage.getStringRep();
+        } else if (floodStage.calculateValue(total, maxHeadroom).equals(floodStage.calculateValue(total, null))) {
+            return Strings.format1Decimals(floodStage.getRatio().getAsPercent(), "%");
+        } else {
+            return "max_headroom=" + maxHeadroom;
+        }
     }
 
     /**

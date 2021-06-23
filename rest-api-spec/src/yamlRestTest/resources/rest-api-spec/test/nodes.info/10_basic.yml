@@ -33,4 +33,6 @@ setup:
   - match: { nodes.$node_id.roles.5: "data_warm" }
   - match: { nodes.$node_id.roles.6: "ingest" }
   - match: { nodes.$node_id.roles.7: "master" }
-  - match: { nodes.$node_id.roles.8: "remote_cluster_client" }
+  - match: { nodes.$node_id.roles.8: "ml" }
+  - match: { nodes.$node_id.roles.9: "remote_cluster_client" }
+  - match: { nodes.$node_id.roles.10: "transform" }

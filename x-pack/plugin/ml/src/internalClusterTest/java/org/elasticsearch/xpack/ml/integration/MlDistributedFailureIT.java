@@ -17,12 +17,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -134,7 +134,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        String mlAndDataNode = internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
         run("lose-dedicated-master-node-job", () -> {
             logger.info("Stopping dedicated master node");
@@ -170,7 +170,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting data and master node...");
         internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -247,7 +247,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)));
         }
         logger.info("Starting dedicated ml node...");
-        internalCluster().startNode(onlyRole(MachineLearning.ML_ROLE));
+        internalCluster().startNode(onlyRole(DiscoveryNodeRole.ML_ROLE));
         ensureStableCluster();
 
         // index some datafeed data
@@ -354,7 +354,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -469,9 +469,9 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         logger.info("Starting another ml and data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, MachineLearning.ML_ROLE)));
+        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.ML_ROLE)));
         ensureStableCluster();
 
         // index some datafeed data
@@ -523,7 +523,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
         assertBusy(() -> {
             DataCounts dataCounts = getJobStats(jobId).getDataCounts();
-            assertThat(dataCounts.getProcessedRecordCount(), greaterThanOrEqualTo(numDocs));
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
         });
 

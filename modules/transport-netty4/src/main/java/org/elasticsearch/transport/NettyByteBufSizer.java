@@ -18,6 +18,12 @@ import java.util.List;
 @ChannelHandler.Sharable
 public class NettyByteBufSizer extends MessageToMessageDecoder<ByteBuf> {
 
+    public static final NettyByteBufSizer INSTANCE = new NettyByteBufSizer();
+
+    private NettyByteBufSizer() {
+        // sharable singleton
+    }
+
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf buf, List<Object> out) {
         int readableBytes = buf.readableBytes();

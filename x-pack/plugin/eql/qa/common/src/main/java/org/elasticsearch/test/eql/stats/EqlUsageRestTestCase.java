@@ -9,6 +9,9 @@ package org.elasticsearch.test.eql.stats;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.eql.DataLoader;
@@ -372,5 +375,13 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
             };
         }
         return highLevelClient;
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+        return Settings.builder()
+            .put(ThreadContext.PREFIX + ".Authorization", token)
+            .build();
     }
 }

@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
@@ -56,7 +56,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -102,7 +101,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -148,7 +146,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(30L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 
@@ -196,7 +193,6 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         AnalysisLimits limits = new AnalysisLimits(110L, null);
         job.setAnalysisLimits(limits);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

@@ -124,6 +124,7 @@ class DocumentLeafReader extends LeafReader {
 
     @Override
     public SortedSetDocValues getSortedSetDocValues(String field) throws IOException {
+        checkField(field);
         List<BytesRef> values = document.getFields().stream()
             .filter(f -> Objects.equals(f.name(), field))
             .filter(f -> f.fieldType().docValuesType() == DocValuesType.SORTED_SET)

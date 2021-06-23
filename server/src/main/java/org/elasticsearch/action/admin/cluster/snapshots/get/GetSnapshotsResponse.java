@@ -10,12 +10,12 @@ package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,44 +34,55 @@ import java.util.Set;
  */
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
-    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> PARSER =
-            new ConstructingObjectParser<>(GetSnapshotsResponse.class.getName(), true,
-                    (args) -> new GetSnapshotsResponse((List<Response>) args[0]));
+    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> PARSER = new ConstructingObjectParser<>(
+        GetSnapshotsResponse.class.getName(),
+        true,
+        (args) -> new GetSnapshotsResponse((List<Response>) args[0])
+    );
 
     static {
-        PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-                (p, c) -> Response.fromXContent(p), new ParseField("responses"));
+        PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> Response.fromXContent(p),
+            new ParseField("responses")
+        );
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            Map<String, List<SnapshotInfo>> successfulResponses = in.readMapOfLists(StreamInput::readString, SnapshotInfo::new);
+            Map<String, List<SnapshotInfo>> successfulResponses = in.readMapOfLists(StreamInput::readString, SnapshotInfo::readFrom);
             Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
             this.successfulResponses = Collections.unmodifiableMap(successfulResponses);
             this.failedResponses = Collections.unmodifiableMap(failedResponses);
         } else {
-            this.successfulResponses = Collections.singletonMap("unknown", in.readList(SnapshotInfo::new));
+            this.successfulResponses = Collections.singletonMap("unknown", in.readList(SnapshotInfo::readFrom));
             this.failedResponses = Collections.emptyMap();
         }
     }
-
 
     public static class Response {
         private final String repository;
         private final List<SnapshotInfo> snapshots;
         private final ElasticsearchException error;
 
-        private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER =
-                new ConstructingObjectParser<>(Response.class.getName(), true,
-                        (args) -> new Response((String) args[0],
-                                (List<SnapshotInfo>) args[1], (ElasticsearchException) args[2]));
+        private static final ConstructingObjectParser<Response, Void> RESPONSE_PARSER = new ConstructingObjectParser<>(
+            Response.class.getName(),
+            true,
+            (args) -> new Response((String) args[0], (List<SnapshotInfo>) args[1], (ElasticsearchException) args[2])
+        );
 
         static {
             RESPONSE_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("repository"));
-            RESPONSE_PARSER.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(), new ParseField("snapshots"));
-            RESPONSE_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                    (p, c) -> ElasticsearchException.fromXContent(p), new ParseField("error"));
+            RESPONSE_PARSER.declareObjectArray(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
+                new ParseField("snapshots")
+            );
+            RESPONSE_PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> ElasticsearchException.fromXContent(p),
+                new ParseField("error")
+            );
         }
 
         private Response(String repository, List<SnapshotInfo> snapshots, ElasticsearchException error) {
@@ -194,8 +205,11 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             out.writeMap(failedResponses, StreamOutput::writeString, StreamOutput::writeException);
         } else {
             if (successfulResponses.size() + failedResponses.size() != 1) {
-                throw new IllegalArgumentException("Requesting snapshots from multiple repositories is not supported in versions prior " +
-                        "to " + GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString());
+                throw new IllegalArgumentException(
+                    "Requesting snapshots from multiple repositories is not supported in versions prior "
+                        + "to "
+                        + GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED.toString()
+                );
             }
 
             if (successfulResponses.size() == 1) {

@@ -1,0 +1,5 @@
+---
+jjbb-template: pull-request-gradle-unix.yml
+vars:
+  - pr-job: "bwc"
+  - gradle-args: "-Dignore.tests.seed bwcTestSnapshots"

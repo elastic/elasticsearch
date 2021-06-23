@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -1081,7 +1081,11 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         });
 
         tracker.renewPeerRecoveryRetentionLeases();
-        assertTrue("expired extra lease", tracker.getRetentionLeases(true).v1());
+        assertThat(tracker.getRetentionLeases().leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+            not(equalTo(expectedLeaseIds)));
+        assertThat("expired extra lease",
+            tracker.getRetentionLeases(true).leases().stream().map(RetentionLease::id).collect(Collectors.toSet()),
+            equalTo(expectedLeaseIds));
 
         final AllocationId advancingAllocationId
             = initializingAllocationIds.isEmpty() || rarely() ? primaryId : randomFrom(initializingAllocationIds);

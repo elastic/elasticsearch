@@ -31,6 +31,7 @@ a token or key. This token or key can then be used as credentials for authentica
 new requests. These services are enabled by default when TLS/SSL is enabled for HTTP.
 
 include::built-in-users.asciidoc[][]
+include::service-accounts.asciidoc[]
 include::internal-users.asciidoc[]
 include::token-authentication-services.asciidoc[]
 include::realms.asciidoc[]

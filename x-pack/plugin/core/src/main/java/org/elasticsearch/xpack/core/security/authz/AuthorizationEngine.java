@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -25,6 +25,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * <p>
@@ -135,7 +136,7 @@ public interface AuthorizationEngine {
                               ActionListener<IndexAuthorizationResult> listener);
 
     /**
-     * Asynchronously loads a list of alias and index names for which the user is authorized
+     * Asynchronously loads a set of alias and index names for which the user is authorized
      * to execute the requested action.
      *
      * @param requestInfo object contain the request and associated information such as the action
@@ -147,7 +148,7 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the authorization result
      */
     void loadAuthorizedIndices(RequestInfo requestInfo, AuthorizationInfo authorizationInfo,
-                               Map<String, IndexAbstraction> indicesLookup, ActionListener<List<String>> listener);
+                               Map<String, IndexAbstraction> indicesLookup, ActionListener<Set<String>> listener);
 
 
     /**
@@ -342,6 +343,9 @@ public interface AuthorizationEngine {
         }
 
         public static String getFailureDescription(Collection<?> deniedIndices) {
+            if (deniedIndices.isEmpty()) {
+                return null;
+            }
             return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
         }
 

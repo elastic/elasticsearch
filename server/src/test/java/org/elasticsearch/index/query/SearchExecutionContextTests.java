@@ -44,13 +44,15 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
+import org.elasticsearch.index.mapper.LongScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -59,8 +61,7 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.index.mapper.KeywordScriptFieldType;
-import org.elasticsearch.index.mapper.LongScriptFieldType;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -327,7 +328,7 @@ public class SearchExecutionContextTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -343,18 +344,19 @@ public class SearchExecutionContextTests extends ESTestCase {
         SearchExecutionContext context = createSearchExecutionContext(
             "uuid",
             null,
-            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+                List.of(new TestRuntimeField("runtime", "long"))),
             runtimeMappings);
         assertTrue(context.isFieldMapped("cat"));
         assertThat(context.getFieldType("cat"), instanceOf(KeywordScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertThat(context.getMatchingFieldNames("cat"), equalTo(Set.of("cat")));
         assertTrue(context.isFieldMapped("dog"));
         assertThat(context.getFieldType("dog"), instanceOf(LongScriptFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertThat(context.getMatchingFieldNames("dog"), equalTo(Set.of("dog")));
         assertTrue(context.isFieldMapped("pig"));
         assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
-        assertThat(context.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
+        assertThat(context.getMatchingFieldNames("pig"), equalTo(Set.of("pig")));
+        assertThat(context.getMatchingFieldNames("*"), equalTo(Set.of("cat", "dog", "pig", "runtime")));
     }
 
     public void testSearchRequestRuntimeFieldsWrongFormat() {
@@ -444,14 +446,14 @@ public class SearchExecutionContextTests extends ESTestCase {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        when(mapperService.parserContext()).thenReturn(new Mapper.TypeParser.ParserContext(
+        when(mapperService.parserContext()).thenReturn(new MappingParserContext(
             null,
             mapperRegistry.getMapperParsers()::get,
             mapperRegistry.getRuntimeFieldParsers()::get,
             indexSettings.getIndexVersionCreated(),
             searchExecutionContextSupplier,
             null,
-            null,
+            ScriptCompiler.NONE,
             indexAnalyzers,
             indexSettings,
             () -> true
@@ -464,7 +466,7 @@ public class SearchExecutionContextTests extends ESTestCase {
     }
 
     private static RuntimeField runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        return new TestRuntimeField(name, null) {
+        TestRuntimeField.TestRuntimeFieldType fieldType = new TestRuntimeField.TestRuntimeFieldType(name, null) {
             @Override
             public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
                                                            Supplier<SearchLookup> searchLookup) {
@@ -553,6 +555,7 @@ public class SearchExecutionContextTests extends ESTestCase {
                 };
             }
         };
+        return new TestRuntimeField(name, null, Collections.singleton(fieldType));
     }
 
     private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {

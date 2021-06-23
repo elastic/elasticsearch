@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.TieredMergePolicy;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -226,6 +227,7 @@ public final class MergePolicyConfig {
         return maxMergeAtOnce;
     }
 
+    @SuppressForbidden(reason="we always use an appropriate merge scheduler alongside this policy so NoMergePolic#INSTANCE is ok")
     MergePolicy getMergePolicy() {
         return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
     }

@@ -30,8 +30,8 @@ setup:
 ---
 "Analysis fails on readonly repositories":
   - skip:
-      version: "- 7.11.99"
-      reason: "introduced in 7.12"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       catch: bad_request
@@ -46,8 +46,8 @@ setup:
 ---
 "Analysis without details":
   - skip:
-      version: "- 7.11.99"
-      reason: "introduced in 7.12"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       snapshot.repository_analyze:
@@ -101,8 +101,8 @@ setup:
 ---
 "Analysis with details":
   - skip:
-      version: "- 7.11.99"
-      reason: "introduced in 7.12"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       snapshot.repository_analyze:
@@ -132,8 +132,8 @@ setup:
 ---
 "Analysis with ?human=false":
   - skip:
-      version: "- 7.11.99"
-      reason: "introduced in 7.12"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       snapshot.repository_analyze:
@@ -158,8 +158,8 @@ setup:
 ---
 "Timeout with large blobs":
   - skip:
-      version: "- 7.11.99"
-      reason: "introduced in 7.12"
+      version: "- 7.13.99"
+      reason: "abortWrites flag introduced in 7.14, and mixed-cluster support not required"
 
   - do:
       catch: request

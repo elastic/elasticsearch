@@ -205,12 +205,15 @@ public class ExtractedFields {
                 return false;
             }
             Map<String, FieldCapabilities> parentFieldCaps = fieldsCapabilities.getField(parent);
-            if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && parentFieldCaps.containsKey("object"))) {
-                // We check if the parent is an object which is indicated by field caps containing an "object" entry.
-                // If an object, it's not a multi field
+            if (parentFieldCaps == null || (parentFieldCaps.size() == 1 && isNestedOrObject(parentFieldCaps))) {
+                // We check if the parent is an object or nested field. If so, it's not a multi field.
                 return false;
             }
             return true;
+        }
+
+        private static boolean isNestedOrObject(Map<String, FieldCapabilities> fieldCaps) {
+            return fieldCaps.containsKey("object") || fieldCaps.containsKey("nested");
         }
     }
 

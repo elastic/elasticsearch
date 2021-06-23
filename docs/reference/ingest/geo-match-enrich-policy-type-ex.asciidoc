@@ -46,7 +46,7 @@ PUT /postal_codes/_doc/1?refresh=wait_for
 ----
 // TEST[continued]
 
-Use the <<put-enrich-policy-api,create or update enrich policy API>> to create
+Use the <<put-enrich-policy-api,create enrich policy API>> to create
 an enrich policy with the `geo_match` policy type. This policy must include:
 
 * One or more source indices

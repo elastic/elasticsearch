@@ -14,35 +14,34 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountTokensResponse;
+import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
 
 public class ServiceAccountService {
 
-    public static final String REALM_TYPE = "service_account";
-    public static final String REALM_NAME = "service_account";
-
     private static final Logger logger = LogManager.getLogger(ServiceAccountService.class);
+    private static final int MIN_TOKEN_SECRET_LENGTH = 10;
 
-    private final ServiceAccountsTokenStore serviceAccountsTokenStore;
+    private final ServiceAccountTokenStore serviceAccountTokenStore;
     private final HttpTlsRuntimeCheck httpTlsRuntimeCheck;
 
-    public ServiceAccountService(ServiceAccountsTokenStore serviceAccountsTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
-        this.serviceAccountsTokenStore = serviceAccountsTokenStore;
+    public ServiceAccountService(ServiceAccountTokenStore serviceAccountTokenStore, HttpTlsRuntimeCheck httpTlsRuntimeCheck) {
+        this.serviceAccountTokenStore = serviceAccountTokenStore;
         this.httpTlsRuntimeCheck = httpTlsRuntimeCheck;
-    }
-
-    public static boolean isServiceAccount(Authentication authentication) {
-        return REALM_TYPE.equals(authentication.getAuthenticatedBy().getType()) && null == authentication.getLookedUpBy();
     }
 
     public static boolean isServiceAccountPrincipal(String principal) {
@@ -51,6 +50,10 @@ public class ServiceAccountService {
 
     public static Collection<String> getServiceAccountPrincipals() {
         return ACCOUNTS.keySet();
+    }
+
+    public static Map<String, ServiceAccount> getServiceAccounts() {
+        return Map.copyOf(ACCOUNTS);
     }
 
     /**
@@ -79,9 +82,9 @@ public class ServiceAccountService {
         }
     }
 
-    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountTokensResponse> listener) {
-        serviceAccountsTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
-            listener.onResponse(new GetServiceAccountTokensResponse(accountId.asPrincipal(), nodeName, tokenInfos));
+    public void findTokensFor(ServiceAccountId accountId, String nodeName, ActionListener<GetServiceAccountCredentialsResponse> listener) {
+        serviceAccountTokenStore.findTokensFor(accountId, ActionListener.wrap(tokenInfos -> {
+            listener.onResponse(new GetServiceAccountCredentialsResponse(accountId.asPrincipal(), nodeName, tokenInfos));
         }, listener::onFailure));
     }
 
@@ -102,9 +105,21 @@ public class ServiceAccountService {
                 return;
             }
 
-            serviceAccountsTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
-                if (success) {
-                    listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+            if (serviceAccountToken.getSecret().length() < MIN_TOKEN_SECRET_LENGTH) {
+                logger.debug("failing authentication for service account token [{}],"
+                        + " the provided credential has length [{}]"
+                        + " but a token's secret value must be at least [{}] characters",
+                    serviceAccountToken.getQualifiedName(),
+                    serviceAccountToken.getSecret().length(),
+                    MIN_TOKEN_SECRET_LENGTH);
+                listener.onFailure(createAuthenticationException(serviceAccountToken));
+                return;
+            }
+
+            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource() , nodeName));
                 } else {
                     final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
                     logger.debug(e.getMessage());
@@ -115,7 +130,7 @@ public class ServiceAccountService {
     }
 
     public void getRoleDescriptor(Authentication authentication, ActionListener<RoleDescriptor> listener) {
-        assert isServiceAccount(authentication) : "authentication is not for service account: " + authentication;
+        assert authentication.isServiceAccount() : "authentication is not for service account: " + authentication;
         httpTlsRuntimeCheck.checkTlsThenExecute(listener::onFailure, "service account role descriptor resolving", () -> {
             final String principal = authentication.getUser().principal();
             final ServiceAccount account = ACCOUNTS.get(principal);
@@ -128,11 +143,13 @@ public class ServiceAccountService {
         });
     }
 
-    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
+    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, TokenSource tokenSource,
+                                                String nodeName) {
         final User user = account.asUser();
-        final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(REALM_NAME, REALM_TYPE, nodeName);
+        final Authentication.RealmRef authenticatedBy =
+            new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            Map.of("_token_name", token.getTokenName()));
+            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {

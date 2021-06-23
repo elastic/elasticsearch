@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -29,7 +30,10 @@ public class RestGetWatchAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_watcher/watch/{id}"));
+        return List.of(
+            Route.builder(GET, "/_watcher/watch/{id}")
+                .replaces(GET, "/_xpack/watcher/watch/{id}", RestApiVersion.V_7).build()
+        );
     }
 
     @Override

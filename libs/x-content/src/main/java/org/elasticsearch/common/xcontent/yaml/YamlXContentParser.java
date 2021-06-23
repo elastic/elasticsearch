@@ -9,7 +9,7 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonParser;
-import org.elasticsearch.common.RestApiVersion;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;

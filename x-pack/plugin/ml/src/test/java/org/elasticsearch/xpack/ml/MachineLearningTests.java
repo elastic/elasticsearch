@@ -22,7 +22,7 @@ public class MachineLearningTests extends ESTestCase {
 
     public void testMaxOpenWorkersSetting_givenDefault() {
         int maxOpenWorkers = MachineLearning.MAX_OPEN_JOBS_PER_NODE.get(Settings.EMPTY);
-        assertEquals(20, maxOpenWorkers);
+        assertEquals(512, maxOpenWorkers);
     }
 
     public void testMaxOpenWorkersSetting_givenSetting() {

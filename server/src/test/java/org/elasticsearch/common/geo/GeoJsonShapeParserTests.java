@@ -291,8 +291,10 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
 
         LinearRing shell = GEOMETRY_FACTORY.createLinearRing(shellCoordinates.toArray(new Coordinate[shellCoordinates.size()]));
         Polygon expected = GEOMETRY_FACTORY.createPolygon(shell, null);
+        final Version version = VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0);
         final LegacyGeoShapeFieldMapper mapperBuilder =
-            new LegacyGeoShapeFieldMapper.Builder("test", Version.CURRENT, false, true).build(new ContentPath());
+            new LegacyGeoShapeFieldMapper.Builder("test", version, false, true)
+                .build(new ContentPath());
         try (XContentParser parser = createParser(polygonGeoJson)) {
             parser.nextToken();
             ElasticsearchGeoAssertions.assertEquals(jtsGeom(expected), ShapeParser.parse(parser, mapperBuilder).buildS4J());

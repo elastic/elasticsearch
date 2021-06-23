@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.analysis.analyzer;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -671,11 +671,10 @@ public final class Verifier {
     private static void checkFilterOnAggs(LogicalPlan p, Set<Failure> localFailures, AttributeMap<Expression> attributeRefs) {
         if (p instanceof Filter) {
             Filter filter = (Filter) p;
-            LogicalPlan filterChild = filter.child();
-            if (filterChild instanceof Aggregate == false) {
+            if (filter.anyMatch(Aggregate.class::isInstance) == false) {
                 filter.condition().forEachDown(Expression.class, e -> {
                     if (Functions.isAggregate(attributeRefs.resolve(e, e))) {
-                        if (filterChild instanceof Project) {
+                        if (filter.child() instanceof Project) {
                             filter.condition().forEachDown(FieldAttribute.class,
                                 f -> localFailures.add(fail(e, "[{}] field must appear in the GROUP BY clause or in an aggregate function",
                                         Expressions.name(f)))
@@ -687,6 +686,20 @@ public final class Verifier {
                         }
                     }
                 });
+            } else {
+                Set<Expression> unsupported = new LinkedHashSet<>();
+                filter.condition().forEachDown(Expression.class, e -> {
+                    Expression f = attributeRefs.resolve(e, e);
+                    if (f instanceof TopHits) {
+                        unsupported.add(f);
+                    }
+                });
+                if (unsupported.isEmpty() == false) {
+                    String plural = unsupported.size() > 1 ? "s" : StringUtils.EMPTY;
+                    localFailures.add(
+                            fail(filter.condition(), "filtering is unsupported for function" + plural + " {}",
+                                    Expressions.names(unsupported)));
+                }
             }
         }
     }

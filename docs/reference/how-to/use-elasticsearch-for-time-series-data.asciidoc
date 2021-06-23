@@ -5,17 +5,6 @@
 such as logs and metrics. Once in {es}, you can analyze and visualize your data
 using {kib} and other {stack} features.
 
-To get the most out of your time series data in {es}, follow these steps:
-
-* <<set-up-data-tiers>>
-* <<register-snapshot-repository>>
-* <<create-edit-index-lifecycle-policy>>
-* <<create-ts-component-templates>>
-* <<create-ts-index-template>>
-* <<add-data-to-data-stream>>
-* <<search-visualize-your-data>>
-
-
 [discrete]
 [[set-up-data-tiers]]
 === Step 1. Set up data tiers
@@ -111,7 +100,7 @@ GET my-data-stream/_search
     "source.ip": {
       "type": "ip",
       "script": """
-        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
         if (sourceip != null) emit(sourceip);
       """
     }
@@ -168,7 +157,7 @@ POST my-data-stream/_async_search
     "source.ip": {
       "type": "ip",
       "script": """
-        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "event.original" ].value)?.sourceip;
+        String sourceip=grok('%{IPORHOST:sourceip} .*').extract(doc[ "message" ].value)?.sourceip;
         if (sourceip != null) emit(sourceip);
       """
     }

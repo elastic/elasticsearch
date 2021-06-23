@@ -191,6 +191,7 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(ioStats.getTotalReadOperations(), deserializedIoStats.getTotalReadOperations());
                     assertEquals(ioStats.getTotalWriteKilobytes(), deserializedIoStats.getTotalWriteKilobytes());
                     assertEquals(ioStats.getTotalWriteOperations(), deserializedIoStats.getTotalWriteOperations());
+                    assertEquals(ioStats.getTotalIOTimeMillis(), deserializedIoStats.getTotalIOTimeMillis());
                     assertEquals(ioStats.getDevicesStats().length, deserializedIoStats.getDevicesStats().length);
                     for (int i = 0; i < ioStats.getDevicesStats().length; i++) {
                         FsInfo.DeviceStats deviceStats = ioStats.getDevicesStats()[i];
@@ -200,6 +201,7 @@ public class NodeStatsTests extends ESTestCase {
                         assertEquals(deviceStats.readOperations(), deserializedDeviceStats.readOperations());
                         assertEquals(deviceStats.writeKilobytes(), deserializedDeviceStats.writeKilobytes());
                         assertEquals(deviceStats.writeOperations(), deserializedDeviceStats.writeOperations());
+                        assertEquals(deviceStats.ioTimeInMillis(), deserializedDeviceStats.ioTimeInMillis());
                     }
                 }
                 if (nodeStats.getTransport() == null) {
@@ -414,10 +416,12 @@ public class NodeStatsTests extends ESTestCase {
             for (int i = 0; i < numDeviceStats; i++) {
                 FsInfo.DeviceStats previousDeviceStats = randomBoolean() ? null :
                         new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10),
-                                randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), null);
+                            randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                            randomNonNegativeLong(), null);
                 deviceStatsArray[i] =
                     new FsInfo.DeviceStats(randomInt(), randomInt(), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong(),
-                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), previousDeviceStats);
+                        randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(),
+                        previousDeviceStats);
             }
             FsInfo.IoStats ioStats = new FsInfo.IoStats(deviceStatsArray);
             int numPaths = randomIntBetween(0, 10);

@@ -42,7 +42,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         doTestPreload("*");
         Settings build = Settings.builder()
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.HYBRIDFS.name().toLowerCase(Locale.ROOT))
-            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "bar")
+            .putList(IndexModule.INDEX_STORE_PRE_LOAD_SETTING.getKey(), "dvd", "tmp")
             .build();
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
@@ -56,12 +56,12 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(hybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
             assertTrue(hybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
             assertFalse(hybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
-            assertFalse(hybridDirectory.useDelegate("foo.bar", newIOContext(random())));
+            assertFalse(hybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;
             assertTrue(preLoadMMapDirectory.useDelegate("foo.dvd"));
-            assertTrue(preLoadMMapDirectory.useDelegate("foo.bar"));
+            assertTrue(preLoadMMapDirectory.useDelegate("foo.tmp"));
         }
     }
 
@@ -98,12 +98,12 @@ public class FsDirectoryFactoryTests extends ESTestCase {
                 assertFalse(preLoadMMapDirectory.useDelegate("XXX"));
                 assertFalse(preLoadMMapDirectory.getPreload());
                 preLoadMMapDirectory.close();
-                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.bar",
+                expectThrows(AlreadyClosedException.class, () -> preLoadMMapDirectory.getDelegate().openInput("foo.tmp",
                     IOContext.DEFAULT));
             }
         }
         expectThrows(AlreadyClosedException.class, () -> directory.openInput(randomBoolean() && preload.length != 0 ?
-            "foo." + preload[0] : "foo.bar", IOContext.DEFAULT));
+            "foo." + preload[0] : "foo.tmp", IOContext.DEFAULT));
     }
 
     public void testStoreDirectory() throws IOException {

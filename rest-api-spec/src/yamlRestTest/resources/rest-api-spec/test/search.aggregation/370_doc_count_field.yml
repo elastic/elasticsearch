@@ -178,4 +178,7 @@ setup:
   - match: { aggregations.f.buckets.foo.doc_count: 8 }
   - match: { aggregations.f.buckets.xyz.doc_count: 5 }
   - match: { profile.shards.0.aggregations.0.type: FiltersAggregator.FilterByFilter }
-  - gte: { profile.shards.0.aggregations.0.debug.segments_with_doc_count_field: 1 }
+  # We can't assert that segments_with_doc_count_field is > 0 because we might
+  # end up with two shards and all of the documents with the _doc_count field
+  # may be on one field. We have a test for this in AggregationProfilerIT
+  # and here we'd prefer to have two shards to make sure that works.

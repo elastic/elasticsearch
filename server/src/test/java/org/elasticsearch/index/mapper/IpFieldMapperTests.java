@@ -25,6 +25,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -207,5 +208,31 @@ public class IpFieldMapperTests extends MapperTestCase {
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return NetworkAddress.format(randomIp(randomBoolean()));
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
+    }
+
+    public void testScriptAndPrecludedParameters() {
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "ip");
+                b.field("script", "test");
+                b.field("null_value", 7);
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+        }
+        {
+            Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+                b.field("type", "ip");
+                b.field("script", "test");
+                b.field("ignore_malformed", "true");
+            })));
+            assertThat(e.getMessage(),
+                equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]"));
+        }
     }
 }

@@ -65,8 +65,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
@@ -82,7 +83,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void setUpManager() {
         final ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
-        when(threadPool.generic()).thenReturn(EsExecutors.newDirectExecutorService());
+        when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // Build a mock client that always accepts put mappings requests
         final Client client = new NoOpClient(threadPool) {
@@ -151,7 +152,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             currentState.set(state);
             listenerCalled.set(true);
         };
-        manager.addIndexStateListener(listener);
+        manager.addStateListener(listener);
 
         // index doesn't exist and now exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7,
@@ -280,7 +281,8 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
 
         // Hard-code a failure here.
-        when(descriptorSpy.checkMinimumNodeVersion(anyString(), any(Version.class))).thenReturn("Nope");
+        doReturn("Nope").when(descriptorSpy).getMinimumNodeVersionMessage(anyString());
+        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(Version.CURRENT));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
@@ -308,7 +310,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     public void testListenerNotCalledBeforeStateNotRecovered() {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        manager.addIndexStateListener((prev, current) -> listenerCalled.set(true));
+        manager.addStateListener((prev, current) -> listenerCalled.set(true));
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
         // state not recovered
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
@@ -327,7 +329,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicBoolean listenerCalled = new AtomicBoolean(false);
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME)));
         AtomicBoolean upToDateChanged = new AtomicBoolean();
-        manager.addIndexStateListener((prev, current) -> {
+        manager.addStateListener((prev, current) -> {
             listenerCalled.set(true);
             upToDateChanged.set(prev.isIndexUpToDate != current.isIndexUpToDate);
         });

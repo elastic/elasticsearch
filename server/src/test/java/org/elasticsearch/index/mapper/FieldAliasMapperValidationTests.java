@@ -9,6 +9,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -177,7 +178,7 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
     }
 
     private static FieldMapper createFieldMapper(String parent, String name) {
-        return new BooleanFieldMapper.Builder(name).build(new ContentPath(parent));
+        return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE).build(new ContentPath(parent));
     }
 
     private static ObjectMapper createObjectMapper(String name) {
@@ -202,6 +203,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
         Map<String, RuntimeField> runtimeFieldTypes = runtimeFields.stream().collect(Collectors.toMap(RuntimeField::name, r -> r));
         builder.setRuntime(runtimeFieldTypes);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, fieldMappers, objectMappers, fieldAliasMappers, null, null, null);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
     }
 }

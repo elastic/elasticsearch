@@ -53,10 +53,12 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -103,6 +105,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
+    @Override
     @Before
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
@@ -137,10 +144,28 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery("*a*", null, null);
         TopDocs wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
-        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
+        assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(1L));
 
         reader.close();
         dir.close();
+    }
+
+    public void testIgnoreAbove() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "wildcard").field("ignore_above", 5)));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
+        IndexableField[] fields = doc.rootDoc().getFields("field");
+        assertEquals(2, fields.length);
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(0, fields.length);
+
+        doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
+        fields = doc.rootDoc().getFields("field");
+        assertEquals(0, fields.length);
+
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
     }
 
     public void testBWCIndexVersion() throws IOException {
@@ -565,7 +590,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
     }
-    
+
     public void testQueryCachingEquality() throws IOException, ParseException {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
@@ -742,7 +767,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         Query expectedAccelerationQuery = qsp.parse(expectedAccelerationQueryString);
         testExpectedAccelerationQuery(regex, combinedQuery, expectedAccelerationQuery);
     }
-    
+
     private Query unwrapAnyConstantScore(Query q) {
         if (q instanceof ConstantScoreQuery) {
             ConstantScoreQuery csq = (ConstantScoreQuery) q;
@@ -1021,5 +1046,10 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected String generateRandomInputValue(MappedFieldType ft) {
         return randomAlphaOfLengthBetween(1, 100);
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

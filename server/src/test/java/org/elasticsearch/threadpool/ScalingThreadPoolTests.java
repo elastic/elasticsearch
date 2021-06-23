@@ -62,7 +62,8 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
             keepAlive = randomIntBetween(1, 300);
             builder.put("thread_pool." + threadPoolName + ".keep_alive", keepAlive + "s");
         } else {
-            keepAlive = "generic".equals(threadPoolName) ? 30 : 300; // the defaults
+            keepAlive = "generic".equals(threadPoolName) || ThreadPool.Names.SNAPSHOT_META.equals(threadPoolName)
+                    ? 30 : 300; // the defaults
         }
 
         runScalingThreadPoolTest(builder.build(), (clusterSettings, threadPool) -> {
@@ -91,11 +92,12 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
     private int expectedSize(final String threadPoolName, final int numberOfProcessors) {
         final Map<String, Function<Integer, Integer>> sizes = new HashMap<>();
         sizes.put(ThreadPool.Names.GENERIC, n -> ThreadPool.boundedBy(4 * n, 128, 512));
-        sizes.put(ThreadPool.Names.MANAGEMENT, n -> 5);
+        sizes.put(ThreadPool.Names.MANAGEMENT, n -> ThreadPool.boundedBy(n, 1, 5));
         sizes.put(ThreadPool.Names.FLUSH, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.REFRESH, ThreadPool::halfAllocatedProcessorsMaxTen);
         sizes.put(ThreadPool.Names.WARMER, ThreadPool::halfAllocatedProcessorsMaxFive);
         sizes.put(ThreadPool.Names.SNAPSHOT, ThreadPool::halfAllocatedProcessorsMaxFive);
+        sizes.put(ThreadPool.Names.SNAPSHOT_META, n -> Math.min(n * 3, 50));
         sizes.put(ThreadPool.Names.FETCH_SHARD_STARTED, ThreadPool::twiceAllocatedProcessors);
         sizes.put(ThreadPool.Names.FETCH_SHARD_STORE, ThreadPool::twiceAllocatedProcessors);
         return sizes.get(threadPoolName).apply(numberOfProcessors);

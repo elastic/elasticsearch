@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.util.Arrays;
@@ -23,6 +24,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authz.privilege.ManageOwnApiKeyClusterPrivilege.API_KEY_ID_KEY;
+import static org.hamcrest.Matchers.is;
 
 public class AuthenticationTests extends ESTestCase {
 
@@ -90,6 +92,32 @@ public class AuthenticationTests extends ESTestCase {
         final String apiKeyId2 = randomValueOtherThan(apiKeyId1, () -> randomAlphaOfLengthBetween(10, 20));
         assertCannotAccessResources(randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId1),
             randomApiKeyAuthentication(randomFrom(user1, user2), apiKeyId2));
+    }
+
+    public void testIsServiceAccount() {
+        final User user =
+            new User(randomAlphaOfLengthBetween(3, 8), randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
+        final Authentication.RealmRef authRealm;
+        final boolean authRealmIsForServiceAccount = randomBoolean();
+        if (authRealmIsForServiceAccount) {
+            authRealm = new Authentication.RealmRef(
+                ServiceAccountSettings.REALM_NAME,
+                ServiceAccountSettings.REALM_TYPE,
+                randomAlphaOfLengthBetween(3, 8));
+        } else {
+            authRealm = new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
+                randomAlphaOfLengthBetween(3, 8));
+        }
+        final Authentication.RealmRef lookupRealm = randomFrom(
+            new Authentication.RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8),
+            randomAlphaOfLengthBetween(3, 8)), null);
+        final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
+
+        if (authRealmIsForServiceAccount && lookupRealm == null) {
+            assertThat(authentication.isServiceAccount(), is(true));
+        } else {
+            assertThat(authentication.isServiceAccount(), is(false));
+        }
     }
 
     private void checkCanAccessResources(Authentication authentication0, Authentication authentication1) {

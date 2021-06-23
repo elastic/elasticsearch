@@ -201,8 +201,49 @@ setup:
   - match: { responses.0.snapshots.0.state: SUCCESS }
   - match: { responses.0.snapshots.0.metadata.taken_by: test }
   - match: { responses.0.snapshots.0.metadata.foo.bar: baz }
+  - is_false: responses.0.snapshots.0.index_details
 
   - do:
       snapshot.delete:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_metadata
+
+---
+"Get snapshot info with index details":
+  - skip:
+      version: " - 7.99.99"
+      reason: "8.0 changes get snapshots response format"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details
+        index_details: true
+        human: true
+
+  - is_true: responses.0.snapshots
+  - match: { responses.0.snapshots.0.snapshot: test_snapshot_with_index_details }
+  - match: { responses.0.snapshots.0.state: SUCCESS }
+  - gt:  { responses.0.snapshots.0.index_details.test_index.shard_count: 0 }
+  - gt:  { responses.0.snapshots.0.index_details.test_index.size_in_bytes: 0 }
+  - gte: { responses.0.snapshots.0.index_details.test_index.max_segments_per_shard: 0 }
+  - is_true: responses.0.snapshots.0.index_details.test_index.size
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details

@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -78,8 +77,14 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testEveryActionIsEitherOperatorOnlyOrNonOperator() throws IOException {
+        final String message = "An action should be declared to be either operator-only in ["
+            + OperatorOnlyRegistry.class.getName()
+            + "] or non-operator in ["
+            + Constants.class.getName()
+            + "]";
+
         Set<String> doubleLabelled = Sets.intersection(Constants.NON_OPERATOR_ACTIONS, OperatorOnlyRegistry.SIMPLE_ACTIONS);
-        assertTrue("Actions are both operator-only and non-operator: " + doubleLabelled, doubleLabelled.isEmpty());
+        assertTrue("Actions are both operator-only and non-operator: [" + doubleLabelled + "]. " + message, doubleLabelled.isEmpty());
 
         final Request request = new Request("GET", "/_test/get_actions");
         final Map<String, Object> response = responseAsMap(client().performRequest(request));
@@ -88,10 +93,19 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         labelledActions.addAll(Constants.NON_OPERATOR_ACTIONS);
 
         final Set<String> unlabelled = Sets.difference(allActions, labelledActions);
-        assertTrue("Actions are neither operator-only nor non-operator: " + unlabelled, unlabelled.isEmpty());
+        assertTrue("Actions are neither operator-only nor non-operator: [" + unlabelled + "]. " + message, unlabelled.isEmpty());
 
         final Set<String> redundant = Sets.difference(labelledActions, allActions);
-        assertTrue("Actions may no longer be valid: " + redundant, redundant.isEmpty());
+        assertTrue(
+            "Actions may no longer be valid: ["
+                + redundant
+                + "]. They should be removed from either the operator-only action registry in ["
+                + OperatorOnlyRegistry.class.getName()
+                + "] or the non-operator action list in ["
+                + Constants.class.getName()
+                + "]",
+            redundant.isEmpty()
+        );
     }
 
     @SuppressWarnings("unchecked")

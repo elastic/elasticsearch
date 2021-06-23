@@ -9,7 +9,7 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -37,12 +37,14 @@ import java.util.function.Supplier;
 public class RoundingBenchmark {
     private static final DateFormatter FORMATTER = DateFormatter.forPattern("date_optional_time");
 
-    @Param({
-        "2000-01-01 to 2020-01-01", // A super long range
-        "2000-10-01 to 2000-11-01", // A whole month which is pretty believable
-        "2000-10-29 to 2000-10-30", // A date right around daylight savings time.
-        "2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
-    })
+    @Param(
+        {
+            "2000-01-01 to 2020-01-01", // A super long range
+            "2000-10-01 to 2000-11-01", // A whole month which is pretty believable
+            "2000-10-29 to 2000-10-30", // A date right around daylight savings time.
+            "2000-06-01 to 2000-06-02"  // A date fully in one time zone. Should be much faster than above.
+        }
+    )
     public String range;
 
     @Param({ "java time", "es" })

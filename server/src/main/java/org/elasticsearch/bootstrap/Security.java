@@ -9,11 +9,12 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
+import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -158,9 +159,7 @@ final class Security {
 
     private static Permissions createRecursiveDataPathPermission(Environment environment) throws IOException {
         Permissions policy = new Permissions();
-        for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", true);
-        }
+        addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), environment.dataFile(), "read,readlink,write,delete", true);
         return policy;
     }
 
@@ -202,22 +201,17 @@ final class Security {
             addDirectoryPath(policy, Environment.PATH_SHARED_DATA_SETTING.getKey(), environment.sharedDataFile(),
                 "read,readlink,write,delete", false);
         }
-        final Set<Path> dataFilesPaths = new HashSet<>();
-        for (Path path : environment.dataFiles()) {
-            addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), path, "read,readlink,write,delete", false);
-            /*
-             * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
-             * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
-             * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
-             */
-            try {
-                final Path realPath = path.toRealPath();
-                if (dataFilesPaths.add(realPath) == false) {
-                    throw new IllegalStateException("path [" + realPath + "] is duplicated by [" + path + "]");
-                }
-            } catch (final IOException e) {
-                throw new IllegalStateException("unable to access [" + path + "]", e);
-            }
+        final Path dataPath = environment.dataFile();
+        addDirectoryPath(policy, Environment.PATH_DATA_SETTING.getKey(), dataPath, "read,readlink,write,delete", false);
+        /*
+         * We have to do this after adding the path because a side effect of that is that the directory is created; the Path#toRealPath
+         * invocation will fail if the directory does not already exist. We use Path#toRealPath to follow symlinks and handle issues
+         * like unicode normalization or case-insensitivity on some filesystems (e.g., the case-insensitive variant of HFS+ on macOS).
+         */
+        try {
+            dataPath.toRealPath();
+        } catch (final IOException e) {
+            throw new IllegalStateException("unable to access [" + dataPath + "]", e);
         }
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);

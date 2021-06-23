@@ -169,8 +169,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -218,8 +218,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -284,8 +284,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -493,8 +493,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -601,8 +601,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictionField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -659,8 +659,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",
@@ -746,8 +746,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
-            "Created analytics with analysis type [regression]",
-            "Estimated memory usage for this analytics to be",
+            "Created analytics with type [regression]",
+            "Estimated memory usage [",
             "Starting analytics on node",
             "Started analytics",
             "Creating destination index [" + destIndex + "]",

@@ -539,6 +539,19 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             assertEquals("Elasticsearch exception [type=version_conflict_engine_exception, reason=[with_create_op_type]: " +
                          "version conflict, document already exists (current version [1])]", exception.getMessage());
         }
+        {
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                IndexRequest indexRequest = new IndexRequest("index").id("require_alias");
+                indexRequest.source(XContentBuilder.builder(xContentType.xContent()).startObject().field("field", "test").endObject());
+                indexRequest.setRequireAlias(true);
+
+                execute(indexRequest, highLevelClient()::index, highLevelClient()::indexAsync);
+            });
+
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index] and [require_alias]" +
+                " request flag is [true] and [index] is not an alias]", exception.getMessage());
+        }
     }
 
     public void testUpdate() throws IOException {
@@ -716,6 +729,17 @@ public class CrudIT extends ESRestHighLevelClientTestCase {
             });
             assertEquals("Update request cannot have different content types for doc [JSON] and upsert [YAML] documents",
                     exception.getMessage());
+        }
+        {
+            ElasticsearchStatusException exception = expectThrows(ElasticsearchStatusException.class, () -> {
+                UpdateRequest updateRequest = new UpdateRequest("index", "id");
+                updateRequest.setRequireAlias(true);
+                updateRequest.doc(new IndexRequest().source(Collections.singletonMap("field", "doc"), XContentType.JSON));
+                execute(updateRequest, highLevelClient()::update, highLevelClient()::updateAsync);
+            });
+            assertEquals(RestStatus.NOT_FOUND, exception.status());
+            assertEquals("Elasticsearch exception [type=index_not_found_exception, reason=no such index [index] and [require_alias]" +
+                " request flag is [true] and [index] is not an alias]", exception.getMessage());
         }
     }
 

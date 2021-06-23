@@ -12,7 +12,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -42,13 +45,37 @@ abstract class OutboundMessage extends NetworkMessage {
             variableHeaderLength = Math.toIntExact(bytesStream.position() - preHeaderPosition);
         }
 
-        try (CompressibleBytesOutputStream stream =
-                 new CompressibleBytesOutputStream(bytesStream, TransportStatus.isCompress(status))) {
+        final boolean compress = TransportStatus.isCompress(status);
+        final StreamOutput stream = compress ? wrapCompressed(bytesStream) : bytesStream;
+        final BytesReference zeroCopyBuffer;
+        try {
             stream.setVersion(version);
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);
             }
-            reference = writeMessage(stream);
+            if (message instanceof BytesTransportRequest) {
+                BytesTransportRequest bRequest = (BytesTransportRequest) message;
+                bRequest.writeThin(stream);
+                zeroCopyBuffer = bRequest.bytes;
+            } else if (message instanceof RemoteTransportException) {
+                stream.writeException((RemoteTransportException) message);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            } else {
+                message.writeTo(stream);
+                zeroCopyBuffer = BytesArray.EMPTY;
+            }
+        } finally {
+            // We have to close here before accessing the bytes when using compression to ensure that some marker bytes (EOS marker)
+            // are written.
+            if (compress) {
+                stream.close();
+            }
+        }
+        final BytesReference message = bytesStream.bytes();
+        if (zeroCopyBuffer.length() == 0) {
+            reference = message;
+        } else {
+            reference = CompositeBytesReference.of(message, zeroCopyBuffer);
         }
 
         bytesStream.seek(0);
@@ -57,34 +84,14 @@ abstract class OutboundMessage extends NetworkMessage {
         return reference;
     }
 
-    protected void writeVariableHeader(StreamOutput stream) throws IOException {
-        threadContext.writeTo(stream);
+    // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
+    // resources and write EOS marker bytes but must not yet release the bytes themselves
+    private OutputStreamStreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
+        return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
     }
 
-    protected BytesReference writeMessage(CompressibleBytesOutputStream stream) throws IOException {
-        final BytesReference zeroCopyBuffer;
-        if (message instanceof BytesTransportRequest) {
-            BytesTransportRequest bRequest = (BytesTransportRequest) message;
-            bRequest.writeThin(stream);
-            zeroCopyBuffer = bRequest.bytes;
-        } else if (message instanceof RemoteTransportException) {
-            stream.writeException((RemoteTransportException) message);
-            zeroCopyBuffer = BytesArray.EMPTY;
-        } else {
-            message.writeTo(stream);
-            zeroCopyBuffer = BytesArray.EMPTY;
-        }
-        // we have to call materializeBytes() here before accessing the bytes. A CompressibleBytesOutputStream
-        // might be implementing compression. And materializeBytes() ensures that some marker bytes (EOS marker)
-        // are written. Otherwise we barf on the decompressing end when we read past EOF on purpose in the
-        // #validateRequest method. this might be a problem in deflate after all but it's important to write
-        // the marker bytes.
-        final BytesReference message = stream.materializeBytes();
-        if (zeroCopyBuffer.length() == 0) {
-            return message;
-        } else {
-            return CompositeBytesReference.of(message, zeroCopyBuffer);
-        }
+    protected void writeVariableHeader(StreamOutput stream) throws IOException {
+        threadContext.writeTo(stream);
     }
 
     static class Request extends OutboundMessage {

@@ -91,7 +91,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         AggregationContext context
     ) {
         MappedFieldType ft = new DateFieldMapper.DateFieldType(fieldName, indexed, false, true,
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, Collections.emptyMap());
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, resolution, null, null, Collections.emptyMap());
         return ValuesSourceConfig.resolveFieldOnly(ft, context);
     }
 

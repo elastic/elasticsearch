@@ -15,6 +15,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -22,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class SnapshotDeletionsInProgressTests extends ESTestCase {
     public void testXContent() throws IOException {
         SnapshotDeletionsInProgress sdip =
-            SnapshotDeletionsInProgress.newInstance(new SnapshotDeletionsInProgress.Entry(Collections.emptyList(),
-                "repo", 736694267638L, 0, SnapshotDeletionsInProgress.State.STARTED));
+            SnapshotDeletionsInProgress.of(List.of(new SnapshotDeletionsInProgress.Entry(Collections.emptyList(),
+                "repo", 736694267638L, 0, SnapshotDeletionsInProgress.State.STARTED)));
 
         try (XContentBuilder builder = jsonBuilder()) {
             builder.humanReadable(true);

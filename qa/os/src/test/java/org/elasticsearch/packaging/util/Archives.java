@@ -105,7 +105,10 @@ public class Archives {
 
         sh.chown(fullInstallPath);
 
-        return Installation.ofArchive(sh, distribution, fullInstallPath);
+        Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
+        ServerUtils.disableGeoIpDownloader(installation);
+
+        return installation;
     }
 
     private static void setupArchiveUsersLinux(Path installPath) {

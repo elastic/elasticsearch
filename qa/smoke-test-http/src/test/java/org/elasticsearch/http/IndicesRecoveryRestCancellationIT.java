@@ -16,18 +16,18 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.TaskInfo;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Semaphore;
 
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
+import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
+import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
@@ -68,25 +68,11 @@ public class IndicesRecoveryRestCancellationIT extends HttpSmokeTestCase {
                 releasables.add(operationBlock::release);
             }
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Response> future = new PlainActionFuture<>();
             logger.info("--> sending request");
-            final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    future.onResponse(null);
-                }
+            final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
-                @Override
-                public void onFailure(Exception exception) {
-                    future.onFailure(exception);
-                }
-            });
-
-            logger.info("--> waiting for task to start");
-            assertBusy(() -> {
-                final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-                assertTrue(tasks.toString(), tasks.stream().anyMatch(t -> t.getAction().startsWith(RecoveryAction.NAME)));
-            });
+            awaitTaskWithPrefix(RecoveryAction.NAME);
 
             logger.info("--> waiting for at least one task to hit a block");
             assertBusy(() -> assertTrue(operationBlocks.stream().anyMatch(Semaphore::hasQueuedThreads)));
@@ -95,28 +81,12 @@ public class IndicesRecoveryRestCancellationIT extends HttpSmokeTestCase {
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            logger.info("--> checking that all tasks are marked as cancelled");
-            assertBusy(() -> {
-                boolean foundTask = false;
-                for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                    for (CancellableTask cancellableTask : transportService.getTaskManager().getCancellableTasks().values()) {
-                        if (cancellableTask.getAction().startsWith(RecoveryAction.NAME)) {
-                            foundTask = true;
-                            assertTrue("task " + cancellableTask.getId() + " not cancelled", cancellableTask.isCancelled());
-                        }
-                    }
-                }
-                assertTrue("found no cancellable tasks", foundTask);
-            });
+            assertAllCancellableTasksAreCancelled(RecoveryAction.NAME);
         } finally {
             Releasables.close(releasables);
         }
 
-        logger.info("--> checking that all tasks have finished");
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().get().getTasks();
-            assertTrue(tasks.toString(), tasks.stream().noneMatch(t -> t.getAction().startsWith(RecoveryAction.NAME)));
-        });
+        assertAllTasksHaveFinished(RecoveryAction.NAME);
     }
 
 }

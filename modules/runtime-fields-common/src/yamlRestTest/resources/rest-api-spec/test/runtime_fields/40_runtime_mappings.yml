@@ -85,3 +85,27 @@ setup:
   - match: {fields.day_of_week.keyword.type:          keyword}
   - match: {fields.day_of_week.keyword.searchable:        true}
   - match: {fields.day_of_week.keyword.aggregatable:      true}
+
+---
+"Field caps with errors in runtime mappings section throws":
+
+  - skip:
+      version: " - 7.11.99"
+      reason: Runtime mappings support was added in 7.12
+
+  - do:
+      catch: bad_request
+      field_caps:
+        index: test-*
+        fields: "*"
+        body:
+          runtime_mappings:
+            day_of_week:
+              type: keyword
+              script:
+                source: "bad syntax"
+
+  - match: { error.type: "script_exception" }
+  - match: { error.reason: "compile error" }
+  - match: { error.script : "bad syntax" }
+  - match: { error.lang : "painless" }

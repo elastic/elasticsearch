@@ -52,6 +52,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         // no configurable parameters
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -149,5 +154,10 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
             return randomFrom("alpha", "beta", "prerelease", "whatever");
         }
         return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

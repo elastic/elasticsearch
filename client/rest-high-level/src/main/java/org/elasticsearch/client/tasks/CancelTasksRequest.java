@@ -8,7 +8,7 @@
 package org.elasticsearch.client.tasks;
 
 import org.elasticsearch.client.Validatable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.ArrayList;
 import java.util.List;

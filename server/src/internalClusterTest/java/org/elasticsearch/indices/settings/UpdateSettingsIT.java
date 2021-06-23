@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -692,6 +692,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         client().admin().cluster().prepareHealth()
             .setWaitForGreenStatus()
             .setWaitForNoInitializingShards(true)
+            .setWaitForNoRelocatingShards(true)
             .setWaitForEvents(Priority.LANGUID)
             .setTimeout(TimeValue.MAX_VALUE)
             .get();

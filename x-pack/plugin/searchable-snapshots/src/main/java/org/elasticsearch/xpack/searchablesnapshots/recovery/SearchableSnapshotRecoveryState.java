@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.recovery;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.util.HashSet;
@@ -156,13 +156,14 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             // sent over during peer recoveries as after restore a new segments file is generated
             // (see StoreRecovery#bootstrap).
             FileDetail fileDetail = fileDetails.computeIfAbsent(name, n -> new FileDetail(name, length, reused));
-            assert fileDetail == null || fileDetail.name().equals(name) && fileDetail.length() == length : "The file "
-                + name
-                + " was reported multiple times with different lengths: ["
-                + fileDetail.length()
-                + "] and ["
-                + length
-                + "]";
+            assert fileDetail == null || fileDetail.name().equals(name) && fileDetail.length() == length
+                : "The file "
+                    + name
+                    + " was reported multiple times with different lengths: ["
+                    + fileDetail.length()
+                    + "] and ["
+                    + length
+                    + "]";
         }
 
         void markFileAsReused(String name) {

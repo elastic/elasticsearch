@@ -18,8 +18,7 @@ include::../glossary.asciidoc[tag=rollover-def-short]
 include::../glossary.asciidoc[tag=shrink-def-short]
 * **Force merge**: 
 include::../glossary.asciidoc[tag=force-merge-def-short]
-* **Freeze**:
-include::../glossary.asciidoc[tag=freeze-def-short]
+* **Freeze**: <<freeze-index-api, Freezes>> an index and makes it read-only.
 * **Delete**: Permanently remove an index, including all of its data and metadata.
 
 {ilm-init} makes it easier to manage indices in hot-warm-cold architectures,

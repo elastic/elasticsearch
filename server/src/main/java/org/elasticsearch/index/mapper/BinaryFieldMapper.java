@@ -141,14 +141,13 @@ public class BinaryFieldMapper extends FieldMapper {
         if (stored == false && hasDocValues == false) {
             return;
         }
-        byte[] value = context.parseExternalValue(byte[].class);
-        if (value == null) {
-            if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
-                return;
-            } else {
-                value = context.parser().binaryValue();
-            }
+        if (context.parser().currentToken() == XContentParser.Token.VALUE_NULL) {
+            return;
         }
+        indexValue(context, context.parser().binaryValue());
+    }
+
+    public void indexValue(ParseContext context, byte[] value) {
         if (value == null) {
             return;
         }
@@ -168,7 +167,7 @@ public class BinaryFieldMapper extends FieldMapper {
             // Only add an entry to the field names field if the field is stored
             // but has no doc values so exists query will work on a field with
             // no doc values
-            createFieldNamesField(context);
+            context.addToFieldNames(fieldType().name());
         }
     }
 

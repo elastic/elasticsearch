@@ -31,20 +31,20 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -231,7 +231,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             // then wait for the new leader to commit a state without the old leader
             + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
 
-    class Cluster implements Releasable {
+    public class Cluster implements Releasable {
 
         static final long EXTREME_DELAY_VARIABILITY = 10000L;
         static final long DEFAULT_DELAY_VARIABILITY = 100L;
@@ -261,7 +261,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             this(initialNodeCount, true, Settings.EMPTY);
         }
 
-        Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
+        public Cluster(int initialNodeCount, boolean allNodesMasterEligible, Settings nodeSettings) {
             this(initialNodeCount, allNodesMasterEligible, nodeSettings, () -> new StatusInfo(HEALTHY, "healthy-info"));
         }
 
@@ -326,7 +326,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             return clusterNodes.size();
         }
 
-        void runRandomly() {
+        public void runRandomly() {
             runRandomly(true, true, EXTREME_DELAY_VARIABILITY);
         }
 
@@ -495,7 +495,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        void stabilise() {
+        public void stabilise() {
             stabilise(DEFAULT_STABILISATION_TIME);
         }
 
@@ -653,7 +653,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 (n1.nodeHealthService.getHealth().getStatus() == HEALTHY && n2.nodeHealthService.getHealth().getStatus() == HEALTHY);
         }
 
-        ClusterNode getAnyLeader() {
+        public ClusterNode getAnyLeader() {
             List<ClusterNode> allLeaders = clusterNodes.stream().filter(ClusterNode::isLeader).collect(Collectors.toList());
             assertThat("leaders", allLeaders, not(empty()));
             return randomFrom(allLeaders);
@@ -883,7 +883,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             }
         }
 
-        class ClusterNode {
+        public class ClusterNode {
             private final Logger logger = LogManager.getLogger(ClusterNode.class);
 
             private final int nodeIndex;
@@ -996,12 +996,16 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             ClusterNode restartedNode(Function<Metadata, Metadata> adaptGlobalMetadata, Function<Long, Long> adaptCurrentTerm,
                                       Settings nodeSettings) {
+                final Set<DiscoveryNodeRole> allExceptVotingOnlyRole = DiscoveryNodeRole.roles()
+                    .stream()
+                    .filter(r -> r.equals(DiscoveryNodeRole.VOTING_ONLY_NODE_ROLE) == false)
+                    .collect(Collectors.toUnmodifiableSet());
                 final TransportAddress address = randomBoolean() ? buildNewFakeTransportAddress() : localNode.getAddress();
                 final DiscoveryNode newLocalNode = new DiscoveryNode(localNode.getName(), localNode.getId(),
                     UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
                     address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
                     localNode.isMasterNode() && DiscoveryNode.isMasterNode(nodeSettings)
-                        ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+                        ? allExceptVotingOnlyRole : emptySet(), Version.CURRENT);
                 return new ClusterNode(nodeIndex, newLocalNode,
                     node -> new MockPersistedState(newLocalNode, persistedState, adaptGlobalMetadata, adaptCurrentTerm), nodeSettings,
                     nodeHealthService);
@@ -1015,7 +1019,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 return localNode.getId();
             }
 
-            DiscoveryNode getLocalNode() {
+            public DiscoveryNode getLocalNode() {
                 return localNode;
             }
 
@@ -1393,7 +1397,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         return new DiscoveryNode("", "node" + nodeIndex,
             UUIDs.randomBase64UUID(random()), // generated deterministically for repeatable tests
             address.address().getHostString(), address.getAddress(), address, Collections.emptyMap(),
-            masterEligible ? DiscoveryNodeRole.BUILT_IN_ROLES : emptySet(), Version.CURRENT);
+            masterEligible ? DiscoveryNodeRole.roles() : emptySet(), Version.CURRENT);
     }
 
     /**

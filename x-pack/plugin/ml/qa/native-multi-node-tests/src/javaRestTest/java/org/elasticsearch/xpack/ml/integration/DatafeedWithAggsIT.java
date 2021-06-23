@@ -10,7 +10,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
@@ -101,9 +101,8 @@ public class DatafeedWithAggsIT extends MlNativeAutodetectIntegTestCase {
         DatafeedConfig datafeed = datafeedBuilder.build();
 
         // Create stuff and open job
-        registerJob(jobBuilder);
         putJob(jobBuilder);
-        registerDatafeed(datafeed);
+
         putDatafeed(datafeed);
         openJob(jobId);
 

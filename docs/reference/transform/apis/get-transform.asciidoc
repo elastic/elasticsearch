@@ -26,14 +26,8 @@ Retrieves configuration information for {transforms}.
 [[get-transform-prereqs]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following
-privileges:
-
-* `monitor_transform`
-
-The built-in `transform_user` role has this privilege.
-
-For more information, see <<security-privileges>> and <<built-in-roles>>.
+Requires the `monitor_transform` cluster privilege. This privilege is included 
+in the `transform_user` built-in role.
 
 [[get-transform-desc]]
 == {api-description-title}

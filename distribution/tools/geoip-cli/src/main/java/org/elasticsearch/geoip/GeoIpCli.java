@@ -10,13 +10,14 @@ package org.elasticsearch.geoip;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.xcontent.XContentGenerator;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -30,9 +31,9 @@ import java.nio.file.StandardCopyOption;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import java.util.zip.GZIPOutputStream;
 
 import static java.nio.file.StandardOpenOption.CREATE;
@@ -42,9 +43,8 @@ public class GeoIpCli extends Command {
 
     private static final byte[] EMPTY_BUF = new byte[512];
 
-    // visible for testing
-    final OptionSpec<String> sourceDirectory;
-    final OptionSpec<String> targetDirectory;
+    private final OptionSpec<String> sourceDirectory;
+    private final OptionSpec<String> targetDirectory;
 
     public GeoIpCli() {
         super("A CLI tool to prepare local GeoIp database service", () -> {});
@@ -58,7 +58,7 @@ public class GeoIpCli extends Command {
         Path source = getPath(options.valueOf(sourceDirectory));
         String targetString = options.valueOf(targetDirectory);
         Path target = targetString != null ? getPath(targetString) : source;
-        copyTgzToTarget(terminal, source, target);
+        copyTgzToTarget(source, target);
         packDatabasesToTgz(terminal, source, target);
         createOverviewJson(terminal, target);
     }
@@ -68,49 +68,49 @@ public class GeoIpCli extends Command {
         return PathUtils.get(file);
     }
 
-    private void copyTgzToTarget(Terminal terminal, Path source, Path target) throws IOException {
+    private void copyTgzToTarget(Path source, Path target) throws IOException {
         if (source.equals(target)) {
             return;
         }
-        List<Path> toCopy = Files.list(source).filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList());
-        for (Path path : toCopy) {
-            Files.copy(path, target.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+        try (Stream<Path> files = Files.list(source)) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
+                Files.copy(path, target.resolve(path.getFileName()), StandardCopyOption.REPLACE_EXISTING);
+            }
         }
     }
 
     private void packDatabasesToTgz(Terminal terminal, Path source, Path target) throws IOException {
-        List<Path> toPack = Files.list(source).filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList());
-        for (Path path : toPack) {
-            String fileName = path.getFileName().toString();
-            Path compressedPath = target.resolve(fileName.replaceAll("mmdb$", "") + "tgz");
-            terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
-            try (
-                OutputStream fos = Files.newOutputStream(compressedPath, TRUNCATE_EXISTING, CREATE);
-                OutputStream gos = new GZIPOutputStream(new BufferedOutputStream(fos))
-            ) {
-                long size = Files.size(path);
-                gos.write(createTarHeader(fileName, size));
-                Files.copy(path, gos);
-                if (size % 512 != 0) {
-                    gos.write(EMPTY_BUF, 0, (int) (512 - (size % 512)));
+        try (Stream<Path> files = Files.list(source)) {
+            for (Path path : files.filter(p -> p.getFileName().toString().endsWith(".mmdb")).collect(Collectors.toList())) {
+                String fileName = path.getFileName().toString();
+                Path compressedPath = target.resolve(fileName.replaceAll("mmdb$", "") + "tgz");
+                terminal.println("Found " + fileName + ", will compress it to " + compressedPath.getFileName());
+                try (
+                    OutputStream fos = Files.newOutputStream(compressedPath, TRUNCATE_EXISTING, CREATE);
+                    OutputStream gos = new GZIPOutputStream(new BufferedOutputStream(fos))
+                ) {
+                    long size = Files.size(path);
+                    gos.write(createTarHeader(fileName, size));
+                    Files.copy(path, gos);
+                    if (size % 512 != 0) {
+                        gos.write(EMPTY_BUF, 0, (int) (512 - (size % 512)));
+                    }
+                    gos.write(EMPTY_BUF);
+                    gos.write(EMPTY_BUF);
                 }
-                gos.write(EMPTY_BUF);
-                gos.write(EMPTY_BUF);
             }
         }
     }
 
     private void createOverviewJson(Terminal terminal, Path directory) throws IOException {
-        List<Path> databasesPaths = Files.list(directory)
-            .filter(p -> p.getFileName().toString().endsWith(".tgz"))
-            .collect(Collectors.toList());
         Path overview = directory.resolve("overview.json");
         try (
+            Stream<Path> files = Files.list(directory);
             OutputStream os = new BufferedOutputStream(Files.newOutputStream(overview, TRUNCATE_EXISTING, CREATE));
             XContentGenerator generator = XContentType.JSON.xContent().createGenerator(os)
         ) {
             generator.writeStartArray();
-            for (Path db : databasesPaths) {
+            for (Path db : files.filter(p -> p.getFileName().toString().endsWith(".tgz")).collect(Collectors.toList())) {
                 terminal.println("Adding " + db.getFileName() + " to overview.json");
                 MessageDigest md5 = MessageDigests.md5();
                 try (InputStream dis = new DigestInputStream(new BufferedInputStream(Files.newInputStream(db)), md5)) {

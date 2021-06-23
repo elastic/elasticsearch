@@ -54,7 +54,7 @@ public class TransportSqlTranslateAction extends HandledTransportAction<SqlTrans
         sqlLicenseChecker.checkIfSqlAllowed(request.mode());
 
         SqlConfiguration cfg = new SqlConfiguration(request.zoneId(), request.fetchSize(),
-                request.requestTimeout(), request.pageTimeout(), request.filter(),
+                request.requestTimeout(), request.pageTimeout(), request.filter(), request.runtimeMappings(),
                 request.mode(), request.clientId(), request.version(),
                 username(securityContext), clusterName(clusterService), Protocol.FIELD_MULTI_VALUE_LENIENCY,
                 Protocol.INDEX_INCLUDE_FROZEN);

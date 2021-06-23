@@ -177,7 +177,9 @@ public class AnalyticsProcessManager {
             writeHeaderRecord(dataExtractor, process, task);
             writeDataRows(dataExtractor, process, task);
             process.writeEndOfDataMessage();
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream", processContext.config.getId()));
             process.flushStream();
+            LOGGER.debug(() -> new ParameterizedMessage("[{}] Flushing input stream completed", processContext.config.getId()));
 
             restoreState(config, process, hasState);
 

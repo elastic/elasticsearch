@@ -23,14 +23,17 @@ after several successive failed login attempts. If the same username exists in
 multiple realms, unintentional account lockouts are possible. For more
 information, see <<trouble-shoot-active-directory>>.
 
-The default realm chain contains the `native` and `file` realms. To explicitly
+The default realm chain contains the `file` and `native` realms. To explicitly
 configure a realm chain, you specify the chain in the `elasticsearch.yml` file.
-When you configure a realm chain, only the realms you specify are used for
-authentication. To use the `native` and `file` realms, you must include them in
-the chain.
+If your realm chain does not contain `file` or `native` realm or does not disable
+them explicitly, `file` and `native` realms will be added automatically to the
+beginning of the realm chain in that order. To opt-out from the automatic behaviour,
+you can explicitly configure the `file` and `native` realms with the `order`
+and `enabled` settings.
 
-The following snippet configures a realm chain that includes the `file` and
-`native` realms, as well as two LDAP realms and an Active Directory realm.
+The following snippet configures a realm chain that enables the `file` realm
+as well as two LDAP realms and an Active Directory realm, but disables the
+`native` realm.
 
 [source,yaml]
 ----------------------------------------
@@ -38,29 +41,29 @@ xpack.security.authc.realms:
   file.file1:
       order: 0
 
-  native.native1:
-      order: 1
-
   ldap.ldap1:
-      order: 2
+      order: 1
       enabled: false
       url: 'url_to_ldap1'
       ...
 
   ldap.ldap2:
-      order: 3
+      order: 2
       url: 'url_to_ldap2'
       ...
 
   active_directory.ad1:
-      order: 4
+      order: 3
       url: 'url_to_ad'
+
+  native.native1:
+      enabled: false
 ----------------------------------------
 
 As can be seen above, each realm has a unique name that identifies it. Each type
 of realm dictates its own set of required and optional settings. That said,
-there are 
-<<ref-realm-settings,settings that are common to all realms>>. 
+there are
+<<ref-realm-settings,settings that are common to all realms>>.
 
 [[authorization_realms]]
 ==== Delegating authorization to another realm
@@ -81,14 +84,14 @@ further explanation on which realms support this.
 For realms that support this feature, it can be enabled by configuring the
 `authorization_realms` setting on the authenticating realm. Check the list of
 <<realm-settings,supported settings>> for each realm
-to see if they support the `authorization_realms` setting. 
+to see if they support the `authorization_realms` setting.
 
-If delegated authorization is enabled for a realm, it authenticates the user in 
-its standard manner (including relevant caching) then looks for that user in the 
-configured list of authorization realms. It tries each realm in the order they 
-are specified in the `authorization_realms` setting. The user is retrieved by 
-principal - the user must have identical usernames in the _authentication_ and 
-_authorization realms_. If the user cannot be found in any of the authorization 
+If delegated authorization is enabled for a realm, it authenticates the user in
+its standard manner (including relevant caching) then looks for that user in the
+configured list of authorization realms. It tries each realm in the order they
+are specified in the `authorization_realms` setting. The user is retrieved by
+principal - the user must have identical usernames in the _authentication_ and
+_authorization realms_. If the user cannot be found in any of the authorization
 realms, authentication fails.
 
 See <<configuring-authorization-delegation>> for more details.

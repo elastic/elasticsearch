@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -36,6 +37,8 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
  * </pre>
  */
 public class RestBulkAction extends BaseRestHandler {
+    public static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
+        " Specifying types in bulk requests is deprecated.";
 
     private final boolean allowExplicitIndex;
 
@@ -49,7 +52,13 @@ public class RestBulkAction extends BaseRestHandler {
             new Route(POST, "/_bulk"),
             new Route(PUT, "/_bulk"),
             new Route(POST, "/{index}/_bulk"),
-            new Route(PUT, "/{index}/_bulk"));
+            new Route(PUT, "/{index}/_bulk"),
+            Route.builder(POST, "/{index}/{type}/_bulk")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build(),
+            Route.builder(PUT, "/{index}/{type}/_bulk")
+                .deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7)
+                .build());
     }
 
     @Override
@@ -59,6 +68,9 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type") ) {
+            request.param("type");
+        }
         BulkRequest bulkRequest = Requests.bulkRequest();
         String defaultIndex = request.param("index");
         String defaultRouting = request.param("routing");
@@ -72,7 +84,8 @@ public class RestBulkAction extends BaseRestHandler {
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
         bulkRequest.add(request.requiredContent(), defaultIndex, defaultRouting,
-            defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType());
+            defaultFetchSourceContext, defaultPipeline, defaultRequireAlias, allowExplicitIndex, request.getXContentType(),
+            request.getRestApiVersion());
 
         return channel -> client.bulk(bulkRequest, new RestStatusToXContentListener<>(channel));
     }

@@ -29,8 +29,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.os.OsStats;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -322,7 +322,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
 
     private Set<DiscoveryNodeRole> randomIrrelevantRoles(Set<Set<String>> relevantRoleSets) {
         return randomValueOtherThanMany(relevantRoleSets::contains, AutoscalingTestCase::randomRoles).stream()
-            .map(DiscoveryNode::getRoleFromRoleName)
+            .map(DiscoveryNodeRole::getRoleFromRoleName)
             .collect(Collectors.toSet());
     }
 
@@ -427,7 +427,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             randomFrom(autoscalingMetadata.policies().values()).policy()
                 .roles()
                 .stream()
-                .map(DiscoveryNode::getRoleFromRoleName)
+                .map(DiscoveryNodeRole::getRoleFromRoleName)
                 .collect(Collectors.toSet())
         );
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
@@ -85,7 +86,8 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
                     FieldCapabilitiesTests.randomFieldCaps(toReplace)));
                 break;
         }
-        return new FieldCapabilitiesResponse(null, mutatedResponses);
+        // TODO pass real list
+        return new FieldCapabilitiesResponse(null, mutatedResponses, Collections.emptyList());
     }
 
     @Override
@@ -105,7 +107,7 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         String generatedResponse = BytesReference.bytes(builder).utf8ToString();
         assertEquals((
             "{" +
-            "    \"indices\": null," +
+            "    \"indices\": [\"index1\",\"index2\",\"index3\",\"index4\"]," +
             "    \"fields\": {" +
             "        \"rating\": { " +
             "            \"keyword\": {" +
@@ -133,13 +135,14 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
             "                \"aggregatable\": false" +
             "            }" +
             "        }" +
-            "    }" +
+            "    }," +
+            "    \"failed_indices\":2," +
+            "    \"failures\":[" +
+            "        { \"indices\": [\"errorindex\", \"errorindex2\"]," +
+            "          \"failure\" : {\"error\":{\"root_cause\":[{\"type\":\"illegal_argument_exception\"," +
+            "          \"reason\":\"test\"}],\"type\":\"illegal_argument_exception\",\"reason\":\"test\"}}}" +
+            "    ]" +
             "}").replaceAll("\\s+", ""), generatedResponse);
-    }
-
-    public void testEmptyResponse() throws IOException {
-        FieldCapabilitiesResponse testInstance = new FieldCapabilitiesResponse();
-        assertSerialization(testInstance);
     }
 
     private static FieldCapabilitiesResponse createSimpleResponse() {
@@ -162,6 +165,10 @@ public class MergedFieldCapabilitiesResponseTests extends AbstractSerializingTes
         Map<String, Map<String, FieldCapabilities>> responses = new HashMap<>();
         responses.put("title", titleCapabilities);
         responses.put("rating", ratingCapabilities);
-        return new FieldCapabilitiesResponse(null, responses);
+
+        List<FieldCapabilitiesFailure> failureMap = List.of(
+            new FieldCapabilitiesFailure(new String[] { "errorindex", "errorindex2" }, new IllegalArgumentException("test"))
+        );
+        return new FieldCapabilitiesResponse(new String[] {"index1", "index2", "index3", "index4"}, responses, failureMap);
     }
 }

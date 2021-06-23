@@ -12,9 +12,9 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSelector;
 import org.apache.lucene.search.SortedNumericSortField;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
@@ -28,6 +28,9 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
+
+import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingFirst;
+import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.sortMissingLast;
 
 /**
  * Base class for numeric field data.
@@ -83,6 +86,13 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         Nested nested,
         boolean reverse
     ) {
+        if (targetNumericType == NumericType.DATE_NANOSECONDS) {
+            // explicitly set missingValue if not set yet to prevent negative values that would cause invalid nanosecond range
+            if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
+                final boolean min = sortMissingFirst(missingValue) ^ reverse;
+                missingValue = min ? 0L : Long.MAX_VALUE;
+            }
+        }
         XFieldComparatorSource source = comparatorSource(targetNumericType, missingValue, sortMode, nested);
 
         /*

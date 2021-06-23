@@ -4,10 +4,16 @@
 Indicates to the cluster that a node is going to be shut down, either
 temporarily for a restart or permanently for removal from the cluster.
 
+NOTE: This API does not terminate the Elasticsearch process, it prepares a
+node so that it is safe to terminate the process. Terminating the Elasticsearch
+process after the node is ready to shut down as indicated by the
+<<shutdown-api-get-shutdown,Node shutdown status API>> is the responsibility
+of the cluster operator.
+
 [[shutdown-api-put-request]]
 ==== {api-request-title}
 
-`PUT _nodes/<node-id>/_shutdown`
+`PUT _nodes/<node-id>/shutdown`
 
 [[shutdown-api-put-prereqs]]
 ==== {api-prereq-title}
@@ -17,7 +23,6 @@ temporarily for a restart or permanently for removal from the cluster.
 
 * If the <<operator-privileges,{operator-feature}>> is enabled, only operator
 users can use this API.
-
 
 [[shutdown-api-put-desc]]
 ==== {api-description-title}
@@ -78,7 +83,15 @@ PUT /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
   "reason": "demonstrating how the node shutdown API works" <2>
 }
 --------------------------------------------------
-// TESTRESPONSE[s/\.\.\./"acknowledged": true,/]
+
+////
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+////
 
 <1> The type of shutdown, either `restart` or `remove`.
 <2> The reason for the shutdown.

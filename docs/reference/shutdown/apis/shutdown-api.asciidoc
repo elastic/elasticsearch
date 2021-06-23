@@ -10,6 +10,7 @@ or permanent shutdown.
 === Node shutdown APIs
 
 * <<shutdown-api-put-shutdown,Register node for shutdown>>
+* <<shutdown-api-get-shutdown,Get status of shutting down node>>
 
 include::shutdown-put.asciidoc[]
 include::shutdown-get.asciidoc[]

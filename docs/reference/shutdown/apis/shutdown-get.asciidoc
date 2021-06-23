@@ -1,0 +1,95 @@
+[[shutdown-api-get-shutdown]]
+=== Node shutdown status API
+
+Retrieves the status of a node that's in the process of preparing for shutdown,
+indicating whether it is currently ready to shut down or not.
+
+[[shutdown-api-get-request]]
+==== {api-request-title}
+
+`GET _nodes/shutdown`
+
+`GET _nodes/<node-id>/shutdown`
+
+[[shutdown-api-get-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[shutdown-api-get-desc]]
+==== {api-description-title}
+
+Retrieves the status of a node that's in the process of preparing to be shut
+down, indicating whether it is in progress, complete, or if it has stalled
+during the process. Detailed statuses of each portion of the shutdown are
+included as well.
+
+[[shutdown-api-get-path-params]]
+==== {api-path-parms-title}
+
+`<node-id>`::
+(Optional, string)
+The ID of a node which is preparing to be shut down. If not provided,
+the statuses of all nodes registered for shutdown will be returned.
+
+[[shutdown-api-get-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[shutdown-api-get-example]]
+
+This API is only useful after a node has been registered for shutdown:
+
+[source,console]
+--------------------------------------------------
+PUT /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+{
+  "type": "restart",
+  "reason": "demonstrating how the node shutdown API works"
+}
+--------------------------------------------------
+// TEST[setup:node]
+// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
+// TESTSETUP
+
+Once a node is in the process of shutting down, we can retrieve its status
+with this API:
+
+[source,console]
+--------------------------------------------------
+GET /_nodes_/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+--------------------------------------------------
+
+Which returns the following response:
+[source,console-result]
+--------------------------------------------------
+{
+    "nodes": [
+        {
+            "node_id": "USpTGYaBSIKbgSUJR2Z9lg",
+            "type": "RESTART",
+            "reason": "demonstrating how the node shutdown API works",
+            "shutdown_startedmillis": 1624406108685,
+            "status": "COMPLETE",
+            "shard_migration": {
+                "status": "COMPLETE",
+                "shard_migrations_remaining": 0,
+                "explanation": "no shard relocation is necessary for a node restart"
+            },
+            "persistent_tasks": {
+                "status": "COMPLETE"
+            },
+            "plugins": {
+                "status": "COMPLETE"
+            }
+        }
+    ]
+}
+--------------------------------------------------
+// TESTRESPONSE[s/1624406108685/$body.nodes.0.shutdown_startedmillis/]
+// TESTRESPONSE[s/USpTGYaBSIKbgSUJR2Z9lg/$node_name/]

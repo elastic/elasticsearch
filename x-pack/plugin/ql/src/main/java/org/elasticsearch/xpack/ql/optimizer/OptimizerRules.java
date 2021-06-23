@@ -1195,7 +1195,6 @@ public final class OptimizerRules {
                 UnaryPlan unary = (UnaryPlan) child;
                 // in case of aggregates, worry about filters that contain aggregations
                 if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
-                    Aggregate agg = (Aggregate) unary;
                     List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
                     List<Expression> inPlace = new ArrayList<>();
                     // extract all conjunctions containing aggregates

@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.DirectoryProperty;
@@ -59,14 +57,12 @@ public class CopyRestTestsTask extends DefaultTask {
     private final PatternFilterable xpackPatternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
-    private final ArchiveOperations archiveOperations;
 
     @Inject
     public CopyRestTestsTask(
         ProjectLayout projectLayout,
         Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations,
         ObjectFactory objectFactory
     ) {
         this.includeCore = objectFactory.listProperty(String.class);
@@ -76,7 +72,6 @@ public class CopyRestTestsTask extends DefaultTask {
         this.xpackPatternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
-        this.archiveOperations = archiveOperations;
     }
 
     @Input
@@ -99,12 +94,8 @@ public class CopyRestTestsTask extends DefaultTask {
             xpackFileTree = xpackConfigToFileTree.apply(xpackConfig).matching(xpackPatternSet);
         }
         if (includeCore.get().isEmpty() == false) {
-            if (BuildParams.isInternal()) {
-                corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
-            } else {
-                coreFileTree = coreConfig.getAsFileTree(); // jar file
-            }
+            corePatternSet.setIncludes(includeCore.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            coreFileTree = coreConfigToFileTree.apply(coreConfig).matching(corePatternSet); // directory on disk
         }
         FileCollection fileCollection = additionalConfig == null
             ? projectLayout.files(coreFileTree, xpackFileTree)
@@ -131,27 +122,12 @@ public class CopyRestTestsTask extends DefaultTask {
 
         // only copy core tests if explicitly instructed
         if (includeCore.get().isEmpty() == false) {
-            if (BuildParams.isInternal()) {
-                getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
-                fileSystemOperations.copy(c -> {
-                    c.from(coreConfigToFileTree.apply(coreConfig));
-                    c.into(restTestOutputDir);
-                    c.include(corePatternSet.getIncludes());
-                });
-            } else {
-                getLogger().debug(
-                    "Rest tests for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                    projectPath,
-                    VersionProperties.getElasticsearch()
-                );
-                fileSystemOperations.copy(c -> {
-                    c.from(archiveOperations.zipTree(coreConfig.getSingleFile())); // jar file
-                    c.into(outputResourceDir);
-                    c.include(
-                        includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
-                    );
-                });
-            }
+            getLogger().debug("Rest tests for project [{}] will be copied to the test resources.", projectPath);
+            fileSystemOperations.copy(c -> {
+                c.from(coreConfigToFileTree.apply(coreConfig));
+                c.into(restTestOutputDir);
+                c.include(corePatternSet.getIncludes());
+            });
         }
         // only copy x-pack tests if explicitly instructed
         if (includeXpack.get().isEmpty() == false) {
@@ -195,13 +171,4 @@ public class CopyRestTestsTask extends DefaultTask {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 
-    @Internal
-    public FileCollection getCoreConfig() {
-        return coreConfig;
-    }
-
-    @Internal
-    public FileCollection getXpackConfig() {
-        return xpackConfig;
-    }
 }

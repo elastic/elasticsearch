@@ -86,6 +86,6 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
                 "TEST",
                 Map.of("plus", Arrays.asList(project.getConfigurations().getByName(JavaPlugin.TEST_RUNTIME_CLASSPATH_CONFIGURATION_NAME)))
             );
-        BuildParams.withInternalBuild(() -> InternalPrecommitTasks.create(project, false));
+        InternalPrecommitTasks.create(project, false);
     }
 }

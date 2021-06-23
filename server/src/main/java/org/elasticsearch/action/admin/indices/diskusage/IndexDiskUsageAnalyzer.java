@@ -39,6 +39,7 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FutureArrays;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.FilterIndexCommit;
@@ -346,30 +347,57 @@ import java.util.Map;
             return;
         }
         pointsReader = pointsReader.getMergeInstance();
-        final PointValues.IntersectVisitor visitor = new PointValues.IntersectVisitor() {
-            @Override
-            public void visit(int docID) {
-                assert false : "Must never be called";
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public void visit(int docID, byte[] packedValue) {
-                cancellationChecker.logEvent();
-            }
-
-            @Override
-            public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-                return PointValues.Relation.CELL_CROSSES_QUERY;
-            }
-        };
         for (FieldInfo field : reader.getFieldInfos()) {
             cancellationChecker.checkForCancellation();
             directory.resetBytesRead();
             if (field.getPointDimensionCount() > 0) {
                 final PointValues values = pointsReader.getValues(field.name);
-                values.intersect(visitor);
+                values.intersect(new PointsVisitor(values.getMinPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
+                values.intersect(new PointsVisitor(values.getMaxPackedValue(), values.getNumDimensions(), values.getBytesPerDimension()));
                 stats.addPoints(field.name, directory.getBytesRead());
+            }
+        }
+    }
+
+    private class PointsVisitor implements PointValues.IntersectVisitor {
+        private final byte[] point;
+        private final int numDims;
+        private final int bytesPerDim;
+
+        PointsVisitor(byte[] point, int numDims, int bytesPerDim) {
+            this.point = point;
+            this.numDims = numDims;
+            this.bytesPerDim = bytesPerDim;
+        }
+
+        @Override
+        public void visit(int docID) throws IOException {
+            cancellationChecker.logEvent();
+        }
+
+        @Override
+        public void visit(int docID, byte[] packedValue) throws IOException {
+            cancellationChecker.logEvent();
+        }
+
+        @Override
+        public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
+            boolean crosses = false;
+            for (int dim = 0; dim < numDims; dim++) {
+                int offset = dim * bytesPerDim;
+                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
+                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
+                    return PointValues.Relation.CELL_OUTSIDE_QUERY;
+                }
+                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0 ||
+                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0) {
+                    crosses = true;
+                }
+            }
+            if (crosses) {
+                return PointValues.Relation.CELL_CROSSES_QUERY;
+            } else {
+                return PointValues.Relation.CELL_INSIDE_QUERY;
             }
         }
     }

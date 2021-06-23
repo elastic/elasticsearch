@@ -206,17 +206,12 @@ setup:
 
 ---
 "Get a non existing snapshot":
-  - skip:
-      version: " - 7.99.99"
-      reason: "8.0 changes get snapshots response format"
 
   - do:
+      catch: /snapshot_missing_exception/
       snapshot.get:
         repository: repository
         snapshot: missing
-
-  - is_true: failures.repository
-  - match: { failures.repository.type: snapshot_missing_exception }
 
 ---
 "Delete a non existing snapshot":

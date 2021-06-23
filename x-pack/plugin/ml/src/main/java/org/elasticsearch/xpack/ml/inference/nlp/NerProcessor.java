@@ -63,20 +63,18 @@ public class NerProcessor implements NlpTask.Processor {
     }
 
     private final BertRequestBuilder bertRequestBuilder;
-    private final List<String> classificationLabels;
     private final IobTag[] iobMap;
 
     NerProcessor(BertTokenizer tokenizer, @Nullable List<String> classificationLabels) {
         this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
-        this.classificationLabels = classificationLabels;
-        validate();
+        validate(classificationLabels);
         iobMap = buildIobMap(classificationLabels);
     }
 
     /**
      * Checks labels are valid entity tags and none are duplicated
      */
-    private void validate() {
+    private void validate(List<String> classificationLabels) {
         if (classificationLabels == null || classificationLabels.isEmpty()) {
             return;
         }

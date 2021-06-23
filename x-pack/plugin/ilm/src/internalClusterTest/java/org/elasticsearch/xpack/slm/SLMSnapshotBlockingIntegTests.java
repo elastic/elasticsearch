@@ -367,10 +367,10 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
             assertNotNull(successfulSnapshotName.get());
             logger.info("-->  verify that snapshot [{}] succeeded", successfulSnapshotName.get());
             assertBusy(() -> {
-                GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
-                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().get();
                 final SnapshotInfo snapshotInfo;
                 try {
+                    GetSnapshotsResponse snapshotsStatusResponse = client().admin().cluster()
+                        .prepareGetSnapshots(REPO).setSnapshots(successfulSnapshotName.get()).execute().actionGet();
                     snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 } catch (SnapshotMissingException sme) {
                     throw new AssertionError(sme);

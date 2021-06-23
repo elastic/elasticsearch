@@ -2,8 +2,6 @@ plugins {
   id 'java'
   id 'elasticsearch.global-build-info'
 }
-import org.elasticsearch.gradle.internal.info.BuildParams
-BuildParams.init { it.setIsInternal(true) }
 
 apply plugin:'elasticsearch.build'
 

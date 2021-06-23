@@ -53,6 +53,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -182,7 +183,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
             return new Builder(name, parserContext.searchExecutionContext(), getMapUnmappedFieldAsText(parserContext.getSettings()));
         }
     }

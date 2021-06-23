@@ -85,7 +85,7 @@ public class TypeParsers {
 
     @SuppressWarnings({"unchecked"})
     public static boolean parseMultiField(Consumer<FieldMapper.Builder> multiFieldsBuilder, String name,
-                                          Mapper.TypeParser.ParserContext parserContext, String propName, Object propNode) {
+                                          MappingParserContext parserContext, String propName, Object propNode) {
         if (propName.equals("fields")) {
             if (parserContext.isWithinMultiField()) {
                 deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "multifield_within_multifield",
@@ -165,7 +165,7 @@ public class TypeParsers {
         return copyFields;
     }
 
-    public static SimilarityProvider resolveSimilarity(Mapper.TypeParser.ParserContext parserContext, String name, Object value) {
+    public static SimilarityProvider resolveSimilarity(MappingParserContext parserContext, String name, Object value) {
         if (value == null) {
             return null;    // use default
         }

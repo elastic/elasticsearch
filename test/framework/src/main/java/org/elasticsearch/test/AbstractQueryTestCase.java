@@ -14,14 +14,12 @@ import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -38,11 +36,12 @@ import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -493,13 +492,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         }
         if (query != null) {
             if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class))
+                assertThat(query, either(instanceOf(BoostQuery.class))
                         .or(instanceOf(MatchNoDocsQuery.class)));
-                if (query instanceof SpanBoostQuery) {
-                    SpanBoostQuery spanBoostQuery = (SpanBoostQuery) query;
-                    assertThat(spanBoostQuery.getBoost(), equalTo(queryBuilder.boost()));
-                    query = spanBoostQuery.getQuery();
-                } else if (query instanceof BoostQuery) {
+                if (query instanceof BoostQuery) {
                     BoostQuery boostQuery = (BoostQuery) query;
                     if (boostQuery.getQuery() instanceof MatchNoDocsQuery == false) {
                         assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));

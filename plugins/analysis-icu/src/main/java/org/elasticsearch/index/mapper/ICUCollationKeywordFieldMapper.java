@@ -20,11 +20,11 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
@@ -444,7 +444,12 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
             value = parser.textOrNull();
         }
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 

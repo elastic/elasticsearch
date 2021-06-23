@@ -86,6 +86,75 @@ public final class Processors {
     }
 
     /**
+     * Uses {@link CommunityIdProcessor} to compute community ID for network flow data.
+     *
+     * @param sourceIpAddrString source IP address
+     * @param destIpAddrString destination IP address
+     * @param ianaNumber IANA number
+     * @param transport transport protocol
+     * @param sourcePort source port
+     * @param destinationPort destination port
+     * @param icmpType ICMP type
+     * @param icmpCode ICMP code
+     * @param seed hash seed (must be between 0 and 65535)
+     * @return Community ID
+     */
+    public static String communityId(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode,
+        int seed) {
+        return CommunityIdProcessor.apply(
+            sourceIpAddrString,
+            destIpAddrString,
+            ianaNumber,
+            transport,
+            sourcePort,
+            destinationPort,
+            icmpType,
+            icmpCode,
+            seed
+        );
+    }
+
+    /**
+     * Uses {@link CommunityIdProcessor} to compute community ID for network flow data.
+     *
+     * @param sourceIpAddrString source IP address
+     * @param destIpAddrString destination IP address
+     * @param ianaNumber IANA number
+     * @param transport transport protocol
+     * @param sourcePort source port
+     * @param destinationPort destination port
+     * @param icmpType ICMP type
+     * @param icmpCode ICMP code
+     * @return Community ID
+     */
+    public static String communityId(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode) {
+        return CommunityIdProcessor.apply(sourceIpAddrString,
+            destIpAddrString,
+            ianaNumber,
+            transport,
+            sourcePort,
+            destinationPort,
+            icmpType,
+            icmpCode);
+    }
+
+    /*
      * Uses {@link UriPartsProcessor} to decompose an URI into its constituent parts.
      *
      * @param uri string to decode

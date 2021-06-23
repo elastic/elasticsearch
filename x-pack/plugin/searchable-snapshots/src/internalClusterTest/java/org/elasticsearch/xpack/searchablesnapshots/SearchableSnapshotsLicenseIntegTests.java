@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.license.DeleteLicenseAction;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensesMetadata;
@@ -71,13 +70,12 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
 
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        final Settings.Builder indexSettingsBuilder = Settings.builder().put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), false);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
             indexName,
             repoName,
             snapshotName,
             indexName,
-            indexSettingsBuilder.build(),
+            Settings.EMPTY,
             Strings.EMPTY_ARRAY,
             true,
             randomFrom(MountSearchableSnapshotRequest.Storage.values())

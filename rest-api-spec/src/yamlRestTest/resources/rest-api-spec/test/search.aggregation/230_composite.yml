@@ -513,7 +513,7 @@ setup:
 ---
 "Composite aggregation with invalid format":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.13.99"
       reason:  After key parse checking added in 7.14 (backport pending)
 
   - do:
@@ -541,7 +541,7 @@ setup:
 ---
 "Composite aggregation with lossy format":
   - skip:
-      version: " - 7.99.99"
+      version: " - 7.13.99"
       reason:  After key parse checking added in 7.14 (backport pending)
 
   - do:

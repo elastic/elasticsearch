@@ -265,7 +265,7 @@ public interface DocValueFormat extends NamedWriteable {
                  */
                 isJoda = Joda.isJodaPattern(in.getVersion(), datePattern);
             }
-            this.formatter = isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern).withZone(this.timeZone);
+            this.formatter = (isJoda ? Joda.forPattern(datePattern) : DateFormatter.forPattern(datePattern)).withZone(this.timeZone);
 
             this.parser = formatter.toDateMathParser();
             if (in.getVersion().onOrAfter(Version.V_7_13_0)) {

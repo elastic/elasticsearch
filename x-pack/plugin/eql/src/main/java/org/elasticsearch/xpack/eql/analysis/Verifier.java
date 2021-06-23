@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
 import org.elasticsearch.xpack.eql.stats.Metrics;
-import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -34,6 +33,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
@@ -67,11 +67,11 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 public class Verifier {
 
     private final Metrics metrics;
-    private final RemoteClusterRegistry remoteClusterRegistry;
+    private final Function<String, Set<String>> versionIncompatibleClusters;
 
-    public Verifier(Metrics metrics, RemoteClusterRegistry remoteClusterRegistry) {
+    public Verifier(Metrics metrics, Function<String, Set<String>> versionIncompatibleClusters) {
         this.metrics = metrics;
-        this.remoteClusterRegistry = remoteClusterRegistry;
+        this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -288,12 +288,11 @@ public class Verifier {
     private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Set<Failure> localFailures) {
         if (plan instanceof EsRelation) {
             EsRelation esRelation = (EsRelation) plan;
-            for (String clusterAlias: remoteClusterRegistry.indicesPerRemoteCluster(esRelation.index().name()).keySet()) {
-                Version clusterVersion = remoteClusterRegistry.remoteVersion(clusterAlias);
-                if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
-                    localFailures.add(fail(esRelation, "remote cluster [{}] (on version [{}]) must be on the same version as the local "
-                            + "cluster (on version [{}])", clusterAlias, clusterVersion, Version.CURRENT));
-                }
+            Set<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
+            if (incompatibleClusters.size() > 0) {
+                localFailures.add(fail(esRelation, "the following remote cluster{} incompatible, being on a version different than local "
+                    + "cluster's [{}]: {}", incompatibleClusters.size() > 1 ? "s are" : " is", Version.CURRENT,
+                    incompatibleClusters));
             }
         }
     }

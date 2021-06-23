@@ -23,7 +23,6 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
-import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.Collections;
@@ -36,9 +35,6 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public final class EqlTestUtils {
 
@@ -51,14 +47,7 @@ public final class EqlTestUtils {
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
             TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, null);
 
-    private static final RemoteClusterRegistry remoteClusterRegistry;
-    public static final Verifier TEST_VERIFIER;
-
-    static {
-        remoteClusterRegistry = mock(RemoteClusterRegistry.class);
-        when(remoteClusterRegistry.indicesPerRemoteCluster(any())).thenReturn(Collections.emptyMap());
-        TEST_VERIFIER = testVerifier(new Metrics());
-    }
+    public static final Verifier TEST_VERIFIER = testVerifier(new Metrics());
 
     public static EqlConfiguration randomConfiguration() {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
@@ -115,6 +104,6 @@ public final class EqlTestUtils {
     }
 
     public static Verifier testVerifier(Metrics metrics) {
-        return new Verifier(metrics, remoteClusterRegistry);
+        return new Verifier(metrics, x -> Collections.emptySet());
     }
 }

@@ -59,7 +59,7 @@ public class PlanExecutor {
 
     private EqlSession newSession(EqlConfiguration cfg) {
         return new EqlSession(client, cfg, indexResolver, preAnalyzer, postAnalyzer, functionRegistry,
-            new Verifier(metrics, cfg.remoteClusterRegistry()), optimizer, planner, this);
+            new Verifier(metrics, cfg.versionIncompatibleClusters()), optimizer, planner, this);
     }
 
     public void eql(EqlConfiguration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {

@@ -26,6 +26,8 @@ import java.util.Collections;
 
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
+    // client used to load the test data with, either in the local cluster (for rest/javaRestTests) or remote cluster (for multi-cluster).
+    // note: the client()/adminClient() will always connect to the local cluster.
     private static RestClient remoteClusterClient;
 
     @BeforeClass

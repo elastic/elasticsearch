@@ -15,8 +15,9 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 
-// Mostly a wrapper for the (final, unmockable) RemoteClusterService.
 public class RemoteClusterRegistry {
 
     private final RemoteClusterService remoteClusterService;
@@ -27,14 +28,25 @@ public class RemoteClusterRegistry {
         this.indicesOptions = indicesOptions;
     }
 
-    public Map<String, OriginalIndices> indicesPerRemoteCluster(String indexPattern) {
+    private Map<String, OriginalIndices> indicesPerRemoteCluster(String indexPattern) {
         Map<String, OriginalIndices> indicesMap = remoteClusterService.groupIndices(indicesOptions,
             Strings.splitStringByCommaToArray(indexPattern));
         indicesMap.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         return indicesMap;
     }
 
-    public Version remoteVersion(String clusterAlias) {
+    private Version remoteVersion(String clusterAlias) {
         return remoteClusterService.getConnection(clusterAlias).getVersion();
+    }
+
+    public Set<String> versionIncompatibleClusters(String indexPattern) {
+        Set<String> incompatibleClusters = new TreeSet<>();
+        for (String clusterAlias: indicesPerRemoteCluster(indexPattern).keySet()) {
+            Version clusterVersion = remoteVersion(clusterAlias);
+            if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
+                incompatibleClusters.add(clusterAlias);
+            }
+        }
+        return incompatibleClusters;
     }
 }

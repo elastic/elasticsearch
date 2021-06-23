@@ -11,8 +11,6 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
-
 public class HitReference {
 
     private final String index;
@@ -24,7 +22,7 @@ public class HitReference {
     }
 
     public HitReference(SearchHit hit) {
-        this(qualifiedIndex(hit), hit.getId());
+        this(hit.qualifiedIndex(), hit.getId());
     }
 
     public String index() {

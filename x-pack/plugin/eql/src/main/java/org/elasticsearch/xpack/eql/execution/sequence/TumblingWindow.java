@@ -36,6 +36,9 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
+import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_MATCHES;
+import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_TRIM;
+import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.WRAP_VALUES;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -100,6 +103,23 @@ public class TumblingWindow implements Executable {
         }
     }
 
+    enum CBLabel {
+        WRAP_VALUES("wrap_values"),
+        MATCHER_MATCHES("matcher_matches"),
+        MATCHER_TRIM("matcher_trim");
+
+        private String label;
+
+        CBLabel(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
                           Criterion<BoxedQueryRequest> until,
@@ -146,7 +166,7 @@ public class TumblingWindow implements Executable {
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
             if (currentStage == 0) {
-                matcher.trim(null);
+                trimMatcher(null);
             }
         }
         else {
@@ -157,7 +177,7 @@ public class TumblingWindow implements Executable {
             // same applies for rebase
             Ordinal marker = criteria.get(currentStage).queryRequest().after();
             if (marker != null) {
-                matcher.trim(marker);
+                trimMatcher(marker);
             }
         }
 
@@ -237,7 +257,7 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
-        if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
+        if (match(baseStage, wrapValues(base, hits)) == false) {
             payload(listener);
             return;
         }
@@ -414,7 +434,7 @@ public class TumblingWindow implements Executable {
                 request.nextAfter(tailOrdinal);
 
                 // if the limit has been reached, return what's available
-                if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+                if (match(criterion.stage(), wrapValues(criterion, hits)) == false) {
                     payload(listener);
                     return;
                 }
@@ -598,9 +618,27 @@ public class TumblingWindow implements Executable {
         return criterion.ordinal(hits.get(hits.size() - 1));
     }
 
-    private void addMemory(long bytes, String label) {
+
+
+    private void trimMatcher(Ordinal ordinal) {
+        long bytesDiff = matcher.ramBytesUsed();
+        matcher.trim(ordinal);
+        bytesDiff -= matcher.ramBytesUsed();
+        addMemory(-bytesDiff, MATCHER_TRIM);
+    }
+
+    private boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+        boolean matches;
+        long bytesDiff = matcher.ramBytesUsed();
+        matches = matcher.match(stage, hits);
+        bytesDiff -= matcher.ramBytesUsed();
+        addMemory(-bytesDiff, MATCHER_MATCHES);
+        return matches;
+    }
+
+    private void addMemory(long bytes, CBLabel label) {
         ramBytesUsed += bytes;
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label.toString());
     }
 
     private void clearCircuitBreaker() {
@@ -647,7 +685,7 @@ public class TumblingWindow implements Executable {
                     Ordinal o = criterion.ordinal(hit);
                     KeyAndOrdinal ko = new KeyAndOrdinal(k, o);
                     HitReference ht = new HitReference(cache(hit.getIndex()), hit.getId());
-                    addMemory(ko.ramBytesUsed() + ht.ramBytesUsed(), "tumbling_window");
+                    addMemory(ko.ramBytesUsed() + ht.ramBytesUsed(), WRAP_VALUES);
                     return new Tuple<>(ko, ht);
                 }
             };

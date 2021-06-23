@@ -243,7 +243,7 @@ public class SequenceSpecTests extends ESTestCase {
         }
 
         // convert the results through a test specific payload
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
 
         QueryClient testClient = new TestQueryClient();
         TumblingWindow window = new TumblingWindow(testClient, criteria, null, matcher, NOOP_CIRCUIT_BREAKER);

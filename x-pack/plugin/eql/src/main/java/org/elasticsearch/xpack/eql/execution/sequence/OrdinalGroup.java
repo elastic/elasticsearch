@@ -137,11 +137,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal>, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        // account only the shallow size since the Ordinal objects
-        // have already been accounted when created
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOfObject(extractor) +
-                RamUsageEstimator.shallowSizeOf(start) +
-                RamUsageEstimator.shallowSizeOf(stop);
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(elements);
     }
 
     @Override

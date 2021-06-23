@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.search;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.xpack.eql.util.MathUtils;
 
 import java.util.ArrayList;
@@ -16,7 +18,9 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class Limit {
+public class Limit implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Limit.class);
 
     private final int limit;
     private final int offset;
@@ -42,6 +46,11 @@ public class Limit {
 
     public int totalLimit() {
         return total;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE;
     }
 
     @Override

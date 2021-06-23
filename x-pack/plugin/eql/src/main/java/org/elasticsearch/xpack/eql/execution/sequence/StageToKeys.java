@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.Arrays;
@@ -18,14 +20,18 @@ import java.util.StringJoiner;
 import static java.util.Collections.emptySet;
 
 /** Dedicated collection for mapping a stage (represented by the index collection) to a set of keys */
-class StageToKeys {
+class StageToKeys implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceMatcher.class);
 
     private final List<Set<SequenceKey>> stageToKey;
+    private final long ramBytesUsed;
 
     @SuppressWarnings(value = { "unchecked", "rawtypes" })
     StageToKeys(int stages) {
         // use asList to create an immutable list already initialized to null
         this.stageToKey = Arrays.asList(new Set[stages]);
+        ramBytesUsed = RamUsageEstimator.sizeOfCollection(stageToKey);
     }
 
     void add(int stage, SequenceKey key) {
@@ -71,6 +77,13 @@ class StageToKeys {
                 set.clear();
             }
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        // We have a static size for the stageToKey structure
+        // since the SequenceKey have already been accounted when created
+        return ramBytesUsed;
     }
 
     @Override

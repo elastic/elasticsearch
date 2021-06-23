@@ -40,27 +40,23 @@ class KeyToSequences implements Accountable {
             this.groups = new SequenceGroup[stages];
         }
 
-        long add(int stage, Sequence sequence) {
+        void add(int stage, Sequence sequence) {
             // create the group on demand
             if (groups[stage] == null) {
                 groups[stage] = new SequenceGroup();
             }
             groups[stage].add(sequence);
-            return groups[stage].ramBytesUsed();
         }
 
-        public long remove(int stage) {
-            long ramBytesUsed = groups[stage].ramBytesUsed();
+        public void remove(int stage) {
             groups[stage] = null;
-            return ramBytesUsed;
         }
 
-        long until(Ordinal ordinal) {
+        void until(Ordinal ordinal) {
             if (until == null) {
                 until = new UntilGroup();
             }
             until.add(ordinal);
-            return until.ramBytesUsed();
         }
 
         @Override
@@ -74,7 +70,6 @@ class KeyToSequences implements Accountable {
                     size += sg.ramBytesUsed();
                 }
             }
-            size += RamUsageEstimator.shallowSizeOf(groups);
             return size;
         }
     }
@@ -98,35 +93,26 @@ class KeyToSequences implements Accountable {
         return sequenceEntry == null ? null : sequenceEntry.until;
     }
 
-    long add(int stage, Sequence sequence) {
-        long ramBytesUsed = 0;
+    void add(int stage, Sequence sequence) {
         SequenceKey key = sequence.key();
-        SequenceEntry info = keyToSequences.get(key);
-        if (info == null) {
-            info = new SequenceEntry(listSize);
-            keyToSequences.put(key, info);
-            ramBytesUsed += info.ramBytesUsed();
-        }
-        ramBytesUsed += info.add(stage, sequence);
-        return ramBytesUsed;
+        SequenceEntry info = keyToSequences.computeIfAbsent(key, k -> new SequenceEntry(listSize));
+        info.add(stage, sequence);
     }
 
-    long until(Iterable<KeyAndOrdinal> until) {
-        long ramBytesUsed = 0;
+    void until(Iterable<KeyAndOrdinal> until) {
         for (KeyAndOrdinal keyAndOrdinal : until) {
             // ignore unknown keys
             SequenceKey key = keyAndOrdinal.key();
             SequenceEntry sequenceEntry = keyToSequences.get(key);
             if (sequenceEntry != null) {
-                ramBytesUsed += sequenceEntry.until(keyAndOrdinal.ordinal);
+                sequenceEntry.until(keyAndOrdinal.ordinal);
             }
         }
-        return ramBytesUsed;
     }
 
-    long remove(int stage, SequenceKey key) {
+    void remove(int stage, SequenceKey key) {
         SequenceEntry info = keyToSequences.get(key);
-        return info.remove(stage);
+        info.remove(stage);
     }
 
     /**

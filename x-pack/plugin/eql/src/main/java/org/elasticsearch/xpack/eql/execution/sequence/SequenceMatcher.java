@@ -9,7 +9,8 @@ package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.core.TimeValue;
@@ -25,11 +26,16 @@ import java.util.TreeSet;
 /**
  * Matcher of sequences. Keeps track of on-going sequences and advancing them through each stage.
  */
-public class SequenceMatcher {
+public class SequenceMatcher implements Accountable {
+
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(SequenceMatcher.class);
 
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
-    static class Stats {
+    static class Stats implements Accountable {
+
+        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Stats.class);
+
         long seen = 0;
         long ignored = 0;
         long rejectionMaxspan = 0;
@@ -49,6 +55,11 @@ public class SequenceMatcher {
             ignored = 0;
             rejectionMaxspan = 0;
             rejectionUntil = 0;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return Stats.SHALLOW_SIZE;
         }
     }
 
@@ -73,11 +84,8 @@ public class SequenceMatcher {
 
     private final Stats stats = new Stats();
 
-    private final CircuitBreaker circuitBreaker;
-    private long ramBytesUsed;
-
     @SuppressWarnings("rawtypes")
-    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit, CircuitBreaker circuitBreaker) {
+    public SequenceMatcher(int stages, boolean descending, TimeValue maxSpan, Limit limit) {
         this.numberOfStages = stages;
         this.completionStage = stages - 1;
 
@@ -90,20 +98,15 @@ public class SequenceMatcher {
 
         // limit
         this.limit = limit;
-
-        this.circuitBreaker = circuitBreaker;
     }
 
     private void trackSequence(Sequence sequence) {
         SequenceKey key = sequence.key();
 
         stageToKeys.add(0, key);
-        long bytesUsed = keyToSequences.add(0, sequence);
+        keyToSequences.add(0, sequence);
 
         stats.seen++;
-
-        bytesUsed += sequence.ramBytesUsed();
-        addAccountedMemory(bytesUsed, "matcher_sequence");
     }
 
     /**
@@ -167,8 +170,7 @@ public class SequenceMatcher {
 
         // remove the group early (as the key space is large)
         if (group.isEmpty()) {
-            long bytesFreed = keyToSequences.remove(previousStage, key);
-            addAccountedMemory(-bytesFreed, "matcher_removeGroup");
+            keyToSequences.remove(previousStage, key);
             stageToKeys.remove(previousStage, key);
         }
 
@@ -264,7 +266,7 @@ public class SequenceMatcher {
     }
 
     void until(Iterable<KeyAndOrdinal> markers) {
-        addAccountedMemory(keyToSequences.until(markers), "matcher_until");
+        keyToSequences.until(markers);
     }
 
     /**
@@ -273,7 +275,6 @@ public class SequenceMatcher {
      * and adjust insertion positions.
      */
     void trim(Ordinal ordinal) {
-        long bytesUsedDiff = keyToSequences.ramBytesUsed();
         // for descending sequences, remove all in-flight sequences
         // since the windows moves head and thus there is no chance
         // of new results coming in
@@ -283,8 +284,6 @@ public class SequenceMatcher {
             // keep only the tail
             keyToSequences.trimToTail(ordinal);
         }
-        bytesUsedDiff -= keyToSequences.ramBytesUsed();
-        addAccountedMemory(-bytesUsedDiff, "matcher_clear");
     }
 
     public Stats stats() {
@@ -296,17 +295,18 @@ public class SequenceMatcher {
         keyToSequences.clear();
         stageToKeys.clear();
         completed.clear();
-        cleanCircuitBreaker();
     }
 
-    private void addAccountedMemory(long bytes, String label) {
-        ramBytesUsed += bytes;
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label);
-    }
-
-    private void cleanCircuitBreaker() {
-        circuitBreaker.addWithoutBreaking(-ramBytesUsed);
-        ramBytesUsed = 0;
+    @Override
+    public long ramBytesUsed() {
+        long bytes = SHALLOW_SIZE;
+        bytes += keyToSequences.ramBytesUsed();
+        bytes += stageToKeys.ramBytesUsed();
+        bytes += stats.ramBytesUsed();
+        if (limit != null) {
+            bytes += limit.ramBytesUsed();
+        }
+        return bytes;
     }
 
     @Override

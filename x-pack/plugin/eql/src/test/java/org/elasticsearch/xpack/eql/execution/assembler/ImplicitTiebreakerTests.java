@@ -117,7 +117,7 @@ public class ImplicitTiebreakerTests extends ESTestCase {
             }
         }
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null, NOOP_CIRCUIT_BREAKER);
+        SequenceMatcher matcher = new SequenceMatcher(stages, descending, TimeValue.MINUS_ONE, null);
         TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, NOOP_CIRCUIT_BREAKER);
         window.execute(wrap(p -> {}, ex -> {
             throw ExceptionsHelper.convertToRuntime(ex);

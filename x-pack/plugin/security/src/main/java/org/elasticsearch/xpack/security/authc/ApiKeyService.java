@@ -262,39 +262,44 @@ public class ApiKeyService {
         final SecureString apiKey = UUIDs.randomBase64UUIDSecureString();
         final Version version = clusterService.state().nodes().getMinNodeVersion();
 
-        try (XContentBuilder builder = newDocument(apiKey, request.getName(), authentication,
-            roleDescriptorSet, created, expiration,
-            request.getRoleDescriptors(), version, request.getMetadata())) {
 
-            final IndexRequest indexRequest =
-                client.prepareIndex(SECURITY_MAIN_ALIAS)
-                    .setSource(builder)
-                    .setId(request.getId())
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .request();
-            final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+        computeHashForApiKey(apiKey, listener.delegateFailure((l, apiKeyHashChars) -> {
+            try (XContentBuilder builder = newDocument(apiKeyHashChars, request.getName(), authentication,
+                roleDescriptorSet, created, expiration,
+                request.getRoleDescriptors(), version, request.getMetadata())) {
 
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
-                executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
-                    TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
-                        indexResponse -> {
-                            assert request.getId().equals(indexResponse.getId());
-                            final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
-                            listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
-                            apiKeyAuthCache.put(request.getId(), listenableFuture);
-                            listener.onResponse(
-                                new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
-                        },
-                        listener::onFailure))));
-        } catch (IOException e) {
-            listener.onFailure(e);
-        }
+                final IndexRequest indexRequest =
+                    client.prepareIndex(SECURITY_MAIN_ALIAS)
+                        .setSource(builder)
+                        .setId(request.getId())
+                        .setRefreshPolicy(request.getRefreshPolicy())
+                        .request();
+                final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
+
+                securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
+                    executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
+                        TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
+                            indexResponse -> {
+                                assert request.getId().equals(indexResponse.getId());
+                                final ListenableFuture<CachedApiKeyHashResult> listenableFuture = new ListenableFuture<>();
+                                listenableFuture.onResponse(new CachedApiKeyHashResult(true, apiKey));
+                                apiKeyAuthCache.put(request.getId(), listenableFuture);
+                                listener.onResponse(
+                                    new CreateApiKeyResponse(request.getName(), request.getId(), apiKey, expiration));
+                            },
+                            listener::onFailure))));
+            } catch (IOException e) {
+                listener.onFailure(e);
+            } finally {
+                Arrays.fill(apiKeyHashChars, (char) 0);
+            }
+        }));
     }
 
     /**
      * package-private for testing
      */
-    XContentBuilder newDocument(SecureString apiKey, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
+    XContentBuilder newDocument(char[] apiKeyHashChars, String name, Authentication authentication, Set<RoleDescriptor> userRoles,
                                 Instant created, Instant expiration, List<RoleDescriptor> keyRoles,
                                 Version version, @Nullable Map<String, Object> metadata) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
@@ -306,15 +311,13 @@ public class ApiKeyService {
 
 
         byte[] utf8Bytes = null;
-        final char[] keyHash = hasher.hash(apiKey);
         try {
-            utf8Bytes = CharArrays.toUtf8Bytes(keyHash);
+            utf8Bytes = CharArrays.toUtf8Bytes(apiKeyHashChars);
             builder.field("api_key_hash").utf8Value(utf8Bytes, 0, utf8Bytes.length);
         } finally {
             if (utf8Bytes != null) {
                 Arrays.fill(utf8Bytes, (byte) 0);
             }
-            Arrays.fill(keyHash, (char) 0);
         }
 
         // Save role_descriptors
@@ -741,6 +744,10 @@ public class ApiKeyService {
         } else {
             return false;
         }
+    }
+
+    void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
+        threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME).execute(ActionRunnable.supply(listener, () -> hasher.hash(apiKey)));
     }
 
     // Protected instance method so this can be mocked

@@ -214,10 +214,16 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(b -> b.field("field", "elk")));
         IndexableField[] fields = doc.rootDoc().getFields("field");
         assertEquals(2, fields.length);
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(0, fields.length);
 
         doc = mapper.parse(source(b -> b.field("field", "elasticsearch")));
         fields = doc.rootDoc().getFields("field");
         assertEquals(0, fields.length);
+
+        fields = doc.rootDoc().getFields("_ignored");
+        assertEquals(1, fields.length);
+        assertEquals("field", fields[0].stringValue());
     }
 
     public void testNullValue() throws IOException {

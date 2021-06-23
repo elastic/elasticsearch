@@ -17,25 +17,28 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.api.tasks.testing.Test;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
  */
 public class RestTestUtil {
 
-    private RestTestUtil() {}
+    private RestTestUtil() {
+    }
 
     public static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
-            .getExtensions()
-            .getByName(TestClustersPlugin.EXTENSION_NAME);
+                .getExtensions()
+                .getByName(TestClustersPlugin.EXTENSION_NAME);
         return testClusters.create(sourceSet.getName());
     }
 
@@ -47,7 +50,10 @@ public class RestTestUtil {
         Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
-            testTask.mustRunAfter(project.getTasks().named("test"));
+            project.getPlugins().withType(JavaPlugin.class, t ->
+                testTask.mustRunAfter(project.getTasks().named("test"))
+            );
+
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
             // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
@@ -69,15 +75,7 @@ public class RestTestUtil {
      * Setup the dependencies needed for the REST tests.
      */
     public static void setupDependencies(Project project, SourceSet sourceSet) {
-        BuildParams.withInternalBuild(
-            () -> { project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework")); }
-        ).orElse(() -> {
-            project.getDependencies()
-                .add(
-                    sourceSet.getImplementationConfigurationName(),
-                    "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch()
-                );
-        });
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework"));
     }
 
 }

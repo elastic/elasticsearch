@@ -277,9 +277,9 @@ public final class KeywordFieldMapper extends FieldMapper {
             a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
-            
+
             BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
-            
+
             if (automaton.type == AUTOMATON_TYPE.ALL) {
                 TermsEnum result = terms.iterator();
                 if (searchAfter != null) {
@@ -289,12 +289,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             }
             return terms.intersect(automaton, searchBytes);
         }
-        
+
         // Initialises with a seek to a given term but excludes that term
         // from any results. The problem it addresses is that termsEnum.seekCeil()
-        // would work but either leaves us positioned on the seek term (if it exists) or the 
-        // term after (if the seek term doesn't exist). That complicates any subsequent 
-        // iteration logic so this class simplifies the pagination use case. 
+        // would work but either leaves us positioned on the seek term (if it exists) or the
+        // term after (if the seek term doesn't exist). That complicates any subsequent
+        // iteration logic so this class simplifies the pagination use case.
         final class SearchAfterTermsEnum extends FilteredTermsEnum {
             private final BytesRef afterRef;
 
@@ -308,7 +308,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             protected AcceptStatus accept(BytesRef term) {
                 return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
             }
-        }          
+        }
 
         @Override
         public String typeName() {
@@ -475,7 +475,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private void indexValue(ParseContext context, String value) {
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 
@@ -532,6 +537,6 @@ public final class KeywordFieldMapper extends FieldMapper {
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
     }
-    
-    
+
+
 }

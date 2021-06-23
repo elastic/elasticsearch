@@ -52,22 +52,26 @@ public class TransportIsolateDatafeedAction extends TransportTasksAction<Transpo
     protected IsolateDatafeedAction.Response newResponse(IsolateDatafeedAction.Request request, List<IsolateDatafeedAction.Response> tasks,
                                                          List<TaskOperationFailure> taskOperationFailures,
                                                          List<FailedNodeException> failedNodeExceptions) {
+        // We only let people isolate one datafeed at a time, so each list will be empty or contain one item
+        assert tasks.size() <= 1 : "more than 1 item in tasks: " + tasks.size();
+        assert taskOperationFailures.size() <= 1 : "more than 1 item in taskOperationFailures: " + taskOperationFailures.size();
+        assert failedNodeExceptions.size() <= 1 : "more than 1 item in failedNodeExceptions: " + failedNodeExceptions.size();
         if (taskOperationFailures.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
             throw org.elasticsearch.ExceptionsHelper
                     .convertToElastic(failedNodeExceptions.get(0));
-        } else {
-            return new IsolateDatafeedAction.Response(false);
+        } else if (tasks.isEmpty() == false) {
+            return tasks.get(0);
         }
+        return new IsolateDatafeedAction.Response(false);
     }
 
     @Override
     protected void taskOperation(IsolateDatafeedAction.Request request, TransportStartDatafeedAction.DatafeedTask datafeedTask,
                                  ActionListener<IsolateDatafeedAction.Response> listener) {
         datafeedTask.isolate();
-        listener.onResponse(new IsolateDatafeedAction.Response(false));
+        listener.onResponse(new IsolateDatafeedAction.Response(true));
     }
-
 }

@@ -22,7 +22,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
@@ -93,6 +92,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        assert false;
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public List<Step> toSteps(Client client, String phase, StepKey nextStepKey, XPackLicenseState licenseState) {
         StepKey preActionBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_ACTION_STEP);
         StepKey checkNoWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
@@ -102,6 +107,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         StepKey generateSnapshotNameKey = new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME);
         StepKey cleanSnapshotKey = new StepKey(phase, NAME, CleanupSnapshotStep.NAME);
         StepKey createSnapshotKey = new StepKey(phase, NAME, CreateSnapshotStep.NAME);
+        StepKey waitForDataTierKey = new StepKey(phase, NAME, WaitForDataTierStep.NAME);
         StepKey mountSnapshotKey = new StepKey(phase, NAME, MountSnapshotStep.NAME);
         StepKey waitForGreenRestoredIndexKey = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
         StepKey copyMetadataKey = new StepKey(phase, NAME, CopyExecutionStateStep.NAME);
@@ -117,7 +123,6 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // here before generating snapshots that can't be used if the user doesn't have the right license level.
         BranchingStep conditionalSkipActionStep = new BranchingStep(preActionBranchingKey, checkNoWriteIndex, nextStepKey,
             (index, clusterState) -> {
-                XPackLicenseState licenseState = XPackPlugin.getSharedLicenseState();
                 if (licenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS) == false) {
                     logger.error("[{}] action is not available in the current license", SearchableSnapshotAction.NAME);
                     throw LicenseUtils.newComplianceException("searchable-snapshots");
@@ -171,7 +176,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         // Branch, deciding whether there is an existing searchable snapshot snapshot that can be used for mounting the index
         // (in which case, skip generating a new name and the snapshot cleanup), or if we need to generate a new snapshot
         BranchingStep skipGeneratingSnapshotStep =
-            new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, mountSnapshotKey, (index, clusterState) -> {
+            new BranchingStep(skipGeneratingSnapshotKey, keyForSnapshotGeneration, waitForDataTierKey, (index, clusterState) -> {
                 IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
                 String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
                 LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.fromIndexMetadata(indexMetadata);
@@ -204,12 +209,17 @@ public class SearchableSnapshotAction implements LifecycleAction {
             snapshotRepository);
         CleanupSnapshotStep cleanupSnapshotStep = new CleanupSnapshotStep(cleanSnapshotKey, createSnapshotKey, client);
         AsyncActionBranchingStep createSnapshotBranchingStep = new AsyncActionBranchingStep(
-            new CreateSnapshotStep(createSnapshotKey, mountSnapshotKey, client), cleanSnapshotKey, client);
+            new CreateSnapshotStep(createSnapshotKey, waitForDataTierKey, client), cleanSnapshotKey, client);
 
-        // Now mount the snapshot to create the new index, if the skipGeneratingSnapshotStep determined a snapshot already existed that
+        MountSearchableSnapshotRequest.Storage storageType = getConcreteStorageType(mountSnapshotKey);
+
+        // If the skipGeneratingSnapshotStep determined a snapshot already existed that
         // can be used, it jumps directly here, skipping the snapshot generation steps above.
+        WaitForDataTierStep waitForDataTierStep =
+            new WaitForDataTierStep(waitForDataTierKey, mountSnapshotKey,
+                MountSnapshotStep.overrideTierPreference(phase).orElse(storageType.defaultDataTiersPreference()));
         MountSnapshotStep mountSnapshotStep = new MountSnapshotStep(mountSnapshotKey, waitForGreenRestoredIndexKey,
-            client, getRestoredIndexPrefix(mountSnapshotKey), getConcreteStorageType(mountSnapshotKey));
+            client, getRestoredIndexPrefix(mountSnapshotKey), storageType);
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(waitForGreenRestoredIndexKey,
             copyMetadataKey, ClusterHealthStatus.GREEN, getRestoredIndexPrefix(waitForGreenRestoredIndexKey));
         CopyExecutionStateStep copyMetadataStep = new CopyExecutionStateStep(copyMetadataKey, copyLifecyclePolicySettingKey,
@@ -242,6 +252,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         steps.add(generateSnapshotNameStep);
         steps.add(cleanupSnapshotStep);
         steps.add(createSnapshotBranchingStep);
+        steps.add(waitForDataTierStep);
         steps.add(mountSnapshotStep);
         steps.add(waitForGreenIndexHealthStep);
         steps.add(copyMetadataStep);

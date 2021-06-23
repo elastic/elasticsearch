@@ -21,7 +21,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -86,7 +85,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             "User-Agent ingest plugin will always use ECS-formatted output",
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                 "#ingest-user-agent-ecs-always",
-            "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0");
+            "Ingest pipelines [ecs_false, ecs_true] uses the [ecs] option which needs to be removed to work in 8.0", null);
         assertEquals(singletonList(expected), issues);
     }
 
@@ -158,7 +157,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             "Index templates " + Collections.singletonList(tooManyFieldsTemplate) + " have a number of fields which exceeds the " +
                 "automatic field expansion limit of [1024] and does not have [" + IndexSettings.DEFAULT_FIELD_SETTING.getKey() + "] set, " +
                 "which may cause queries which use automatic field expansion, such as query_string, simple_query_string, and multi_match " +
-                "to fail if fields are not explicitly specified in the query.");
+                "to fail if fields are not explicitly specified in the query.", null);
         assertEquals(singletonList(expected), issues);
     }
 
@@ -257,7 +256,7 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/breaking-changes-8.0.html" +
                     "#ilm-poll-interval-limit",
                 "The Index Lifecycle Management poll interval setting [" + LIFECYCLE_POLL_INTERVAL_SETTING.getKey() + "] is " +
-                    "currently set to [" + tooLowInterval + "], but must be 1s or greater");
+                    "currently set to [" + tooLowInterval + "], but must be 1s or greater", null);
             List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(badState));
             assertEquals(singletonList(expected), issues);
         }

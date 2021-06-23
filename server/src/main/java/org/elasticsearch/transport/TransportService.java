@@ -152,6 +152,11 @@ public class TransportService extends AbstractLifecycleComponent
         @Override
         public void close() {
         }
+
+        @Override
+        public String toString() {
+            return "local node connection";
+        }
     };
 
     /**

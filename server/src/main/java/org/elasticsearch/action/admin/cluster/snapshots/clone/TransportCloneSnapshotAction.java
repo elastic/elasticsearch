@@ -30,11 +30,24 @@ public final class TransportCloneSnapshotAction extends AcknowledgedTransportMas
     private final SnapshotsService snapshotsService;
 
     @Inject
-    public TransportCloneSnapshotAction(TransportService transportService, ClusterService clusterService,
-                                        ThreadPool threadPool, SnapshotsService snapshotsService, ActionFilters actionFilters,
-                                        IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(CloneSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, CloneSnapshotRequest::new,
-                indexNameExpressionResolver, ThreadPool.Names.SAME);
+    public TransportCloneSnapshotAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        SnapshotsService snapshotsService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            CloneSnapshotAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            CloneSnapshotRequest::new,
+            indexNameExpressionResolver,
+            ThreadPool.Names.SAME
+        );
         this.snapshotsService = snapshotsService;
     }
 

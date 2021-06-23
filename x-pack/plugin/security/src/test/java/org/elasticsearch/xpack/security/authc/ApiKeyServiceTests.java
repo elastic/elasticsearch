@@ -10,15 +10,21 @@ package org.elasticsearch.xpack.security.authc;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -33,6 +39,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -89,11 +97,16 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyService.API_KEY_METADATA_KEY;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -149,6 +162,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
     public void testCreateApiKeyWillUseBulkAction() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
@@ -161,6 +175,41 @@ public class ApiKeyServiceTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
         service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), new PlainActionFuture<>());
         verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+    }
+
+    public void testCreateApiKeyWillCacheOnCreation() {
+        final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
+        final ApiKeyService service = createApiKeyService(settings);
+        final Authentication authentication = new Authentication(
+            new User(randomAlphaOfLengthBetween(8, 16), "superuser"),
+            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
+            null);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
+        when(client.threadPool()).thenReturn(threadPool);
+        final String apiKeyId = randomAlphaOfLength(22);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            @SuppressWarnings("unchecked")
+            final ActionListener<BulkResponse> listener = (ActionListener<BulkResponse>) args[2];
+            final IndexResponse indexResponse = new IndexResponse(
+                new ShardId(INTERNAL_SECURITY_MAIN_INDEX_7, randomAlphaOfLength(22), randomIntBetween(0, 1)),
+                SINGLE_MAPPING_NAME, apiKeyId, randomLongBetween(1, 99), randomLongBetween(1, 99), randomIntBetween(1, 99), true);
+            listener.onResponse(new BulkResponse(new BulkItemResponse[]{
+                new BulkItemResponse(randomInt(), DocWriteRequest.OpType.INDEX, indexResponse)
+            }, randomLongBetween(0, 100)));
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+        assertNull(apiKeyAuthCache.get(apiKeyId));
+        final PlainActionFuture<CreateApiKeyResponse> listener = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), listener);
+        final CreateApiKeyResponse createApiKeyResponse = listener.actionGet();
+        assertThat(createApiKeyResponse.getId(), equalTo(apiKeyId));
+        final CachedApiKeyHashResult cachedApiKeyHashResult = service.getFromCache(createApiKeyResponse.getId());
+        assertThat(cachedApiKeyHashResult.success, is(true));
+        cachedApiKeyHashResult.verify(createApiKeyResponse.getKey());
     }
 
     public void testGetCredentialsFromThreadContext() {
@@ -351,7 +400,8 @@ public class ApiKeyServiceTests extends ESTestCase {
                 AuthenticationType.ANONYMOUS), Collections.emptyMap());
         }
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
-        XContentBuilder docSource = service.newDocument(new SecureString(key.toCharArray()), "test", authentication,
+        XContentBuilder docSource = service.newDocument(
+            getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),"test", authentication,
             Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR), Instant.now(), Instant.now().plus(expiry), keyRoles,
             Version.CURRENT, metadata);
         if (invalidated) {
@@ -428,11 +478,14 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         apiKeyDoc = buildApiKeyDoc(hash, -1, true);
         creds = new ApiKeyService.ApiKeyCredentials(randomAlphaOfLength(12), new SecureString(randomAlphaOfLength(15).toCharArray()));
+        service.getApiKeyAuthCache().put(creds.getId(), new ListenableFuture<>());
+        assertNotNull(service.getApiKeyAuthCache().get(creds.getId()));
         future = new PlainActionFuture<>();
         service.validateApiKeyCredentials(creds.getId(), apiKeyDoc, creds, Clock.systemUTC(), future);
         result = future.get();
         assertNotNull(result);
         assertFalse(result.isAuthenticated());
+        assertNull(service.getApiKeyAuthCache().get(creds.getId()));
     }
 
     public void testGetRolesForApiKeyNotInContext() throws Exception {
@@ -695,7 +748,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(authResult1.isAuthenticated(), is(true));
         checkAuthApiKeyMetadata(metadata, authResult1);
 
-        final AuthenticationResult authResult2 = future2.actionGet(TimeValue.timeValueMillis(100));
+        final AuthenticationResult authResult2 = future2.actionGet(TimeValue.timeValueMillis(200));
         assertThat(authResult2.isAuthenticated(), is(true));
         checkAuthApiKeyMetadata(metadata, authResult2);
 
@@ -855,6 +908,22 @@ public class ApiKeyServiceTests extends ESTestCase {
         checkAuthApiKeyMetadata(metadata4, authResult5);
     }
 
+    public void testWillInvalidateAuthCacheWhenDocNotFound() {
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final ThreadContext threadContext = threadPool.getThreadContext();
+        final String docId = randomAlphaOfLength(16);
+        final String apiKey = randomAlphaOfLength(16);
+        ApiKeyCredentials apiKeyCredentials = new ApiKeyCredentials(docId, new SecureString(apiKey.toCharArray()));
+        service.getApiKeyAuthCache().put(docId, new ListenableFuture<>());
+        assertNotNull(service.getApiKeyAuthCache().get(docId));
+        SecurityMocks.mockGetRequest(client, SECURITY_MAIN_ALIAS, docId,
+            new GetResult(INTERNAL_SECURITY_MAIN_INDEX_7, SINGLE_MAPPING_NAME, docId, UNASSIGNED_SEQ_NO, UNASSIGNED_PRIMARY_TERM,
+                randomLongBetween(0, 9), false, null, null, null));
+        PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
+        service.loadApiKeyAndValidateCredentials(threadContext, apiKeyCredentials, future);
+        assertNull(service.getApiKeyAuthCache().get(docId));
+    }
+
     public void testWillGetLookedUpByRealmNameIfExists() {
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef("auth_by", "auth_by_type", "node");
         final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef("looked_up_by", "looked_up_by_type", "node");
@@ -907,6 +976,25 @@ public class ApiKeyServiceTests extends ESTestCase {
         final AuthenticationResult authenticationResult = future.get();
         assertEquals(AuthenticationResult.Status.TERMINATE, authenticationResult.getStatus());
         assertThat(authenticationResult.getMessage(), containsString("server is too busy to respond"));
+    }
+
+    public void testCreationWillFailIfHashingThreadPoolIsSaturated() {
+        final EsRejectedExecutionException rejectedExecutionException = new EsRejectedExecutionException("rejected");
+        final ExecutorService mockExecutorService = mock(ExecutorService.class);
+        when(threadPool.executor(SECURITY_CRYPTO_THREAD_POOL_NAME)).thenReturn(mockExecutorService);
+        Mockito.doAnswer(invocationOnMock -> {
+            final AbstractRunnable actionRunnable = (AbstractRunnable) invocationOnMock.getArguments()[0];
+            actionRunnable.onRejection(rejectedExecutionException);
+            return null;
+        }).when(mockExecutorService).execute(any(Runnable.class));
+
+        final Authentication authentication = mock(Authentication.class);
+        final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
+        ApiKeyService service = createApiKeyService(Settings.EMPTY);
+        final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
+        service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), future);
+        final EsRejectedExecutionException e = expectThrows(EsRejectedExecutionException.class, future::actionGet);
+        assertThat(e, is(rejectedExecutionException));
     }
 
     public void testCachedApiKeyValidationWillNotBeBlockedByUnCachedApiKey() throws IOException, ExecutionException, InterruptedException {
@@ -1005,6 +1093,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
     public void testCreateApiKeyWillEnsureMetadataCompatibility() {
         when(securityIndex.getInstallableMappingVersion()).thenReturn(Version.V_7_12_0);
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
@@ -1063,7 +1152,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                                                                 List<RoleDescriptor> keyRoles,
                                                                 Version version) throws Exception {
             XContentBuilder keyDocSource = apiKeyService.newDocument(
-                new SecureString(randomAlphaOfLength(16).toCharArray()), "test", authentication,
+                getFastStoredHashAlgoForTests().hash(new SecureString(randomAlphaOfLength(16).toCharArray())), "test", authentication,
                 userRoles, Instant.now(), Instant.now().plus(Duration.ofSeconds(3600)), keyRoles, Version.CURRENT,
                 randomBoolean() ? null : org.elasticsearch.core.Map.of(
                     randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)));

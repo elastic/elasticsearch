@@ -116,4 +116,22 @@ In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow patter
 won't be configured as a follower index automatically. In order to adapt to this new
 behaviour it is advised to exclude patterns matching system indices such as `.tasks` and
 `kibana-*`.
+
+[discrete]
+[[breaking_714_security_changes]]
+==== Security deprecations
+
+[[reserved-prefixed-realm-names]]
+.Configuring a realm name with a leading underscore is deprecated.
+[%collapsible]
 ====
+*Details* +
+Elasticsearch creates "synthetic" realm names on the fly for services like API keys.
+These synthetic realm names are prefixed with an underscore.
+Currently, user configured realms can also be given a name with a leading underscore.
+This creates confusion since realm names are meant to be unique for a node.
+
+*Impact* +
+Configuring a realm name with a leading underscore is deprecated. In a future release of {es}
+it will result in an error on startup if any user configured realm has a name
+with a leading underscore.

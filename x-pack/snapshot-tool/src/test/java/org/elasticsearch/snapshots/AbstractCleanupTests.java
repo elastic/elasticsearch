@@ -12,22 +12,18 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cli.MockTerminal;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.common.blobstore.BlobMetadata;
-import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
-import java.util.concurrent.Executor;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -37,19 +33,6 @@ import static org.hamcrest.Matchers.not;
 public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
 
     protected BlobStoreRepository repository;
-
-    protected void assertBlobsByPrefix(BlobStoreRepository repository, BlobPath path, String prefix, Map<String, BlobMetadata> blobs)
-            throws Exception {
-        BlobStoreTestUtil.assertBlobsByPrefix(repository, path, prefix, blobs);
-    }
-
-    protected void assertConsistency(BlobStoreRepository repo, Executor executor) throws Exception {
-        BlobStoreTestUtil.assertConsistency(repo, executor);
-    }
-
-    protected void assertCorruptionVisible(BlobStoreRepository repo, Map<String, Set<String>> indexToFiles) throws Exception {
-       BlobStoreTestUtil.assertCorruptionVisible(repo, indexToFiles);
-    }
 
     @Override
     public void setUp() throws Exception {
@@ -64,7 +47,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
         repository.threadPool().generic().execute(ActionRunnable.run(future,
                 () -> repository.blobStore().blobContainer(repository.basePath()).delete()));
         future.actionGet();
-        assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
+        BlobStoreTestUtil.assertBlobsByPrefix(repository, repository.basePath(), "", Collections.emptyMap());
     }
 
     @Override
@@ -191,7 +174,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             assertThat(terminal.getOutput(), containsString("Set of deletion candidates is empty. Exiting"));
 
             logger.info("--> check that there is no inconsistencies after running the tool");
-            assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
+            BlobStoreTestUtil.assertConsistency(repository);
 
             logger.info("--> create several dangling indices");
             int numOfFiles = 0;
@@ -211,7 +194,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
             Set<String> danglingIndices = indexToFiles.keySet();
 
             logger.info("--> ensure dangling index folders are visible");
-            assertCorruptionVisible(repository, indexToFiles);
+            BlobStoreTestUtil.assertCorruptionVisible(repository, indexToFiles);
 
             logger.info("--> execute cleanup tool, corruption is created latter than snapshot, there is nothing to cleanup");
             terminal = executeCommand(false);
@@ -258,7 +241,7 @@ public abstract class AbstractCleanupTests extends ESSingleNodeTestCase {
                     containsString("Total bytes freed: " + size));
 
             logger.info("--> verify that there is no inconsistencies");
-            assertConsistency(repository, repository.threadPool().executor(ThreadPool.Names.GENERIC));
+            BlobStoreTestUtil.assertConsistency(repository);
             logger.info("--> perform cleanup by removing snapshots");
             assertTrue(client().admin()
                     .cluster()

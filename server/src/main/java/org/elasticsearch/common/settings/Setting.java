@@ -27,10 +27,10 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -1535,18 +1535,11 @@ public class Setting<T> implements ToXContentObject {
         // fromXContent doesn't use named xcontent or deprecation.
         try (XContentParser xContentParser = XContentType.JSON.xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)) {
-            XContentParser.Token token = xContentParser.nextToken();
-            if (token != XContentParser.Token.START_ARRAY) {
-                throw new IllegalArgumentException("expected START_ARRAY but got " + token);
-            }
-            ArrayList<String> list = new ArrayList<>();
-            while ((token = xContentParser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (token != XContentParser.Token.VALUE_STRING) {
-                    throw new IllegalArgumentException("expected VALUE_STRING but got " + token);
-                }
-                list.add(xContentParser.text());
-            }
-            return list;
+            xContentParser.nextToken();
+            return XContentParserUtils.parseList(xContentParser, p -> {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);
+                return p.text();
+            });
         } catch (IOException e) {
             throw new IllegalArgumentException("failed to parse array", e);
         }

@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
@@ -64,7 +65,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                     ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                    NamedWriteableRegistry registry, Client client) {
+                                    NamedWriteableRegistry registry, Client client, BigArrays bigArrays) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -75,7 +76,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.transportService = transportService;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
-            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool);
+            registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool, bigArrays);
     }
 
     @Override

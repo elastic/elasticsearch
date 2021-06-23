@@ -896,6 +896,7 @@ public class RecoverySourceHandler {
                 logger, threadPool.getThreadContext(), listener, maxConcurrentFileChunks, Arrays.asList(files)) {
 
                     final Deque<byte[]> buffers = new ConcurrentLinkedDeque<>();
+                    final AtomicInteger liveBufferCount = new AtomicInteger(); // only used in assertions to verify proper recycling
                     IndexInput currentInput = null;
                     long offset = 0;
 
@@ -907,6 +908,7 @@ public class RecoverySourceHandler {
                     }
 
                     private byte[] acquireBuffer() {
+                        assert liveBufferCount.incrementAndGet() > 0;
                         final byte[] buffer = buffers.pollFirst();
                         if (buffer != null) {
                             return buffer;
@@ -923,7 +925,10 @@ public class RecoverySourceHandler {
                         currentInput.readBytes(buffer, 0, toRead, false);
                         final boolean lastChunk = offset + toRead == md.length();
                         final FileChunk chunk = new FileChunk(md, new BytesArray(buffer, 0, toRead), offset, lastChunk,
-                            () -> buffers.addFirst(buffer));
+                            () -> {
+                                assert liveBufferCount.decrementAndGet() >= 0;
+                                buffers.addFirst(buffer);
+                            });
                         offset += toRead;
                         return chunk;
                     }
@@ -945,6 +950,12 @@ public class RecoverySourceHandler {
                     @Override
                     public void close() throws IOException {
                         IOUtils.close(currentInput, storeRef);
+                    }
+
+                    @Override
+                    protected boolean assertOnSuccess() {
+                        assert liveBufferCount.get() == 0 : "leaked [" + liveBufferCount + "] buffers";
+                        return true;
                     }
                 };
             resources.add(multiFileSender);

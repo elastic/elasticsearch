@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
 import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
+import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.ArrayList;
 import java.util.Collections;

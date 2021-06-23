@@ -24,7 +24,6 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.proto.Protocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CLIENT_ID_NAME;
-import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.COLUMNAR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.CURSOR_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.FETCH_SIZE_NAME;
@@ -35,6 +34,7 @@ import static org.elasticsearch.xpack.sql.proto.Protocol.PARAMS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.QUERY_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.RUNTIME_MAPPINGS_NAME;
 import static org.elasticsearch.xpack.sql.proto.Protocol.TIME_ZONE_NAME;
+import static org.elasticsearch.xpack.sql.proto.Protocol.VERSION_NAME;
 
 public abstract class BaseRestSqlTestCase extends ESRestTestCase {
 

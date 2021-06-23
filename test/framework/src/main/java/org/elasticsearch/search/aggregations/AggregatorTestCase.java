@@ -41,14 +41,11 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +53,9 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
@@ -81,7 +81,6 @@ import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
-import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -167,7 +166,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<String> blacklist = new ArrayList<>();
         blacklist.add(ObjectMapper.CONTENT_TYPE); // Cannot aggregate objects
         blacklist.add(GeoShapeFieldMapper.CONTENT_TYPE); // Cannot aggregate geoshapes (yet)
-        blacklist.add(NestedObjectMapper.CONTENT_TYPE); // TODO support for nested
+        blacklist.add(ObjectMapper.NESTED_CONTENT_TYPE); // TODO support for nested
         blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         TYPE_TEST_BLACKLIST = blacklist;
@@ -609,7 +608,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MappedFieldType... fieldTypes
     ) throws IOException {
         // Don't use searchAndReduce because we only want a single aggregator.
-        IndexReaderContext ctx = searcher.getTopReaderContext();
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
         AggregationContext context = createAggregationContext(
             searcher,
@@ -644,7 +642,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private void collectDebugInfo(String prefix, Aggregator aggregator, Map<String, Map<String, Object>> allDebug) {
         Map<String, Object> debug = new HashMap<>();
-        aggregator.collectDebugInfo(debug::put);
+        aggregator.collectDebugInfo((key, value) -> {
+            Object old = debug.put(key, value);
+            assertNull("debug info duplicate key [" + key + "] was [" + old + "] is [" + value + "]", old);
+        });
         allDebug.put(prefix + aggregator.name(), debug);
         for (Aggregator sub : aggregator.subAggregators()) {
             collectDebugInfo(aggregator.name() + ".", sub, allDebug);

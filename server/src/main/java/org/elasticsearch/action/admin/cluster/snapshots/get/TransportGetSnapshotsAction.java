@@ -23,9 +23,9 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -62,11 +62,25 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public TransportGetSnapshotsAction(TransportService transportService, ClusterService clusterService,
-                                       ThreadPool threadPool, RepositoriesService repositoriesService, ActionFilters actionFilters,
-                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSnapshotsRequest::new, indexNameExpressionResolver, GetSnapshotsResponse::new, ThreadPool.Names.SAME);
+    public TransportGetSnapshotsAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        RepositoriesService repositoriesService,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            GetSnapshotsAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            GetSnapshotsRequest::new,
+            indexNameExpressionResolver,
+            GetSnapshotsResponse::new,
+            ThreadPool.Names.SAME
+        );
         this.repositoriesService = repositoriesService;
     }
 
@@ -76,14 +90,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     }
 
     @Override
-    protected void masterOperation(GetSnapshotsRequest request, ClusterState state,
-                                   ActionListener<GetSnapshotsResponse> listener) throws Exception {
+    protected void masterOperation(GetSnapshotsRequest request, ClusterState state, ActionListener<GetSnapshotsResponse> listener)
+        throws Exception {
         throw new UnsupportedOperationException("The task parameter is required");
     }
 
     @Override
-    protected void masterOperation(final Task task, final GetSnapshotsRequest request, final ClusterState state,
-                                   final ActionListener<GetSnapshotsResponse> listener) {
+    protected void masterOperation(
+        final Task task,
+        final GetSnapshotsRequest request,
+        final ClusterState state,
+        final ActionListener<GetSnapshotsResponse> listener
+    ) {
         final String repo = request.repository();
         final String[] snapshots = request.snapshots();
         final SnapshotsInProgress snapshotsInProgress = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY);
@@ -104,9 +122,21 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             repositoriesService.getRepositoryData(repo, repositoryDataListener);
         }
 
-        repositoryDataListener.whenComplete(repositoryData -> loadSnapshotInfos(snapshotsInProgress, repo, snapshots,
-                request.ignoreUnavailable(), request.verbose(), allSnapshotIds, currentSnapshots, repositoryData, (CancellableTask) task,
-                listener.map(GetSnapshotsResponse::new)), listener::onFailure);
+        repositoryDataListener.whenComplete(
+            repositoryData -> loadSnapshotInfos(
+                snapshotsInProgress,
+                repo,
+                snapshots,
+                request.ignoreUnavailable(),
+                request.verbose(),
+                allSnapshotIds,
+                currentSnapshots,
+                repositoryData,
+                (CancellableTask) task,
+                listener.map(GetSnapshotsResponse::new)
+            ),
+            listener::onFailure
+        );
     }
 
     /**
@@ -118,8 +148,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      */
     private static List<SnapshotInfo> sortedCurrentSnapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName) {
         List<SnapshotInfo> snapshotList = new ArrayList<>();
-        List<SnapshotsInProgress.Entry> entries =
-            SnapshotsService.currentSnapshots(snapshotsInProgress, repositoryName, Collections.emptyList());
+        List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
+            snapshotsInProgress,
+            repositoryName,
+            Collections.emptyList()
+        );
         for (SnapshotsInProgress.Entry entry : entries) {
             snapshotList.add(new SnapshotInfo(entry));
         }
@@ -127,11 +160,18 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return unmodifiableList(snapshotList);
     }
 
-
-    private void loadSnapshotInfos(SnapshotsInProgress snapshotsInProgress, String repo, String[] snapshots,
-                                   boolean ignoreUnavailable, boolean verbose, Map<String, SnapshotId> allSnapshotIds,
-                                   List<SnapshotInfo> currentSnapshots, @Nullable RepositoryData repositoryData,
-                                   CancellableTask task, ActionListener<List<SnapshotInfo>> listener) {
+    private void loadSnapshotInfos(
+        SnapshotsInProgress snapshotsInProgress,
+        String repo,
+        String[] snapshots,
+        boolean ignoreUnavailable,
+        boolean verbose,
+        Map<String, SnapshotId> allSnapshotIds,
+        List<SnapshotInfo> currentSnapshots,
+        @Nullable RepositoryData repositoryData,
+        CancellableTask task,
+        ActionListener<List<SnapshotInfo>> listener
+    ) {
         if (task.isCancelled()) {
             listener.onFailure(new TaskCancelledException("task cancelled"));
             return;
@@ -171,8 +211,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         if (verbose) {
-            threadPool.generic().execute(ActionRunnable.supply(
-                    listener, () -> snapshots(snapshotsInProgress, repo, new ArrayList<>(toResolve), ignoreUnavailable, task)));
+            threadPool.generic()
+                .execute(
+                    ActionRunnable.supply(
+                        listener,
+                        () -> snapshots(snapshotsInProgress, repo, new ArrayList<>(toResolve), ignoreUnavailable, task)
+                    )
+                );
         } else {
             final List<SnapshotInfo> snapshotInfos;
             if (repositoryData != null) {
@@ -197,8 +242,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      *                            if false, they will throw an error
      * @return list of snapshots
      */
-    private List<SnapshotInfo> snapshots(SnapshotsInProgress snapshotsInProgress, String repositoryName,
-                                         List<SnapshotId> snapshotIds, boolean ignoreUnavailable, CancellableTask task) {
+    private List<SnapshotInfo> snapshots(
+        SnapshotsInProgress snapshotsInProgress,
+        String repositoryName,
+        List<SnapshotId> snapshotIds,
+        boolean ignoreUnavailable,
+        CancellableTask task
+    ) {
         if (task.isCancelled()) {
             throw new TaskCancelledException("task cancelled");
         }
@@ -206,7 +256,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         final Set<SnapshotId> snapshotIdsToIterate = new HashSet<>(snapshotIds);
         // first, look at the snapshots in progress
         final List<SnapshotsInProgress.Entry> entries = SnapshotsService.currentSnapshots(
-            snapshotsInProgress, repositoryName, snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList()));
+            snapshotsInProgress,
+            repositoryName,
+            snapshotIdsToIterate.stream().map(SnapshotId::getName).collect(Collectors.toList())
+        );
         for (SnapshotsInProgress.Entry entry : entries) {
             if (snapshotIdsToIterate.remove(entry.snapshot().getSnapshotId())) {
                 snapshotSet.add(new SnapshotInfo(entry));
@@ -244,9 +297,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 
-    private static List<SnapshotInfo> buildSimpleSnapshotInfos(final Set<SnapshotId> toResolve,
-                                                        final RepositoryData repositoryData,
-                                                        final List<SnapshotInfo> currentSnapshots) {
+    private static List<SnapshotInfo> buildSimpleSnapshotInfos(
+        final Set<SnapshotId> toResolve,
+        final RepositoryData repositoryData,
+        final List<SnapshotInfo> currentSnapshots
+    ) {
         List<SnapshotInfo> snapshotInfos = new ArrayList<>();
         for (SnapshotInfo snapshotInfo : currentSnapshots) {
             if (toResolve.remove(snapshotInfo.snapshotId())) {
@@ -257,16 +312,22 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         for (IndexId indexId : repositoryData.getIndices().values()) {
             for (SnapshotId snapshotId : repositoryData.getSnapshots(indexId)) {
                 if (toResolve.contains(snapshotId)) {
-                    snapshotsToIndices.computeIfAbsent(snapshotId, (k) -> new ArrayList<>())
-                            .add(indexId.getName());
+                    snapshotsToIndices.computeIfAbsent(snapshotId, (k) -> new ArrayList<>()).add(indexId.getName());
                 }
             }
         }
         for (SnapshotId snapshotId : toResolve) {
             final List<String> indices = snapshotsToIndices.getOrDefault(snapshotId, Collections.emptyList());
             CollectionUtil.timSort(indices);
-            snapshotInfos.add(new SnapshotInfo(snapshotId, indices, Collections.emptyList(), Collections.emptyList(),
-                repositoryData.getSnapshotState(snapshotId)));
+            snapshotInfos.add(
+                new SnapshotInfo(
+                    snapshotId,
+                    indices,
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    repositoryData.getSnapshotState(snapshotId)
+                )
+            );
         }
         CollectionUtil.timSort(snapshotInfos);
         return Collections.unmodifiableList(snapshotInfos);

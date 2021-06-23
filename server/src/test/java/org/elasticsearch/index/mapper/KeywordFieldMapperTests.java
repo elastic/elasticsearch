@@ -321,7 +321,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertEquals(0, fieldNamesFields.length);
     }
 
-    public void testEnableDimension() throws IOException {
+    public void testDimension() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("field").field("type", "keyword").endObject();
             b.startObject("field_with_dimension").field("type", "keyword").field("dimension", true).endObject();
@@ -340,17 +340,13 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }
     }
 
-    public void testEnableDimensionAndIgnoreAboce() throws IOException {
-        try {
-            createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true).field("ignore_above", 2048);
-            }));
-            fail("Mapper parsing exception expected with [dimension] and [ignore_above] parameters set");
-        } catch (MapperParsingException e) {
-            assertThat(e.getCause().getMessage(),
-                containsString("Field [dimension] cannot be set in conjunction with field [ignore_above]"));
-        }
+    public void testDimensionAndIgnoreAbove() throws IOException {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("ignore_above", 2048);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [dimension] cannot be set in conjunction with field [ignore_above]"));
     }
 
     public void testConfigureSimilarity() throws IOException {

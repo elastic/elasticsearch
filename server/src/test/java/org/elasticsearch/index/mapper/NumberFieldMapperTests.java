@@ -236,16 +236,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testOutOfRangeValues() throws IOException {
-
         for(OutOfRangeSpec item : outOfRangeSpecs()) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", item.type.typeName())));
-            try {
-                mapper.parse(source(item::write));
-                fail("Mapper parsing exception expected for [" + item.type + "] with value [" + item.value + "]");
-            } catch (MapperParsingException e) {
-                assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
-                    e.getCause().getMessage(), containsString(item.message));
-            }
+            Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(item::write)));
+            assertThat("Incorrect error message for [" + item.type + "] with value [" + item.value + "]",
+                e.getCause().getMessage(), containsString(item.message));
         }
     }
 
@@ -260,15 +255,11 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
         assertFalse(ft.isDimension());
 
-        try {
-            createMapperService(fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }));
-            fail("Mapper parsing exception expected for non-integer numeric with dimension parameter set");
-        } catch (MapperParsingException e) {
-            assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
-        }
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true);
+        })));
+        assertThat(e.getCause().getMessage(), containsString("Parameter [dimension] cannot be set"));
     }
 
     @Override

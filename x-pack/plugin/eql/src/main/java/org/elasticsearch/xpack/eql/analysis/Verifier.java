@@ -8,11 +8,6 @@
 package org.elasticsearch.xpack.eql.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.OriginalIndices;
-import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.transport.RemoteClusterAware;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
@@ -20,6 +15,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.stats.FeatureMetric;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Attribute;
@@ -71,13 +67,11 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 public class Verifier {
 
     private final Metrics metrics;
-    private final IndicesOptions indicesOptions;
-    private final RemoteClusterService remoteClusterService;
+    private final RemoteClusterRegistry remoteClusterRegistry;
 
-    public Verifier(Metrics metrics, IndicesOptions indicesOptions, RemoteClusterService remoteClusterService) {
+    public Verifier(Metrics metrics, RemoteClusterRegistry remoteClusterRegistry) {
         this.metrics = metrics;
-        this.indicesOptions = indicesOptions;
-        this.remoteClusterService = remoteClusterService;
+        this.remoteClusterRegistry = remoteClusterRegistry;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
@@ -294,11 +288,8 @@ public class Verifier {
     private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Set<Failure> localFailures) {
         if (plan instanceof EsRelation) {
             EsRelation esRelation = (EsRelation) plan;
-            Map<String, OriginalIndices> perClusterIndices = remoteClusterService.groupIndices(indicesOptions,
-                Strings.splitStringByCommaToArray(esRelation.index().name()));
-            perClusterIndices.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-            for (String clusterAlias: perClusterIndices.keySet()) {
-                Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
+            for (String clusterAlias: remoteClusterRegistry.indicesPerRemoteCluster(esRelation.index().name()).keySet()) {
+                Version clusterVersion = remoteClusterRegistry.remoteVersion(clusterAlias);
                 if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
                     localFailures.add(fail(esRelation, "remote cluster [{}] (on version [{}]) must be on the same version as the local "
                             + "cluster (on version [{}])", clusterAlias, clusterVersion, Version.CURRENT));

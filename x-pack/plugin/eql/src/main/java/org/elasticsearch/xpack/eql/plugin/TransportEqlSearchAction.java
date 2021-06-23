@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.ql.expression.Order;
 
@@ -134,7 +135,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter,
                 request.runtimeMappings(), fetchFields, timeout, request.indicesOptions(), request.fetchSize(),
-                clientId, new TaskId(nodeId, task.getId()), task, transportService.getRemoteClusterService());
+                clientId, new TaskId(nodeId, task.getId()), task,
+                new RemoteClusterRegistry(transportService.getRemoteClusterService(), request.indicesOptions()));
         executeRequestWithRetryAttempt(clusterService, listener::onFailure,
             onFailure -> planExecutor.eql(cfg, request.query(), params,
                 wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),

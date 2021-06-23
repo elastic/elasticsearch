@@ -8,14 +8,14 @@
 package org.elasticsearch.xpack.eql.session;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -30,7 +30,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
-    private final RemoteClusterService remoteClusterService;
+    private final RemoteClusterRegistry remoteClusterRegistry;
 
     @Nullable
     private final QueryBuilder filter;
@@ -42,7 +42,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     public EqlConfiguration(String[] indices, ZoneId zi, String username, String clusterName, QueryBuilder filter,
                             Map<String, Object> runtimeMappings, List<FieldAndFormat> fetchFields, TimeValue requestTimeout,
                             IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task,
-                            RemoteClusterService remoteClusterService) {
+                            RemoteClusterRegistry remoteClusterRegistry) {
         super(zi, username, clusterName);
 
         this.indices = indices;
@@ -55,7 +55,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
-        this.remoteClusterService = remoteClusterService;
+        this.remoteClusterRegistry = remoteClusterRegistry;
     }
 
     public String[] indices() {
@@ -102,7 +102,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         return taskId;
     }
 
-    public RemoteClusterService remoteClusterService() {
-        return remoteClusterService;
+    public RemoteClusterRegistry remoteClusterRegistry() {
+        return remoteClusterRegistry;
     }
 }

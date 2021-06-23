@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
@@ -20,7 +19,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.junit.After;
 
 import java.util.Collection;
 import java.util.HashSet;
@@ -31,6 +29,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class TomlFoldTests extends ESTestCase {
@@ -39,8 +38,7 @@ public class TomlFoldTests extends ESTestCase {
 
     private static final EqlParser PARSER = new EqlParser();
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private final TestVerifier verifier = new TestVerifier();
-    private final Analyzer analyzer = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, verifier.verifier());
+    private final Analyzer analyzer = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, TEST_VERIFIER);
 
     private final int num;
     private final EqlFoldSpec spec;
@@ -89,10 +87,5 @@ public class TomlFoldTests extends ESTestCase {
         }
 
         assertEquals(spec.expected(), folded);
-    }
-
-    @After
-    public void cleanup() {
-        verifier.cleanup();
     }
 }

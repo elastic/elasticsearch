@@ -6,20 +6,28 @@
  */
 package org.elasticsearch.xpack.eql.analysis;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
-import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.parser.ParsingException;
+import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.junit.After;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_VERIFIER;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class VerifierTests extends ESTestCase {
 
@@ -28,8 +36,6 @@ public class VerifierTests extends ESTestCase {
     private final EqlParser parser = new EqlParser();
 
     private final IndexResolution index = loadIndexResolution("mapping-default.json");
-
-    private final TestVerifier verifier = new TestVerifier();
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
@@ -41,7 +47,7 @@ public class VerifierTests extends ESTestCase {
 
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), verifier.verifier());
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), TEST_VERIFIER);
         return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql), resolution));
     }
 
@@ -373,8 +379,35 @@ public class VerifierTests extends ESTestCase {
                 "[process where true] by opcode"));
     }
 
-    @After
-    public void cleanup() {
-        verifier.cleanup();
+    private LogicalPlan analyzeWithRemoteVersion(Version remoteVersion) {
+        PreAnalyzer preAnalyzer = new PreAnalyzer();
+        RemoteClusterRegistry registry = mock(RemoteClusterRegistry.class);
+        String clusterName = "remote-cluster";
+        String indexPattern = clusterName + ":" + INDEX_NAME;
+        Map<String, OriginalIndices> indicesMap = new HashMap<>(){{
+            put(clusterName, null);
+        }};
+        when(registry.indicesPerRemoteCluster(any())).thenReturn(indicesMap);
+        when(registry.remoteVersion(any())).thenReturn(remoteVersion);
+        Verifier verifier = new Verifier(new Metrics(), registry);
+        Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), verifier);
+        IndexResolution resolution = IndexResolution.valid(new EsIndex(indexPattern, loadEqlMapping("mapping-default.json")));
+        return analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement("any where true"), resolution));
+    }
+
+    public void analyzeWithMismatchingRemoteVersion(Version remoteVersion) {
+        VerificationException e = expectThrows(VerificationException.class, () -> analyzeWithRemoteVersion(remoteVersion));
+        assertTrue(e.getMessage().contains("remote cluster [remote-cluster] (on version [" + remoteVersion + "]) must be on the same"
+            + " version as the local cluster (on version [" + Version.CURRENT + "])"));
+    }
+
+    public void testRemoteClusterVersionCheck() {
+        Version previousMinor = Version.fromId(Version.CURRENT.id - 1 * 10000);
+        analyzeWithMismatchingRemoteVersion(previousMinor);
+
+        Version nextMinor = Version.fromId(Version.CURRENT.id + 1 * 10000);
+        analyzeWithMismatchingRemoteVersion(nextMinor);
+
+        assertNotNull(analyzeWithRemoteVersion(Version.CURRENT));
     }
 }

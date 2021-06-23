@@ -9,16 +9,10 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
@@ -29,9 +23,10 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.stats.Metrics;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
-import java.util.concurrent.TimeUnit;
+import java.util.Collections;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -41,6 +36,9 @@ import static org.elasticsearch.test.ESTestCase.randomLong;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
 import static org.elasticsearch.test.ESTestCase.randomZone;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public final class EqlTestUtils {
 
@@ -52,6 +50,15 @@ public final class EqlTestUtils {
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
             TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, null);
+
+    private static final RemoteClusterRegistry remoteClusterRegistry;
+    public static final Verifier TEST_VERIFIER;
+
+    static {
+        remoteClusterRegistry = mock(RemoteClusterRegistry.class);
+        when(remoteClusterRegistry.indicesPerRemoteCluster(any())).thenReturn(Collections.emptyMap());
+        TEST_VERIFIER = testVerifier(new Metrics());
+    }
 
     public static EqlConfiguration randomConfiguration() {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
@@ -107,49 +114,7 @@ public final class EqlTestUtils {
         return new SearchSortValues(values, sortValueFormats);
     }
 
-    public static final class TestVerifier {
-        private final RemoteClusterServiceMock remoteClusterServiceMock;
-        private final Verifier verifier;
-
-        public TestVerifier () {
-            remoteClusterServiceMock = new RemoteClusterServiceMock();
-            verifier = verifier(new Metrics());
-        }
-
-        public void cleanup() {
-            remoteClusterServiceMock.cleanup();
-        }
-
-        public Verifier verifier(Metrics metrics) {
-            return new Verifier(metrics, null, remoteClusterServiceMock.remoteClusterService());
-        }
-
-        public Verifier verifier() {
-            return verifier;
-        }
-    }
-
-    public static final class RemoteClusterServiceMock {
-        private final ThreadPool threadPool;
-        private final TransportService transportService;
-        private final RemoteClusterService remoteClusterService;
-
-        public RemoteClusterServiceMock() {
-            threadPool = new TestThreadPool(EqlTestUtils.class.getName());
-            transportService = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool);
-            remoteClusterService = transportService.getRemoteClusterService();
-        }
-
-        public RemoteClusterService remoteClusterService() {
-            return remoteClusterService;
-        }
-
-        public TransportService transportService() {
-            return transportService;
-        }
-
-        public void cleanup() {
-            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
-        }
+    public static Verifier testVerifier(Metrics metrics) {
+        return new Verifier(metrics, remoteClusterRegistry);
     }
 }

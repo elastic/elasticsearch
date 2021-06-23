@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PostAnalyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.junit.After;
 
 import java.time.ZoneId;
 import java.util.List;
@@ -65,6 +63,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.ql.TestUtils.UTC;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
@@ -77,7 +76,6 @@ public class OptimizerTests extends ESTestCase {
     private EqlParser parser = new EqlParser();
     private IndexResolution index = loadIndexResolution("mapping-default.json");
     private Optimizer optimizer = new Optimizer();
-    private TestVerifier verifier = new TestVerifier();
 
     private static Map<String, EsField> loadEqlMapping(String name) {
         return TypesTests.loadMapping(name);
@@ -90,7 +88,7 @@ public class OptimizerTests extends ESTestCase {
     private LogicalPlan accept(IndexResolution resolution, String eql) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         PostAnalyzer postAnalyzer = new PostAnalyzer();
-        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), verifier.verifier());
+        Analyzer analyzer = new Analyzer(TEST_CFG, new EqlFunctionRegistry(), TEST_VERIFIER);
         return optimizer.optimize(postAnalyzer.postAnalyze(analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(eql),
             resolution)), TEST_CFG));
     }
@@ -770,10 +768,5 @@ public class OptimizerTests extends ESTestCase {
 
     private static GreaterThan gtExpression(Attribute b) {
         return new GreaterThan(EMPTY, b, new Literal(EMPTY, 1, INTEGER), UTC);
-    }
-
-    @After
-    public void cleanup() {
-        verifier.cleanup();
     }
 }

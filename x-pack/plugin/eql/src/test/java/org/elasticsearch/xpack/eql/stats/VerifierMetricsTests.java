@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.stats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.eql.EqlTestUtils;
-import org.elasticsearch.xpack.eql.EqlTestUtils.TestVerifier;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
 import org.elasticsearch.xpack.eql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolution;
 
 import java.util.Set;
 
+import static org.elasticsearch.xpack.eql.EqlTestUtils.testVerifier;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -165,10 +165,8 @@ public class VerifierMetricsTests extends ESTestCase {
 
     private Counters eql(String query) {
         Metrics metrics = new Metrics();
-        TestVerifier verifier = new TestVerifier();
-        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, verifier.verifier(metrics));
+        Analyzer analyzer = new Analyzer(EqlTestUtils.randomConfiguration(), eqlFunctionRegistry, testVerifier(metrics));
         analyzer.analyze(preAnalyzer.preAnalyze(parser.createStatement(query), index));
-        verifier.cleanup();
         return metrics.stats();
     }
 

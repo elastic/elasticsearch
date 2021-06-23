@@ -61,6 +61,8 @@ ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasti
 # manual parsing to find out, if process should be detached
 if [[ $DAEMONIZE = false ]]; then
   if [[ "$QUIET" = false ]]; then
+    # redirects the stdout of the following `exec` to the stdin of this special sort-of `cat` with a bottom banner
+    # the banner contents sit in a file (this uses bash process substitution), and are not available initially
     exec > >("$JAVA" "$XSHARE" -cp "$ES_CLASSPATH" org.elasticsearch.tools.launchers.OutputBottomBanner "EOF"\
       <(sleep 15; echo -ne "DEMO BANNER\n"\
 "SECURITY HAS BEEN AUTO-CONFIGURED\n"\

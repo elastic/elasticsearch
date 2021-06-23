@@ -21,7 +21,14 @@ import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Prints lines at the tail of the console output
+ * Prints the text lines, that are coming through the standard input, to the standard output
+ * (like the no-arg `cat` command), but followed by a multi-line text "banner" that persists as the last text
+ * that is printed to the terminal.
+ * The "banner" persists because it is printed out after every line of text, and is then cleared
+ * before the next line is printed. Clearing and moving the cursor only works if the output is a terminal
+ * (this redirection should not be used otherwise).
+ * The banner is read from an input file, and mustn't necessarily be available before the stdin input is.
+ * Once the content of the banner becomes available it cannot be changed.
  */
 final class OutputBottomBanner {
 

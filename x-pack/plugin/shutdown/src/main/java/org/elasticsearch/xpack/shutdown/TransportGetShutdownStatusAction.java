@@ -174,9 +174,11 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
 
         if (currentState.getRoutingNodes().node(nodeId) == null) {
             // We don't know about that node
-            return new ShutdownShardMigrationStatus(SingleNodeShutdownMetadata.Status.NOT_STARTED,
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.NOT_STARTED,
                 0,
-                "node is not currently part of the cluster");
+                "node is not currently part of the cluster"
+            );
         }
 
         // First, check if there are any shards currently on this node, and if there are any relocating shards

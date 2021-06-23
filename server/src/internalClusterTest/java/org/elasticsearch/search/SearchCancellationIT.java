@@ -56,7 +56,7 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.scriptQuery;
-import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SCRIPT_NAME;
+import static org.elasticsearch.search.SearchCancellationIT.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
@@ -138,7 +138,6 @@ public class SearchCancellationIT extends ESIntegTestCase {
     private SearchResponse ensureSearchWasCancelled(ActionFuture<SearchResponse> searchResponse) {
         try {
             SearchResponse response = searchResponse.actionGet();
-            logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
             return response;
         } catch (SearchPhaseExecutionException ex) {
@@ -155,7 +154,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test").setQuery(
             scriptQuery(new Script(
-                ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+                ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -173,7 +172,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         logger.info("Executing search");
         ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
             .addScriptField("test_field",
-                new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())
+                new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())
             ).execute();
 
         awaitForBlock(plugins);
@@ -188,17 +187,23 @@ public class SearchCancellationIT extends ESIntegTestCase {
         indexTestData();
 
         logger.info("Executing search");
+        TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("test_agg");
+        if (randomBoolean()) {
+            termsAggregationBuilder.script(new Script(
+                ScriptType.INLINE,
+                "mockscript",
+                ScriptedBlockPlugin.TERM_SCRIPT_NAME,
+                Collections.emptyMap()
+            ));
+        } else {
+            termsAggregationBuilder.field("field.keyword");
+        }
+
         ActionFuture<SearchResponse> searchResponse = client()
             .prepareSearch("test")
             .setQuery(matchAllQuery())
             .addAggregation(
-                new TermsAggregationBuilder("test_agg")
-                    .script(new Script(
-                        ScriptType.INLINE,
-                        "mockscript",
-                        ScriptedBlockPlugin.TERM_SCRIPT_NAME,
-                        Collections.emptyMap()
-                    ))
+                termsAggregationBuilder
                     .subAggregation(
                         new ScriptedMetricAggregationBuilder("sub_agg")
                             .initScript(
@@ -239,7 +244,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         awaitForBlock(plugins);
         cancelSearch(SearchAction.NAME);
         disableBlocks(plugins);
-        assertNull(ensureSearchWasCancelled(searchResponse));
+        ensureSearchWasCancelled(searchResponse);
     }
 
     public void testCancellationOfScrollSearches() throws Exception {
@@ -253,7 +258,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setSize(5)
             .setQuery(
                 scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+                    ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
 
         awaitForBlock(plugins);
@@ -283,7 +288,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             .setSize(2)
             .setQuery(
                 scriptQuery(new Script(
-                    ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+                    ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .get();
 
         assertNotNull(searchResponse.getScrollId());
@@ -316,7 +321,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
         ActionFuture<MultiSearchResponse> msearchResponse = client().prepareMultiSearch().add(client().prepareSearch("test")
-            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+            .addScriptField("test_field", new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
             .execute();
         awaitForBlock(plugins);
         cancelSearch(MultiSearchAction.NAME);
@@ -366,7 +371,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
             SearchPhaseExecutionException e = expectThrows(SearchPhaseExecutionException.class, () ->
                 client().prepareSearch("test")
                     .setSearchType(SearchType.QUERY_THEN_FETCH)
-                    .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SCRIPT_NAME, Collections.emptyMap())))
+                    .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", SEARCH_BLOCK_SCRIPT_NAME, Collections.emptyMap())))
                     .setAllowPartialSearchResults(false).setSize(1000).get());
             assertThat(e.getMessage(), containsString("Partial shards failure"));
         });
@@ -406,7 +411,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
     }
 
     public static class ScriptedBlockPlugin extends MockScriptPlugin {
-        static final String SCRIPT_NAME = "search_block";
+        static final String SEARCH_BLOCK_SCRIPT_NAME = "search_block";
         static final String INIT_SCRIPT_NAME = "init";
         static final String MAP_SCRIPT_NAME = "map";
         static final String COMBINE_SCRIPT_NAME = "combine";
@@ -438,7 +443,7 @@ public class SearchCancellationIT extends ESIntegTestCase {
         @Override
         public Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             return Map.of(
-                SCRIPT_NAME, this::searchBlockScript,
+                SEARCH_BLOCK_SCRIPT_NAME, this::searchBlockScript,
                 INIT_SCRIPT_NAME, this::nullScript,
                 MAP_SCRIPT_NAME, this::nullScript,
                 COMBINE_SCRIPT_NAME, this::nullScript,

@@ -128,6 +128,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
          * the maximum number of buckets allowed in a response
          */
         public void consumeBucketsAndMaybeBreak(int size) {
+            // This is a volatile read.
             if (isCanceled.get()) {
                 throw new TaskCancelledException("Cancelled");
             }

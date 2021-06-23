@@ -60,11 +60,8 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
     }
 
     @Override
-    protected void masterOperation(
-        ResetFeatureStateRequest request,
-        ClusterState state,
-        ActionListener<ResetFeatureStateResponse> listener
-    ) throws Exception {
+    protected void masterOperation(ResetFeatureStateRequest request, ClusterState state, ActionListener<ResetFeatureStateResponse> listener)
+        throws Exception {
         if (systemIndices.getFeatures().size() == 0) {
             listener.onResponse(new ResetFeatureStateResponse(Collections.emptyList()));
         }

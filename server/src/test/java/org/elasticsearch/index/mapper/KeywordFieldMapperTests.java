@@ -340,6 +340,19 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }
     }
 
+    public void testEnableDimensionAndIgnoreAboce() throws IOException {
+        try {
+            createMapperService(fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true).field("ignore_above", 2048);
+            }));
+            fail("Mapper parsing exception expected with [dimension] and [ignore_above] parameters set");
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause().getMessage(),
+                containsString("Field [dimension] cannot be set in conjunction with field [ignore_above]"));
+        }
+    }
+
     public void testConfigureSimilarity() throws IOException {
         MapperService mapperService = createMapperService(
             fieldMapping(b -> b.field("type", "keyword").field("similarity", "boolean"))

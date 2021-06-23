@@ -112,8 +112,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
-        private final Parameter<Boolean> dimension
-            = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false);
+        private final Parameter<Boolean> dimension;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -124,6 +123,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
+
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
+                .setValidator(v -> {
+                    if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
+                        throw new IllegalArgumentException("Field [dimension] cannot be set in conjunction with field [ignore_above]");
+                    }
+                });
         }
 
         public Builder(String name) {

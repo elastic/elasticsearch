@@ -86,6 +86,6 @@ public class TransportResetFeatureStateAction extends TransportMasterNodeAction<
 
     @Override
     protected ClusterBlockException checkBlock(ResetFeatureStateRequest request, ClusterState state) {
-        return null;
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 }

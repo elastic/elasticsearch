@@ -230,13 +230,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 final StoredProgress progressToStore = new StoredProgress(progress);
                 if (progressToStore.equals(previous)) {
                     LOGGER.debug(() -> new ParameterizedMessage(
-                        "[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId));
-                    runnable.run();
-                    return;
-                }
-
-                if (isCancelled()) {
-                    LOGGER.debug(() -> new ParameterizedMessage("[{}] aborting progress persist as task has been cancelled", jobId));
+                        "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
+                        jobId, progress));
                     runnable.run();
                     return;
                 }

@@ -1,6 +1,3 @@
-import org.elasticsearch.gradle.internal.test.RestIntegTestTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
@@ -8,6 +5,10 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.rest-test'
@@ -15,8 +16,8 @@ apply plugin: 'elasticsearch.publish'
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'elasticsearch.rest-resources'
 
-group = 'org.elasticsearch.client'
-archivesBaseName = 'elasticsearch-rest-high-level-client'
+group = 'org.elasticsearch.client.enrollment'
+archivesBaseName = 'elasticsearch-rest-high-level-client-enrollment'
 
 // HLRC is published under the Elastic License
 ext.projectLicenses.set(['Elastic License 2.0': ext.elasticLicenseUrl.get()])
@@ -57,16 +58,16 @@ dependencies {
   testImplementation(project(':x-pack:plugin:ql:test-fixtures'))
 }
 
-tasks.named('forbiddenApisMain').configure {
+/*tasks.named('forbiddenApisMain').configure {
   // core does not depend on the httpclient for compile so we add the signatures here. We don't add them for test as they are already
   // specified
   addSignatureFiles 'http-signatures'
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
-}
+}*/
 
 File nodeCert = file("./testnode.crt")
 File nodeTrustStore = file("./testnode.jks")
-File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
+//File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
 File httpCaKeystore = file("./httpCa.p12");
 File transportKeystore = file("./transport.p12");
 
@@ -78,9 +79,9 @@ tasks.named("integTest").configure {
 
 // Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
 TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
-    systemProperty 'tests.rest.async', 'true'
-    systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
+  systemProperty 'tests.rest.async', 'true'
+  systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
 }
 
 tasks.named("check").configure {
@@ -95,20 +96,30 @@ testClusters.all {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
-  setting 'xpack.security.http.ssl.enabled', 'false'
-  setting 'xpack.security.transport.ssl.enabled', 'false'
+  setting 'xpack.security.http.ssl.enabled', 'true'
+  setting 'xpack.security.transport.ssl.enabled', 'true'
   // Truststore settings are not used since TLS is not enabled. Included for testing the get certificates API
-  setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
-  setting 'xpack.security.transport.ssl.truststore.path', 'testnode.jks'
+  setting 'xpack.security.http.ssl.truststore.path', 'httpCa.p12'
+  setting 'xpack.security.http.ssl.keystore.path', 'httpCa.p12'
+  //setting 'xpack.security.transport.ssl.truststore.path', 'transport.p12'
+  setting 'xpack.security.transport.ssl.keystore.path', 'transport.p12'
+
+  //setting 'xpack.security.http.ssl.certificate_authorities', 'testnode.crt'
+  setting 'xpack.security.transport.ssl.truststore.path', 'transport.p12'//'testnode.jks'
   setting 'xpack.security.authc.realms.file.default_file.order', '0'
   setting 'xpack.security.authc.realms.native.default_native.order', '1'
-  setting 'xpack.security.authc.realms.pki.pki1.order', '2'
-  setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testRootCA.crt" ]'
-  setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
+  //setting 'xpack.security.authc.realms.pki.pki1.order', '2'
+  //setting 'xpack.security.authc.realms.pki.pki1.certificate_authorities', '[ "testRootCA.crt" ]'
+  //setting 'xpack.security.authc.realms.pki.pki1.delegation.enabled', 'true'
 
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'indices.lifecycle.history_index_enabled', 'false'
-  keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
+  keystore 'xpack.security.http.ssl.keystore.secure_password', 'password'
+  keystore 'xpack.security.http.ssl.keystore.secure_key_password', 'password'
+  keystore 'xpack.security.http.ssl.truststore.secure_password', 'password'
+  keystore 'xpack.security.transport.ssl.keystore.secure_password', 'password'
+  keystore 'xpack.security.transport.ssl.truststore.secure_password', 'password'
+  //keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
     password: System.getProperty('tests.rest.cluster.password', 'test-user-password'),

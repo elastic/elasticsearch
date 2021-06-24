@@ -11,13 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -30,9 +31,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
-            new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
-                false)),
+            new NamedChecker("bar", singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details",
+                singletonMap("key", "value"))), false)),
             components,
             future
             );
@@ -40,6 +40,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         assertThat(issueMap.size(), equalTo(2));
         assertThat(issueMap.get("foo"), is(empty()));
         assertThat(issueMap.get("bar").get(0).getMessage(), equalTo("bar msg"));
+        assertThat(issueMap.get("bar").get(0).getDetails(), equalTo("details"));
+        assertThat(issueMap.get("bar").get(0).getMeta(), equalTo(singletonMap("key", "value")));
     }
 
     public void testPluginSettingIssuesWithFailures() {
@@ -48,7 +50,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
+                singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, null)),
                 true)),
             components,
             future

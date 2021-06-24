@@ -177,6 +177,7 @@ public class Realms implements Iterable<Realm> {
         Map<String, Set<String>> nameToRealmIdentifier = new HashMap<>();
         Set<String> missingOrderRealmSettingKeys = new TreeSet<>();
         Map<String, Set<String>> orderToRealmOrderSettingKeys = new HashMap<>();
+        List<RealmConfig.RealmIdentifier> reservedPrefixedRealmIdentifiers = new ArrayList<>();
         Set<String> unconfiguredBasicRealms = new HashSet<>(
             org.elasticsearch.core.Set.of(FileRealmSettings.TYPE, NativeRealmSettings.TYPE));
         for (final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry: realmsSettings.entrySet()) {
@@ -194,6 +195,9 @@ public class Realms implements Iterable<Realm> {
             Realm.Factory factory = factories.get(identifier.getType());
             if (factory == null) {
                 throw new IllegalArgumentException("unknown realm type [" + identifier.getType() + "] for realm [" + identifier + "]");
+            }
+            if (identifier.getName().startsWith(RealmSettings.RESERVED_REALM_NAME_PREFIX)) {
+                reservedPrefixedRealmIdentifiers.add(identifier);
             }
             RealmConfig config = new RealmConfig(identifier, settings, env, threadContext);
             unconfiguredBasicRealms.remove(identifier.getType());
@@ -244,6 +248,7 @@ public class Realms implements Iterable<Realm> {
         }
 
         logDeprecationIfFound(missingOrderRealmSettingKeys, orderToRealmOrderSettingKeys);
+        logDeprecationForReservedPrefixedRealmNames(reservedPrefixedRealmIdentifiers);
 
         return Collections.unmodifiableList(realms);
     }
@@ -403,6 +408,19 @@ public class Realms implements Iterable<Realm> {
                 Strings.collectionToDelimitedString(unconfiguredBasicRealms, ","),
                 unconfiguredBasicRealms.size() == 1 ? "It is" : "They are"
             );
+        }
+    }
+
+    private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
+        if (false == realmIdentifiers.isEmpty()) {
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "realm_name_with_reserved_prefix",
+                "Found realm " + (realmIdentifiers.size() == 1 ? "name" : "names") + " with reserved prefix [{}]: [{}]. " +
+                    "In a future major release, node will fail to start if any realm names start with reserved prefix.",
+                RealmSettings.RESERVED_REALM_NAME_PREFIX,
+                realmIdentifiers.stream()
+                    .map(rid -> RealmSettings.PREFIX + rid.getType() + "." + rid.getName())
+                    .sorted()
+                    .collect(Collectors.joining("; ")));
         }
     }
 }

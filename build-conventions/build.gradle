@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.gradle.plugins.ide.eclipse.model.SourceFolder;
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 plugins {
     id 'java-gradle-plugin'
@@ -40,9 +40,9 @@ gradlePlugin {
             id = 'elasticsearch.licensing'
             implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
         }
-        basics {
-            id = 'elasticsearch.basic-build-tool-conventions'
-            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BasicBuildToolConventionsPlugin'
+        buildTools {
+            id = 'elasticsearch.build-tools'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
         }
     }
 }
@@ -56,6 +56,7 @@ dependencies {
     api 'org.apache.maven:maven-model:3.6.2'
     api 'gradle.plugin.com.github.jengelman.gradle.plugins:shadow:7.0.0'
     api 'org.apache.rat:apache-rat:0.11'
+    compileOnly "com.puppycrawl.tools:checkstyle:8.42"
 }
 
 project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {

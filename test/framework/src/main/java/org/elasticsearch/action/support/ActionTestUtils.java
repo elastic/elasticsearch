@@ -11,6 +11,8 @@ package org.elasticsearch.action.support;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 
@@ -41,5 +43,19 @@ public class ActionTestUtils {
         return ActionListener.wrap(consumer, e -> {
             throw new AssertionError(e);
         });
+    }
+
+    public static ResponseListener wrapAsRestResponseListener(ActionListener<Response> listener) {
+        return new ResponseListener() {
+            @Override
+            public void onSuccess(Response response) {
+                listener.onResponse(response);
+            }
+
+            @Override
+            public void onFailure(Exception exception) {
+                listener.onFailure(exception);
+            }
+        };
     }
 }

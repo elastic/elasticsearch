@@ -9,11 +9,11 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -31,13 +31,18 @@ import java.util.Objects;
 public class GetSnapshotsResponse extends ActionResponse implements ToXContentObject {
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER =
-        new ConstructingObjectParser<>(GetSnapshotsResponse.class.getName(), true,
-            (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0]));
+    private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
+        GetSnapshotsResponse.class.getName(),
+        true,
+        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0])
+    );
 
     static {
-        GET_SNAPSHOT_PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(),
-            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(), new ParseField("snapshots"));
+        GET_SNAPSHOT_PARSER.declareObjectArray(
+            ConstructingObjectParser.constructorArg(),
+            (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
+            new ParseField("snapshots")
+        );
     }
 
     private final List<SnapshotInfo> snapshots;
@@ -48,7 +53,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     GetSnapshotsResponse(StreamInput in) throws IOException {
         super(in);
-        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::new));
+        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::readFrom));
     }
 
     /**

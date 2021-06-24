@@ -1,7 +1,7 @@
 --
 :api: delete-job 
 :request: DeleteJobRequest
-:response: AcknowledgedResponse
+:response: DeleteJobResponse
 --
 [role="xpack"]
 [id="{upid}-{api}"]

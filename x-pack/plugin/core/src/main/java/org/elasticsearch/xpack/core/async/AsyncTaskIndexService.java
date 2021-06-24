@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
+import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -116,6 +118,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final SecurityContext securityContext;
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
+    private final BigArrays bigArrays;
 
 
     public AsyncTaskIndexService(String index,
@@ -124,7 +127,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                  Client client,
                                  String origin,
                                  Writeable.Reader<R> reader,
-                                 NamedWriteableRegistry registry) {
+                                 NamedWriteableRegistry registry,
+                                 BigArrays bigArrays) {
         this.index = index;
         this.clusterService = clusterService;
         this.securityContext = new SecurityContext(clusterService.getSettings(), threadContext);
@@ -132,6 +136,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.clientWithOrigin = new OriginSettingClient(client, origin);
         this.registry = registry;
         this.reader = reader;
+        this.bigArrays = bigArrays;
     }
 
     /**
@@ -190,20 +195,25 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void createResponse(String docId,
                                Map<String, String> headers,
                                R response,
-                               ActionListener<IndexResponse> listener) throws IOException {
-        createIndexIfNecessary(listener.delegateFailure((ignored, l) -> {
-            // TODO: Integrate with circuit breaker
+                               ActionListener<IndexResponse> outerListener) throws IOException {
+        createIndexIfNecessary(outerListener.delegateFailure((listener, ignored) -> {
             try {
-                final XContentBuilder source = XContentFactory.jsonBuilder()
+                final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+                final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+                listener = ActionListener.runBefore(listener, source::close);
+                source
                     .startObject()
                     .field(HEADERS_FIELD, headers)
                     .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
                     .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                     .endObject();
+                // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+                // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+                source.flush();
                 final IndexRequest indexRequest = new IndexRequest(index)
                     .create(true)
                     .id(docId)
-                    .source(source);
+                    .source(buffer.bytes(), source.contentType());
                 clientWithOrigin.index(indexRequest, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -217,19 +227,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void updateResponse(String docId,
                             Map<String, List<String>> responseHeaders,
                             R response,
-                            ActionListener<UpdateResponse> listener) {
-        createIndexIfNecessary(listener.delegateFailure((ignored, l) -> {
+                            ActionListener<UpdateResponse> outerListener) {
+        createIndexIfNecessary(outerListener.delegateFailure((listener, ignored) -> {
             try {
-                // TODO: Integrate with circuit breaker
-                final XContentBuilder source = XContentFactory.jsonBuilder()
+                final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+                final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+                listener = ActionListener.runBefore(listener, source::close);
+                source
                     .startObject()
                     .field(RESPONSE_HEADERS_FIELD, responseHeaders)
                     .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
                     .endObject();
+                // do not close the buffer or the XContentBuilder until the UpdateRequest is completed (i.e., listener is notified);
+                // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+                source.flush();
                 final UpdateRequest request = new UpdateRequest()
                     .index(index)
                     .id(docId)
-                    .doc(source)
+                    .doc(buffer.bytes(), source.contentType())
                     .retryOnConflict(5);
                 clientWithOrigin.update(request, listener);
             } catch (Exception e) {

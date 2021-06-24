@@ -52,7 +52,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -356,7 +356,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
 
     private Engine.Index getIndex(final String id) {
         final String type = "test";
-        final ParseContext.Document document = new ParseContext.Document();
+        final LuceneDocument document = new LuceneDocument();
         document.add(new TextField("test", "test", Field.Store.YES));
         final Field idField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         final Field versionField = new NumericDocValuesField("_version", Versions.MATCH_ANY);
@@ -833,7 +833,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             CRC32 digest = new CRC32();
             digest.update(buffer, 0, buffer.length);
             StoreFileMetadata md = new StoreFileMetadata("test-" + i, buffer.length + 8,
-                Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST);
+                Store.digestToString(digest.getValue()), org.apache.lucene.util.Version.LATEST.toString());
             try (OutputStream out = new IndexOutputOutputStream(store.createVerifyingOutput(md.name(), md, IOContext.DEFAULT))) {
                 out.write(buffer);
                 out.write(Numbers.longToBytes(digest.getValue()));

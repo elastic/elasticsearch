@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +22,7 @@ import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
@@ -33,7 +35,9 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -68,6 +72,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
@@ -514,6 +519,28 @@ public class SecurityTests extends ESTestCase {
             .build();
         Security.validateForFips(settings);
         // no exception thrown
+    }
+
+    public void testSecurityPluginNoDeprecation() throws Exception {
+        Settings settings = Settings.builder()
+            .put("xpack.security.enabled", true)
+            .put("path.home", createTempDir())
+            .build();
+        Security security = new Security(settings, null) ;
+
+        SettingsModule moduleSettings = new SettingsModule(Settings.EMPTY);
+
+        ThreadPool threadPool = new TestThreadPool("testSecurityPluginNoDeprecation");
+        try {
+            UsageService usageService = new UsageService();
+            new ActionModule(false, moduleSettings.getSettings(),
+                TestIndexNameExpressionResolver.newInstance(),
+                moduleSettings.getIndexScopedSettings(), moduleSettings.getClusterSettings(), moduleSettings.getSettingsFilter(),
+                threadPool, singletonList(security), null, null, usageService, null);
+            assertWarnings(Strings.EMPTY_ARRAY);
+        } finally {
+            threadPool.shutdown();
+        }
     }
 
     private void logAndFail(Exception e) {

@@ -62,6 +62,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
+        void onPostingsUsed(String field);
         void onTermFrequenciesUsed(String field);
         void onPositionsUsed(String field);
         void onOffsetsUsed(String field);
@@ -245,6 +246,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public PostingsEnum postings(PostingsEnum reuse, int flags) throws IOException {
                 PostingsEnum postingsEnum = super.postings(reuse, flags);
                 if (postingsEnum != null) {
+                    notifier.onPostingsUsed(field);
                     checkPostingsFlags(flags);
                 }
                 return postingsEnum;
@@ -254,6 +256,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             public ImpactsEnum impacts(int flags) throws IOException {
                 ImpactsEnum impactsEnum = super.impacts(flags);
                 if (impactsEnum != null) {
+                    notifier.onPostingsUsed(field);
                     checkPostingsFlags(flags);
                 }
                 return impactsEnum;

@@ -8,7 +8,7 @@ experimental[]
 
 Returns field usage information for each field of an index.
 Field usage statistics are automatically captured when
-queries are runnning on a cluster. A shard-level search
+queries are running on a cluster. A shard-level search
 request that accesses a given field, even if multiple times
 during that request, is counted as a single use.
 
@@ -101,33 +101,39 @@ The API returns the following response:
     },
     "my-index-000001": {
         "all_fields": {
-            "total": "6", <1>
-            "terms" : 1,
-            "proximity" : 1,
+            "any": "6",
+            "inverted_index": {
+                "terms" : 1,
+                "postings" : 1,
+                "proximity" : 1,
+                "positions" : 0,
+                "term_frequencies" : 1,
+                "offsets" : 0,
+                "payloads" : 0
+            },
             "stored_fields" : 2,
             "doc_values" : 1,
             "points" : 0,
             "norms" : 1,
-            "term_vectors" : 0,
-            "term_frequencies" : 1,
-            "positions" : 0,
-            "offsets" : 0,
-            "payloads" : 0
+            "term_vectors" : 0
         },
         "fields": {
             "_id": {
-                "total" : 1,
-                "terms" : 0,
-                "proximity" : 0,
+                "any" : 1,
+                "inverted_index": {
+                    "terms" : 1,
+                    "postings" : 1,
+                    "proximity" : 1,
+                    "positions" : 0,
+                    "term_frequencies" : 1,
+                    "offsets" : 0,
+                    "payloads" : 0
+                },
                 "stored_fields" : 1,
                 "doc_values" : 0,
                 "points" : 0,
                 "norms" : 0,
-                "term_vectors" : 0,
-                "term_frequencies" : 0,
-                "positions" : 0,
-                "offsets" : 0,
-                "payloads" : 0
+                "term_vectors" : 0
             },
             "_source": {...},
             "context": {...},
@@ -139,5 +145,3 @@ The API returns the following response:
 // TESTRESPONSE[s/: \{\.\.\.\}/: $body.$_path/]
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
-
-<1> The total amount of uses of fields of the relevant shards of the index.

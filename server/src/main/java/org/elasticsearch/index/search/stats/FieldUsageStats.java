@@ -24,8 +24,10 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 public class FieldUsageStats implements ToXContentFragment, Writeable {
-    public static final String TOTAL = "total";
+    public static final String ANY = "any";
+    public static final String INVERTED_INDEX = "inverted_index";
     public static final String TERMS = "terms";
+    public static final String POSTINGS = "postings";
     public static final String TERM_FREQUENCIES = "term_frequencies";
     public static final String POSITIONS = "positions";
     public static final String OFFSETS = "offsets";
@@ -106,6 +108,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         DOC_VALUES,
         STORED_FIELDS,
         TERMS,
+        POSTINGS,
         FREQS,
         POSITIONS,
         OFFSETS,
@@ -117,7 +120,10 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
 
+        public long any;
+        public long proximity;
         public long terms;
+        public long postings;
         public long termFrequencies;
         public long positions;
         public long offsets;
@@ -133,7 +139,10 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         }
 
         private void add(PerFieldUsageStats other) {
+            any += other.any;
+            proximity += other.proximity;
             terms += other.terms;
+            postings += other.postings;
             termFrequencies += other.termFrequencies;
             positions += other.positions;
             offsets += other.offsets;
@@ -146,7 +155,10 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         }
 
         public PerFieldUsageStats(StreamInput in) throws IOException {
+            any = in.readVLong();
+            proximity = in.readVLong();
             terms = in.readVLong();
+            postings = in.readVLong();
             termFrequencies = in.readVLong();
             positions = in.readVLong();
             offsets = in.readVLong();
@@ -160,7 +172,10 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(any);
+            out.writeVLong(proximity);
             out.writeVLong(terms);
+            out.writeVLong(postings);
             out.writeVLong(termFrequencies);
             out.writeVLong(positions);
             out.writeVLong(offsets);
@@ -174,18 +189,21 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(TOTAL, getTotal());
+            builder.field(ANY, any);
+            builder.startObject(INVERTED_INDEX);
             builder.field(TERMS, terms);
-            builder.field(PROXIMITY, getProximity());
+            builder.field(POSTINGS, postings);
+            builder.field(TERM_FREQUENCIES, termFrequencies);
+            builder.field(POSITIONS, positions);
+            builder.field(OFFSETS, offsets);
+            builder.field(PAYLOADS, payloads);
+            builder.field(PROXIMITY, proximity);
+            builder.endObject();
             builder.field(STORED_FIELDS, storedFields);
             builder.field(DOC_VALUES, docValues);
             builder.field(POINTS, points);
             builder.field(NORMS, norms);
             builder.field(TERM_VECTORS, termVectors);
-            builder.field(TERM_FREQUENCIES, termFrequencies);
-            builder.field(POSITIONS, positions);
-            builder.field(OFFSETS, offsets);
-            builder.field(PAYLOADS, payloads);
             return builder;
         }
 
@@ -193,6 +211,9 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             final EnumSet<UsageContext> set = EnumSet.noneOf(UsageContext.class);
             if (terms > 0L) {
                 set.add(UsageContext.TERMS);
+            }
+            if (postings > 0L) {
+                set.add(UsageContext.POSTINGS);
             }
             if (termFrequencies > 0L) {
                 set.add(UsageContext.FREQS);
@@ -226,6 +247,10 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         public long getTerms() {
             return terms;
+        }
+
+        public long getPostings() {
+            return postings;
         }
 
         public long getTermFrequencies() {
@@ -265,11 +290,11 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         }
 
         public long getProximity() {
-            return offsets + positions + payloads;
+            return proximity;
         }
 
-        public long getTotal() {
-            return terms + termFrequencies + positions + offsets + docValues + storedFields + norms + payloads + termVectors + points;
+        public long getAny() {
+            return any;
         }
 
         @Override

@@ -49,7 +49,10 @@ public class ShardFieldUsageTracker {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
                 PerFieldUsageStats pf = new PerFieldUsageStats();
+                pf.any = ifs.any.longValue();
+                pf.proximity = ifs.proximity.longValue();
                 pf.terms = ifs.terms.longValue();
+                pf.postings = ifs.postings.longValue();
                 pf.termFrequencies = ifs.termFrequencies.longValue();
                 pf.positions = ifs.positions.longValue();
                 pf.offsets = ifs.offsets.longValue();
@@ -66,7 +69,10 @@ public class ShardFieldUsageTracker {
     }
 
     static class InternalFieldStats {
+        final LongAdder any = new LongAdder();
+        final LongAdder proximity = new LongAdder();
         final LongAdder terms = new LongAdder();
+        final LongAdder postings = new LongAdder();
         final LongAdder termFrequencies = new LongAdder();
         final LongAdder positions = new LongAdder();
         final LongAdder offsets = new LongAdder();
@@ -80,6 +86,7 @@ public class ShardFieldUsageTracker {
 
     static class PerField {
         boolean terms;
+        boolean postings;
         boolean termFrequencies;
         boolean positions;
         boolean offsets;
@@ -100,35 +107,60 @@ public class ShardFieldUsageTracker {
             usages.entrySet().stream().forEach(e -> {
                 InternalFieldStats fieldStats = perFieldStats.computeIfAbsent(e.getKey(), f -> new InternalFieldStats());
                 PerField pf = e.getValue();
+                boolean any = false;
+                boolean proximity = false;
                 if (pf.terms) {
+                    any = true;
                     fieldStats.terms.increment();
                 }
+                if (pf.postings) {
+                    any = true;
+                    fieldStats.postings.increment();
+                }
                 if (pf.termFrequencies) {
+                    any = true;
                     fieldStats.termFrequencies.increment();
                 }
                 if (pf.positions) {
+                    any = true;
+                    proximity = true;
                     fieldStats.positions.increment();
                 }
                 if (pf.offsets) {
+                    any = true;
+                    proximity = true;
                     fieldStats.offsets.increment();
                 }
                 if (pf.docValues) {
+                    any = true;
                     fieldStats.docValues.increment();
                 }
                 if (pf.storedFields) {
+                    any = true;
                     fieldStats.storedFields.increment();
                 }
                 if (pf.norms) {
+                    any = true;
                     fieldStats.norms.increment();
                 }
                 if (pf.payloads) {
+                    any = true;
+                    proximity = true;
                     fieldStats.payloads.increment();
                 }
                 if (pf.points) {
+                    any = true;
                     fieldStats.points.increment();
                 }
                 if (pf.termVectors) {
+                    any = true;
                     fieldStats.termVectors.increment();
+                }
+                if (any) {
+                    fieldStats.any.increment();
+                }
+                if (proximity) {
+                    fieldStats.proximity.increment();
                 }
             });
         }
@@ -141,6 +173,11 @@ public class ShardFieldUsageTracker {
         @Override
         public void onTermsUsed(String field) {
             getOrAdd(field).terms = true;
+        }
+
+        @Override
+        public void onPostingsUsed(String field) {
+            getOrAdd(field).postings = true;
         }
 
         @Override

@@ -66,93 +66,99 @@ setup:
 
   # all_fields
   - set: { testindex.all_fields: stat }
-  - gt: { $stat.total: 0 }
-  - gt: { $stat.terms: 0 }
-  - gt: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - gt: { $stat.inverted_index.terms: 0 }
+  - gt: { $stat.inverted_index.postings: 0 }
+  - gt: { $stat.inverted_index.proximity: 0 }
   - gt: { $stat.stored_fields: 0 }
   - gt: { $stat.doc_values: 0 }
   - gt: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - gt: { $stat.term_frequencies: 0 }
-  - gt: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - gt: { $stat.inverted_index.term_frequencies: 0 }
+  - gt: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   # name
   - set: { testindex.fields.name: stat }
-  - gt: { $stat.total: 0 }
-  - gt: { $stat.terms: 0 }
-  - gt: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - gt: { $stat.inverted_index.terms: 0 }
+  - gt: { $stat.inverted_index.postings: 0 }
+  - gt: { $stat.inverted_index.proximity: 0 }
   - match: { $stat.stored_fields: 0 }
   - match: { $stat.doc_values: 0 }
   - match: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - gt: { $stat.term_frequencies: 0 }
-  - gt: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - gt: { $stat.inverted_index.term_frequencies: 0 }
+  - gt: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   # price
   - set: { testindex.fields.price: stat }
-  - gt: { $stat.total: 0 }
-  - match: { $stat.terms: 0 }
-  - match: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
   - match: { $stat.stored_fields: 0 }
   - gt: { $stat.doc_values: 0 }
   - match: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - match: { $stat.term_frequencies: 0 }
-  - match: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   # day
   - set: { testindex.fields.day: stat }
-  - gt: { $stat.total: 0 }
-  - match: { $stat.terms: 0 }
-  - match: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
   - match: { $stat.stored_fields: 0 }
   - gt: { $stat.doc_values: 0 }
   - gt: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - match: { $stat.term_frequencies: 0 }
-  - match: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   # _source
   - set: { testindex.fields._source: stat }
-  - gt: { $stat.total: 0 }
-  - match: { $stat.terms: 0 }
-  - match: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
   - gt: { $stat.stored_fields: 0 }
   - match: { $stat.doc_values: 0 }
   - match: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - match: { $stat.term_frequencies: 0 }
-  - match: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   # _id
   - set: { testindex.fields._id: stat }
-  - gt: { $stat.total: 0 }
-  - match: { $stat.terms: 0 }
-  - match: { $stat.proximity: 0 }
+  - gt: { $stat.any: 0 }
+  - match: { $stat.inverted_index.terms: 0 }
+  - match: { $stat.inverted_index.postings: 0 }
+  - match: { $stat.inverted_index.proximity: 0 }
   - gt: { $stat.stored_fields: 0 }
   - match: { $stat.doc_values: 0 }
   - match: { $stat.points: 0 }
   - match: { $stat.norms: 0 }
   - match: { $stat.term_vectors: 0 }
-  - match: { $stat.term_frequencies: 0 }
-  - match: { $stat.positions: 0 }
-  - match: { $stat.offsets: 0 }
-  - match: { $stat.payloads: 0 }
+  - match: { $stat.inverted_index.term_frequencies: 0 }
+  - match: { $stat.inverted_index.positions: 0 }
+  - match: { $stat.inverted_index.offsets: 0 }
+  - match: { $stat.inverted_index.payloads: 0 }
 
   - do:
       termvectors:
@@ -193,4 +199,4 @@ setup:
 
   # name
   - set: { testindex.fields.name: stat }
-  - gt: { $stat.offsets: 0 }
+  - gt: { $stat.inverted_index.offsets: 0 }

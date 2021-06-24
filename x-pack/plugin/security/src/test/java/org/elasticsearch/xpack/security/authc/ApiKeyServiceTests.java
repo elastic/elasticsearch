@@ -778,7 +778,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
-    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws IllegalAccessException {
+    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws Exception {
         ApiKeyService service = createApiKeyService(
             Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());
         final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
@@ -795,6 +795,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         try {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
+            // Ensure the counter is updated
+            assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "thrashing", ApiKeyService.class.getName(), Level.WARN,
                 "Possible thrashing for API key authentication cache,*"

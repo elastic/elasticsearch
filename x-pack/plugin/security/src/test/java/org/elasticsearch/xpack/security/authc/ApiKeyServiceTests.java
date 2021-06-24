@@ -801,6 +801,14 @@ public class ApiKeyServiceTests extends ESTestCase {
             ));
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
+
+            // Will not log warning again for the next eviction because of throttling
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "throttling", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(24), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();
             Loggers.setLevel(logger, Level.INFO);

@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -29,8 +30,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -185,9 +188,43 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
                             cause instanceof VersionConflictEngineException == false) {
                         logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
                             searchTask.getExecutionId().getEncoded()), exc);
+                        updateStoredResponseWithFailure(searchTask.getExecutionId().getDocId(), response, exc);
                     }
                     unregisterTaskAndMoveOn(searchTask, nextAction);
                 }));
+    }
+
+    private void updateStoredResponseWithFailure(String docId, AsyncSearchResponse originalASR, Exception updateException) {
+        SearchResponse originalSR = originalASR.getSearchResponse();
+        InternalSearchResponse failureISR = new InternalSearchResponse(
+            new SearchHits(SearchHits.EMPTY, originalSR.getHits().getTotalHits(), Float.NaN),
+            null,
+            null,
+            null,
+            false,
+            false,
+            originalSR.getNumReducePhases()
+        );
+        SearchResponse failureSR = new SearchResponse(
+            failureISR,
+            null,
+            originalSR.getTotalShards(),
+            originalSR.getSuccessfulShards(),
+            originalSR.getSkippedShards(),
+            originalSR.getTook().getMillis(),
+            originalSR.getShardFailures(),
+            originalSR.getClusters()
+        );
+        AsyncSearchResponse failureASR = new AsyncSearchResponse(
+            originalASR.getId(),
+            failureSR,
+            updateException,
+            originalASR.isPartial(),
+            false,
+            originalASR.getStartTime(),
+            originalASR.getExpirationTime()
+        );
+        store.updateResponseWithFailure(docId, threadContext.getResponseHeaders(), failureASR);
     }
 
     private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {

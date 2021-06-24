@@ -24,7 +24,7 @@ public class StaticCacheKeyDirectoryReaderWrapper extends FilterDirectoryReader 
                                                 List<Closeable> onCloseCallbacks) throws IOException {
         super(in, new StaticCacheKeySubReaderWrapper(cachedKeys, onCloseCallbacks));
         readerCacheHelper = in.getReaderCacheHelper() == null ? null :
-            createCacheHelper(cachedKeys, onCloseCallbacks, "$$_dir_reader$$", in.getReaderCacheHelper().getKey());
+            createCacheHelper(cachedKeys, onCloseCallbacks, "$$dir_reader$$", in.getReaderCacheHelper().getKey());
     }
 
     @Override

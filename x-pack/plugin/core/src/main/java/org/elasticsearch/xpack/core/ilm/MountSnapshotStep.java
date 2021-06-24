@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.fromIndexMetadata;
 
@@ -104,10 +105,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         }
 
         final Settings.Builder settingsBuilder = Settings.builder();
-        // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
-        if (TimeseriesLifecycleType.HOT_PHASE.equals(this.getKey().getPhase())) {
-            settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DataTier.DATA_HOT);
-        }
+
+        overrideTierPreference(this.getKey().getPhase())
+            .ifPresent(override -> settingsBuilder.put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, override));
+
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(mountedIndexName,
             snapshotRepository, snapshotName, indexName, settingsBuilder.build(),
             // we captured the index metadata when we took the snapshot. the index likely had the ILM execution state in the metadata.
@@ -141,6 +142,19 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         String originalName = indexName.replaceFirst("^" + SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX, "");
         originalName = originalName.replaceFirst("^" + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX, "");
         return originalName;
+    }
+
+    /**
+     * return the tier preference to use or empty to use default.
+     * @param phase the phase the step will run in.
+     * @return tier preference override or empty.
+     */
+    static Optional<String> overrideTierPreference(String phase) {
+        // if we are mounting a searchable snapshot in the hot phase, then the index should be pinned to the hot nodes
+        if (TimeseriesLifecycleType.HOT_PHASE.equals(phase)) {
+            return Optional.of(DataTier.DATA_HOT);
+        }
+        return Optional.empty();
     }
 
     @Override

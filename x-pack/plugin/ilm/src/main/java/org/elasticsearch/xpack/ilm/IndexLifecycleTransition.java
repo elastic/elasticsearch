@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
@@ -277,7 +278,7 @@ public final class IndexLifecycleTransition {
                                                                                     LifecycleExecutionState existingState,
                                                                                     LongSupplier nowSupplier, LifecyclePolicy oldPolicy,
                                                                                     LifecyclePolicyMetadata newPolicyMetadata,
-                                                                                    Client client) {
+                                                                                    Client client, XPackLicenseState licenseState) {
         String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
         Step.StepKey currentStepKey = LifecycleExecutionState.getCurrentStepKey(existingState);
         if (currentStepKey == null) {
@@ -286,7 +287,7 @@ public final class IndexLifecycleTransition {
             return existingState;
         }
 
-        List<Step> policySteps = oldPolicy.toSteps(client);
+        List<Step> policySteps = oldPolicy.toSteps(client, licenseState);
         Optional<Step> currentStep = policySteps.stream()
             .filter(step -> step.getKey().equals(currentStepKey))
             .findFirst();

@@ -100,6 +100,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -130,6 +131,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -2614,13 +2616,12 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testCreateServiceAccountToken() throws IOException {
         RestHighLevelClient client = highLevelClient();
         {
             // tag::create-service-account-token-request
             CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+                new CreateServiceAccountTokenRequest("elastic", "fleet-server", "my_token_1");
             // end::create-service-account-token-request
 
             // tag::create-service-account-token-execute
@@ -2632,7 +2633,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenName = createServiceAccountTokenResponse.getName(); // <1>
             final SecureString tokenValue = createServiceAccountTokenResponse.getValue(); // <2>
             // end::create-service-account-token-response
-            assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+            assertThat(createServiceAccountTokenResponse.getName(), equalTo("my_token_1"));
             assertNotNull(tokenValue);
         }
 
@@ -2723,14 +2724,13 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74278")
     public void testGetServiceAccountCredentials() throws IOException {
         RestHighLevelClient client = highLevelClient();
         final CreateServiceAccountTokenRequest createServiceAccountTokenRequest =
-            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token1");
+            new CreateServiceAccountTokenRequest("elastic", "fleet-server", "token2");
         final CreateServiceAccountTokenResponse createServiceAccountTokenResponse =
             client.security().createServiceAccountToken(createServiceAccountTokenRequest, RequestOptions.DEFAULT);
-        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token1"));
+        assertThat(createServiceAccountTokenResponse.getName(), equalTo("token2"));
 
         {
             // tag::get-service-account-credentials-request
@@ -2751,9 +2751,11 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             final String tokenSource = serviceTokenInfos.get(0).getSource(); // <5>
             // end::get-service-account-credentials-response
             assertThat(principal, equalTo("elastic/fleet-server"));
-            assertThat(serviceTokenInfos.size(), equalTo(1));
-            assertThat(tokenName, equalTo("token1"));
-            assertThat(tokenSource, equalTo("index"));
+            // Cannot assert exactly one token because there are rare occasions where tests overlap and it will see
+            // token created from other tests
+            assertThat(serviceTokenInfos.size(), greaterThanOrEqualTo(1));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()), hasItem("token2"));
+            assertThat(serviceTokenInfos.stream().map(ServiceTokenInfo::getSource).collect(Collectors.toSet()), hasItem("index"));
         }
 
         {
@@ -2785,8 +2787,9 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
 
             assertNotNull(future.actionGet());
             assertThat(future.actionGet().getPrincipal(), equalTo("elastic/fleet-server"));
-            assertThat(future.actionGet().getServiceTokenInfos().size(), equalTo(1));
-            assertThat(future.actionGet().getServiceTokenInfos().get(0), equalTo(new ServiceTokenInfo("token1", "index")));
+            assertThat(future.actionGet().getServiceTokenInfos().size(), greaterThanOrEqualTo(1));
+            assertThat(future.actionGet().getServiceTokenInfos().stream().map(ServiceTokenInfo::getName).collect(Collectors.toSet()),
+                hasItem("token2"));
         }
     }
 
@@ -2892,7 +2895,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                         // <1>
                     }
 
-
                     @Override
                     public void onFailure(Exception e) {
                         // <2>
@@ -2905,6 +2907,47 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::node-enrollment-execute-async
             client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
             // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testKibanaEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::kibana-enrollment-execute
+            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
+            // end::kibana-enrollment-execute
+
+            // tag::kibana-enrollment-response
+            SecureString password = response.getPassword(); // <1>
+            String httoCa = response.getHttpCa(); // <2>
+            // end::kibana-enrollment-response
+            assertThat(password.length(), equalTo(14));
+        }
+
+        {
+            // tag::kibana-enrollment-execute-listener
+            ActionListener<KibanaEnrollmentResponse> listener =
+                new ActionListener<KibanaEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(KibanaEnrollmentResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::kibana-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::kibana-enrollment-execute-async
+            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
+            // end::kibana-enrollment-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

@@ -17,6 +17,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -64,13 +66,15 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final String url;
     private final String details;
     private final boolean resolveDuringRollingUpgrade;
+    private final Map<String, Object> meta;
 
-    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade) {
+    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade, @Nullable Map<String, Object> meta) {
         this.level = level;
         this.message = message;
         this.url = url;
         this.details = details;
         this.resolveDuringRollingUpgrade = resolveDuringRollingUpgrade;
+        this.meta = meta;
     }
 
     public DeprecationIssue(StreamInput in) throws IOException {
@@ -79,6 +83,7 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         url = in.readString();
         details = in.readOptionalString();
         resolveDuringRollingUpgrade = in.getVersion().onOrAfter(Version.V_8_0_0) && in.readBoolean();
+        meta = in.getVersion().onOrAfter(Version.V_7_14_0) ? in.readMap() : null;
     }
 
     public Level getLevel() {
@@ -104,6 +109,14 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         return resolveDuringRollingUpgrade;
     }
 
+    /**
+     * @return custom metadata, which allows the ui to display additional details
+     *         without parsing the deprecation message itself.
+     */
+    public Map<String, Object> getMeta() {
+        return meta;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         level.writeTo(out);
@@ -112,6 +125,9 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
         out.writeOptionalString(details);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
             out.writeBoolean(resolveDuringRollingUpgrade);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_14_0)) {
+            out.writeMap(meta);
         }
     }
 
@@ -125,6 +141,9 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             builder.field("details", details);
         }
         builder.field("resolve_during_rolling_upgrade", resolveDuringRollingUpgrade);
+        if (meta != null) {
+            builder.field("_meta", meta);
+        }
         return builder.endObject();
     }
 
@@ -141,12 +160,13 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
             Objects.equals(message, that.message) &&
             Objects.equals(url, that.url) &&
             Objects.equals(details, that.details) &&
-            Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade);
+            Objects.equals(resolveDuringRollingUpgrade, that.resolveDuringRollingUpgrade) &&
+            Objects.equals(meta, that.meta);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(level, message, url, details, resolveDuringRollingUpgrade);
+        return Objects.hash(level, message, url, details, resolveDuringRollingUpgrade, meta);
     }
 
     @Override

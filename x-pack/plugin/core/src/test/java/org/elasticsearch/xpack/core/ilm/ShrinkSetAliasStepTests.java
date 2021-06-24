@@ -21,7 +21,6 @@ import org.mockito.stubbing.Answer;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.elasticsearch.xpack.core.ilm.ShrinkIndexNameSupplier.SHRUNKEN_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 

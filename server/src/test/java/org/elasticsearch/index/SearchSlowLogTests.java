@@ -223,14 +223,14 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         SearchContext searchContext = searchContextWithSourceAndTask(index);
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
 
-        assertThat(p.get("message"), equalTo("[foo][0]"));
-        assertThat(p.get("took"), equalTo("10nanos"));
-        assertThat(p.get("took_millis"), equalTo("0"));
-        assertThat(p.get("total_hits"), equalTo("-1"));
-        assertThat(p.get("stats"), equalTo("[]"));
-        assertThat(p.get("search_type"), Matchers.nullValue());
-        assertThat(p.get("total_shards"), equalTo("1"));
-        assertThat(p.get("source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
+        assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
+        assertThat(p.get("elasticsearch.slowlog.took"), equalTo("10nanos"));
+        assertThat(p.get("elasticsearch.slowlog.took_millis"), equalTo("0"));
+        assertThat(p.get("elasticsearch.slowlog.total_hits"), equalTo("-1"));
+        assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[]"));
+        assertThat(p.get("elasticsearch.slowlog.search_type"), Matchers.nullValue());
+        assertThat(p.get("elasticsearch.slowlog.total_shards"), equalTo("1"));
+        assertThat(p.get("elasticsearch.slowlog.source"), equalTo("{\\\"query\\\":{\\\"match_all\\\":{\\\"boost\\\":1.0}}}"));
     }
 
 
@@ -243,7 +243,7 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
 
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
-        assertThat(p.get("stats"), equalTo("[\\\"group1\\\"]"));
+        assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\"]"));
 
         searchContext = createSearchContext(index, "group1", "group2");
         source = SearchSourceBuilder.searchSource().query(QueryBuilders.matchAllQuery());
@@ -251,17 +251,17 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
         searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null,
             Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
-        assertThat(p.get("stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
+        assertThat(p.get("elasticsearch.slowlog.stats"), equalTo("[\\\"group1\\\", \\\"group2\\\"]"));
     }
 
     public void testSlowLogSearchContextPrinterToLog() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
         ESLogMessage p = SearchSlowLog.SearchSlowLogMessage.of(searchContext, 10);
-        assertThat(p.get("message"), equalTo("[foo][0]"));
+        assertThat(p.get("elasticsearch.slowlog.message"), equalTo("[foo][0]"));
         // Makes sure that output doesn't contain any new lines
-        assertThat(p.get("source"), not(containsString("\n")));
-        assertThat(p.get("id"), equalTo("my_id"));
+        assertThat(p.get("elasticsearch.slowlog.source"), not(containsString("\n")));
+        assertThat(p.get("elasticsearch.slowlog.id"), equalTo("my_id"));
     }
 
     public void testSetQueryLevels() {

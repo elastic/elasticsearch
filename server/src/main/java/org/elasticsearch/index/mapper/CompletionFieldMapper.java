@@ -332,7 +332,7 @@ public class CompletionFieldMapper extends FieldMapper {
      *   "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      *
      * Indexing:
-     *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}
+     *  if context mappings are defined, delegates to {@link ContextMappings#addField(LuceneDocument, String, String, int, Map)}
      *  else adds inputs as a {@link org.apache.lucene.search.suggest.document.SuggestField}
      */
     @Override

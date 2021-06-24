@@ -29,9 +29,9 @@ import java.io.IOException;
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
 /**
- * A {@link SingleDimensionValuesSource} for global ordinals.
+ * A {@link SingleDimensionValuesSource} for ordinals.
  */
-class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
+class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
 
     // ordinals, which are remapped whenever we visit a new segment.
@@ -60,9 +60,9 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     // current lookup
     private SortedSetDocValues lookup;
 
-    GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
-                              CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
-                              DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
+    OrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
+                        CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
+                        DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
         super(bigArrays, format, type, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
@@ -288,6 +288,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         lastLookupOrd = null;
         lastLookupValue = null;
         lookup = newMapping;
+    }
+
+    @Override
+    public boolean requiresRehashingWhenSwitchingLeafReaders() {
+        return true;
     }
 
     @Override

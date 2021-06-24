@@ -256,7 +256,7 @@ public class CompositeValuesCollectorQueueTests extends AggregatorTestCase {
                     if (forceMerge) {
                         // we don't create global ordinals but we test this mode when the reader has a single segment
                         // since ordinals are global in this case.
-                        sources[i] = new GlobalOrdinalValuesSource(
+                        sources[i] = new OrdinalValuesSource(
                             bigArrays,
                             fieldType,
                             context -> DocValues.getSortedSet(context.reader(), fieldType.name()),

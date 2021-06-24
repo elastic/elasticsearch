@@ -232,23 +232,25 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
                                          LeafReaderContext context, LeafBucketCollector in) throws IOException {
         int last = arrays.length - 1;
         LeafBucketCollector collector = in;
+        boolean requiresRehashing = false;
         while (last > 0) {
-            collector = arrays[last--].getLeafCollector(context, collector);
+            SingleDimensionValuesSource<?> valuesSource = arrays[last--];
+            requiresRehashing |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
+            collector = valuesSource.getLeafCollector(context, collector);
         }
+        SingleDimensionValuesSource<?> valuesSource = arrays[last];
+        requiresRehashing |= valuesSource.requiresRehashingWhenSwitchingLeafReaders();
         if (forceLeadSourceValue != null) {
-            collector = arrays[last].getLeafCollector(forceLeadSourceValue, context, collector);
+            collector = valuesSource.getLeafCollector(forceLeadSourceValue, context, collector);
         } else {
-            collector = arrays[last].getLeafCollector(context, collector);
+            collector = valuesSource.getLeafCollector(context, collector);
         }
-        // TODO: only rehash if collector desires so
-        rehash();
+        if (requiresRehashing) {
+            List<Map.Entry<Slot, Integer>> entries = map.entrySet().stream().collect(Collectors.toList());
+            map.clear();
+            entries.forEach(e -> map.put(e.getKey(), e.getValue()));
+        }
         return collector;
-    }
-
-    private void rehash() {
-        List<Map.Entry<Slot, Integer>> entries = map.entrySet().stream().collect(Collectors.toList());
-        map.clear();
-        entries.forEach(e -> map.put(e.getKey(), e.getValue()));
     }
 
     /**

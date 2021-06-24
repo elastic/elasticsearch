@@ -171,6 +171,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
+    protected void assertDimension(boolean isDimension, Consumer<MappedFieldType> checker) throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", isDimension);
+        }));
+
+        MappedFieldType fieldType = mapperService.fieldType("field");
+        checker.accept(fieldType);
+    }
+
     public final void testEmptyName() {
         MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("");
@@ -526,6 +536,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      */
     protected String randomFetchTestFormat() {
         return null;
+    }
+
+    /**
+     * Test that dimension parameter is not updateable
+     */
+    protected void registerDimensionParameter(ParameterChecker checker) throws IOException {
+        // dimension cannot be updated
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
+        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }));
+        checker.registerConflictCheck("dimension",
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", true);
+            }),
+            fieldMapping(b -> {
+                minimalMapping(b);
+                b.field("dimension", false);
+            }));
     }
 
     /**

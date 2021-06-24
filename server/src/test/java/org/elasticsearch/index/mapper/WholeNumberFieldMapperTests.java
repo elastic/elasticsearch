@@ -12,8 +12,6 @@ import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.instanceOf;
-
 public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests {
 
     protected void testDecimalCoerce() throws IOException {
@@ -26,15 +24,13 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
     @Override
     public void testDimension() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("dimension", true);
-        }));
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
 
-        MappedFieldType fieldType = mapperService.fieldType("field");
-        assertThat(fieldType, instanceOf(NumberFieldMapper.NumberFieldType.class));
-        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
-        assertTrue(ft.isDimension());
+        assertDimension(true, t -> assertTrue(((NumberFieldMapper.NumberFieldType) t).isDimension()));
+        assertDimension(false, t -> assertFalse(((NumberFieldMapper.NumberFieldType) t).isDimension()));
     }
 
     @Override
@@ -42,26 +38,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         super.registerParameters(checker);
 
         // dimension cannot be updated
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }));
+        registerDimensionParameter(checker);
     }
 
 }

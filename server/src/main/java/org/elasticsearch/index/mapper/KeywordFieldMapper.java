@@ -127,7 +127,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
                 .setValidator(v -> {
                     if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
-                        throw new IllegalArgumentException("Field [dimension] cannot be set in conjunction with field [ignore_above]");
+                        throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
                     }
                 });
         }

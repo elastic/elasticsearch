@@ -26,7 +26,6 @@ import java.net.InetAddress;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public class IpFieldMapperTests extends MapperTestCase {
 
@@ -49,27 +48,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
             m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
 
-        // dimension cannot be updated
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
-        checker.registerConflictCheck("dimension", b -> b.field("dimension", false));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }));
-        checker.registerConflictCheck("dimension",
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", true);
-            }),
-            fieldMapping(b -> {
-                minimalMapping(b);
-                b.field("dimension", false);
-            }));
+        registerDimensionParameter(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -115,7 +94,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testNoDocValues() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
             b.field("doc_values", false);
@@ -139,7 +117,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testStore() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
             b.field("store", true);
@@ -228,23 +205,14 @@ public class IpFieldMapperTests extends MapperTestCase {
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
     }
 
-    public void testEnableDimension() throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {
-            b.startObject("field").field("type", "ip").endObject();
-            b.startObject("field_with_dimension").field("type", "ip").field("dimension", true).endObject();
-        }));
-        {
-            MappedFieldType fieldType = mapperService.fieldType("field");
-            assertThat(fieldType, instanceOf(IpFieldMapper.IpFieldType.class));
-            IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) fieldType;
-            assertFalse(ft.isDimension());
-        }
-        {
-            MappedFieldType fieldType = mapperService.fieldType("field_with_dimension");
-            assertThat(fieldType, instanceOf(IpFieldMapper.IpFieldType.class));
-            IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) fieldType;
-            assertTrue(ft.isDimension());
-        }
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, t -> assertTrue(((IpFieldMapper.IpFieldType) t).isDimension()));
+        assertDimension(false, t -> assertFalse(((IpFieldMapper.IpFieldType) t).isDimension()));
     }
 
     @Override

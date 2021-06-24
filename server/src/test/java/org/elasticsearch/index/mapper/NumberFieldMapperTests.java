@@ -24,7 +24,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 public abstract class NumberFieldMapperTests extends MapperTestCase {
 
@@ -245,16 +244,15 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
     }
 
     public void testDimension() throws IOException {
-        MapperService mapperService = createMapperService(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("dimension", false);
-        }));
-
-        MappedFieldType fieldType = mapperService.fieldType("field");
-        assertThat(fieldType, instanceOf(NumberFieldMapper.NumberFieldType.class));
-        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) fieldType;
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertFalse(ft.isDimension());
 
+        // dimension = false is allowed
+        assertDimension(false, t -> assertFalse(((NumberFieldMapper.NumberFieldType) t).isDimension()));
+
+        // dimension = true is not allowed
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("dimension", true);

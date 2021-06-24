@@ -60,8 +60,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-memory-limit-ad]
 =======
 * You cannot decrease the `model_memory_limit` value below the current usage. To
 determine the current usage, refer to the `model_bytes` value in
-the <<ml-get-snapshot,get model snapshots>> or <<ml-get-job-stats,get job stats>> 
-APIs.
+the <<ml-get-job-stats,get job stats>> API.
 * If the `memory_status` property in the
 <<modelsizestats,`model_size_stats` object>> has a value of 
 `hard_limit`, this means that it was unable to process some data. You might want 

@@ -1545,3 +1545,8 @@ See <<getting-started>>.
 === Settng JVM options
 
 See <<set-jvm-options>>.
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].

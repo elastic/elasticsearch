@@ -47,8 +47,8 @@ The following parameters are accepted by `ip` fields:
 
 `dimension`::
 
-    Marks the field as a time series dimension. Accepts `true` or `false`
-    (default).
+    For internal use only. Marks the field as a time series dimension in {kib}.
+    Accepts `true` or `false` (default).
 
 <<doc-values,`doc_values`>>::
 

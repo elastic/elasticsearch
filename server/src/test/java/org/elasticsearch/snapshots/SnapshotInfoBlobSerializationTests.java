@@ -40,7 +40,11 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
             BigArrays.NON_RECYCLING_INSTANCE,
             bytes -> ActionListener.completeWith(
                 future,
-                () -> BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(NamedXContentRegistry.EMPTY, bytes.streamInput())
+                () -> BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                    instance.repository(),
+                    NamedXContentRegistry.EMPTY,
+                    bytes.streamInput()
+                )
             )
         );
         return future.actionGet();

@@ -22,4 +22,23 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         assertEquals(7, pointField.numericValue().doubleValue(), 0d);
     }
 
+    @Override
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        super.registerParameters(checker);
+
+        // dimension cannot be updated
+        registerDimensionChecks(checker);
+    }
+
 }

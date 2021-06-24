@@ -41,6 +41,8 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
@@ -101,6 +103,13 @@ public class MlMetadata implements Metadata.Custom {
 
     public Optional<DatafeedConfig> getDatafeedByJobId(String jobId) {
         return datafeeds.values().stream().filter(s -> s.getJobId().equals(jobId)).findFirst();
+    }
+
+    public Map<String, DatafeedConfig> getDatafeedsByJobIds(Set<String> jobIds) {
+        return datafeeds.values()
+            .stream()
+            .filter(df -> jobIds.contains(df.getJobId()))
+            .collect(Collectors.toMap(DatafeedConfig::getJobId, Function.identity()));
     }
 
     public Set<String> expandDatafeedIds(String expression, boolean allowNoMatch) {

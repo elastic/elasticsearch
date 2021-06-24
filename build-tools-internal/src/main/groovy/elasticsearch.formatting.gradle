@@ -218,7 +218,7 @@ subprojects {
             target 'src/**/*.java'
           }
 
-          toggleOffOn('formatter:off', 'formatter:on') // use `formatter:off` and `formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
+          toggleOffOn('@formatter:off', '@formatter:on') // use `@formatter:off` and `@formatter:on` to toggle formatting - ONLY IF STRICTLY NECESSARY
           removeUnusedImports()
           importOrderFile rootProject.file('build-tools-internal/elastic.importorder')
           eclipse().configFile rootProject.file('build-tools-internal/formatterConfig.xml')

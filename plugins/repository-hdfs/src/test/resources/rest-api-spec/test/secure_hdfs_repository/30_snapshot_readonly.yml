@@ -23,7 +23,7 @@
         repository: test_snapshot_repository_ro
         snapshot: "_all"
 
-  - length: { responses.0.snapshots: 1 }
+  - length: { snapshots: 1 }
 
   # Remove our repository
   - do:

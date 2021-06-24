@@ -291,6 +291,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ sample-elasticsearch.yml
 ----
 
+[source,txt]
 ----
 /node2
 |_ README.txt
@@ -298,6 +299,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ sample-elasticsearch.yml
 ----
 
+[source,txt]
 ----
 /node3
 |_ README.txt
@@ -612,6 +614,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ sample-elasticsearch.yml
 ----
 
+[source,txt]
 ----
 /node2
 |_ README.txt
@@ -619,6 +622,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 |_ sample-elasticsearch.yml
 ----
 
+[source,txt]
 ----
 /node3
 |_ README.txt

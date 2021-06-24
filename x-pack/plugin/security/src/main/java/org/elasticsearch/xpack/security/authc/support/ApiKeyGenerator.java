@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -44,7 +45,7 @@ public class ApiKeyGenerator {
             ActionListener.wrap(roleDescriptors -> {
                     for (RoleDescriptor rd : roleDescriptors) {
                         try {
-                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry);
+                            DLSRoleQueryValidator.validateQueryField(rd.getIndicesPrivileges(), xContentRegistry, RestApiVersion.current());
                         } catch (ElasticsearchException | IllegalArgumentException e) {
                             listener.onFailure(e);
                             return;

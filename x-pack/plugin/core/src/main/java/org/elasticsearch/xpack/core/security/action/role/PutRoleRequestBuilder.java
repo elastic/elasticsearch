@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 
 import java.io.IOException;
 import java.util.Map;
@@ -38,6 +39,7 @@ public class PutRoleRequestBuilder extends ActionRequestBuilder<PutRoleRequest, 
         // we pass false as last parameter because we want to reject the request if field permissions
         // are given in 2.x syntax
         RoleDescriptor descriptor = RoleDescriptor.parse(name, source, false, xContentType);
+
         assert name.equals(descriptor.getName());
         request.name(name);
         request.cluster(descriptor.getClusterPrivileges());

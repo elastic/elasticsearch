@@ -232,3 +232,40 @@ setup:
       snapshot.delete:
         repository: test_repo_get_1
         snapshot: test_snapshot_with_index_details
+
+---
+"Get snapshot info without repository names":
+  - skip:
+      version: " - 7.99.99"
+      reason: "8.0 changes get snapshots response format"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name
+        include_repository: false
+        human: true
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_no_repo_name }
+  - match: { snapshots.0.state: SUCCESS }
+  - is_false: snapshots.0.repository
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name

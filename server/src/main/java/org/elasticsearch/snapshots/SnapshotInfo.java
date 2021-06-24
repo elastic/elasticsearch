@@ -46,6 +46,7 @@ import java.util.Objects;
 public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent, Writeable {
 
     public static final String INDEX_DETAILS_XCONTENT_PARAM = "index_details";
+    public static final String INCLUDE_REPOSITORY_XCONTENT_PARAM = "include_repository";
 
     private static final DateFormatter DATE_TIME_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
     private static final String SNAPSHOT = "snapshot";
@@ -726,7 +727,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(SNAPSHOT, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
 
-        if (params.paramAsBoolean("include_repository", true)) {
+        if (params.paramAsBoolean(INCLUDE_REPOSITORY_XCONTENT_PARAM, true)) {
             builder.field(REPOSITORY, snapshot.getRepository());
         }
 

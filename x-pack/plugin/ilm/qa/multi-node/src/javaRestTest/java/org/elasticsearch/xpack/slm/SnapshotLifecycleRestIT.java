@@ -126,7 +126,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
             assertThat(snapResponse, not(empty()));
             assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
-            assertThat((String) snapResponse.get(0).get("name"), startsWith("snap-"));
+            assertThat((String) snapResponse.get(0).get("snapshot"), startsWith("snap-"));
             Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));

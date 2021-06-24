@@ -86,7 +86,7 @@ public class FilterByFilterAggregator extends FiltersAggregator {
             }
             if (query instanceof AbstractScriptFieldQuery) {
                 /*
-                 * We know that runtime fields aren't not fast to query at all
+                 * We know that runtime fields aren't fast to query at all
                  * but we expect all other sorts of queries are at least as
                  * fast as the native aggregator.
                  */

@@ -118,7 +118,7 @@ tasks.register("generateContextDoc", DefaultTestClustersTask) {
   useCluster testClusters.generateContextCluster
   doFirst {
     project.javaexec {
-      main = 'org.elasticsearch.painless.ContextDocGenerator'
+      mainClass = 'org.elasticsearch.painless.ContextDocGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextCluster.singleNode().getAllHttpSocketURI().get(0)}"
     }.assertNormalExitValue()
@@ -138,7 +138,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
   useCluster testClusters.generateContextApiSpecCluster
   doFirst {
     project.javaexec {
-      main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
+      mainClass = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
       systemProperty "jdksrc", System.getProperty("jdksrc")
@@ -173,7 +173,7 @@ tasks.register("cleanGenerated", Delete) {
 
 tasks.register("regenLexer", JavaExec) {
   dependsOn "cleanGenerated"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -187,7 +187,7 @@ tasks.register("regenLexer", JavaExec) {
 
 tasks.register("regenParser", JavaExec) {
   dependsOn "regenLexer"
-  main = 'org.antlr.v4.Tool'
+  mainClass = 'org.antlr.v4.Tool'
   classpath = configurations.regenerate
   systemProperty 'file.encoding', 'UTF-8'
   systemProperty 'user.language', 'en'
@@ -263,7 +263,7 @@ tasks.register("cleanSuggestGenerated", Delete) {
 
 tasks.register("regenSuggestLexer", JavaExec) {
     dependsOn "cleanSuggestGenerated"
-    main = 'org.antlr.v4.Tool'
+    mainClass = 'org.antlr.v4.Tool'
     classpath = configurations.regenerate
     systemProperty 'file.encoding', 'UTF-8'
     systemProperty 'user.language', 'en'

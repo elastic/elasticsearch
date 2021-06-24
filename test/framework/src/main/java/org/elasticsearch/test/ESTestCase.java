@@ -828,11 +828,11 @@ public abstract class ESTestCase extends LuceneTestCase {
         return list;
     }
 
-    public static <K, V> Map<K, V> randomMap(int minListSize, int maxListSize, Supplier<Tuple<K, V>> valueConstructor) {
-        final int size = randomIntBetween(minListSize, maxListSize);
+    public static <K, V> Map<K, V> randomMap(int minMapSize, int maxMapSize, Supplier<Tuple<K, V>> entryConstructor) {
+        final int size = randomIntBetween(minMapSize, maxMapSize);
         Map<K, V> list = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
-            Tuple<K, V> entry = valueConstructor.get();
+            Tuple<K, V> entry = entryConstructor.get();
             list.put(entry.v1(), entry.v2());
         }
         return list;

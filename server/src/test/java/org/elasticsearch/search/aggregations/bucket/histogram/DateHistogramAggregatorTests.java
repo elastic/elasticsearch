@@ -14,16 +14,15 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -31,7 +30,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -44,15 +42,17 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.stream.IntStream;
 
+import static io.github.nik9000.mapmatcher.ListMatcher.matchesList;
+import static io.github.nik9000.mapmatcher.MapMatcher.assertMap;
+import static io.github.nik9000.mapmatcher.MapMatcher.matchesMap;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
@@ -1254,27 +1254,41 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
         DateFieldMapper.DateFieldType ft = new DateFieldMapper.DateFieldType("f");
         // Exists queries convert to MatchNone if this isn't defined
         FieldNamesFieldMapper.FieldNamesFieldType fnft = new FieldNamesFieldMapper.FieldNamesFieldType(true);
-        withAggregator(builder, new MatchAllDocsQuery(), buildIndex, (searcher, aggregator) -> {
-            assertThat(aggregator, instanceOf(DateHistogramAggregator.FromDateRange.class));
-            aggregator.preCollection();
-            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
-                LeafBucketCollector leafCollector = aggregator.getLeafCollector(ctx);
-                assertTrue(leafCollector.isNoop());
-            }
-            Map<String, Object> debug = new HashMap<>();
-            aggregator.collectDebugInfo(debug::put);
-            assertThat(debug, hasEntry("delegate", "RangeAggregator.FromFilters"));
-            Map<?, ?> delegateDebug = (Map<?, ?>) debug.get("delegate_debug");
-            assertThat(delegateDebug, hasEntry("delegate", "FiltersAggregator.FilterByFilter"));
-            assertThat(delegateDebug, hasEntry("ranges", 1));
-            delegateDebug = (Map<?, ?>) delegateDebug.get("delegate_debug");
-            assertThat(delegateDebug, hasEntry("estimated_cost", 0L));
-        }, ft, fnft);
-        testCase(builder, new MatchAllDocsQuery(), buildIndex, (InternalDateHistogram result) -> {
-            assertThat(result.getBuckets(), hasSize(1));
-            assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
-            assertThat(result.getBuckets().get(0).getDocCount(), equalTo(5000L));
-        }, ft, fnft);
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalDateHistogram result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(result.getBuckets(), hasSize(1));
+                assertThat(result.getBuckets().get(0).getKeyAsString(), equalTo("2020-01-01T00:00:00.000Z"));
+                assertThat(result.getBuckets().get(0).getDocCount(), equalTo(5000L));
+
+                assertThat(impl, equalTo(DateHistogramAggregator.FromDateRange.class));
+                assertMap(debug, matchesMap()
+                    .entry("d", matchesMap()
+                        .entry("delegate", "RangeAggregator.FromFilters")
+                        .entry("delegate_debug", matchesMap()
+                            .entry("ranges", 1)
+                            .entry("average_docs_per_range", 5010.0)
+                            .entry("delegate", "FilterByFilterAggregator")
+                            .entry("delegate_debug", matchesMap()
+                                .entry("segments_with_doc_count_field", 0)
+                                .entry("segments_with_deleted_docs", 0)
+                                .entry("segments_counted", greaterThan(0))
+                                .entry("segments_collected", 0)
+                                .entry("filters", matchesList().item(matchesMap()
+                                    .entry("query", "DocValuesFieldExistsQuery [field=f]")
+                                    .entry("specialized_for", "docvalues_field_exists")
+                                    .entry("results_from_metadata", greaterThan(0)))
+                                )
+                            )
+                        )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
     }
 
     private void aggregationImplementationChoiceTestCase(

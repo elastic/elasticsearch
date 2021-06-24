@@ -112,7 +112,6 @@ This parameter is a no-op and has no effect on the query.
 *Impact* +
 Discontinue use of the `type` parameter in `geo_bounding_box` queries.
 ====
-// end::notable-breaking-changes[]
 
 [discrete]
 [[breaking_714_security_changes]]
@@ -133,3 +132,4 @@ Configuring a realm name with a leading underscore is deprecated. In a future re
 it will result in an error on startup if any user configured realm has a name
 with a leading underscore.
 ====
+// end::notable-breaking-changes[]

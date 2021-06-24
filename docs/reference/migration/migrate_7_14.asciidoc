@@ -115,21 +115,6 @@ Discontinue use of the `type` parameter in `geo_bounding_box` queries.
 // end::notable-breaking-changes[]
 
 [discrete]
-[[deprecated-7.14]]
-=== Deprecations
-
-The following functionality has been deprecated in {es} 7.14
-and will be removed in 8.0.
-While this won't have an immediate impact on your applications,
-we strongly encourage you take the described steps to update your code
-after upgrading to 7.14.
-
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
-
-[discrete]
 [[breaking_714_security_changes]]
 ==== Security deprecations
 

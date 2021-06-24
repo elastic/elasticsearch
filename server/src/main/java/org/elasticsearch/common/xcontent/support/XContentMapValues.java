@@ -71,7 +71,9 @@ public class XContentMapValues {
                 } else if (currentValue instanceof List) {
                     extractRawValues(values, (List) currentValue, pathElements, nextIndex);
                 } else {
-                    values.add(currentValue);
+                    if (nextIndex == pathElements.length) {
+                        values.add(currentValue);
+                    }
                 }
             }
             if (nextIndex == pathElements.length) {

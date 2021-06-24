@@ -181,7 +181,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return repositories.length == 1
             && repositories[0] != null
             && "_all".equals(repositories[0]) == false
-            && "*".equals(repositories[0]) == false
             && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 

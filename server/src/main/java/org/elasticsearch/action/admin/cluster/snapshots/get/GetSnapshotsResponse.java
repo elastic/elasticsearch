@@ -55,21 +55,21 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
 
     private final List<SnapshotInfo> snapshots;
 
-    private final Map<String, ElasticsearchException> failedResponses;
+    private final Map<String, ElasticsearchException> failures;
 
     public GetSnapshotsResponse(List<SnapshotInfo> snapshots, Map<String, ElasticsearchException> failures) {
         this.snapshots = List.copyOf(snapshots);
-        this.failedResponses = failures == null ? Map.of() : Map.copyOf(failures);
+        this.failures = failures == null ? Map.of() : Map.copyOf(failures);
     }
 
     public GetSnapshotsResponse(StreamInput in) throws IOException {
+        this.snapshots = in.readList(SnapshotInfo::readFrom);
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
             final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
-            this.failedResponses = Collections.unmodifiableMap(failedResponses);
+            this.failures = Collections.unmodifiableMap(failedResponses);
         } else {
-            this.failedResponses = Collections.emptyMap();
+            this.failures = Collections.emptyMap();
         }
-        this.snapshots = in.readList(SnapshotInfo::readFrom);
     }
 
     /**
@@ -84,28 +84,28 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     /**
      * Returns a map of repository name to {@link ElasticsearchException} for each unsuccessful response.
      */
-    public Map<String, ElasticsearchException> getFailedResponses() {
-        return failedResponses;
+    public Map<String, ElasticsearchException> getFailures() {
+        return failures;
     }
 
     /**
      * Returns true if there is a least one failed response.
      */
     public boolean isFailed() {
-        return failedResponses.isEmpty() == false;
+        return failures.isEmpty() == false;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeList(snapshots);
         if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
-            out.writeMap(failedResponses, StreamOutput::writeString, StreamOutput::writeException);
+            out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
         } else {
-            if (failedResponses.isEmpty() == false) {
-                assert false : "transport action should have thrown directly for old version but saw " + failedResponses;
-                throw failedResponses.values().iterator().next();
+            if (failures.isEmpty() == false) {
+                assert false : "transport action should have thrown directly for old version but saw " + failures;
+                throw failures.values().iterator().next();
             }
         }
-        out.writeList(snapshots);
     }
 
     @Override
@@ -116,9 +116,9 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             snapshotInfo.toXContent(builder, params);
         }
         builder.endArray();
-        if (failedResponses.isEmpty() == false) {
+        if (failures.isEmpty() == false) {
             builder.startObject("failures");
-            for (Map.Entry<String, ElasticsearchException> error : failedResponses.entrySet()) {
+            for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
                 builder.field(error.getKey(), (b, pa) -> {
                     b.startObject();
                     error.getValue().toXContent(b, pa);
@@ -141,12 +141,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failedResponses, that.failedResponses);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots, failedResponses);
+        return Objects.hash(snapshots, failures);
     }
 
     @Override

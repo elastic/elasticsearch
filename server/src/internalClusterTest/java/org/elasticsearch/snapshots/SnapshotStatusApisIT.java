@@ -300,7 +300,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
-        assertTrue(getSnapshotsResponse.getFailedResponses().isEmpty());
+        assertTrue(getSnapshotsResponse.getFailures().isEmpty());
         assertTrue(getSnapshotsResponse.getSnapshots().isEmpty());
     }
 
@@ -385,7 +385,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .get();
 
         for (String repo : repoList) {
-            assertThat(getSnapshotsResponse2.getFailedResponses().get(repo), instanceOf(SnapshotMissingException.class));
+            assertThat(getSnapshotsResponse2.getFailures().get(repo), instanceOf(SnapshotMissingException.class));
         }
 
         logger.info("--> specify all snapshot names with ignoreUnavailable=true");

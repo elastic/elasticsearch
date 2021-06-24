@@ -727,7 +727,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         builder.field(SNAPSHOT, snapshotId.getName());
         builder.field(UUID, snapshotId.getUUID());
 
-        if (params.paramAsBoolean(INCLUDE_REPOSITORY_XCONTENT_PARAM, true)) {
+        if (params.paramAsBoolean(INCLUDE_REPOSITORY_XCONTENT_PARAM, true) && UNKNOWN_REPO_NAME.equals(snapshot.getRepository()) == false) {
             builder.field(REPOSITORY, snapshot.getRepository());
         }
 

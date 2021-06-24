@@ -99,7 +99,7 @@ public class RestSnapshotAction extends AbstractCatAction {
         if (getSnapshotsResponse.isFailed()) {
             ElasticsearchException causes = null;
 
-            for (ElasticsearchException e : getSnapshotsResponse.getFailedResponses().values()) {
+            for (ElasticsearchException e : getSnapshotsResponse.getFailures().values()) {
                 if (causes == null) {
                     causes = e;
                 } else {
@@ -108,7 +108,7 @@ public class RestSnapshotAction extends AbstractCatAction {
             }
             throw new ElasticsearchException(
                     "Repositories [" +
-                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailedResponses().keySet()) +
+                            Strings.collectionToCommaDelimitedString(getSnapshotsResponse.getFailures().keySet()) +
                     "] failed to retrieve snapshots", causes);
         }
 

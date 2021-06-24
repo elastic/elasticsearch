@@ -182,6 +182,7 @@ public class IngestGeoIpPlugin extends Plugin implements IngestPlugin, SystemInd
             .setOrigin("geoip")
             .setVersionMetaKey("version")
             .setPrimaryIndex(DATABASES_INDEX)
+            .setNetNew()
             .build();
         return Collections.singleton(geoipDatabasesIndex);
     }

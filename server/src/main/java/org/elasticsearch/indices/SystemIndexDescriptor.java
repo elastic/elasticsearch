@@ -104,6 +104,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private final List<SystemIndexDescriptor> priorSystemIndexDescriptors;
 
+    private final boolean isNetNew;
+
     /**
      * The thread pools that actions will use to operate on this descriptor's system indices
      */
@@ -117,7 +119,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
         this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME,
-            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_UNMANAGED, emptyList(), emptyList(), null);
+            Version.CURRENT.minimumCompatibilityVersion(), Type.INTERNAL_UNMANAGED, emptyList(), emptyList(), null, false);
     }
 
     /**
@@ -131,7 +133,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     public SystemIndexDescriptor(String indexPattern, String description, Type type, List<String> allowedElasticProductOrigins) {
         this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME,
-            Version.CURRENT.minimumCompatibilityVersion(), type, allowedElasticProductOrigins, emptyList(), null);
+            Version.CURRENT.minimumCompatibilityVersion(), type, allowedElasticProductOrigins, emptyList(), null, false);
     }
 
     /**
@@ -171,7 +173,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
-        ExecutorNames executorNames
+        ExecutorNames executorNames,
+        boolean isNetNew
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -320,6 +323,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.executorNames = Objects.nonNull(executorNames)
             ? executorNames
             : ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS;
+        this.isNetNew = isNetNew;
     }
 
 
@@ -431,6 +435,10 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
 
     public List<String> getAllowedElasticProductOrigins() {
         return allowedElasticProductOrigins;
+    }
+
+    public boolean isNetNew() {
+        return isNetNew;
     }
 
     public Version getMappingVersion() {
@@ -557,6 +565,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private List<String> allowedElasticProductOrigins = emptyList();
         private List<SystemIndexDescriptor> priorSystemIndexDescriptors = emptyList();
         private ExecutorNames executorNames;
+        private boolean isNetNew = false;
 
         private Builder() {}
 
@@ -645,6 +654,11 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder setNetNew() {
+            this.isNetNew = true;
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -666,7 +680,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 type,
                 allowedElasticProductOrigins,
                 priorSystemIndexDescriptors,
-                executorNames
+                executorNames,
+                isNetNew
             );
         }
     }

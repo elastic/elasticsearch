@@ -831,7 +831,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
                     LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
-                    client);
+                    client, null);
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 assertThat(newState.getAction(), is(hotPhaseCompleteStepKey.getAction()));
@@ -855,7 +855,7 @@ public class IndexLifecycleTransitionTests extends ESTestCase {
             try (Client client = new NoOpClient(getTestName())) {
                 LifecycleExecutionState newState = moveStateToNextActionAndUpdateCachedPhase(meta,
                     LifecycleExecutionState.fromIndexMetadata(meta), System::currentTimeMillis, currentPolicy, updatedPolicyMetadata,
-                    client);
+                    client, null);
 
                 Step.StepKey hotPhaseCompleteStepKey = PhaseCompleteStep.finalStep("hot").getKey();
                 // the state was still moved into the next action, even if the updated policy still contained the action the index was

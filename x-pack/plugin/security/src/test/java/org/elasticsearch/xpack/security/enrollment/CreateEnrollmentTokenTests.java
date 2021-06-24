@@ -341,6 +341,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             "create an enrollment token"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74525")
     public void testGetFilteredAddresses () throws Exception {
         List<String> addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200", "192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203");

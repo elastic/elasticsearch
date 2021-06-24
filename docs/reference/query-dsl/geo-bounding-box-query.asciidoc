@@ -427,6 +427,7 @@ GET my_locations/_search
   }
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [type] used, this field is unused and will be removed entirely]
 
 [discrete]
 ==== Ignore Unmapped

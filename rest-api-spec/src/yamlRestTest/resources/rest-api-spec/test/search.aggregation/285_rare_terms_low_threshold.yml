@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 7.2.99"
-      reason: RareTerms added in 7.3.0
+      version: " - 7.99.99"
+      reason: RareTerms threshfold added in 8.0
   - do:
       indices.create:
           index: test_1

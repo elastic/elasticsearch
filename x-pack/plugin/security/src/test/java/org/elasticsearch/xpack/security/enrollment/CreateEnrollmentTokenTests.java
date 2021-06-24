@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.security.tool.CommandLineHttpClient;
 import org.elasticsearch.xpack.security.tool.HttpResponse;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
@@ -49,6 +50,11 @@ import static org.mockito.Mockito.when;
 
 public class CreateEnrollmentTokenTests extends ESTestCase {
     private Environment environment;
+
+    @BeforeClass
+    public static void muteInFips(){
+        assumeFalse("Enrollment is not supported in FIPS 140-2 as we are using PKCS#12 keystores", inFipsJvm());
+    }
 
     @Before
     public void setupMocks() throws Exception {

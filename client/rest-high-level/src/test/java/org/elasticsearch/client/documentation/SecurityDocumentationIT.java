@@ -100,6 +100,7 @@ import org.elasticsearch.client.security.user.privileges.Role;
 import org.elasticsearch.client.security.user.privileges.Role.ClusterPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.Role.IndexPrivilegeName;
 import org.elasticsearch.client.security.user.privileges.UserIndicesPrivileges;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -2880,8 +2881,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             String httpCaCert = response.getHttpCaCert(); // <2>
             String transportKey = response.getTransportKey(); // <3>
             String transportCert = response.getTransportCert(); // <4>
-            String clusterName = response.getClusterName(); // <5>
-            List<String> nodesAddresses = response.getNodesAddresses();  // <6>
+            List<String> nodesAddresses = response.getNodesAddresses();  // <5>
             // end::node-enrollment-response
         }
 
@@ -2893,7 +2893,6 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
                     public void onResponse(NodeEnrollmentResponse response) {
                         // <1>
                     }
-
 
                     @Override
                     public void onFailure(Exception e) {
@@ -2907,6 +2906,47 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::node-enrollment-execute-async
             client.security().enrollNodeAsync(RequestOptions.DEFAULT, listener);
             // end::node-enrollment-execute-async
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
+
+    @AwaitsFix(bugUrl = "Determine behavior for keystores with multiple keys")
+    public void testKibanaEnrollment() throws Exception {
+        RestHighLevelClient client = highLevelClient();
+
+        {
+            // tag::kibana-enrollment-execute
+            KibanaEnrollmentResponse response = client.security().enrollKibana(RequestOptions.DEFAULT);
+            // end::kibana-enrollment-execute
+
+            // tag::kibana-enrollment-response
+            SecureString password = response.getPassword(); // <1>
+            String httoCa = response.getHttpCa(); // <2>
+            // end::kibana-enrollment-response
+            assertThat(password.length(), equalTo(14));
+        }
+
+        {
+            // tag::kibana-enrollment-execute-listener
+            ActionListener<KibanaEnrollmentResponse> listener =
+                new ActionListener<KibanaEnrollmentResponse>() {
+                    @Override
+                    public void onResponse(KibanaEnrollmentResponse response) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }};
+            // end::kibana-enrollment-execute-listener
+
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::kibana-enrollment-execute-async
+            client.security().enrollKibanaAsync(RequestOptions.DEFAULT, listener);
+            // end::kibana-enrollment-execute-async
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
     }

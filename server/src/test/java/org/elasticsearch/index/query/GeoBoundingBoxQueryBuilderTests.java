@@ -390,6 +390,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testFromWKT() throws IOException {
@@ -434,6 +435,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
         assertEquals(expectedJson, 1.0, parsed.boost(), delta);
         assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testFromGeohash() throws IOException {
@@ -473,6 +475,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 33.75, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
         assertEquals(json, GeoExecType.MEMORY, parsed.type());
+        assertDeprecationWarning();
     }
 
     public void testMalformedGeohashes() {
@@ -530,5 +533,27 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(searchExecutionContext));
         assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
+    }
+
+    @Override
+    public void testValidOutput() throws IOException {
+        super.testValidOutput();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testUnknownField() throws IOException {
+        super.testUnknownField();
+        assertDeprecationWarning();
+    }
+
+    @Override
+    public void testFromXContent() throws IOException {
+        super.testFromXContent();
+        assertDeprecationWarning();
+    }
+
+    private void assertDeprecationWarning() {
+        assertWarnings("Deprecated field [type] used, this field is unused and will be removed entirely");
     }
 }

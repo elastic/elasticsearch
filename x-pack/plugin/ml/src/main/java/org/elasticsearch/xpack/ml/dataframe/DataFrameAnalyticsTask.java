@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -195,12 +196,14 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     void persistProgress(Client client, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
 
+        SetOnce<StoredProgress> storedProgress = new SetOnce<>();
+
         String progressDocId = StoredProgress.documentId(jobId);
 
         // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
-                LOGGER.debug("[{}] Successfully indexed progress document", jobId);
+                LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
                 runnable.run();
             },
             indexError -> {
@@ -227,8 +230,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 }
 
                 List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
-                final StoredProgress progressToStore = new StoredProgress(progress);
-                if (progressToStore.equals(previous)) {
+                storedProgress.set(new StoredProgress(progress));
+                if (storedProgress.get().equals(previous)) {
                     LOGGER.debug(() -> new ParameterizedMessage(
                         "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
                         jobId, progress));
@@ -242,7 +245,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
-                    progressToStore.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);

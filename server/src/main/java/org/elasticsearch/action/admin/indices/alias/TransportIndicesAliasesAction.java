@@ -22,13 +22,16 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 import org.elasticsearch.tasks.Task;
@@ -44,6 +47,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableList;
 
@@ -126,13 +130,17 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                     case ADD:
                         for (String dataStreamName : concreteDataStreams) {
-                            finalActions.add(new AliasAction.AddDataStreamAlias(action.aliases()[0], dataStreamName, action.writeIndex()));
+                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                                finalActions.add(new AliasAction.AddDataStreamAlias(alias, dataStreamName, action.writeIndex()));
+                            }
                         }
                         break;
                     case REMOVE:
                         for (String dataStreamName : concreteDataStreams) {
-                            finalActions.add(
-                                new AliasAction.RemoveDataStreamAlias(action.aliases()[0], dataStreamName, action.mustExist()));
+                            for (String alias : concreteDataStreamAliases(action, state.metadata(), dataStreamName)) {
+                                finalActions.add(
+                                    new AliasAction.RemoveDataStreamAlias(alias, dataStreamName, action.mustExist()));
+                            }
                         }
                         break;
                     default:
@@ -211,6 +219,25 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 return action.aliases();
             }
             return finalAliases.toArray(new String[finalAliases.size()]);
+        } else {
+            //for ADD and REMOVE_INDEX we just return the current aliases
+            return action.aliases();
+        }
+    }
+
+    private static String[] concreteDataStreamAliases(AliasActions action, Metadata metadata, String concreteDataStreamName) {
+        if (action.expandAliasesWildcards()) {
+            //for DELETE we expand the aliases
+            Stream<String> stream = metadata.dataStreamAliases().values().stream()
+                .filter(alias -> alias.getDataStreams().contains(concreteDataStreamName))
+                .map(DataStreamAlias::getName);
+
+            String[] aliasPatterns = action.aliases();
+            if (Strings.isAllOrWildcard(aliasPatterns) == false)  {
+                stream = stream.filter(alias -> Regex.simpleMatch(aliasPatterns, alias));
+            }
+
+            return stream.toArray(String[]::new);
         } else {
             //for ADD and REMOVE_INDEX we just return the current aliases
             return action.aliases();

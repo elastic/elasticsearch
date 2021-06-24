@@ -115,7 +115,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
                         } else {
                             try {
                                 return updateIndicesForPolicy(nonRefreshedState, xContentRegistry, client,
-                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata);
+                                    oldPolicy.getPolicy(), lifecyclePolicyMetadata, licenseState);
                             } catch (Exception e) {
                                 logger.warn(new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]",
                                     oldPolicy.getName()), e);

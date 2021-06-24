@@ -1,0 +1,8 @@
+plugins: []
+  # - example1
+  # - example2
+  # - org.elasticsearch.plugins:example-plugin:1.2.3
+  # - https://some.domain/path/example3.zip
+batch: false
+purge: false
+# proxy: https://example.com:1234

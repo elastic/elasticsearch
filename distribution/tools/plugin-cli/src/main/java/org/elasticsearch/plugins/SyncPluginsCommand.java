@@ -63,13 +63,13 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         }
 
         // 1. Parse descriptor file
-        final PluginsDescriptor pluginsDescriptor = PluginsDescriptor.parsePluginsDescriptor(env);
+        final PluginsManifest pluginsManifest = PluginsManifest.parseManifest(env);
 
         // 2. Get list of installed plugins
         final List<PluginInfo> existingPlugins = getExistingPlugins(env, terminal);
 
         // 3. Calculate changes
-        final List<String> pluginsThatShouldExist = pluginsDescriptor.getPluginIds();
+        final List<String> pluginsThatShouldExist = pluginsManifest.getPluginDescriptors().stream().map(PluginDescriptor::getId).collect(Collectors.toList());
         final List<String> pluginsThatActuallyExist = existingPlugins.stream().map(PluginInfo::getName).collect(Collectors.toList());
 
         final List<String> pluginsToInstall = difference(pluginsThatShouldExist, pluginsThatActuallyExist);
@@ -90,7 +90,7 @@ class SyncPluginsCommand extends EnvironmentAwareCommand {
         // 6. Add any plugins that are in the descriptor but missing from disk
         if (pluginsToInstall.isEmpty() == false) {
             final InstallPluginCommand installPluginCommand = new InstallPluginCommand();
-            installPluginCommand.execute(terminal, pluginsToInstall, isBatch, env);
+            installPluginCommand.execute(terminal, pluginsToInstall, isBatch, env, pluginsManifest.getProxy());
         }
     }
 

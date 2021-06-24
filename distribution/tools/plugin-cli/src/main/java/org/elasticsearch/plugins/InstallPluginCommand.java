@@ -48,6 +48,8 @@ import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
 import java.net.HttpURLConnection;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -204,8 +206,12 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         execute(terminal, pluginId, isBatch, env);
     }
 
-    // pkg private for testing
     void execute(Terminal terminal, List<String> pluginIds, boolean isBatch, Environment env) throws Exception {
+        execute(terminal, pluginIds, isBatch, env, null);
+    }
+
+    // pkg private for testing
+    void execute(Terminal terminal, List<String> pluginIds, boolean isBatch, Environment env, String proxyString) throws Exception {
         if (pluginIds.isEmpty()) {
             throw new UserException(ExitCodes.USAGE, "at least one plugin id is required");
         }
@@ -215,6 +221,14 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             if (uniquePluginIds.add(pluginId) == false) {
                 throw new UserException(ExitCodes.USAGE, "duplicate plugin id [" + pluginId + "]");
             }
+        }
+
+        Proxy proxy = Proxy.NO_PROXY;
+        if (proxyString != null) {
+            URL url = new URL(proxyString);
+            String host = url.getHost();
+            int port = url.getPort();
+            proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(host, port));
         }
 
         final Map<String, List<Path>> deleteOnFailures = new LinkedHashMap<>();
@@ -228,7 +242,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 final List<Path> deleteOnFailure = new ArrayList<>();
                 deleteOnFailures.put(pluginId, deleteOnFailure);
 
-                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch);
+                final Path pluginZip = download(terminal, pluginId, env.tmpFile(), isBatch, proxy);
                 final Path extractedZip = unzip(pluginZip, env.pluginsFile());
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
@@ -281,11 +295,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     }
 
     /** Downloads the plugin and returns the file it was downloaded to. */
-    private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch) throws Exception {
+    private Path download(Terminal terminal, String pluginId, Path tmpDir, boolean isBatch, Proxy proxy) throws Exception {
         if (OFFICIAL_PLUGINS.contains(pluginId)) {
             final String url = getElasticUrl(terminal, getStagingHash(), Version.CURRENT, isSnapshot(), pluginId, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from elastic");
-            return downloadAndValidate(terminal, url, tmpDir, true, isBatch);
+            return downloadAndValidate(terminal, url, tmpDir, true, isBatch, proxy);
         }
 
         // now try as maven coordinates, a valid URL would only have a colon and slash
@@ -293,7 +307,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         if (coordinates.length == 3 && pluginId.contains("/") == false && pluginId.startsWith("file:") == false) {
             String mavenUrl = getMavenUrl(terminal, coordinates, Platforms.PLATFORM_NAME);
             terminal.println("-> Downloading " + pluginId + " from maven central");
-            return downloadAndValidate(terminal, mavenUrl, tmpDir, false, isBatch);
+            return downloadAndValidate(terminal, mavenUrl, tmpDir, false, isBatch, proxy);
         }
 
         // fall back to plain old URL
@@ -306,8 +320,8 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
             }
             throw new UserException(ExitCodes.USAGE, msg);
         }
-        terminal.println("-> Downloading " + URLDecoder.decode(pluginId, "UTF-8"));
-        return downloadZip(terminal, pluginId, tmpDir, isBatch);
+        terminal.println("-> Downloading " + URLDecoder.decode(pluginId, StandardCharsets.UTF_8));
+        return downloadZip(terminal, pluginId, tmpDir, isBatch, proxy);
     }
 
     // pkg private so tests can override
@@ -417,11 +431,11 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     /** Downloads a zip from the url, into a temp file under the given temp dir. */
     // pkg private for tests
     @SuppressForbidden(reason = "We use getInputStream to download plugins")
-    Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
+    Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch, Proxy proxy) throws IOException {
         terminal.println(VERBOSE, "Retrieving zip from " + urlString);
         URL url = new URL(urlString);
         Path zip = Files.createTempFile(tmpDir, null, ".zip");
-        URLConnection urlConnection = url.openConnection();
+        URLConnection urlConnection = url.openConnection(proxy);
         urlConnection.addRequestProperty("User-Agent", "elasticsearch-plugin-installer");
         try (
             InputStream in = isBatch
@@ -501,12 +515,13 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         final String urlString,
         final Path tmpDir,
         final boolean officialPlugin,
-        boolean isBatch
+        boolean isBatch,
+        Proxy proxy
     ) throws IOException, PGPException, UserException {
-        Path zip = downloadZip(terminal, urlString, tmpDir, isBatch);
+        Path zip = downloadZip(terminal, urlString, tmpDir, isBatch, proxy);
         pathsToDeleteOnShutdown.add(zip);
         String checksumUrlString = urlString + ".sha512";
-        URL checksumUrl = openUrl(checksumUrlString);
+        URL checksumUrl = openUrl(checksumUrlString, proxy);
         String digestAlgo = "SHA-512";
         if (checksumUrl == null && officialPlugin == false) {
             // fallback to sha1, until 7.0, but with warning
@@ -515,7 +530,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                     + "future release. Please update the plugin to use a sha512 checksum."
             );
             checksumUrlString = urlString + ".sha1";
-            checksumUrl = openUrl(checksumUrlString);
+            checksumUrl = openUrl(checksumUrlString, proxy);
             digestAlgo = "SHA-1";
         }
         if (checksumUrl == null) {
@@ -588,7 +603,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
         }
 
         if (officialPlugin) {
-            verifySignature(zip, urlString);
+            verifySignature(zip, urlString, proxy);
         }
 
         return zip;
@@ -603,9 +618,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * @throws IOException  if an I/O exception occurs reading from various input streams
      * @throws PGPException if the PGP implementation throws an internal exception during verification
      */
-    void verifySignature(final Path zip, final String urlString) throws IOException, PGPException {
+    void verifySignature(final Path zip, final String urlString, final Proxy proxy) throws IOException, PGPException {
         final String ascUrlString = urlString + ".asc";
-        final URL ascUrl = openUrl(ascUrlString);
+        final URL ascUrl = openUrl(ascUrlString, proxy);
         try (
             // fin is a file stream over the downloaded plugin zip whose signature to verify
             InputStream fin = pluginZipInputStream(zip);
@@ -675,9 +690,9 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
      * If the URL returns a 404, {@code null} is returned, otherwise the open URL opject is returned.
      */
     // pkg private for tests
-    URL openUrl(String urlString) throws IOException {
+    URL openUrl(String urlString, Proxy proxy) throws IOException {
         URL checksumUrl = new URL(urlString);
-        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection();
+        HttpURLConnection connection = (HttpURLConnection) checksumUrl.openConnection(proxy);
         if (connection.getResponseCode() == 404) {
             return null;
         }

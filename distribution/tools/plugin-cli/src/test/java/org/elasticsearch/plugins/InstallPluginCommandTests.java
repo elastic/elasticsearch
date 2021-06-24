@@ -58,6 +58,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.net.MalformedURLException;
+import java.net.Proxy;
 import java.net.URI;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -902,7 +903,7 @@ public class InstallPluginCommandTests extends ESTestCase {
         Path pluginZip = createPlugin(name, pluginDir);
         InstallPluginCommand command = new InstallPluginCommand() {
             @Override
-            Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch) throws IOException {
+            Path downloadZip(Terminal terminal, String urlString, Path tmpDir, boolean isBatch, Proxy proxy) throws IOException {
                 assertEquals(url, urlString);
                 Path downloadedPath = tmpDir.resolve("downloaded.zip");
                 Files.copy(pluginZip, downloadedPath);
@@ -910,7 +911,7 @@ public class InstallPluginCommandTests extends ESTestCase {
             }
 
             @Override
-            URL openUrl(String urlString) throws IOException {
+            URL openUrl(String urlString, Proxy proxy) throws IOException {
                 if ((url + shaExtension).equals(urlString)) {
                     // calc sha an return file URL to it
                     Path shaFile = temp.apply("shas").resolve("downloaded.zip" + shaExtension);
@@ -929,9 +930,9 @@ public class InstallPluginCommandTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString, Proxy proxy) throws IOException, PGPException {
                 if (InstallPluginCommand.OFFICIAL_PLUGINS.contains(name)) {
-                    super.verifySignature(zip, urlString);
+                    super.verifySignature(zip, urlString, proxy);
                 } else {
                     throw new UnsupportedOperationException("verify signature should not be called for unofficial plugins");
                 }

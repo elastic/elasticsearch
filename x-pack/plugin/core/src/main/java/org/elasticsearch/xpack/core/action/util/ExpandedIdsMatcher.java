@@ -116,6 +116,20 @@ public final class ExpandedIdsMatcher {
         }
     }
 
+    /**
+     * Do any of the current set of matchers match {@code id}?
+     *
+     * {@link #filterMatchedIds(Collection)} removes matchers from set
+     * of required matchers used in this method. The result of this
+     * call may change after a call to {@link #filterMatchedIds(Collection)}.
+     *
+     * @param id Id to test
+     * @return True if the given id is matched by any of the matchers
+     */
+    public boolean idMatches(String id) {
+        return requiredMatches.stream().anyMatch(idMatcher -> idMatcher.matches(id));
+    }
+
     public boolean hasUnmatchedIds() {
         return requiredMatches.isEmpty() == false;
     }

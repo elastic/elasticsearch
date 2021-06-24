@@ -13,6 +13,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.ml.inference.deployment.PyTorchResult;
 
+import java.time.Instant;
 import java.util.Iterator;
 import java.util.LongSummaryStatistics;
 import java.util.Objects;
@@ -32,6 +33,7 @@ public class PyTorchResultProcessor {
     private volatile boolean isStopping;
     private volatile boolean stoppedProcessing;
     private final LongSummaryStatistics summaryStatistics;
+    private Instant lastUsed;
 
     public PyTorchResultProcessor(String deploymentId) {
         this.deploymentId = Objects.requireNonNull(deploymentId);
@@ -102,9 +104,11 @@ public class PyTorchResultProcessor {
             summaryStatistics.getSum());
     }
 
+
     private synchronized void processResult(PyTorchResult result) {
         if (result.isError() == false) {
             summaryStatistics.accept(result.getTimeMs());
+            lastUsed = Instant.now();
         }
     }
 
@@ -124,6 +128,10 @@ public class PyTorchResultProcessor {
             return pendingResult.result.get();
         }
         return null;
+    }
+
+    public synchronized Instant getLastUsed() {
+        return lastUsed;
     }
 
     public void stop() {

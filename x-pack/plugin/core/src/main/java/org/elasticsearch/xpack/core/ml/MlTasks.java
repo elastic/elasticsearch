@@ -98,8 +98,12 @@ public final class MlTasks {
         return taskId.substring(DATA_FRAME_ANALYTICS_TASK_ID_PREFIX.length());
     }
 
-    public static String trainedModelDeploymentTaskId(String modelId) {
-        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + modelId;
+    public static String trainedModelDeploymentTaskId(String deploymentId) {
+        return TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX + deploymentId;
+    }
+
+    public static String trainedModelDeploymentId(String taskId) {
+        return taskId.substring(TRAINED_MODEL_DEPLOYMENT_TASK_ID_PREFIX.length());
     }
 
     @Nullable
@@ -392,6 +396,20 @@ public final class MlTasks {
         }
 
         return tasks.findTasks(DATAFEED_TASK_NAME, task -> PersistentTasksClusterService.needsReassignment(task.getAssignment(), nodes));
+    }
+
+    /**
+     * Get all the trained model deployment tasks
+     * @param tasks Persistent tasks metadata
+     * @return The list of deployment tasks
+     */
+    public static Collection<PersistentTasksCustomMetadata.PersistentTask<?>>
+    trainedModelDeploymentTasks(@Nullable PersistentTasksCustomMetadata tasks) {
+        if (tasks == null) {
+            return Collections.emptyList();
+        }
+
+        return tasks.findTasks(TRAINED_MODEL_DEPLOYMENT_TASK_NAME, task -> true);
     }
 
     public static MemoryTrackedTaskState getMemoryTrackedTaskState(PersistentTasksCustomMetadata.PersistentTask<?> task) {

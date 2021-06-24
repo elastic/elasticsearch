@@ -20,14 +20,18 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
 /**
  * This test uses a tiny hardcoded base64 encoded PyTorch TorchScript model.
@@ -92,7 +96,6 @@ public class PyTorchModelIT extends ESRestTestCase {
 
     private static final String MODEL_INDEX = "model_store";
     private static final String VOCAB_INDEX = "vocab_store";
-    private static final String MODEL_ID ="simple_model_to_evaluate";
     static final String BASE_64_ENCODED_MODEL =
         "UEsDBAAACAgAAAAAAAAAAAAAAAAAAAAAAAAUAA4Ac2ltcGxlbW9kZWwvZGF0YS5wa2xGQgoAWlpaWlpaWlpaWoACY19fdG9yY2hfXwp" +
             "TdXBlclNpbXBsZQpxACmBfShYCAAAAHRyYWluaW5ncQGIdWJxAi5QSwcIXOpBBDQAAAA0AAAAUEsDBBQACAgIAAAAAAAAAAAAAAAAAA" +
@@ -122,12 +125,13 @@ public class PyTorchModelIT extends ESRestTestCase {
     }
 
     public void testEvaluate() throws Exception {
+        String modelId = "test_evaluate";
         createModelStoreIndex();
-        putVocabulary();
-        putModelDefinition();
+        putVocabulary(List.of("these", "are", "my", "words"));
+        putModelDefinition(modelId);
         refreshModelStoreAndVocabIndex();
-        createTrainedModel();
-        startDeployment();
+        createTrainedModel(modelId);
+        startDeployment(modelId);
         CountDownLatch latch = new CountDownLatch(10);
         Queue<String> failures = new ConcurrentLinkedQueue<>();
         try {
@@ -135,7 +139,7 @@ public class PyTorchModelIT extends ESRestTestCase {
             for (int i = 0; i < 10; i++) {
                 executorService.execute(() -> {
                     try {
-                        Response inference = infer("my words");
+                        Response inference = infer("my words", modelId);
                         assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference\":[[1.0,1.0]]}"));
                     } catch (IOException ex) {
                         failures.add(ex.getMessage());
@@ -146,18 +150,43 @@ public class PyTorchModelIT extends ESRestTestCase {
             }
         } finally {
             assertTrue("timed-out waiting for inference requests after 30s", latch.await(30, TimeUnit.SECONDS));
-            stopDeployment();
+            stopDeployment(modelId);
         }
         if (failures.isEmpty() == false) {
             fail("Inference calls failed with [" + failures.stream().reduce((s1, s2) -> s1 + ", " + s2) + "]");
         }
     }
 
-    private void putModelDefinition() throws IOException {
-        Request request = new Request("PUT", "/" + MODEL_INDEX + "/_doc/trained_model_definition_doc-" + MODEL_ID + "-0");
+    @SuppressWarnings("unchecked")
+    public void testLiveDeploymentStats() throws IOException {
+        String modelA = "model_a";
+
+        createModelStoreIndex();
+        putVocabulary(List.of("once", "twice"));
+        putModelDefinition(modelA);
+        refreshModelStoreAndVocabIndex();
+        createTrainedModel(modelA);
+        startDeployment(modelA);
+        try {
+            infer("once", modelA);
+            infer("twice", modelA);
+            Response response = getDeploymentStats(modelA);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>)entityAsMap(response).get("deployment_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(stats.get(0).get("inference_count"), equalTo(2));
+            assertThat(stats.get(0).get("model_size"), equalTo("1.5kb"));
+
+        } finally {
+            stopDeployment(modelA);
+        }
+
+    }
+
+    private void putModelDefinition(String modelId) throws IOException {
+        Request request = new Request("PUT", "/" + MODEL_INDEX + "/_doc/trained_model_definition_doc-" + modelId + "-0");
         request.setJsonEntity("{  " +
             "\"doc_type\": \"trained_model_definition_doc\"," +
-            "\"model_id\": \"" + MODEL_ID +"\"," +
+            "\"model_id\": \"" + modelId +"\"," +
             "\"doc_num\": 0," +
             "\"definition_length\":" + RAW_MODEL_SIZE + "," +
             "\"total_definition_length\":" + RAW_MODEL_SIZE + "," +
@@ -190,16 +219,18 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void putVocabulary() throws IOException {
+    private void putVocabulary(List<String> vocabulary) throws IOException {
+        String quotedWords = vocabulary.stream().map(s -> "\"" + s + "\"").collect(Collectors.joining(","));
+
         Request request = new Request("PUT", "/" + VOCAB_INDEX + "/_doc/test_vocab");
         request.setJsonEntity("{  " +
-                "\"vocab\": [\"these\", \"are\", \"my\", \"words\"]\n" +
+                "\"vocab\": [\"" + quotedWords + "\"]\n" +
             "}");
         client().performRequest(request);
     }
 
-    private void createTrainedModel() throws IOException {
-        Request request = new Request("PUT", "/_ml/trained_models/" + MODEL_ID);
+    private void createTrainedModel(String modelId) throws IOException {
+        Request request = new Request("PUT", "/_ml/trained_models/" + modelId);
         request.setJsonEntity("{  " +
             "    \"description\": \"simple model for testing\",\n" +
             "    \"model_type\": \"pytorch\",\n" +
@@ -228,19 +259,23 @@ public class PyTorchModelIT extends ESRestTestCase {
         client().performRequest(request);
     }
 
-    private void startDeployment() throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_start?timeout=40s");
-        Response response = client().performRequest(request);
-        logger.info("Start response: " + EntityUtils.toString(response.getEntity()));
-    }
-
-    private void stopDeployment() throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_stop");
+    private void startDeployment(String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_start?timeout=40s");
         client().performRequest(request);
     }
 
-    private Response infer(String input) throws IOException {
-        Request request = new Request("POST", "/_ml/trained_models/" + MODEL_ID + "/deployment/_infer");
+    private void stopDeployment(String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_stop");
+        client().performRequest(request);
+    }
+
+    private Response getDeploymentStats(String modelId) throws IOException {
+        Request request = new Request("GET", "/_ml/trained_models/" + modelId + "/deployment/_stats?human");
+        return client().performRequest(request);
+    }
+
+    private Response infer(String input, String modelId) throws IOException {
+        Request request = new Request("POST", "/_ml/trained_models/" + modelId + "/deployment/_infer");
         request.setJsonEntity("{  " +
             "\"docs\": [{\"input\":\"" + input + "\"}]\n" +
             "}");

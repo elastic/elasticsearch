@@ -126,4 +126,18 @@ public class ExpandedIdsMatcherTests extends ESTestCase {
         assertEquals("foo", requiredMatches.unmatchedIds().get(0));
         assertTrue(requiredMatches.isOnlyExact());
     }
+
+    public void testIdMatches() {
+        {
+            ExpandedIdsMatcher matcher = new ExpandedIdsMatcher(new String[]{"*"}, true);
+            assertTrue(matcher.idMatches(randomAlphaOfLength(5)));
+        }
+
+        {
+            ExpandedIdsMatcher matcher = new ExpandedIdsMatcher(new String[]{"foo*","bar"}, true);
+            assertTrue(matcher.idMatches("foo1"));
+            assertTrue(matcher.idMatches("bar"));
+            assertFalse(matcher.idMatches("car"));
+        }
+    }
 }

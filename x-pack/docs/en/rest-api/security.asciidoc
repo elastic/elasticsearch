@@ -125,8 +125,8 @@ realm when using a custom web application other than Kibana
 === Enrollment
 
 Use the following APIs to enable new nodes to join an existing cluster with
-security enabled, or to enable a client to configure itself to communicate with
-a secured {es} cluster.
+security enabled, or to enable a {kib} instance to configure itself to
+communicate with a secured {es} cluster.
 
 * <<security-api-node-enrollment, Enroll a new node>>
 * <<security-api-kibana-enrollment, Enroll a new {kib} instance>>

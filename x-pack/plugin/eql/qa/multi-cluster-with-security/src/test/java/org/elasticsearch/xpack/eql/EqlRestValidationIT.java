@@ -27,6 +27,7 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
             + "\"reason\":\"no such index [inexistent1*]\"");
         assertErrorMessage("test_eql,inexistent*", reqParameter, "\"root_cause\":[{\"type\":\"index_not_found_exception\","
             + "\"reason\":\"no such index [inexistent*]\"");
+        //TODO: revisit the next two tests when https://github.com/elastic/elasticsearch/issues/64190 is closed
         assertErrorMessage("inexistent", reqParameter, "\"root_cause\":[{\"type\":\"index_not_found_exception\","
             + "\"reason\":\"no such index [[inexistent]]\"");
         assertErrorMessage("inexistent1,inexistent2", reqParameter, "\"root_cause\":[{\"type\":\"index_not_found_exception\","

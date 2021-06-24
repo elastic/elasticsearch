@@ -45,7 +45,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
             int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
             HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
 
-            remoteClient = clientBuilder(secureClientSettings(), remoteHttpHosts);
+            remoteClient = clientBuilder(secureRemoteClientSettings(), remoteHttpHosts);
         }
     }
 
@@ -116,10 +116,10 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        return secureClientSettings();
+        return secureRemoteClientSettings();
     }
 
-    protected static Settings secureClientSettings() {
+    protected static Settings secureRemoteClientSettings() {
         String user = System.getProperty("tests.rest.cluster.remote.user"); // gradle defined
         String pass = System.getProperty("tests.rest.cluster.remote.password");
         if (hasText(user) && hasText(pass)) {

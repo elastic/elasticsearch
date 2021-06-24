@@ -32,9 +32,7 @@ public class SequenceMatcher implements Accountable {
 
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
-    static class Stats implements Accountable {
-
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Stats.class);
+    static class Stats  {
 
         long seen = 0;
         long ignored = 0;
@@ -55,11 +53,6 @@ public class SequenceMatcher implements Accountable {
             ignored = 0;
             rejectionMaxspan = 0;
             rejectionUntil = 0;
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return Stats.SHALLOW_SIZE;
         }
     }
 
@@ -299,11 +292,7 @@ public class SequenceMatcher implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE
-                + RamUsageEstimator.sizeOf(keyToSequences)
-                + RamUsageEstimator.sizeOf(stageToKeys)
-                + (limit == null ? 0 : RamUsageEstimator.sizeOf(limit))
-                + RamUsageEstimator.sizeOf(stats);
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(keyToSequences) + RamUsageEstimator.sizeOf(stageToKeys);
     }
 
     @Override

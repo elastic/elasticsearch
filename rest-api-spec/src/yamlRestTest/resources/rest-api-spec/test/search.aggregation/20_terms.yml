@@ -822,8 +822,8 @@ setup:
 ---
 "string profiler via global ordinals filters implementation":
   - skip:
-      version: " - 7.99.99"
-      reason: profile info changed in 8.0.0 to be backported to 7.14.0
+      version: " - 7.13.99"
+      reason: profile info changed in 7.14.0
   - do:
       indices.create:
           index: test_3

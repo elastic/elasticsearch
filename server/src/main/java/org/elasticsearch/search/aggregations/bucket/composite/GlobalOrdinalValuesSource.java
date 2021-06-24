@@ -32,35 +32,33 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
  * A {@link SingleDimensionValuesSource} for global ordinals.
  */
 class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
-    private static final long NULL_ORD = Long.MIN_VALUE;
-
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
 
     // ordinals, which are remapped whenever we visit a new segment.
-    // Entries might be Long.MIN_VALUE to represent the "null" value is null,
-    // or negative when the corresponding term is not known to current lookup
+    // Entries might be Long.MIN_VALUE to represent the missing bucket,
+    // or negative when the corresponding term is not known to the current lookup
     private LongArray valuesOrd;
-    // we cache some values, namely when the corresponding term is not known to current lookup
-    // (i.e. corresponding entry in valuesOrd is negative but not Long.MIN_VALUE)
+    // when term is not known to current lookup, then the proper term is stored here, else null
     private ObjectArray<BytesRef> values;
-    private ObjectArray<SortedSetDocValues> valuesLookup;
-
-    // might be Long.MIN_VALUE when the value is null, or negative if the term is not known to current lookup
-    private Long currentValueOrd;
-    // when term is not known to current lookup, we have the proper value here
-    private BytesRef currentValue;
-    private SortedSetDocValues currentValueLookup;
-
-    // might be Long.MIN_VALUE when the value is null, or negative if the term is not known to current lookup
-    // when term is not known to current lookup, then we still have term in afterValue
-    private Long afterValueOrd;
-    private SortedSetDocValues afterValueLookup;
-
-//    private long lastLookupOrd = -1;
-//    private BytesRef lastLookupValue;
-    private SortedSetDocValues lookup;
-
+    // number of slots in the above arrays that contain any actual values
     private int numSlots = 0;
+
+
+    // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
+    private Long currentValueOrd;
+    // when term is not known to current lookup, then the proper term is stored here, else null
+    private BytesRef currentValue;
+
+    // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
+    // when term is not known to current lookup, then the proper term is stored in afterValue, else afterValue is null
+    private Long afterValueOrd;
+
+    // small cache to avoid repeated lookups in toComparable
+    private Long lastLookupOrd;
+    private BytesRef lastLookupValue;
+
+    // current lookup
+    private SortedSetDocValues lookup;
 
     GlobalOrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
                               CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
@@ -68,7 +66,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         super(bigArrays, format, type, missingBucket, size, reverseMul);
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
-        this.valuesLookup = bigArrays.newObjectArray(Math.min(size, 100));
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
     }
 
@@ -77,39 +74,35 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         numSlots = Math.max(numSlots, slot + 1);
         valuesOrd = bigArrays.grow(valuesOrd, numSlots);
         values = bigArrays.grow(values, numSlots);
-        valuesLookup = bigArrays.grow(valuesLookup, numSlots);
 
         assert currentValueOrd != null && (currentValueOrd == Long.MIN_VALUE || currentValueOrd >= 0);
         valuesOrd.set(slot, currentValueOrd);
         assert currentValue == null;
-        values.set(slot, currentValue); // reset values as we only want to keep it for entry
-        assert currentValueLookup != null;
-        assert lookup == currentValueLookup;
-        valuesLookup.set(slot, currentValueLookup);
+        values.set(slot, currentValue);
     }
 
     @Override
     int compare(int from, int to) {
-        assert valuesLookup.get(from) == valuesLookup.get(to);
+        assert from < numSlots && to < numSlots;
         return compareInternal(valuesOrd.get(from), valuesOrd.get(to), values.get(from), values.get(to));
     }
 
     @Override
     int compareCurrent(int slot) {
-        assert valuesLookup.get(slot) == currentValueLookup;
         assert currentValueOrd != null;
+        assert slot < numSlots;
         return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValue, values.get(slot));
     }
 
     @Override
     int compareCurrentWithAfter() {
-        assert currentValueLookup == afterValueLookup;
         assert currentValueOrd != null && afterValueOrd != null;
         return compareInternal(currentValueOrd, afterValueOrd, currentValue, afterValue);
     }
 
     @Override
     int hashCode(int slot) {
+        assert slot < numSlots;
         return Long.hashCode(valuesOrd.get(slot));
     }
 
@@ -174,29 +167,27 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     BytesRef toComparable(int slot) throws IOException {
+        assert slot < numSlots;
         long ord = valuesOrd.get(slot);
-        if (missingBucket && ord == Long.MIN_VALUE) {
+        if (ord == Long.MIN_VALUE) {
+            assert missingBucket;
             return null;
-        /*} else if (ord == lastLookupOrd) {
-            return lastLookupValue;*/
-        } else if (ord < 0L) {
-            assert ord != Long.MIN_VALUE;
+        } else if (ord < 0) {
             return values.get(slot);
+        } else if (lastLookupOrd != null && ord == lastLookupOrd) {
+            assert ord >= 0;
+            return lastLookupValue;
         } else {
-            assert ord >= 0L;
-            // TODO: reintroduce and fix lastLookupOrd / lastLookupValue
-            //lastLookupOrd = ord;
-//            lastLookupValue = BytesRef.deepCopyOf(lookups.get(slot).lookupOrd(ord));
-//            return lastLookupValue;
-            return BytesRef.deepCopyOf(valuesLookup.get(slot).lookupOrd(ord));
+            assert ord >= 0;
+            lastLookupOrd = ord;
+            return lastLookupValue = BytesRef.deepCopyOf(lookup.lookupOrd(ord));
         }
     }
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(lookup, dvs);
-        lookup = dvs;
+        remapOrdinals(dvs);
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -206,13 +197,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                     while ((ord = dvs.nextOrd()) != NO_MORE_ORDS) {
                         currentValueOrd = ord;
                         currentValue = null;
-                        currentValueLookup = dvs;
                         next.collect(doc, bucket);
                     }
                 } else if (missingBucket) {
                     currentValueOrd = Long.MIN_VALUE;
                     currentValue = null;
-                    currentValueLookup = dvs;
                     next.collect(doc, bucket);
                 }
             }
@@ -226,8 +215,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(lookup, dvs);
-        lookup = dvs;
+        remapOrdinals(dvs);
         return new LeafBucketCollector() {
             boolean currentValueIsSet = false;
 
@@ -242,7 +230,6 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                                 currentValueIsSet = true;
                                 currentValueOrd = ord;
                                 currentValue = null;
-                                currentValueLookup = dvs;
                                 break;
                             }
                         }
@@ -258,8 +245,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
      * Remaps ordinals when switching LeafReaders. It's possible that a term is not mapped for the new LeafReader,
      * in that case remember the term so that future remapping steps can accurately be done.
      */
-    private void remapOrdinals(SortedSetDocValues oldMapping, SortedSetDocValues newMapping) throws IOException {
-        assert currentValueLookup == oldMapping;
+    private void remapOrdinals(SortedSetDocValues newMapping) throws IOException {
         if (currentValueOrd != null) {
             if (currentValueOrd == Long.MIN_VALUE) {
                 currentValue = null;
@@ -267,7 +253,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 // this wasn't set in last leafreader, so use previous value for lookup
                 assert currentValue != null;
             } else {
-                currentValue = BytesRef.deepCopyOf(currentValueLookup.lookupOrd(currentValueOrd));
+                currentValue = BytesRef.deepCopyOf(lookup.lookupOrd(currentValueOrd));
                 assert currentValue != null;
             }
             if (currentValue == null) {
@@ -276,16 +262,12 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 currentValueOrd = newMapping.lookupTerm(currentValue);
             }
         }
-        currentValueLookup = newMapping;
 
-        assert afterValueLookup == oldMapping;
         if (afterValue != null) {
             afterValueOrd = newMapping.lookupTerm(afterValue);
         }
-        afterValueLookup = newMapping;
 
         for (int i = 0; i < numSlots; i++) {
-            assert valuesLookup.get(i) == oldMapping;
             long ord = valuesOrd.get(i);
             if (ord == Long.MIN_VALUE) {
                 values.set(i, null);
@@ -293,7 +275,7 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 // this wasn't set in last leafreader, so use previous value for lookup
                 assert values.get(i) != null;
             } else {
-                values.set(i, BytesRef.deepCopyOf(valuesLookup.get(i).lookupOrd(ord)));
+                values.set(i, BytesRef.deepCopyOf(lookup.lookupOrd(ord)));
                 assert values.get(i) != null;
             }
             if (values.get(i) == null) {
@@ -301,8 +283,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
             } else {
                 valuesOrd.set(i, newMapping.lookupTerm(values.get(i)));
             }
-            valuesLookup.set(i, newMapping);
         }
+
+        lastLookupOrd = null;
+        lastLookupValue = null;
+        lookup = newMapping;
     }
 
     @Override

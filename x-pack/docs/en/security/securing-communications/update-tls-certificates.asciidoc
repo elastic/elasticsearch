@@ -183,11 +183,13 @@ password in the {es} keystore:
 ----
 --
 
-. Stop {es} on the current node in your cluster where you are updating the
-keystore.
+. [[start-rolling-restart,step 5]]On the current node in your cluster where you're updating the keystore,
+start a <<restart-cluster-rolling,rolling restart>>.
++
+Stop at the step indicating *Perform any needed changes*, and then proceed to
+the next step in this procedure.
 
-[[replace-keystores]]
-. Replace your existing keystore with the new keystore, ensuring that the
+. [[replace-keystores]]Replace your existing keystore with the new keystore, ensuring that the
 file names match. For example, `node1.p12`.
 +
 If your 
@@ -207,15 +209,14 @@ xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
 xpack.security.transport.ssl.truststore.type: PKCS12
 ----
 
-. Start the node where you updated the keystore. 
+. Start the node where you updated the keystore, and then complete the remaining
+steps for a <<restart-cluster-rolling,rolling restart>>.
 
-. (Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+. [[verify-keystore,step 9]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
-. One at a time, stop {es} on each additional node in your cluster.
-
-. Complete the previous steps on each additional node, starting with the step
-for <<replace-keystores,replacing your existing keystore>>.
+. One node at a time, complete <<start-rolling-restart>> through
+<<verify-keystore>> until you've updated all keystores in your cluster.
 
 [[node-certs-same-http]]
 ==== Generate a new certificate for the HTTP layer
@@ -228,11 +229,8 @@ information that your CA uses to generate and sign a security certificate
 instead of using self-signed certificates that the `elasticsearch-certutil` tool
 generates.
 
-. Stop {es} on the current node in your cluster where you are updating the HTTP
-certificate.
-
-. From the directory where you installed {es}, run the {es} HTTP certificate 
-tool.
+. On any node in your cluster where {es} is installed, run the {es} HTTP
+certificate tool.
 +
 [source,shell]
 ----
@@ -280,7 +278,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}. Within the `/elasticsearch`
    directory is a directory for each node that you specified with it's own
-   `http.p12` file.
+   `http.p12` file. For example:
 +
 --
 [source,txt]
@@ -312,8 +310,14 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 certificate for HTTP client communications. This keystore contains both a
 certificate and key.
 
-. Replace your existing keystore (such as `http.p12`) with the new keystore,
-ensuring that the file names match.
+. [[start-rolling-restart-http,step 5]]On the current node in your cluster where you're updating the keystore,
+start a <<restart-cluster-rolling,rolling restart>>.
++
+Stop at the step indicating *Perform any needed changes*, and then proceed to
+the next step in this procedure.
+
+. Replace your existing keystore with the new keystore, ensuring that the
+file names match. For example, `node1-http.p12`.
 +
 If your 
 <<cert-password-updates,keystore password is changing>>, then save the
@@ -327,7 +331,7 @@ For example:
 [source,yaml]
 ----
 xpack.security.http.ssl.enabled: true
-xpack.security.http.ssl.keystore.path: new-http.p12
+xpack.security.http.ssl.keystore.path: node1-http.p12
 ----
 
 . If your keystore password is changing, add the password for your private key
@@ -338,15 +342,14 @@ to the secure settings in {es}.
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Restart the node where you updated the keystore. {es} will reload the file and
-its configuration and start presenting the new  certificate to the incoming TLS
-connections.
+. Start the node where you updated the keystore, and then complete the remaining
+steps for a <<restart-cluster-rolling,rolling restart>>.
 
-. (Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+. [[verify-keystore-http,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
-. On each additional node in your cluster, stop {es}, update the keystore, and
-restart {es}.
+. One node at a time, complete <<start-rolling-restart-http>> through
+<<verify-keystore-http>> until you've updated all keystores in your cluster.
 
 [[update-node-certs-different]]
 === Update security certificates with a different CA
@@ -528,15 +531,41 @@ in your cluster. Include the `instances.yml` file that you created previously.
    specified by the `xpack.security.transport.ssl.keystore.path` variable in 
    the `elasticsearch.yml` file on each node.
 
-. On *every* node, copy the appropriate node certificate to the `ES_PATH_CONF`
-directory.
+. [[start-rolling-restart-newca,step 3]]On the current node in your cluster where
+you're updating the keystore, start a
+<<restart-cluster-rolling,rolling restart>>.
 +
-NOTE: The `ES_PATH_CONF` variable is the path for the {es}
-configuration files. If you installed {es} using archive distributions
-(`zip` or `tar.gz`), the variable defaults to `ES_HOME/config`. If you used
-package distributions (Debian or RPM), the variable defaults to `/etc/elasticsearch`.
+Stop at the step indicating *Perform any needed changes*, and then proceed to
+the next step in this procedure.
 
-. Delete the old node keystore from each node. 
+. Replace your existing keystore with the new keystore, ensuring that the
+file names match. For example, `<node-name>.p12`.
++
+If your 
+<<cert-password-updates,keystore password is changing>>, then save the
+keystore with a new filename so that {es} doesn't attempt to reload the file
+before you update the password.
+
+. If you needed to save the new keystore with a new filename, update the
+`ES_PATH_CONF/elasticsearch.yml` file to use the filename of the new keystore.
+For example:
++
+[source,yaml]
+----
+xpack.security.transport.ssl.keystore.path: config/<node-name>.p12
+xpack.security.transport.ssl.keystore.type: PKCS12
+xpack.security.transport.ssl.truststore.path: config/elastic-stack-ca.p12
+xpack.security.transport.ssl.truststore.type: PKCS12
+----
+
+. Start the node where you updated the keystore, and then complete the remaining
+steps for a <<restart-cluster-rolling,rolling restart>>.
+
+. [[verify-keystore-newca,step 7]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+{es} loaded the new keystore.
+
+. One node at a time, complete <<start-rolling-restart-newca>> through
+<<verify-keystore-newca>> until you've updated all keystores in your cluster.
 
 [[node-certs-different-http]]
 ==== Generate a new certificate for the HTTP layer
@@ -550,11 +579,8 @@ information that your CA uses to generate and sign a security certificate
 instead of using self-signed certificates that the `elasticsearch-certutil` tool
 generates.
 
-. Stop {es} on the first node in your cluster where you are updating the HTTP
-certificate. 
-
-. From the directory where you installed {es}, run the {es} HTTP certificate 
-tool.
+. On any node in your cluster where {es} is installed, run the {es} HTTP
+certificate tool.
 +
 [source,shell]
 ----
@@ -603,7 +629,7 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 . Unzip the generated `elasticsearch-ssl-http.zip` file. This compressed file
    contains one directory for both {es} and {kib}. Within the `/elasticsearch`
    directory is a directory for each node that you specified with it's own
-   `http.p12` file.
+   `http.p12` file. For example:
 +
 --
 [source,txt]
@@ -635,9 +661,14 @@ List every hostname and variant used to connect to your cluster over HTTPS.
 certificate for HTTP client communications. This keystore contains both a
 certificate and key.
 
-[[replace-keystore-files]]
-. Replace your existing keystore (such as `http.p12`) with the new keystore,
-ensuring that the file names match.
+. [[start-rolling-restart-http-newca,step 5]]On the current node in your cluster where you're updating the keystore,
+start a <<restart-cluster-rolling,rolling restart>>.
++
+Stop at the step indicating *Perform any needed changes*, and then proceed to
+the next step in this procedure.
+
+. Replace your existing keystore with the new keystore, ensuring that the
+file names match. For example, `node1-http.p12`.
 +
 If your 
 <<cert-password-updates,keystore password is changing>>, then save the
@@ -651,7 +682,7 @@ For example:
 [source,yaml]
 ----
 xpack.security.http.ssl.enabled: true
-xpack.security.http.ssl.keystore.path: new-http.p12
+xpack.security.http.ssl.keystore.path: node1-http.p12
 ----
 
 . If your keystore password is changing, add the password for your private key
@@ -662,17 +693,14 @@ to the secure settings in {es}.
 ./bin/elasticsearch-keystore add xpack.security.http.ssl.keystore.secure_password
 ----
 
-. Restart the node where you updated the keystore. {es} will reload the file and
-its configuration and start presenting the new  certificate to the incoming TLS
-connections.
+. Start the node where you updated the keystore, and then complete the remaining
+steps for a <<restart-cluster-rolling,rolling restart>>.
 
-. (Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
+. [[verify-keystore-http-newca,step 10]](Optional) Use the <<security-api-ssl,SSL certificate API>> to verify that
 {es} loaded the new keystore.
 
-. One at a time, stop {es} on each additional node in your cluster.
-
-. Complete the previous steps on each additional node, starting with the step
-for <<replace-keystore-files,replacing your existing keystore>>.
+. One node at a time, complete <<start-rolling-restart-http-newca>> through
+<<verify-keystore-http-newca>> until you've updated all keystores in your cluster.
 
 . (Optional) After rotating keystores on each node in your cluster, remove the
 old CA certificate from your truststore. 

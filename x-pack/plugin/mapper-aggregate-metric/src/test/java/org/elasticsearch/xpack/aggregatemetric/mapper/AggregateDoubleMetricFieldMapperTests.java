@@ -10,8 +10,8 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -525,7 +525,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
      * Since all queries for aggregate_metric_double fields are delegated to their default_metric numeric
      *  sub-field, we override this method so that testExistsQueryMinimalMapping() passes successfully.
      */
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(DocValuesFieldExistsQuery.class));
         DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
         String defaultMetric = ((AggregateDoubleMetricFieldMapper.AggregateDoubleMetricFieldType) fieldType).getDefaultMetric().name();

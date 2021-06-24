@@ -20,22 +20,22 @@ import java.util.Map;
 /**
  * Fork of {@link org.apache.lucene.document.Document} with additional functionality.
  */
-public class Document implements Iterable<IndexableField> {
+public class LuceneDocument implements Iterable<IndexableField> {
 
-    private final Document parent;
+    private final LuceneDocument parent;
     private final String path;
     private final String prefix;
     private final List<IndexableField> fields;
     private Map<Object, IndexableField> keyedFields;
 
-    Document(String path, Document parent) {
+    LuceneDocument(String path, LuceneDocument parent) {
         fields = new ArrayList<>();
         this.path = path;
         this.prefix = path.isEmpty() ? "" : path + ".";
         this.parent = parent;
     }
 
-    public Document() {
+    public LuceneDocument() {
         this("", null);
     }
 
@@ -56,7 +56,7 @@ public class Document implements Iterable<IndexableField> {
     /**
      * Return the parent document, or null if this is the root document.
      */
-    public Document getParent() {
+    public LuceneDocument getParent() {
         return parent;
     }
 

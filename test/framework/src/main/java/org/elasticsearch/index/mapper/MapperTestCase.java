@@ -101,14 +101,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected void assertExistsQuery(MapperService mapperService) throws IOException {
-        Document fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
+        LuceneDocument fields = mapperService.documentMapper().parse(source(this::writeField)).rootDoc();
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext(mapperService);
         MappedFieldType fieldType = mapperService.fieldType("field");
         Query query = fieldType.existsQuery(searchExecutionContext);
         assertExistsQuery(fieldType, query, fields);
     }
 
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         if (fieldType.hasDocValues()) {
             assertThat(query, instanceOf(DocValuesFieldExistsQuery.class));
             DocValuesFieldExistsQuery fieldExistsQuery = (DocValuesFieldExistsQuery) query;
@@ -138,11 +138,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected static void assertNoFieldNamesField(Document fields) {
+    protected static void assertNoFieldNamesField(LuceneDocument fields) {
         assertNull(fields.getField(FieldNamesFieldMapper.NAME));
     }
 
-    protected static void assertHasNorms(Document doc, String field) {
+    protected static void assertHasNorms(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             IndexableFieldType indexableFieldType = indexableField.fieldType();
@@ -154,7 +154,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         fail("field [" + field + "] should be indexed but it isn't");
     }
 
-    protected static void assertDocValuesField(Document doc, String field) {
+    protected static void assertDocValuesField(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             if (indexableField.fieldType().docValuesType().equals(DocValuesType.NONE) == false) {
@@ -164,7 +164,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         fail("doc_values not present for field [" + field + "]");
     }
 
-    protected static void assertNoDocValuesField(Document doc, String field) {
+    protected static void assertNoDocValuesField(LuceneDocument doc, String field) {
         IndexableField[] fields = doc.getFields(field);
         for (IndexableField indexableField : fields) {
             assertEquals(DocValuesType.NONE, indexableField.fieldType().docValuesType());

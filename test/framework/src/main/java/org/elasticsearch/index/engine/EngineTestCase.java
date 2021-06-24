@@ -80,6 +80,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -288,19 +289,19 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
 
-    protected static org.elasticsearch.index.mapper.Document testDocumentWithTextField() {
+    protected static LuceneDocument testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
 
-    protected static org.elasticsearch.index.mapper.Document testDocumentWithTextField(String value) {
-        org.elasticsearch.index.mapper.Document document = testDocument();
+    protected static LuceneDocument testDocumentWithTextField(String value) {
+        LuceneDocument document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
         return document;
     }
 
 
-    protected static org.elasticsearch.index.mapper.Document testDocument() {
-        return new org.elasticsearch.index.mapper.Document();
+    protected static LuceneDocument testDocument() {
+        return new LuceneDocument();
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
@@ -313,11 +314,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, org.elasticsearch.index.mapper.Document document, BytesReference source, Mapping mappingUpdate) {
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate) {
         return testParsedDocument(id, routing, document, source, mappingUpdate, false);
     }
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, org.elasticsearch.index.mapper.Document document, BytesReference source, Mapping mappingUpdate,
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate,
             boolean recoverySource) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);

@@ -151,7 +151,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("bool3", true);
         }));
 
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
         IndexableField[] fields = doc.getFields("bool1");
         assertEquals(2, fields.length);
         assertEquals(DocValuesType.NONE, fields[0].fieldType().docValuesType());

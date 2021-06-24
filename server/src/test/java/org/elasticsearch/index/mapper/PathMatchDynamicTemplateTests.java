@@ -26,7 +26,7 @@ public class PathMatchDynamicTemplateTests extends MapperServiceTestCase {
             new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

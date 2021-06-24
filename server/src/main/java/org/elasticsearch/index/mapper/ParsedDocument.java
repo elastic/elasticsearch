@@ -31,7 +31,7 @@ public class ParsedDocument {
 
     private final String routing;
 
-    private final List<Document> documents;
+    private final List<LuceneDocument> documents;
 
     private BytesReference source;
     private XContentType xContentType;
@@ -43,7 +43,7 @@ public class ParsedDocument {
      * @param reason    the reason for the no-op
      */
     public static ParsedDocument noopTombstone(String reason) {
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
@@ -69,7 +69,7 @@ public class ParsedDocument {
      * @param id    the id of the deleted document
      */
     public static ParsedDocument deleteTombstone(String id) {
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         SeqNoFieldMapper.SequenceIDFields seqIdFields = SeqNoFieldMapper.SequenceIDFields.tombstone();
         seqIdFields.addFields(document);
         Field versionField = VersionFieldMapper.versionField();
@@ -91,7 +91,7 @@ public class ParsedDocument {
                           SeqNoFieldMapper.SequenceIDFields seqID,
                           String id,
                           String routing,
-                          List<Document> documents,
+                          List<LuceneDocument> documents,
                           BytesReference source,
                           XContentType xContentType,
                           Mapping dynamicMappingsUpdate) {
@@ -123,11 +123,11 @@ public class ParsedDocument {
         return this.routing;
     }
 
-    public Document rootDoc() {
+    public LuceneDocument rootDoc() {
         return documents.get(documents.size() - 1);
     }
 
-    public List<Document> docs() {
+    public List<LuceneDocument> docs() {
         return this.documents;
     }
 

@@ -53,7 +53,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.Document;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -509,7 +509,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         Directory directory = new ByteBuffersDirectory();
         try (IndexWriter indexWriter = new IndexWriter(directory, new IndexWriterConfig(analyzer))) {
             // Indexing in order here, so that the user provided order matches with the docid sequencing:
-            Iterable<Document> iterable = () -> docs.stream()
+            Iterable<LuceneDocument> iterable = () -> docs.stream()
                 .map(ParsedDocument::docs)
                 .flatMap(Collection::stream)
                 .iterator();

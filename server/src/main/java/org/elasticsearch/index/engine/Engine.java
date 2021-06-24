@@ -46,9 +46,9 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -1346,7 +1346,7 @@ public abstract class Engine implements Closeable {
             return this.doc.routing();
         }
 
-        public List<Document> docs() {
+        public List<LuceneDocument> docs() {
             return this.doc.docs();
         }
 

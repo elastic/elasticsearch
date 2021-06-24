@@ -52,8 +52,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.Engine.Operation.Origin;
-import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -2989,7 +2989,7 @@ public class TranslogTests extends ESTestCase {
         seqID.primaryTerm.setLongValue(randomPrimaryTerm);
         Field idField = new Field("_id", Uid.encodeId("1"), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 1);
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         document.add(new TextField("value", "test", Field.Store.YES));
         document.add(idField);
         document.add(versionField);

@@ -13,8 +13,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.mapper.Document;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -50,7 +50,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void assertExistsQuery(MappedFieldType fieldType, Query query, Document fields) {
+    protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
         assertNoFieldNamesField(fields);
     }

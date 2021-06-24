@@ -28,7 +28,7 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
         BytesReference json = BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("name", "some name").endObject());
-        Document doc = mapperService.documentMapper().parse(
+        LuceneDocument doc = mapperService.documentMapper().parse(
             new SourceToParse("test", "1", json, XContentType.JSON)).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
@@ -79,7 +79,7 @@ public class JavaMultiFieldMergeTests extends MapperServiceTestCase {
         assertTrue(mapperService.fieldType("name").isSearchable());
         assertThat(mapperService.fieldType("name.indexed"), nullValue());
 
-        Document doc = mapperService.documentMapper().parse(source(b -> b.field("name", "some name"))).rootDoc();
+        LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("name", "some name"))).rootDoc();
         IndexableField f = doc.getField("name");
         assertThat(f, notNullValue());
         f = doc.getField("name.indexed");

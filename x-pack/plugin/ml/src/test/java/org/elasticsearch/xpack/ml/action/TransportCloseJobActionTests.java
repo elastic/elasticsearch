@@ -336,7 +336,7 @@ public class TransportCloseJobActionTests extends ESTestCase {
             listener.onResponse(datafeedIds);
 
             return null;
-        }).when(datafeedConfigProvider).findDatafeedsForJobIds(any(), any(ActionListener.class));
+        }).when(datafeedConfigProvider).findDatafeedIdsForJobIds(any(), any(ActionListener.class));
     }
 
     @SuppressWarnings("unchecked")

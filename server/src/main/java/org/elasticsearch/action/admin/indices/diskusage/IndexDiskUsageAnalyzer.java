@@ -15,6 +15,8 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
+import org.apache.lucene.codecs.blocktree.FieldReader;
+import org.apache.lucene.codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
@@ -31,6 +33,7 @@ import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -52,6 +55,7 @@ import org.elasticsearch.index.store.LuceneFilesExtensions;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Analyze the disk usage of each field in the index.
@@ -287,9 +291,34 @@ import java.util.Map;
         }
     }
 
+    private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
+        if (term != null && termsEnum.seekExact(term)) {
+            final TermState termState = termsEnum.termState();
+            if (termState instanceof Lucene84PostingsFormat.IntBlockTermState) {
+                final Lucene84PostingsFormat.IntBlockTermState blockTermState = (Lucene84PostingsFormat.IntBlockTermState) termState;
+                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            }
+        }
+        return null;
+    }
+
+    private static class BlockTermState {
+        final long docStartFP;
+        final long posStartFP;
+        final long payloadFP;
+
+        BlockTermState(long docStartFP, long posStartFP, long payloadFP) {
+            this.docStartFP = docStartFP;
+            this.posStartFP = posStartFP;
+            this.payloadFP = payloadFP;
+        }
+
+        long distance(BlockTermState other) {
+            return this.docStartFP - other.docStartFP + this.posStartFP - other.posStartFP + this.payloadFP - other.payloadFP;
+        }
+    }
+
     void analyzePostings(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
-        // TODO: FieldsReader has stats() which might contain the disk usage infos
-        // Also, can we track the byte reader per field extension to avoid visiting terms multiple times?
         FieldsProducer postingsReader = reader.getPostingsReader();
         if (postingsReader == null) {
             return;
@@ -310,29 +339,38 @@ import java.util.Map;
             // As we track the min/max positions of read bytes, we just visit the two ends of a partition containing
             // the data. We might some small parts of the data, but it's an good trade-off to speed up the process.
             TermsEnum termsEnum = terms.iterator();
-            while (termsEnum.next() != null) {
-                cancellationChecker.logEvent();
-                termsEnum.docFreq();
-                termsEnum.totalTermFreq();
+            if (terms instanceof FieldReader) {
+                final BlockTermState minState = Objects.requireNonNull(
+                    getBlockTermState(termsEnum, terms.getMin()), "can't retrieve the block term state of the min term");
+                final BlockTermState maxState = Objects.requireNonNull(
+                    getBlockTermState(termsEnum, terms.getMax()), "can't retrieve the block term state of the max term");
+                final long skippedBytes = maxState.distance(minState);
+                stats.addInvertedIndex(field.name, skippedBytes);
+                termsEnum.seekExact(terms.getMax());
                 postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                int docID;
-                if ((docID = postings.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                if (postings.advance(termsEnum.docFreq() - 1) != DocIdSetIterator.NO_MORE_DOCS) {
                     readProximity(terms, postings);
-                    for (long idx = 1; idx <= 8; idx++) {
-                        final int skipDocID = Math.toIntExact(idx * (reader.maxDoc() - 1) / 8);
-                        if (skipDocID >= docID) {
-                            cancellationChecker.logEvent();
-                            postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                            if (postings.advance(skipDocID) != DocIdSetIterator.NO_MORE_DOCS) {
-                                docID = postings.docID();
-                                readProximity(terms, postings);
-                            } else {
-                                postings = termsEnum.postings(postings, PostingsEnum.ALL);
-                                break;
-                            }
-                        }
+                }
+                final long bytesRead = directory.getBytesRead();
+                int visitedTerms = 0;
+                final long totalTerms = terms.size();
+                termsEnum = terms.iterator();
+                // Iterate until we really access the first terms, but iterate all if the number of terms is small
+                while (termsEnum.next() != null) {
+                    cancellationChecker.logEvent();
+                    ++visitedTerms;
+                    if (totalTerms > 1000 & visitedTerms % 50 == 0 && directory.getBytesRead() > bytesRead) {
+                        break;
                     }
-                    while ((docID = postings.advance(docID + 1)) != DocIdSetIterator.NO_MORE_DOCS) {
+                }
+            } else {
+                // slow mode: traverse every postings of all terms
+                while (termsEnum.next() != null) {
+                    cancellationChecker.logEvent();
+                    termsEnum.docFreq();
+                    termsEnum.totalTermFreq();
+                    postings = termsEnum.postings(postings, PostingsEnum.ALL);
+                    while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         readProximity(terms, postings);
                     }
                 }

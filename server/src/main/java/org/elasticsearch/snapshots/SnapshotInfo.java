@@ -76,13 +76,15 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
     private static final String FEATURE_STATES = "feature_states";
     private static final String INDEX_DETAILS = "index_details";
 
+    private static final String UNKNOWN_REPO_NAME = "_na_";
+
     private static final Comparator<SnapshotInfo> COMPARATOR = Comparator.comparing(SnapshotInfo::startTime)
         .thenComparing(SnapshotInfo::snapshotId);
 
     public static final class SnapshotInfoBuilder {
         private String snapshotName = null;
         private String snapshotUUID = null;
-        private String repository = "_unknown";
+        private String repository = UNKNOWN_REPO_NAME;
         private String state = null;
         private String reason = null;
         private List<String> indices = null;
@@ -460,7 +462,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContent,
         if (in.getVersion().onOrAfter(GetSnapshotsRequest.PAGINATED_GET_SNAPSHOTS_VERSION)) {
             snapshot = new Snapshot(in);
         } else {
-            snapshot = new Snapshot("_unknown", new SnapshotId(in));
+            snapshot = new Snapshot(UNKNOWN_REPO_NAME, new SnapshotId(in));
         }
         final List<String> indices = in.readStringList();
         final SnapshotState state = in.readBoolean() ? SnapshotState.fromValue(in.readByte()) : null;

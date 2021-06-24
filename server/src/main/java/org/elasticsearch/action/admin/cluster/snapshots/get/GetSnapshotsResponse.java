@@ -101,6 +101,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             out.writeMap(failedResponses, StreamOutput::writeString, StreamOutput::writeException);
         } else {
             if (failedResponses.isEmpty() == false) {
+                assert false : "transport action should have thrown directly for old version but saw " + failedResponses;
                 throw failedResponses.values().iterator().next();
             }
         }

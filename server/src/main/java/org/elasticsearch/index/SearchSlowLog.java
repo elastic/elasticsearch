@@ -141,28 +141,28 @@ public final class SearchSlowLog implements SearchOperationListener {
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
             Map<String, Object> messageFields = new HashMap<>();
-            messageFields.put("message", context.indexShard().shardId());
-            messageFields.put("took", TimeValue.timeValueNanos(tookInNanos));
-            messageFields.put("took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            messageFields.put("elasticsearch.slowlog.message", context.indexShard().shardId());
+            messageFields.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
+            messageFields.put("elasticsearch.slowlog.took_millis", TimeUnit.NANOSECONDS.toMillis(tookInNanos));
             if (context.queryResult().getTotalHits() != null) {
-                messageFields.put("total_hits", context.queryResult().getTotalHits());
+                messageFields.put("elasticsearch.slowlog.total_hits", context.queryResult().getTotalHits());
             } else {
-                messageFields.put("total_hits", "-1");
+                messageFields.put("elasticsearch.slowlog.total_hits", "-1");
             }
-            messageFields.put("stats", escapeJson(ESLogMessage.asJsonArray(
+            messageFields.put("elasticsearch.slowlog.stats", escapeJson(ESLogMessage.asJsonArray(
                 context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
-            messageFields.put("search_type", context.searchType());
-            messageFields.put("total_shards", context.numberOfShards());
+            messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
+            messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());
 
             if (context.request().source() != null) {
                 String source = escapeJson(context.request().source().toString(FORMAT_PARAMS));
 
-                messageFields.put("source", source);
+                messageFields.put("elasticsearch.slowlog.source", source);
             } else {
-                messageFields.put("source", "{}");
+                messageFields.put("elasticsearch.slowlog.source", "{}");
             }
 
-            messageFields.put("id", context.getTask().getHeader(Task.X_OPAQUE_ID));
+            messageFields.put("elasticsearch.slowlog.id", context.getTask().getHeader(Task.X_OPAQUE_ID));
             return messageFields;
         }
 

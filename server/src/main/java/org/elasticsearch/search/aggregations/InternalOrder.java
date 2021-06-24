@@ -79,6 +79,17 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
+        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
+            Comparator<Bucket> comparator = comparator();
+            /*
+             * Reduce the buckets if we haven't already so we can get at the
+             * sub-aggregations. With enough code we could avoid this but
+             * we haven't written that code....
+             */
+            return (lhs, rhs) -> comparator.compare(lhs.reduced(), rhs.reduced());
+        }
+
+        @Override
         byte id() {
             return ID;
         }
@@ -201,6 +212,22 @@ public abstract class InternalOrder extends BucketOrder {
         }
 
         @Override
+        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
+            List<Comparator<DelayedBucket<? extends Bucket>>> comparators = orderElements.stream()
+                .map(BucketOrder::delayedBucketComparator)
+                .collect(toList());
+            return (lhs, rhs) -> {
+                for (Comparator<DelayedBucket<? extends Bucket>> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
+            };
+        }
+
+        @Override
         public int hashCode() {
             return Objects.hash(orderElements);
         }
@@ -228,17 +255,30 @@ public abstract class InternalOrder extends BucketOrder {
         private final String key;
         private final SortOrder order;
         private final Comparator<Bucket> comparator;
+        private final Comparator<DelayedBucket<? extends Bucket>> delayedBucketCompator;
 
-        SimpleOrder(byte id, String key, SortOrder order, Comparator<Bucket> comparator) {
+        SimpleOrder(
+            byte id,
+            String key,
+            SortOrder order,
+            Comparator<Bucket> comparator,
+            Comparator<DelayedBucket<? extends Bucket>> delayedBucketCompator
+        ) {
             this.id = id;
             this.key = key;
             this.order = order;
             this.comparator = comparator;
+            this.delayedBucketCompator = delayedBucketCompator;
         }
 
         @Override
         public Comparator<Bucket> comparator() {
             return comparator;
+        }
+
+        @Override
+        Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator() {
+            return delayedBucketCompator;
         }
 
         @Override
@@ -285,28 +325,53 @@ public abstract class InternalOrder extends BucketOrder {
     /**
      * Order by the (higher) count of each bucket.
      */
-    static final InternalOrder COUNT_DESC = new SimpleOrder(COUNT_DESC_ID, "_count", SortOrder.DESC, comparingCounts().reversed());
+    static final InternalOrder COUNT_DESC = new SimpleOrder(
+        COUNT_DESC_ID,
+        "_count",
+        SortOrder.DESC,
+        comparingCounts().reversed(),
+        comparingDelayedCounts().reversed()
+    );
 
     /**
      * Order by the (lower) count of each bucket.
      */
-    static final InternalOrder COUNT_ASC = new SimpleOrder(COUNT_ASC_ID, "_count", SortOrder.ASC, comparingCounts());
+    static final InternalOrder COUNT_ASC = new SimpleOrder(
+        COUNT_ASC_ID,
+        "_count",
+        SortOrder.ASC,
+        comparingCounts(),
+        comparingDelayedCounts()
+    );
 
     /**
      * Order by the key of each bucket descending.
      */
-    static final InternalOrder KEY_DESC = new SimpleOrder(KEY_DESC_ID, "_key", SortOrder.DESC, comparingKeys().reversed());
+    static final InternalOrder KEY_DESC = new SimpleOrder(
+        KEY_DESC_ID,
+        "_key",
+        SortOrder.DESC,
+        comparingKeys().reversed(),
+        comparingDelayedKeys().reversed()
+    );
 
     /**
      * Order by the key of each bucket ascending.
      */
-    static final InternalOrder KEY_ASC = new SimpleOrder(KEY_ASC_ID, "_key", SortOrder.ASC, comparingKeys());
+    static final InternalOrder KEY_ASC = new SimpleOrder(KEY_ASC_ID, "_key", SortOrder.ASC, comparingKeys(), comparingDelayedKeys());
 
     /**
      * @return compare by {@link Bucket#getDocCount()}.
      */
     private static Comparator<Bucket> comparingCounts() {
         return Comparator.comparingLong(Bucket::getDocCount);
+    }
+
+    /**
+     * @return compare by {@link Bucket#getDocCount()} that will be in the bucket once it is reduced
+     */
+    private static Comparator<DelayedBucket<? extends Bucket>> comparingDelayedCounts() {
+        return Comparator.comparingLong(DelayedBucket::getDocCount);
     }
 
     /**
@@ -319,7 +384,14 @@ public abstract class InternalOrder extends BucketOrder {
                 return ((KeyComparable) b1).compareKey(b2);
             }
             throw new IllegalStateException("Unexpected order bucket class [" + b1.getClass() + "]");
-        };
+        };    }
+
+    /**
+     * @return compare by {@link Bucket#getKey()} that will be in the bucket once it is reduced
+     */
+    @SuppressWarnings("unchecked")
+    private static Comparator<DelayedBucket<? extends Bucket>> comparingDelayedKeys() {
+        return DelayedBucket::compareKey;
     }
 
     /**

@@ -250,7 +250,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         assertFalse(ft.isDimension());
 
         // dimension = false is allowed
-        assertDimension(false, t -> assertFalse(((NumberFieldMapper.NumberFieldType) t).isDimension()));
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
 
         // dimension = true is not allowed
         Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {

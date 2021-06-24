@@ -29,8 +29,8 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         NumberFieldMapper.NumberFieldType ft = (NumberFieldMapper.NumberFieldType) mapperService.fieldType("field");
         assertFalse(ft.isDimension());
 
-        assertDimension(true, t -> assertTrue(((NumberFieldMapper.NumberFieldType) t).isDimension()));
-        assertDimension(false, t -> assertFalse(((NumberFieldMapper.NumberFieldType) t).isDimension()));
+        assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
+        assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
     }
 
     @Override
@@ -38,7 +38,7 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
         super.registerParameters(checker);
 
         // dimension cannot be updated
-        registerDimensionParameter(checker);
+        registerDimensionChecks(checker);
     }
 
 }

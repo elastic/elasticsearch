@@ -178,7 +178,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
 
-        registerDimensionParameter(checker);
+        registerDimensionChecks(checker);
     }
 
     public void testDefaults() throws Exception {
@@ -307,8 +307,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) mapperService.fieldType("field");
         assertFalse(ft.isDimension());
 
-        assertDimension(true, t -> assertTrue(((KeywordFieldMapper.KeywordFieldType) t).isDimension()));
-        assertDimension(false, t -> assertFalse(((KeywordFieldMapper.KeywordFieldType) t).isDimension()));
+        assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
+        assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
     }
 
     public void testDimensionAndIgnoreAbove() {

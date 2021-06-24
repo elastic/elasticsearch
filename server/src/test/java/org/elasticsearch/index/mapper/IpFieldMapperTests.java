@@ -48,7 +48,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
             m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
 
-        registerDimensionParameter(checker);
+        registerDimensionChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -211,8 +211,8 @@ public class IpFieldMapperTests extends MapperTestCase {
         IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.fieldType("field");
         assertFalse(ft.isDimension());
 
-        assertDimension(true, t -> assertTrue(((IpFieldMapper.IpFieldType) t).isDimension()));
-        assertDimension(false, t -> assertFalse(((IpFieldMapper.IpFieldType) t).isDimension()));
+        assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
+        assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
     }
 
     @Override

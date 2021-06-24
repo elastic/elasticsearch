@@ -46,6 +46,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -171,14 +172,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         }
     }
 
-    protected void assertDimension(boolean isDimension, Consumer<MappedFieldType> checker) throws IOException {
+    protected <T> void assertDimension(boolean isDimension, Function<T, Boolean> checker) throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
             b.field("dimension", isDimension);
         }));
 
-        MappedFieldType fieldType = mapperService.fieldType("field");
-        checker.accept(fieldType);
+        @SuppressWarnings("unchecked") // Syntactic sugar in tests
+        T fieldType = (T) mapperService.fieldType("field");
+        assertThat(checker.apply(fieldType), equalTo(isDimension));
     }
 
     public final void testEmptyName() {
@@ -541,7 +543,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     /**
      * Test that dimension parameter is not updateable
      */
-    protected void registerDimensionParameter(ParameterChecker checker) throws IOException {
+    protected void registerDimensionChecks(ParameterChecker checker) throws IOException {
         // dimension cannot be updated
         checker.registerConflictCheck("dimension", b -> b.field("dimension", true));
         checker.registerConflictCheck("dimension", b -> b.field("dimension", false));

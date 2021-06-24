@@ -311,13 +311,13 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
     public void testRequireDocValuesOnLongs() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", LONG,
-            true, false, false, false, null, Collections.emptyMap(), null));
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnDoubles() {
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE));
         doTestRequireDocValues(new NumberFieldMapper.NumberFieldType("field", NumberType.DOUBLE,
-            true, false, false, false, null, Collections.emptyMap(), null));
+            true, false, false, false, null, Collections.emptyMap(), null, false));
     }
 
     public void testRequireDocValuesOnBools() {

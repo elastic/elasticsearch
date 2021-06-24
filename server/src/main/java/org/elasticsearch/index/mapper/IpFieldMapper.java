@@ -74,6 +74,8 @@ public class IpFieldMapper extends FieldMapper {
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
+        private final Parameter<Boolean> dimension
+            = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false);
 
         private final boolean ignoreMalformedByDefault;
         private final Version indexCreatedVersion;
@@ -92,6 +94,11 @@ public class IpFieldMapper extends FieldMapper {
 
         Builder nullValue(String nullValue) {
             this.nullValue.setValue(nullValue);
+            return this;
+        }
+
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
             return this;
         }
 
@@ -122,14 +129,14 @@ public class IpFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta);
+            return Arrays.asList(indexed, hasDocValues, stored, ignoreMalformed, nullValue, script, onScriptError, meta, dimension);
         }
 
         @Override
         public IpFieldMapper build(MapperBuilderContext context) {
             return new IpFieldMapper(name,
                 new IpFieldType(context.buildFullName(name), indexed.getValue(), stored.getValue(),
-                    hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue()),
+                    hasDocValues.getValue(), parseNullValue(), scriptValues(), meta.getValue(), dimension.getValue()),
                 multiFieldsBuilder.build(this, context), copyTo.build(), this);
         }
 
@@ -144,16 +151,18 @@ public class IpFieldMapper extends FieldMapper {
 
         private final InetAddress nullValue;
         private final FieldValues<InetAddress> scriptValues;
+        private final boolean isDimension;
 
         public IpFieldType(String name, boolean indexed, boolean stored, boolean hasDocValues,
-                           InetAddress nullValue, FieldValues<InetAddress> scriptValues, Map<String, String> meta) {
+                           InetAddress nullValue, FieldValues<InetAddress> scriptValues, Map<String, String> meta, boolean isDimension) {
             super(name, indexed, stored, hasDocValues, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, meta);
             this.nullValue = nullValue;
             this.scriptValues = scriptValues;
+            this.isDimension = isDimension;
         }
 
         public IpFieldType(String name) {
-            this(name, true, false, true, null, null, Collections.emptyMap());
+            this(name, true, false, true, null, null, Collections.emptyMap(), false);
         }
 
         @Override
@@ -362,12 +371,20 @@ public class IpFieldMapper extends FieldMapper {
             checkNoTimeZone(timeZone);
             return DocValueFormat.IP;
         }
+
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
     }
 
     private final boolean indexed;
     private final boolean hasDocValues;
     private final boolean stored;
     private final boolean ignoreMalformed;
+    private final boolean dimension;
 
     private final InetAddress nullValue;
     private final String nullValueAsString;
@@ -397,6 +414,7 @@ public class IpFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
+        this.dimension = builder.dimension.getValue();
     }
 
     boolean ignoreMalformed() {
@@ -461,6 +479,6 @@ public class IpFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).init(this);
+        return new Builder(simpleName(), scriptCompiler, ignoreMalformedByDefault, indexCreatedVersion).dimension(dimension).init(this);
     }
 }

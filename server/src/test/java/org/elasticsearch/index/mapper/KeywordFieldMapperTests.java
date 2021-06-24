@@ -171,17 +171,18 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("norms", b -> b.field("norms", true));
         checker.registerUpdateCheck(
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", true);
             },
             b -> {
-                b.field("type", "keyword");
+                minimalMapping(b);
                 b.field("norms", false);
             },
             m -> assertFalse(m.fieldType().getTextSearchInfo().hasNorms())
         );
 
         checker.registerUpdateCheck(b -> b.field("boost", 2.0), m -> assertEquals(m.fieldType().boost(), 2.0, 0));
+        registerDimensionChecks(checker);
     }
 
     public void testDefaults() throws Exception {
@@ -308,6 +309,25 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         IndexableField[] fieldNamesFields = doc.rootDoc().getFields(FieldNamesFieldMapper.NAME);
         assertEquals(0, fieldNamesFields.length);
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        KeywordFieldMapper.KeywordFieldType ft = (KeywordFieldMapper.KeywordFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, KeywordFieldMapper.KeywordFieldType::isDimension);
+        assertDimension(false, KeywordFieldMapper.KeywordFieldType::isDimension);
+    }
+
+    public void testDimensionAndIgnoreAbove() {
+        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
+            minimalMapping(b);
+            b.field("dimension", true).field("ignore_above", 2048);
+        })));
+        assertThat(e.getCause().getMessage(),
+            containsString("Field [ignore_above] cannot be set in conjunction with field [dimension]"));
     }
 
     public void testConfigureSimilarity() throws IOException {

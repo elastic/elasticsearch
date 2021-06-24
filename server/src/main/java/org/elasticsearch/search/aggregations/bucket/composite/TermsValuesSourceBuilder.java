@@ -164,6 +164,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
                             .valuesSource();
                         return new OrdinalValuesSource(
                             bigArrays,
+                            addRequestCircuitBreakerBytes,
                             compositeValuesSourceConfig.fieldType(),
                             vs::ordinalsValues,
                             compositeValuesSourceConfig.format(),

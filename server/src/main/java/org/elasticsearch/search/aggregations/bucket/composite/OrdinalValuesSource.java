@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
 
 import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
 
@@ -32,6 +33,7 @@ import static org.apache.lucene.index.SortedSetDocValues.NO_MORE_ORDS;
  * A {@link SingleDimensionValuesSource} for ordinals.
  */
 class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
+    private final LongConsumer breakerConsumer;
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
 
     // ordinals, which are remapped whenever we visit a new segment.
@@ -60,10 +62,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     // current lookup
     private SortedSetDocValues lookup;
 
-    OrdinalValuesSource(BigArrays bigArrays, MappedFieldType type,
+    OrdinalValuesSource(BigArrays bigArrays, LongConsumer breakerConsumer, MappedFieldType type,
                         CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc,
                         DocValueFormat format, boolean missingBucket, int size, int reverseMul) {
         super(bigArrays, format, type, missingBucket, size, reverseMul);
+        this.breakerConsumer = breakerConsumer;
         this.docValuesFunc = docValuesFunc;
         this.valuesOrd = bigArrays.newLongArray(Math.min(size, 100), false);
         this.values = bigArrays.newObjectArray(Math.min(size, 100));
@@ -78,7 +81,12 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         assert currentValueOrd != null && (currentValueOrd == Long.MIN_VALUE || currentValueOrd >= 0);
         valuesOrd.set(slot, currentValueOrd);
         assert currentValue == null;
-        values.set(slot, currentValue);
+        BytesRef previousValue = values.get(slot);
+        if (previousValue != null) {
+            // some bytes possibly freed
+            breakerConsumer.accept(- previousValue.bytes.length);
+        }
+        values.set(slot, null);
     }
 
     @Override
@@ -275,7 +283,9 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
                 // this wasn't set in last leafreader, so use previous value for lookup
                 assert values.get(i) != null;
             } else {
-                values.set(i, BytesRef.deepCopyOf(lookup.lookupOrd(ord)));
+                BytesRef bytesRef = BytesRef.deepCopyOf(lookup.lookupOrd(ord));
+                breakerConsumer.accept(bytesRef.bytes.length);
+                values.set(i, bytesRef);
                 assert values.get(i) != null;
             }
             if (values.get(i) == null) {
@@ -307,6 +317,6 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     public void close() {
-        Releasables.close(valuesOrd);
+        Releasables.close(valuesOrd, values);
     }
 }

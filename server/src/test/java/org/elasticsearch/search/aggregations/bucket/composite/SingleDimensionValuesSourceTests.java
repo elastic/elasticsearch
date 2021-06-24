@@ -87,10 +87,11 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
     }
 
-    public void testGlobalOrdinalsSorted() {
+    public void testOrdinalsSorted() {
         final MappedFieldType keyword = new KeywordFieldMapper.KeywordFieldType("keyword");
         OrdinalValuesSource source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword, context -> null,
             DocValueFormat.RAW,
             false,
@@ -107,6 +108,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -120,6 +122,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
 
         source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             keyword,
             context -> null,
             DocValueFormat.RAW,
@@ -133,6 +136,7 @@ public class SingleDimensionValuesSourceTests extends ESTestCase {
         final MappedFieldType ip = new IpFieldMapper.IpFieldType("ip");
         source = new OrdinalValuesSource(
             BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
             ip,
             context -> null,
             DocValueFormat.RAW,

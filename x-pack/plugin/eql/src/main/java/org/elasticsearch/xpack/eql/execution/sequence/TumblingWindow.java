@@ -39,7 +39,6 @@ import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_MATCHES;
 import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_TRIM;
-import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.WRAP_VALUES;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -58,7 +57,6 @@ import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLa
 public class TumblingWindow implements Executable {
 
     private static final int CACHE_MAX_SIZE = 64;
-    private static final short CB_BATCH_SIZE = 1024;
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -92,8 +90,6 @@ public class TumblingWindow implements Executable {
 
     private long startTime;
     private long totalRamBytesUsed = 0;
-    private long batchRamBytesUsed = 0;
-    private short iterations = 0;
 
     private static class WindowInfo {
         private final int baseStage;
@@ -108,11 +104,10 @@ public class TumblingWindow implements Executable {
     }
 
     enum CBLabel {
-        WRAP_VALUES("wrap_values"),
         MATCHER_MATCHES("matcher_matches"),
         MATCHER_TRIM("matcher_trim");
 
-        private String label;
+        private final String label;
 
         CBLabel(String label) {
             this.label = label;
@@ -687,15 +682,7 @@ public class TumblingWindow implements Executable {
                     SearchHit hit = delegate.next();
                     SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    KeyAndOrdinal ko = new KeyAndOrdinal(k, o);
-                    HitReference ht = new HitReference(cache(hit.getIndex()), hit.getId());
-                    batchRamBytesUsed = RamUsageEstimator.sizeOf(ko) + RamUsageEstimator.sizeOf(ht);
-                    if (iterations++ == CB_BATCH_SIZE || hasNext() == false) {
-                        addMemory(batchRamBytesUsed, WRAP_VALUES);
-                        batchRamBytesUsed = 0;
-                        iterations = 0;
-                    }
-                    return new Tuple<>(ko, ht);
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(hit.getIndex()), hit.getId()));
                 }
             };
         };

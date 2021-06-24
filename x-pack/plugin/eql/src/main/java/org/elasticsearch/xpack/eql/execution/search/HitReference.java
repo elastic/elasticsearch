@@ -39,7 +39,8 @@ public class HitReference implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(index) + RamUsageEstimator.sizeOf(id);
+        // index string is cached in TumblingWindow and there is no need of accounting for it
+        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(id);
     }
 
     @Override

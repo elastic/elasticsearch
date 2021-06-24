@@ -7,15 +7,11 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Objects;
 
-public class KeyAndOrdinal implements Accountable {
-
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KeyAndOrdinal.class);
+public class KeyAndOrdinal {
 
     final SequenceKey key;
     final Ordinal ordinal;
@@ -31,11 +27,6 @@ public class KeyAndOrdinal implements Accountable {
 
     public Ordinal ordinal() {
         return ordinal;
-    }
-
-    @Override
-    public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOf(key) + RamUsageEstimator.sizeOf(ordinal);
     }
 
     @Override

@@ -413,7 +413,7 @@ public class AzureBlobStore implements BlobStore {
 
             @Override
             protected void onAllPartsReady() {
-                if (written == 0L) {
+                if (flushedBytes == 0L) {
                     writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                 } else {
                     flushBuffer();
@@ -424,7 +424,8 @@ public class AzureBlobStore implements BlobStore {
 
             @Override
             protected void onFailure() {
-                // TODO: here and in multi-part upload, should we clean up uploaded blobs?
+                // Nothing to do here, already uploaded blocks will be GCed by Azure after a week.
+                // see https://docs.microsoft.com/en-us/rest/api/storageservices/put-block#remarks
             }
         }) {
             writer.accept(out);

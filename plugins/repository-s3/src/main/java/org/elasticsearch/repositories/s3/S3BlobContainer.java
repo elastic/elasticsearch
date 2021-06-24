@@ -151,7 +151,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                      if (buffer.size() == 0) {
                          return;
                      }
-                     if (written == 0L) {
+                     if (flushedBytes == 0L) {
                          assert lastPart == false : "use single part upload if there's only a single part";
                          uploadId.set(SocketAccess.doPrivileged(() ->
                                  clientReference.client().initiateMultipartUpload(initiateMultiPartUpload(blobName)).getUploadId()));
@@ -169,7 +169,7 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                  @Override
                  protected void onAllPartsReady() throws IOException {
-                     if (written == 0L) {
+                     if (flushedBytes == 0L) {
                          writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                      } else {
                          flushBuffer(true);

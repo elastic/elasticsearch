@@ -52,9 +52,9 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     protected boolean successful = false;
 
     /**
-     * Number of bytes written to storage writeBlso far.
+     * Number of bytes flushed to blob storage so far.
      */
-    protected long written = 0L;
+    protected long flushedBytes = 0L;
 
     protected ChunkedBlobOutputStream(BigArrays bigArrays, long maxBytesToBuffer) {
         this.bigArrays = bigArrays;
@@ -101,7 +101,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
      * @param partId part identifier to track for use when closing
      */
     protected final void finishPart(T partId) {
-        written += buffer.size();
+        flushedBytes += buffer.size();
         parts.add(partId);
         buffer.close();
         // only need a new buffer if we're not done yet

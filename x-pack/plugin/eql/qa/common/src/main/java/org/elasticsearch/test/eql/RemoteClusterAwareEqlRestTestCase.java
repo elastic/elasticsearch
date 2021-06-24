@@ -13,7 +13,9 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -24,13 +26,15 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 
+import static org.elasticsearch.common.Strings.hasText;
+
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     // client used for loading data on a remote cluster only.
     private static RestClient remoteClient;
 
     @BeforeClass
-    public static void initRemoteClusterClients() throws IOException {
+    public static void initRemoteClients() throws IOException {
         String crossClusterHost = System.getProperty("tests.rest.cluster.remote.host"); // gradle defined
         if (crossClusterHost != null) {
             int portSeparator = crossClusterHost.lastIndexOf(':');
@@ -39,14 +43,14 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
             }
             String host = crossClusterHost.substring(0, portSeparator);
             int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
-            HttpHost[] remoteHttpHosts = new HttpHost[]{new HttpHost(host, port)};
+            HttpHost[] remoteHttpHosts = new HttpHost[] { new HttpHost(host, port) };
 
-            remoteClient = clientBuilder(Settings.EMPTY, remoteHttpHosts);
+            remoteClient = clientBuilder(secureClientSettings(), remoteHttpHosts);
         }
     }
 
     @AfterClass
-    public static void closeRemoteClusterClients() throws IOException {
+    public static void closeRemoteClients() throws IOException {
         try {
             IOUtils.close(remoteClient);
         } finally {
@@ -108,5 +112,22 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
     protected static void deleteIndex(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
+    }
+
+    @Override
+    protected Settings restClientSettings() {
+        return secureClientSettings();
+    }
+
+    protected static Settings secureClientSettings() {
+        String user = System.getProperty("tests.rest.cluster.remote.user"); // gradle defined
+        String pass = System.getProperty("tests.rest.cluster.remote.password");
+        if (hasText(user) && hasText(pass)) {
+            String token = basicAuthHeaderValue(user, new SecureString(pass.toCharArray()));
+            return Settings.builder()
+                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .build();
+        }
+        return Settings.EMPTY;
     }
 }

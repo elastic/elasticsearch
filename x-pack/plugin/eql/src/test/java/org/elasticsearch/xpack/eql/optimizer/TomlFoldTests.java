@@ -11,9 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.eql.analysis.Analyzer;
+import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.function.EqlFunctionRegistry;
 import org.elasticsearch.xpack.eql.parser.EqlParser;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
+import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -29,7 +31,6 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_CFG;
-import static org.elasticsearch.xpack.eql.EqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 
 public class TomlFoldTests extends ESTestCase {
@@ -38,7 +39,7 @@ public class TomlFoldTests extends ESTestCase {
 
     private static final EqlParser PARSER = new EqlParser();
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, TEST_VERIFIER);
+    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, new Verifier(new Metrics()));
 
     private final int num;
     private final EqlFoldSpec spec;

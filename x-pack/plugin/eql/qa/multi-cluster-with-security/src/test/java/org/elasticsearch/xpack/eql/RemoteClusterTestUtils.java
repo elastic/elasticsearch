@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.eql;
 
 public class RemoteClusterTestUtils {
-    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
+    public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster"; // gradle defined
 
     public static String remoteClusterIndex(String indexName) {
         return REMOTE_CLUSTER_NAME + ":" + indexName;

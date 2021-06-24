@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -67,19 +68,17 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 public class Verifier {
 
     private final Metrics metrics;
-    private final Function<String, Collection<String>> versionIncompatibleClusters;
 
-    public Verifier(Metrics metrics, Function<String, Collection<String>> versionIncompatibleClusters) {
+    public Verifier(Metrics metrics) {
         this.metrics = metrics;
-        this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
 
     public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan);
+        Collection<Failure> failures = verify(plan, x -> Collections.emptySet());
         return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
-    Collection<Failure> verify(LogicalPlan plan) {
+    Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {
         Set<Failure> failures = new LinkedHashSet<>();
 
         // start bottom-up
@@ -162,7 +161,7 @@ public class Verifier {
 
                 checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
-                checkRemoteClusterOnSameVersion(p, localFailures);
+                checkRemoteClusterOnSameVersion(p, versionIncompatibleClusters, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out
                 if (failures.isEmpty()) {
@@ -285,7 +284,8 @@ public class Verifier {
         }
     }
 
-    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Collection<Failure> localFailures) {
+    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters,
+                                                 Collection<Failure> localFailures) {
         if (plan instanceof EsRelation) {
             EsRelation esRelation = (EsRelation) plan;
             Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());

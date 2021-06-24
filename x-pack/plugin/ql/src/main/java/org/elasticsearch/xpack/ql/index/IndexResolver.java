@@ -168,22 +168,14 @@ public class IndexResolver {
     private final String clusterName;
     private final DataTypeRegistry typeRegistry;
 
-    private final RemoteClusterResolver remoteClusters;
-
-    public IndexResolver(Client client, String clusterName, Settings settings, ClusterSettings clusterSettings,
-                         DataTypeRegistry typeRegistry) {
+    public IndexResolver(Client client, String clusterName, DataTypeRegistry typeRegistry) {
         this.client = client;
         this.clusterName = clusterName;
         this.typeRegistry = typeRegistry;
-        this.remoteClusters = new RemoteClusterResolver(settings, clusterSettings);
     }
 
     public String clusterName() {
         return clusterName;
-    }
-
-    public Set<String> clusters() {
-        return new TreeSet<>(remoteClusters.clusters);
     }
 
     /**

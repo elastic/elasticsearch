@@ -31,7 +31,6 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final TaskId taskId;
     private final EqlSearchTask task;
     private final int fetchSize;
-    private final Function<String, Collection<String>> versionIncompatibleClusters;
 
     @Nullable
     private final QueryBuilder filter;
@@ -44,7 +43,7 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
                             Map<String, Object> runtimeMappings, List<FieldAndFormat> fetchFields, TimeValue requestTimeout,
                             IndicesOptions indicesOptions, int fetchSize, String clientId, TaskId taskId, EqlSearchTask task,
                             Function<String, Collection<String>> versionIncompatibleClusters) {
-        super(zi, username, clusterName);
+        super(zi, username, clusterName, versionIncompatibleClusters);
 
         this.indices = indices;
         this.filter = filter;
@@ -56,7 +55,6 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.taskId = taskId;
         this.task = task;
         this.fetchSize = fetchSize;
-        this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
 
     public String[] indices() {
@@ -101,9 +99,5 @@ public class EqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public TaskId getTaskId() {
         return taskId;
-    }
-
-    public Function<String, Collection<String>> versionIncompatibleClusters() {
-        return versionIncompatibleClusters;
     }
 }

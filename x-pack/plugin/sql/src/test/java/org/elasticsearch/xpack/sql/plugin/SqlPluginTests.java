@@ -28,9 +28,7 @@ public class SqlPluginTests extends ESTestCase {
     public void testSqlDisabledIsNoOp() {
         Settings settings = Settings.builder().put("xpack.sql.enabled", false).build();
         SqlPlugin plugin = new SqlPlugin(settings);
-        assertThat(plugin.createComponents(mock(Client.class), "cluster", Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            new NamedWriteableRegistry(Cursors.getNamedWriteables())),
+        assertThat(plugin.createComponents(mock(Client.class), "cluster", new NamedWriteableRegistry(Cursors.getNamedWriteables())),
             hasSize(3));
         assertThat(plugin.getActions(), hasSize(8));
         assertThat(

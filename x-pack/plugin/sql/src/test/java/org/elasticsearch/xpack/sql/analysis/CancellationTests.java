@@ -18,12 +18,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.ql.index.IndexResolver;
+import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequestBuilder;
@@ -31,8 +31,6 @@ import org.elasticsearch.xpack.sql.action.SqlQueryResponse;
 import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.execution.PlanExecutor;
 import org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
-import org.elasticsearch.xpack.ql.type.DefaultDataTypeRegistry;
 import org.mockito.ArgumentCaptor;
 import org.mockito.stubbing.Answer;
 
@@ -235,7 +233,6 @@ public class CancellationTests extends ESTestCase {
     }
 
     private static IndexResolver indexResolver(Client client) {
-        return new IndexResolver(client, randomAlphaOfLength(10), Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), DefaultDataTypeRegistry.INSTANCE);
+        return new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
     }
 }

@@ -16,13 +16,11 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.eql.action.EqlSearchAction;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
-import org.elasticsearch.xpack.eql.analysis.Verifier;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
-import org.elasticsearch.xpack.eql.stats.Metrics;
 import org.elasticsearch.xpack.ql.expression.Expression;
 
 import java.util.Collections;
@@ -45,9 +43,7 @@ public final class EqlTestUtils {
 
     public static final EqlConfiguration TEST_CFG = new EqlConfiguration(new String[] {"none"},
             org.elasticsearch.xpack.ql.util.DateUtils.UTC, "nobody", "cluster", null, emptyMap(), null,
-            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, null);
-
-    public static final Verifier TEST_VERIFIER = testVerifier(new Metrics());
+            TimeValue.timeValueSeconds(30), null, 123, "", new TaskId("test", 123), null, x -> Collections.emptySet());
 
     public static EqlConfiguration randomConfiguration() {
         return new EqlConfiguration(new String[]{randomAlphaOfLength(16)},
@@ -63,7 +59,7 @@ public final class EqlTestUtils {
             randomAlphaOfLength(16),
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomTask(),
-            null);
+            x -> Collections.emptySet());
     }
 
     public static EqlSearchTask randomTask() {
@@ -101,9 +97,5 @@ public final class EqlTestUtils {
             sortValueFormats[i] = DocValueFormat.RAW;
         }
         return new SearchSortValues(values, sortValueFormats);
-    }
-
-    public static Verifier testVerifier(Metrics metrics) {
-        return new Verifier(metrics, x -> Collections.emptySet());
     }
 }

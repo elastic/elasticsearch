@@ -28,17 +28,6 @@ public class RemoteClusterRegistry {
         this.indicesOptions = indicesOptions;
     }
 
-    private Map<String, OriginalIndices> indicesPerRemoteCluster(String indexPattern) {
-        Map<String, OriginalIndices> indicesMap = remoteClusterService.groupIndices(indicesOptions,
-            Strings.splitStringByCommaToArray(indexPattern));
-        indicesMap.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
-        return indicesMap;
-    }
-
-    private Version remoteVersion(String clusterAlias) {
-        return remoteClusterService.getConnection(clusterAlias).getVersion();
-    }
-
     public Set<String> versionIncompatibleClusters(String indexPattern) {
         Set<String> incompatibleClusters = new TreeSet<>();
         for (String clusterAlias: indicesPerRemoteCluster(indexPattern).keySet()) {
@@ -48,5 +37,16 @@ public class RemoteClusterRegistry {
             }
         }
         return incompatibleClusters;
+    }
+
+    private Map<String, OriginalIndices> indicesPerRemoteCluster(String indexPattern) {
+        Map<String, OriginalIndices> indicesMap = remoteClusterService.groupIndices(indicesOptions,
+            Strings.splitStringByCommaToArray(indexPattern));
+        indicesMap.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        return indicesMap;
+    }
+
+    private Version remoteVersion(String clusterAlias) {
+        return remoteClusterService.getConnection(clusterAlias).getVersion();
     }
 }

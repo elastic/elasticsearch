@@ -36,6 +36,7 @@ public class PlanExecutor {
 
     private final PreAnalyzer preAnalyzer;
     private final PostAnalyzer postAnalyzer;
+    private final Verifier verifier;
     private final Optimizer optimizer;
     private final Planner planner;
 
@@ -53,13 +54,13 @@ public class PlanExecutor {
 
         this.preAnalyzer = new PreAnalyzer();
         this.postAnalyzer = new PostAnalyzer();
+        this.verifier = new Verifier(metrics);
         this.optimizer = new Optimizer();
         this.planner = new Planner();
     }
 
     private EqlSession newSession(EqlConfiguration cfg) {
-        return new EqlSession(client, cfg, indexResolver, preAnalyzer, postAnalyzer, functionRegistry,
-            new Verifier(metrics, cfg.versionIncompatibleClusters()), optimizer, planner, this);
+        return new EqlSession(client, cfg, indexResolver, preAnalyzer, postAnalyzer, functionRegistry, verifier, optimizer, planner, this);
     }
 
     public void eql(EqlConfiguration cfg, String eql, ParserParams parserParams, ActionListener<Results> listener) {

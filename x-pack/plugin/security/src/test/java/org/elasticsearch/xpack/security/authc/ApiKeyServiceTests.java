@@ -716,6 +716,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                 "evict", ApiKeyService.class.getName(), Level.TRACE,
                 "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
             ));
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "no-thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
@@ -766,6 +770,36 @@ public class ApiKeyServiceTests extends ESTestCase {
             // Cache a new entry
             apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
             assertEquals(1, apiKeyAuthCache.count());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws IllegalAccessException {
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String apiKeyId = randomAlphaOfLength(22);
+        apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            // Prepare the warning logging to trigger
+            service.getEvictionCounter().add(4500);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();

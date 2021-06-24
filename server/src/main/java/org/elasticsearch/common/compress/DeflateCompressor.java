@@ -34,7 +34,7 @@ public class DeflateCompressor implements Compressor {
     // It needs to be different from other compressors and to not be specific
     // enough so that no stream starting with these bytes could be detected as
     // a XContent
-    private static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
+    public static final byte[] HEADER = new byte[]{'D', 'F', 'L', '\0'};
     // 3 is a good trade-off between speed and compression ratio
     private static final int LEVEL = 3;
     // We use buffering on the input and output of in/def-laters in order to

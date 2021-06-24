@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.transport;
 
+import net.jpountz.lz4.LZ4FrameOutputStream;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -87,7 +89,12 @@ abstract class OutboundMessage extends NetworkMessage {
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
     // resources and write EOS marker bytes but must not yet release the bytes themselves
     private OutputStreamStreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
-        return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+        if (true) {
+            return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+        } else {
+            return new OutputStreamStreamOutput(new LZ4FrameOutputStream(Streams.noCloseStream(bytesStream),
+                LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB));
+        }
     }
 
     protected void writeVariableHeader(StreamOutput stream) throws IOException {

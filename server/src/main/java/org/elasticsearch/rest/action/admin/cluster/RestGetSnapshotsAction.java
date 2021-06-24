@@ -9,24 +9,17 @@
 package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
@@ -80,20 +73,6 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.order(order);
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin().cluster()
-                .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel) {
-                    @Override
-                    public RestResponse buildResponse(GetSnapshotsResponse response, XContentBuilder builder) throws Exception {
-                        final ToXContent.Params params;
-                        if (getSnapshotsRequest.isSingleRepositoryRequest()) {
-                            final Map<String, String> updatedParams = new HashMap<>(request.params());
-                            updatedParams.put("include_repository", "false");
-                            params = new ToXContent.MapParams(updatedParams);
-                        } else {
-                            params = request;
-                        }
-                        response.toXContent(builder, params);
-                        return new BytesRestResponse(getStatus(response), builder);
-                    }
-                });
+                .getSnapshots(getSnapshotsRequest, new RestToXContentListener<>(channel));
     }
 }

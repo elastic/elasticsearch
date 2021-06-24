@@ -10,12 +10,15 @@ package org.elasticsearch.gradle.internal.release;
 
 import groovy.text.SimpleTemplateEngine;
 
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +31,14 @@ import java.util.stream.Collectors;
  */
 public class BreakingChangesGenerator {
 
-    public static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+    static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+        try (FileWriter output = new FileWriter(outputFile)) {
+            generateFile(Files.readString(templateFile.toPath()), output, entries);
+        }
+    }
+
+    @VisibleForTesting
+    private static void generateFile(String template, FileWriter outputWriter, List<ChangelogEntry> entries) throws IOException {
         final Version version = VersionProperties.getElasticsearchVersion();
 
         final Map<Boolean, Map<String, List<ChangelogEntry.Breaking>>> breakingChangesByNotabilityByArea = entries.stream()
@@ -57,7 +67,7 @@ public class BreakingChangesGenerator {
 
         try {
             final SimpleTemplateEngine engine = new SimpleTemplateEngine();
-            engine.createTemplate(templateFile).make(bindings).writeTo(new FileWriter(outputFile));
+            engine.createTemplate(template).make(bindings).writeTo(outputWriter);
         } catch (ClassNotFoundException e) {
             throw new RuntimeException(e);
         }

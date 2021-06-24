@@ -8,8 +8,10 @@
 
 package org.elasticsearch.gradle.internal.release;
 
-import com.google.common.annotations.VisibleForTesting;
 import groovy.text.SimpleTemplateEngine;
+
+import com.google.common.annotations.VisibleForTesting;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 
@@ -30,15 +32,16 @@ import java.util.stream.Collectors;
  */
 public class ReleaseNotesIndexUpdater {
 
-    public static void update(File indexTemplate, File indexFile) throws IOException {
+    static void update(File indexTemplate, File indexFile) throws IOException {
         final List<String> existingIndexLines = Files.readAllLines(indexFile.toPath());
-        FileWriter indexFileWriter = new FileWriter(indexFile);
-        generateFile(
-            VersionProperties.getElasticsearchVersion(),
-            existingIndexLines,
-            Files.readString(indexTemplate.toPath()),
-            indexFileWriter
-        );
+        try (FileWriter indexFileWriter = new FileWriter(indexFile)) {
+            generateFile(
+                VersionProperties.getElasticsearchVersion(),
+                existingIndexLines,
+                Files.readString(indexTemplate.toPath()),
+                indexFileWriter
+            );
+        }
     }
 
     @VisibleForTesting

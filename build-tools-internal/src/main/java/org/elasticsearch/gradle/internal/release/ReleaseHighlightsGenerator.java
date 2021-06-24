@@ -30,13 +30,10 @@ import java.util.stream.Collectors;
  * Generates the release highlights notes, for changelog files that contain the <code>highlight</code> field.
  */
 public class ReleaseHighlightsGenerator {
-    public static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
-        generateFile(
-            VersionProperties.getElasticsearchVersion(),
-            Files.readString(templateFile.toPath()),
-            entries,
-            new FileWriter(outputFile)
-        );
+    static void update(File templateFile, File outputFile, List<ChangelogEntry> entries) throws IOException {
+        try (FileWriter output = new FileWriter(outputFile)) {
+            generateFile(VersionProperties.getElasticsearchVersion(), Files.readString(templateFile.toPath()), entries, output);
+        }
     }
 
     @VisibleForTesting

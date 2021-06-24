@@ -59,7 +59,7 @@ ${breaking.impact.trim()}
         }
 
         if (isNotable) {
-            out.write("// end::notable-breaking-changes[]\n");
+            print "// end::notable-breaking-changes[]\n"
         }
     }
 }

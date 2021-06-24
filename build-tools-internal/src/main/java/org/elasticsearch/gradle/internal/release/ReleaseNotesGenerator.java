@@ -48,12 +48,12 @@ public class ReleaseNotesGenerator {
         TYPE_LABELS.put("upgrade", "Upgrades");
     }
 
-    public static void update(File templateFile, File outputFile, List<ChangelogEntry> changelogs) throws IOException {
-        final FileWriter fileWriter = new FileWriter(outputFile);
-
+    static void update(File templateFile, File outputFile, List<ChangelogEntry> changelogs) throws IOException {
         final String templateString = Files.readString(templateFile.toPath());
 
-        generateFile(VersionProperties.getElasticsearchVersion(), templateString, changelogs, fileWriter);
+        try (FileWriter output = new FileWriter(outputFile)) {
+            generateFile(VersionProperties.getElasticsearchVersion(), templateString, changelogs, output);
+        }
     }
 
     @VisibleForTesting

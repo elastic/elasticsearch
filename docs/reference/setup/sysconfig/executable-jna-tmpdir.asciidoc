@@ -23,3 +23,7 @@ of Elasticsearch that rely on execution of native code via JNA will fail with
 messages indicating that it is `because JNA is not available`. If you are seeing
 such error messages, you must remount the temporary directory used for JNA to
 not be mounted with `noexec`.
+
+If Elasticsearch still fails to startup after setting the above temporary
+directories, make sure that the user account that Elasticsearch is running under
+has a home directory.

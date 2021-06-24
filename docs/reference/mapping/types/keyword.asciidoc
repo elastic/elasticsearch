@@ -56,12 +56,6 @@ The following parameters are accepted by `keyword` fields:
 
 [horizontal]
 
-`dimension`::
-
-    For internal use only. Marks the field as a time series dimension in {kib}.
-    Accepts `true` or `false` (default). If `true`, you cannot specify
-    `ignore_above` for the field.
-
 <<doc-values,`doc_values`>>::
 
     Should the field be stored on disk in a column-stride fashion, so that it

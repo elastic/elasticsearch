@@ -30,8 +30,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
-                false)),
+                List.of(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", "details", Map.of("key", "value"))), false)),
             components,
             future
             );
@@ -39,6 +38,8 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         assertThat(issueMap.size(), equalTo(2));
         assertThat(issueMap.get("foo"), is(empty()));
         assertThat(issueMap.get("bar").get(0).getMessage(), equalTo("bar msg"));
+        assertThat(issueMap.get("bar").get(0).getDetails(), equalTo("details"));
+        assertThat(issueMap.get("bar").get(0).getMeta(), equalTo(Map.of("key", "value")));
     }
 
     public void testPluginSettingIssuesWithFailures() {
@@ -47,7 +48,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
             new NamedChecker("bar",
-                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null)),
+                Collections.singletonList(new DeprecationIssue(DeprecationIssue.Level.WARNING, "bar msg", "", null, null)),
                 true)),
             components,
             future

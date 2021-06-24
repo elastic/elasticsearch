@@ -46,7 +46,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
         this(name, LongFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, params) -> builder);
     }
 
-    LongScriptFieldType(
+    public LongScriptFieldType(
         String name,
         LongFieldScript.Factory scriptFactory,
         Script script,

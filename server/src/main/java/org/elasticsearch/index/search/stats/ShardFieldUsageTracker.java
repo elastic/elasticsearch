@@ -50,7 +50,7 @@ public class ShardFieldUsageTracker {
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
                 PerFieldUsageStats pf = new PerFieldUsageStats();
                 pf.terms = ifs.terms.longValue();
-                pf.freqs = ifs.freqs.longValue();
+                pf.termFrequencies = ifs.termFrequencies.longValue();
                 pf.positions = ifs.positions.longValue();
                 pf.offsets = ifs.offsets.longValue();
                 pf.docValues = ifs.docValues.longValue();
@@ -67,7 +67,7 @@ public class ShardFieldUsageTracker {
 
     static class InternalFieldStats {
         final LongAdder terms = new LongAdder();
-        final LongAdder freqs = new LongAdder();
+        final LongAdder termFrequencies = new LongAdder();
         final LongAdder positions = new LongAdder();
         final LongAdder offsets = new LongAdder();
         final LongAdder docValues = new LongAdder();
@@ -80,7 +80,7 @@ public class ShardFieldUsageTracker {
 
     static class PerField {
         boolean terms;
-        boolean freqs;
+        boolean termFrequencies;
         boolean positions;
         boolean offsets;
         boolean docValues;
@@ -103,8 +103,8 @@ public class ShardFieldUsageTracker {
                 if (pf.terms) {
                     fieldStats.terms.increment();
                 }
-                if (pf.freqs) {
-                    fieldStats.freqs.increment();
+                if (pf.termFrequencies) {
+                    fieldStats.termFrequencies.increment();
                 }
                 if (pf.positions) {
                     fieldStats.positions.increment();
@@ -144,8 +144,8 @@ public class ShardFieldUsageTracker {
         }
 
         @Override
-        public void onFrequenciesUsed(String field) {
-            getOrAdd(field).freqs = true;
+        public void onTermFrequenciesUsed(String field) {
+            getOrAdd(field).termFrequencies = true;
         }
 
         @Override

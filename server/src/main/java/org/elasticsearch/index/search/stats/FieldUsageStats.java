@@ -26,7 +26,7 @@ import java.util.stream.Collectors;
 public class FieldUsageStats implements ToXContentFragment, Writeable {
     public static final String TOTAL = "total";
     public static final String TERMS = "terms";
-    public static final String FREQS = "frequencies";
+    public static final String TERM_FREQUENCIES = "term_frequencies";
     public static final String POSITIONS = "positions";
     public static final String OFFSETS = "offsets";
     public static final String DOC_VALUES = "doc_values";
@@ -118,7 +118,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
 
         public long terms;
-        public long freqs;
+        public long termFrequencies;
         public long positions;
         public long offsets;
         public long docValues;
@@ -134,7 +134,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         private void add(PerFieldUsageStats other) {
             terms += other.terms;
-            freqs += other.freqs;
+            termFrequencies += other.termFrequencies;
             positions += other.positions;
             offsets += other.offsets;
             docValues += other.docValues;
@@ -147,7 +147,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
         public PerFieldUsageStats(StreamInput in) throws IOException {
             terms = in.readVLong();
-            freqs = in.readVLong();
+            termFrequencies = in.readVLong();
             positions = in.readVLong();
             offsets = in.readVLong();
             docValues = in.readVLong();
@@ -161,7 +161,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(terms);
-            out.writeVLong(freqs);
+            out.writeVLong(termFrequencies);
             out.writeVLong(positions);
             out.writeVLong(offsets);
             out.writeVLong(docValues);
@@ -182,7 +182,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             builder.field(POINTS, points);
             builder.field(NORMS, norms);
             builder.field(TERM_VECTORS, termVectors);
-            builder.field(FREQS, freqs);
+            builder.field(TERM_FREQUENCIES, termFrequencies);
             builder.field(POSITIONS, positions);
             builder.field(OFFSETS, offsets);
             builder.field(PAYLOADS, payloads);
@@ -194,7 +194,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             if (terms > 0L) {
                 set.add(UsageContext.TERMS);
             }
-            if (freqs > 0L) {
+            if (termFrequencies > 0L) {
                 set.add(UsageContext.FREQS);
             }
             if (positions > 0L) {
@@ -228,8 +228,8 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
             return terms;
         }
 
-        public long getFreqs() {
-            return freqs;
+        public long getTermFrequencies() {
+            return termFrequencies;
         }
 
         public long getPositions() {
@@ -269,7 +269,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
         }
 
         public long getTotal() {
-            return terms + freqs + positions + offsets + docValues + storedFields + norms + payloads + termVectors + points;
+            return terms + termFrequencies + positions + offsets + docValues + storedFields + norms + payloads + termVectors + points;
         }
 
         @Override

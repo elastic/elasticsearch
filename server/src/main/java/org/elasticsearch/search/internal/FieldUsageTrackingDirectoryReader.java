@@ -62,7 +62,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
     public interface FieldUsageNotifier {
         void onTermsUsed(String field);
-        void onFrequenciesUsed(String field);
+        void onTermFrequenciesUsed(String field);
         void onPositionsUsed(String field);
         void onOffsetsUsed(String field);
         void onDocValuesUsed(String field);
@@ -215,7 +215,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long getSumTotalTermFreq() throws IOException {
                 long totalTermFreq = super.getSumTotalTermFreq();
-                notifier.onFrequenciesUsed(field);
+                notifier.onTermFrequenciesUsed(field);
                 return totalTermFreq;
             }
 
@@ -237,7 +237,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
             @Override
             public long totalTermFreq() throws IOException {
                 long totalTermFreq = super.totalTermFreq();
-                notifier.onFrequenciesUsed(field);
+                notifier.onTermFrequenciesUsed(field);
                 return totalTermFreq;
             }
 
@@ -261,7 +261,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
             private void checkPostingsFlags(int flags) {
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.FREQS)) {
-                    notifier.onFrequenciesUsed(field);
+                    notifier.onTermFrequenciesUsed(field);
                 }
                 if (PostingsEnum.featureRequested(flags, PostingsEnum.POSITIONS)) {
                     notifier.onPositionsUsed(field);

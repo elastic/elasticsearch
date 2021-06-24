@@ -109,7 +109,7 @@ The API returns the following response:
             "points" : 0,
             "norms" : 1,
             "term_vectors" : 0,
-            "frequencies" : 1,
+            "term_frequencies" : 1,
             "positions" : 0,
             "offsets" : 0,
             "payloads" : 0
@@ -124,7 +124,7 @@ The API returns the following response:
                 "points" : 0,
                 "norms" : 0,
                 "term_vectors" : 0,
-                "frequencies" : 0,
+                "term_frequencies" : 0,
                 "positions" : 0,
                 "offsets" : 0,
                 "payloads" : 0

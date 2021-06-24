@@ -201,7 +201,7 @@ public class CertParsingUtils {
         if (keyConfig == null) {
             return null;
         } else {
-            return keyConfig.createKeyManager(environment);
+            return keyConfig.createKeyManager(environment, false);
         }
     }
 

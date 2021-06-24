@@ -33,7 +33,7 @@ public abstract class KeyConfig extends TrustConfig {
 
     static final KeyConfig NONE = new KeyConfig() {
         @Override
-        X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
+        X509ExtendedKeyManager createKeyManager(@Nullable Environment environment, boolean ssl) {
             try {
                 KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(null, null);
@@ -81,7 +81,7 @@ public abstract class KeyConfig extends TrustConfig {
         }
     };
 
-    abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment);
+    abstract X509ExtendedKeyManager createKeyManager(@Nullable Environment environment, boolean ssl);
 
     /**
      * generate a new exception caused by a missing file, that is required for this key config

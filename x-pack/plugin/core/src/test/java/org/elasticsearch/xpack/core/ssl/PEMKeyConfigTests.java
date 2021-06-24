@@ -50,7 +50,7 @@ public class PEMKeyConfigTests extends ESTestCase {
         final Environment env = newEnvironment();
         PEMKeyConfig config = new PEMKeyConfig(getPath(keyName), keyPassword, getPath(certName));
         assertThat(config.certificates(env), Matchers.iterableWithSize(1));
-        X509ExtendedKeyManager keyManager = config.createKeyManager(env);
+        X509ExtendedKeyManager keyManager = config.createKeyManager(env, false);
         assertThat(keyManager, notNullValue());
         assertThat(keyManager.getPrivateKey("key"), notNullValue());
     }

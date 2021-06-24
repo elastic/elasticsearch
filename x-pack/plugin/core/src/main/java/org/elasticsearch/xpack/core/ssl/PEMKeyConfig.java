@@ -61,7 +61,7 @@ class PEMKeyConfig extends KeyConfig {
     }
 
     @Override
-    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment) {
+    X509ExtendedKeyManager createKeyManager(@Nullable Environment environment, boolean ssl) {
         try {
             PrivateKey privateKey = readPrivateKey(keyPath, keyPassword, environment);
             if (privateKey == null) {

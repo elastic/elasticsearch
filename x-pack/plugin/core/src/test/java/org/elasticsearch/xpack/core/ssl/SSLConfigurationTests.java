@@ -258,7 +258,7 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager keyManager = keyConfig.createKeyManager(env);
+        KeyManager keyManager = keyConfig.createKeyManager(env, false);
         assertNotNull(keyManager);
         assertThat(config.trustConfig(), instanceOf(CombiningTrustConfig.class));
         assertCombiningTrustConfigContainsCorrectIssuers(config);
@@ -277,7 +277,7 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager keyManager = keyConfig.createKeyManager(env);
+        KeyManager keyManager = keyConfig.createKeyManager(env, false);
         assertNotNull(keyManager);
         assertThat(config.trustConfig(), instanceOf(CombiningTrustConfig.class));
         assertCombiningTrustConfigContainsCorrectIssuers(config);
@@ -300,7 +300,7 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager keyManager = keyConfig.createKeyManager(env);
+        KeyManager keyManager = keyConfig.createKeyManager(env, false);
         assertNotNull(keyManager);
         assertThat(config.trustConfig(), not(sameInstance(keyConfig)));
         assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));
@@ -322,7 +322,7 @@ public class SSLConfigurationTests extends ESTestCase {
         SSLConfiguration config = new SSLConfiguration(settings);
         assertThat(config.keyConfig(), instanceOf(PEMKeyConfig.class));
         PEMKeyConfig keyConfig = (PEMKeyConfig) config.keyConfig();
-        KeyManager keyManager = keyConfig.createKeyManager(env);
+        KeyManager keyManager = keyConfig.createKeyManager(env, false);
         assertNotNull(keyManager);
         assertThat(config.trustConfig(), not(sameInstance(keyConfig)));
         assertThat(config.trustConfig(), instanceOf(PEMTrustConfig.class));

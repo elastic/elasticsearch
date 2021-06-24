@@ -121,9 +121,9 @@ The following parameters are accepted by numeric types:
 
 `dimension`::
 
-    Marks the field as a time series dimension. Accepts `true` or `false`
-    (default). Only `byte`, `short`, `integer`, and `long` numeric fields
-    support this parameter.
+    For internal use only. Marks the field as a time series dimension in {kib}.
+    Accepts `true` or `false` (default). Only `byte`, `short`, `integer`, and
+    `long` numeric fields support this parameter.
 
 <<doc-values,`doc_values`>>::
 

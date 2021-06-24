@@ -14,12 +14,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.search.DocValueFormat;
@@ -77,7 +76,12 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compare(int from, int to) {
         assert lookups.get(from) == lookups.get(to);
-        return compareInternal(values.get(from), values.get(to));
+        long ordFrom = values.get(from);
+        long ordTo = values.get(to);
+        if (ordFrom < 0 && ordTo < 0 && ordFrom != Long.MIN_VALUE && ordTo != Long.MIN_VALUE) {
+            return bytesRefValues.get(from).compareTo(bytesRefValues.get(to)) * reverseMul;
+        }
+        return compareInternal(ordFrom, ordTo);
     }
 
     @Override
@@ -94,19 +98,14 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     int hashCode(int slot) {
-        // we only hashCode stuff that we know exists
-        assert values.get(slot) >= 0 || values.get(slot) == Long.MIN_VALUE;
-        // TODO: hash code needs to be stable
-        return Long.hashCode(0);
-//        return Long.hashCode(values.get(slot));
+//        return Long.hashCode(0);
+        return Long.hashCode(values.get(slot));
     }
 
     @Override
     int hashCodeCurrent() {
-        // TODO: hash code needs to be stable
-        assert currentValueOrd >= 0 || currentValueOrd == Long.MIN_VALUE;
-        return Long.hashCode(0);
-//        return Long.hashCode(currentValueOrd);
+//        return Long.hashCode(0);
+        return Long.hashCode(currentValueOrd);
     }
 
     int compareInternal(long ord1, long ord2) {
@@ -165,9 +164,11 @@ class GlobalOrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         /*} else if (ord == lastLookupOrd) {
             return lastLookupValue;*/
         } else if (ord < 0L) {
+            assert ord != Long.MIN_VALUE;
             return bytesRefValues.get(slot);
         } else {
             assert ord >= 0L;
+            // TODO: reintroduce and fix lastLookupOrd / lastLookupValue
             //lastLookupOrd = ord;
 //            lastLookupValue = BytesRef.deepCopyOf(lookups.get(slot).lookupOrd(ord));
 //            return lastLookupValue;

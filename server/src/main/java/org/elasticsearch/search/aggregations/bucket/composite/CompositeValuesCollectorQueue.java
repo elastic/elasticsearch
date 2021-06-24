@@ -19,7 +19,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * A specialized {@link PriorityQueue} implementation for composite buckets.
@@ -238,7 +240,15 @@ final class CompositeValuesCollectorQueue extends PriorityQueue<Integer> impleme
         } else {
             collector = arrays[last].getLeafCollector(context, collector);
         }
+        // TODO: only rehash if collector desires so
+        rehash();
         return collector;
+    }
+
+    private void rehash() {
+        List<Map.Entry<Slot, Integer>> entries = map.entrySet().stream().collect(Collectors.toList());
+        map.clear();
+        entries.forEach(e -> map.put(e.getKey(), e.getValue()));
     }
 
     /**

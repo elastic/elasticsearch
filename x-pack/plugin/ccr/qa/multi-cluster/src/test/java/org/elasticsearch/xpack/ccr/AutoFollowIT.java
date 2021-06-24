@@ -834,8 +834,8 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 verifyDocuments(client(), regularIndex, 10);
             });
         } finally {
-            cleanUpLeader(List.of(regularIndex, mountedIndex), List.of(), List.of(autoFollowPattern));
-            cleanUpFollower(List.of(regularIndex), List.of(), List.of());
+            cleanUpLeader(List.of(regularIndex, mountedIndex), List.of(), List.of());
+            cleanUpFollower(List.of(regularIndex), List.of(), List.of(autoFollowPattern));
         }
     }
 

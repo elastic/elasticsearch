@@ -160,7 +160,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
     public void testSerialization_pre_7_13() throws IOException {
         FieldCapabilitiesResponse original = createResponseWithFailures();
         FieldCapabilitiesResponse deserialized;
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.V_7_12_1);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, VersionUtils.getPreviousVersion(Version.V_7_13_0));
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             output.setVersion(version);
             original.writeTo(output);
@@ -181,7 +181,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
             + "AgdrZXl3b3JkB2ZpZWxkLTIHa2V5d29yZAEBAQABAAEAAARsb25nB2ZpZWxkLTIEbG9uZwEBAQABAAEAAAAAAAA=";
         try (StreamInput in = StreamInput.wrap(java.util.Base64.getDecoder().decode(msg))) {
             // minimum version set to 7.6 because the nested FieldCapabilities had another serialization change there
-            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, Version.V_7_12_0));
+            in.setVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_6_0, VersionUtils.getPreviousVersion(Version.V_7_13_0)));
             FieldCapabilitiesResponse deserialized = new FieldCapabilitiesResponse(in);
             assertArrayEquals(new String[]{"some-index"}, deserialized.getIndices());
             assertEquals(2, deserialized.get().size());

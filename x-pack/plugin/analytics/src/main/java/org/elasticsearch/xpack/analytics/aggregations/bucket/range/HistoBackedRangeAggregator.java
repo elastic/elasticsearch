@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -102,7 +101,6 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
             rangeFactory,
             ranges,
             averageDocsPerRange,
-            new HashMap<>(),
             keyed,
             context,
             parent,

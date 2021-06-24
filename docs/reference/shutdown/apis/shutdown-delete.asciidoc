@@ -1,0 +1,73 @@
+[[shutdown-api-delete-shutdown]]
+=== Unregister node for shutdown API
+
+Signals that a node should no longer be prepared to shut down.
+
+[[shutdown-api-delete-request]]
+==== {api-request-title}
+
+`DELETE _nodes/<node-id>/shutdown`
+
+[[shutdown-api-delete-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
+
+* If the <<operator-privileges,{operator-feature}>> is enabled, only operator
+users can use this API.
+
+[[shutdown-api-delete-desc]]
+==== {api-description-title}
+
+Signals that the given node should no longer be prepared for shutdown and
+can resume operations as a normal node in the cluster.
+
+NOTE: This API must be used if a node returns to the cluster after the node has
+been <<shutdown-api-put-shutdown, registered for shutdown>> - requests will not
+be automatically cleared for either `RESTART` or `REMOVE` request types.
+
+[[shutdown-api-delete-path-params]]
+==== {api-path-parms-title}
+
+`<node-id>`::
+(Optional, string)
+The ID of a node which is preparing to be shut down.
+
+[[shutdown-api-delete-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+
+[[shutdown-api-delete-example]]
+
+This API is only useful after a node has been registered for shutdown:
+
+[source,console]
+--------------------------------------------------
+PUT /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+{
+  "type": "restart",
+  "reason": "demonstrating how the node shutdown API works"
+}
+--------------------------------------------------
+// TEST[setup:node]
+// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
+
+Once a node is in the process of preparing for shutdown, we can cancel the
+process by issuing a request like so:
+
+[source,console]
+--------------------------------------------------
+DELETE /_nodes/USpTGYaBSIKbgSUJR2Z9lg/shutdown
+--------------------------------------------------
+// TEST[continued]
+// TEST[s/USpTGYaBSIKbgSUJR2Z9lg/\$node_name/]
+
+Which returns the following response:
+[source,console-result]
+--------------------------------------------------
+{
+    "acknowledged": true
+}
+--------------------------------------------------

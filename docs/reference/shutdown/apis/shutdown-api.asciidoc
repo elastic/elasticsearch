@@ -11,6 +11,7 @@ or permanent shutdown.
 
 * <<shutdown-api-put-shutdown,Register node for shutdown>>
 * <<shutdown-api-get-shutdown,Get status of shutting down node>>
+* <<shutdown-api-delete-shutdown,Unregister node for shutdown>>
 
 include::shutdown-put.asciidoc[]
 include::shutdown-get.asciidoc[]

@@ -18,12 +18,12 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.snapshots.SnapshotInfo.INCLUDE_REPOSITORY_XCONTENT_PARAM;
 import static org.elasticsearch.snapshots.SnapshotInfo.INDEX_DETAILS_XCONTENT_PARAM;
 
 /**
@@ -43,7 +43,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
 
     @Override
     protected Set<String> responseParams() {
-        return Collections.singleton(INDEX_DETAILS_XCONTENT_PARAM);
+        return Set.of(INDEX_DETAILS_XCONTENT_PARAM, INCLUDE_REPOSITORY_XCONTENT_PARAM);
     }
 
     @Override

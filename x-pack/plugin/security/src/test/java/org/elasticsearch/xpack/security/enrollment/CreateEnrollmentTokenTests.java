@@ -134,7 +134,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         Map<String, String> infoNode = getDecoded(tokenNode);
         assertEquals("8.0.0", infoNode.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoNode.get("adr"));
-        assertEquals("ecdc64cebdfa501b771bcf43eb38b43dc3a90d78", infoNode.get("fgr"));
+        assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoNode.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoNode.get("key"));
 
         final String tokenKibana = createEnrollmentToken.createNodeEnrollmentToken("elastic", new SecureString("elastic"));
@@ -142,7 +142,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
         Map<String, String> infoKibana = getDecoded(tokenKibana);
         assertEquals("8.0.0", infoKibana.get("ver"));
         assertEquals("[192.168.0.1:9201, 172.16.254.1:9202, [2001:db8:0:1234:0:567:8:1]:9203]", infoKibana.get("adr"));
-        assertEquals("ecdc64cebdfa501b771bcf43eb38b43dc3a90d78", infoKibana.get("fgr"));
+        assertEquals("ce480d53728605674fcfd8ffb51000d8a33bf32de7c7f1e26b4d428f8a91362d", infoKibana.get("fgr"));
         assertEquals("DR6CzXkBDf8amV_48yYX:x3YqU_rqQwm-ESrkExcnOg", infoKibana.get("key"));
     }
 
@@ -347,7 +347,6 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
             "create an enrollment token"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74525")
     public void testGetFilteredAddresses () throws Exception {
         List<String> addresses = Arrays.asList("[::1]:9200", "127.0.0.1:9200", "192.168.0.1:9201", "172.16.254.1:9202",
             "[2001:db8:0:1234:0:567:8:1]:9203");
@@ -374,7 +373,7 @@ public class CreateEnrollmentTokenTests extends ESTestCase {
 
         final List<String> invalid_addresses = Arrays.asList("nldfnbndflbnl");
         UnknownHostException ex = expectThrows(UnknownHostException.class, () -> getFilteredAddresses(invalid_addresses));
-        assertThat(ex.getMessage(), Matchers.startsWith("nldfnbndflbnl:"));
+        assertThat(ex.getMessage(), Matchers.containsString("nldfnbndflbnl:"));
     }
 
     private Map<String, String> getDecoded(String token) throws IOException {

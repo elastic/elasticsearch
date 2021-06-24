@@ -1,8 +1,8 @@
 {
-  "security.enroll_node":{
+  "security.enroll_kibana":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-node-enrollment.html",
-      "description":"Allows a new node to enroll to an existing cluster with security enabled."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-enroll-kibana.html",
+      "description":"Allows a kibana instance to configure itself to communicate with a secured elasticsearch cluster."
     },
     "stability":"stable",
     "visibility":"public",
@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/enroll/node",
+          "path":"/_security/enroll/kibana",
           "methods":[
             "GET"
           ]

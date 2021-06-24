@@ -95,6 +95,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -162,7 +163,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
-    public void testCreateApiKeyUsesBulkIndexAction() {
+    public void testCreateApiKeyUsesBulkIndexAction() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(
@@ -172,6 +173,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();
             BulkRequest bulkRequest = (BulkRequest) args[1];
@@ -179,9 +181,11 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
             assertThat(indexRequest.id(), is(createApiKeyRequest.getId()));
+            bulkActionInvoked.set(true);
             return null;
         }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, Set.of(), new PlainActionFuture<>());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     public void testCreateApiKeyWillCacheOnCreation() {

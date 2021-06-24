@@ -495,13 +495,13 @@ public final class DocumentParser {
     }
 
     private static void nested(ParseContext context, ObjectMapper.Nested nested) {
-        ParseContext.Document nestedDoc = context.doc();
-        ParseContext.Document parentDoc = nestedDoc.getParent();
+        LuceneDocument nestedDoc = context.doc();
+        LuceneDocument parentDoc = nestedDoc.getParent();
         if (nested.isIncludeInParent()) {
             addFields(nestedDoc, parentDoc);
         }
         if (nested.isIncludeInRoot()) {
-            ParseContext.Document rootDoc = context.rootDoc();
+            LuceneDocument rootDoc = context.rootDoc();
             // don't add it twice, if its included in parent, and we are handling the master doc...
             if (nested.isIncludeInParent() == false || parentDoc != rootDoc) {
                 addFields(nestedDoc, rootDoc);
@@ -509,7 +509,7 @@ public final class DocumentParser {
         }
     }
 
-    private static void addFields(ParseContext.Document nestedDoc, ParseContext.Document rootDoc) {
+    private static void addFields(LuceneDocument nestedDoc, LuceneDocument rootDoc) {
         for (IndexableField field : nestedDoc.getFields()) {
             if (field.name().equals(TypeFieldMapper.NAME) == false) {
                 rootDoc.add(field);
@@ -519,8 +519,8 @@ public final class DocumentParser {
 
     private static ParseContext nestedContext(ParseContext context, ObjectMapper mapper) {
         context = context.createNestedContext(mapper.fullPath());
-        ParseContext.Document nestedDoc = context.doc();
-        ParseContext.Document parentDoc = nestedDoc.getParent();
+        LuceneDocument nestedDoc = context.doc();
+        LuceneDocument parentDoc = nestedDoc.getParent();
 
         // We need to add the uid or id to this nested Lucene document too,
         // If we do not do this then when a document gets deleted only the root Lucene document gets deleted and
@@ -730,8 +730,8 @@ public final class DocumentParser {
         for (String field : copyToFields) {
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
-            ParseContext.Document targetDoc = null;
-            for (ParseContext.Document doc = context.doc(); doc != null; doc = doc.getParent()) {
+            LuceneDocument targetDoc = null;
+            for (LuceneDocument doc = context.doc(); doc != null; doc = doc.getParent()) {
                 if (field.startsWith(doc.getPrefix())) {
                     targetDoc = doc;
                     break;

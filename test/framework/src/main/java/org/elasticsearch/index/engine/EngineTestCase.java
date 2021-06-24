@@ -81,10 +81,10 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -291,19 +291,19 @@ public abstract class EngineTestCase extends ESTestCase {
         }
     }
 
-    protected static ParseContext.Document testDocumentWithTextField() {
+    protected static LuceneDocument testDocumentWithTextField() {
         return testDocumentWithTextField("test");
     }
 
-    protected static ParseContext.Document testDocumentWithTextField(String value) {
-        ParseContext.Document document = testDocument();
+    protected static LuceneDocument testDocumentWithTextField(String value) {
+        LuceneDocument document = testDocument();
         document.add(new TextField("value", value, Field.Store.YES));
         return document;
     }
 
 
-    protected static ParseContext.Document testDocument() {
-        return new ParseContext.Document();
+    protected static LuceneDocument testDocument() {
+        return new LuceneDocument();
     }
 
     public static ParsedDocument createParsedDoc(String id, String routing) {
@@ -316,11 +316,11 @@ public abstract class EngineTestCase extends ESTestCase {
     }
 
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate) {
         return testParsedDocument(id, routing, document, source, mappingUpdate, false);
     }
     protected static ParsedDocument testParsedDocument(
-            String id, String routing, ParseContext.Document document, BytesReference source, Mapping mappingUpdate,
+            String id, String routing, LuceneDocument document, BytesReference source, Mapping mappingUpdate,
             boolean recoverySource) {
         Field uidField = new Field("_id", Uid.encodeId(id), IdFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);

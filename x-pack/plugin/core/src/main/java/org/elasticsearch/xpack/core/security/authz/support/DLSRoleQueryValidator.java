@@ -126,8 +126,8 @@ public final class DLSRoleQueryValidator {
     }
 
     @Nullable
-    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry, RestApiVersion restApiVersion)
-        throws IOException {
+    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry,
+                                                           RestApiVersion restApiVersion) throws IOException {
         if (query != null) {
             try (XContentParser parser = XContentFactory.xContent(query).createParserForCompatibility(xContentRegistry,
                 LoggingDeprecationHandler.INSTANCE, query, restApiVersion)) {

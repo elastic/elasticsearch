@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.security.rest.action.role;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
@@ -58,7 +57,8 @@ public class RestPutRoleAction extends SecurityBaseRestHandler {
             .source(request.param("name"), request.requiredContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
 
-        DLSRoleQueryValidator.validateQueryField(requestBuilder.request().indices(), request.getXContentRegistry(), request.getRestApiVersion());
+        DLSRoleQueryValidator.validateQueryField(requestBuilder.request().indices(), request.getXContentRegistry(),
+            request.getRestApiVersion());
 
 
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {

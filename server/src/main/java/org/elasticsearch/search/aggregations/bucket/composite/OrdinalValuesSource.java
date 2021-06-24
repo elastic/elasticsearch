@@ -40,7 +40,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     // Entries might be Long.MIN_VALUE to represent the missing bucket,
     // or negative when the corresponding term is not known to the current lookup
     private LongArray valuesOrd;
-    // when term is not known to current lookup, then the proper term is stored here, else null
+    // when term is not known to current lookup, then the term from a previous lookup is stored here, else null
     private ObjectArray<BytesRef> values;
     // number of slots in the above arrays that contain any actual values
     private int numSlots = 0;
@@ -48,11 +48,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
     private Long currentValueOrd;
-    // when term is not known to current lookup, then the proper term is stored here, else null
+    // when term is not known to current lookup, then the term from a previous lookup is stored here, else null
     private BytesRef currentValue;
 
     // is Long.MIN_VALUE when the value represents the missing bucket, or negative if the term is not known to current lookup
-    // when term is not known to current lookup, then the proper term is stored in afterValue, else afterValue is null
+    // when term is not known to current lookup, then the term from a previous lookup is stored in afterValue, else afterValue is null
     private Long afterValueOrd;
 
     // small cache to avoid repeated lookups in toComparable
@@ -92,20 +92,20 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     @Override
     int compare(int from, int to) {
         assert from < numSlots && to < numSlots;
-        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), values.get(from), values.get(to));
+        return compareInternal(valuesOrd.get(from), valuesOrd.get(to), values.get(from), values.get(to)) * reverseMul;
     }
 
     @Override
     int compareCurrent(int slot) {
         assert currentValueOrd != null;
         assert slot < numSlots;
-        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValue, values.get(slot));
+        return compareInternal(currentValueOrd, valuesOrd.get(slot), currentValue, values.get(slot)) * reverseMul;
     }
 
     @Override
     int compareCurrentWithAfter() {
         assert currentValueOrd != null && afterValueOrd != null;
-        return compareInternal(currentValueOrd, afterValueOrd, currentValue, afterValue);
+        return compareInternal(currentValueOrd, afterValueOrd, currentValue, afterValue) * reverseMul;
     }
 
     @Override
@@ -120,40 +120,33 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         return Long.hashCode(currentValueOrd);
     }
 
-    int compareInternal(long ord1, long ord2, BytesRef fallback1, BytesRef fallback2) {
-        if (ord1 == Long.MIN_VALUE || ord2 == Long.MIN_VALUE) {
-            if (ord1 == Long.MIN_VALUE && ord2 == Long.MIN_VALUE) {
-                return 0;
-            } else if (ord1 == Long.MIN_VALUE) {
-                return Long.compare(-1L, ord2) * reverseMul;
-            } else {
-                assert ord2 == Long.MIN_VALUE;
-                return Long.compare(ord1, -1L) * reverseMul;
+    private int compareInternal(long ord1, long ord2, BytesRef bytesRef1, BytesRef bytesRef2) {
+        if (ord1 >= 0 && ord2 >= 0) {
+            return Long.compare(ord1, ord2);
+        } else if (ord1 == Long.MIN_VALUE || ord2 == Long.MIN_VALUE) {
+            return Long.compare(ord1, ord2);
+        } else if (ord1 < 0 && ord2 < 0) {
+            if (ord1 == ord2) {
+                // we need to compare actual terms to properly order
+                assert bytesRef1 != null && bytesRef2 != null;
+                return bytesRef1.compareTo(bytesRef2);
             }
-        } else if (ord1 < 0) {
-            if (ord2 < 0) {
-                int cmp = Long.compare(-ord1 - 1, -ord2 - 1);
-                if (cmp == 0) {
-                    assert fallback1 != null && fallback2 != null;
-                    return fallback1.compareTo(fallback2) * reverseMul;
-                }
-                return cmp * reverseMul;
-            } else {
+            return Long.compare(-ord1 - 1, -ord2 - 1);
+        } else {
+            if (ord1 < 0) {
+                assert ord1 < 0 && ord2 >= 0;
                 int cmp = Long.compare(-ord1 - 1, ord2);
                 if (cmp == 0) {
-                    return -1 * reverseMul;
+                    return -1;
                 }
-                return cmp * reverseMul;
-            }
-        } else {
-            if (ord2 < 0) {
+                return cmp;
+            } else {
+                assert ord1 >= 0 && ord2 < 0;
                 int cmp = Long.compare(ord1, -ord2 - 1);
                 if (cmp == 0) {
-                    return reverseMul;
+                    return 1;
                 }
-                return cmp * reverseMul;
-            } else {
-                return Long.compare(ord1, ord2) * reverseMul;
+                return cmp;
             }
         }
     }

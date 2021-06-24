@@ -36,8 +36,6 @@ import java.util.Set;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
-import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_MATCHES;
-import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLabel.MATCHER_TRIM;
 
 /**
  * Time-based window encapsulating query creation and advancement.
@@ -56,6 +54,7 @@ import static org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow.CBLa
 public class TumblingWindow implements Executable {
 
     private static final int CACHE_MAX_SIZE = 64;
+    private static final String CIRCUIT_BREAKER_LABEL = "sequence_matches";
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -99,22 +98,6 @@ public class TumblingWindow implements Executable {
             this.baseStage = baseStage;
             this.begin = begin;
             this.end = end;
-        }
-    }
-
-    enum CBLabel {
-        MATCHER_MATCHES("matcher_matches"),
-        MATCHER_TRIM("matcher_trim");
-
-        private final String label;
-
-        CBLabel(String label) {
-            this.label = label;
-        }
-
-        @Override
-        public String toString() {
-            return label;
         }
     }
 
@@ -164,7 +147,7 @@ public class TumblingWindow implements Executable {
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
             if (currentStage == 0) {
-                trimMatcher(null);
+                matcher.trim(null);
             }
         }
         else {
@@ -175,7 +158,7 @@ public class TumblingWindow implements Executable {
             // same applies for rebase
             Ordinal marker = criteria.get(currentStage).queryRequest().after();
             if (marker != null) {
-                trimMatcher(marker);
+                matcher.trim(marker);
             }
         }
 
@@ -616,27 +599,22 @@ public class TumblingWindow implements Executable {
         return criterion.ordinal(hits.get(hits.size() - 1));
     }
 
-
-
-    private void trimMatcher(Ordinal ordinal) {
-        long bytesDiff = matcher.ramBytesUsed();
-        matcher.trim(ordinal);
-        bytesDiff -= matcher.ramBytesUsed();
-        addMemory(-bytesDiff, MATCHER_TRIM);
-    }
-
+    // Wrapper method of matcher.match() which is called for every sub query in the sequence query
+    // and for each subquery every "fetch_size" docs. Doing RAM accounting on object creation is
+    // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
+    // structure occupy, before and after the match() call.
     private boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
         boolean matches;
         long bytesDiff = matcher.ramBytesUsed();
         matches = matcher.match(stage, hits);
         bytesDiff -= matcher.ramBytesUsed();
-        addMemory(-bytesDiff, MATCHER_MATCHES);
+        addMemory(-bytesDiff);
         return matches;
     }
 
-    private void addMemory(long bytes, CBLabel label) {
+    private void addMemory(long bytes) {
         totalRamBytesUsed += bytes;
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, label.toString());
+        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, CIRCUIT_BREAKER_LABEL);
     }
 
     private void clearCircuitBreaker() {

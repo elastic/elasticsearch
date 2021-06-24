@@ -441,20 +441,18 @@ import java.util.Objects;
     }
 
     void analyzeNorms(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
-        NormsProducer normsReader = reader.getNormsReader();
-        if (normsReader == null) {
+        if (reader.getNormsReader() == null) {
             return;
         }
-        normsReader = normsReader.getMergeInstance();
+        final NormsProducer normsReader = reader.getNormsReader().getMergeInstance();
         for (FieldInfo field : reader.getFieldInfos()) {
             if (field.hasNorms()) {
                 cancellationChecker.checkForCancellation();
                 directory.resetBytesRead();
-                final NumericDocValues norms = normsReader.getNorms(field);
-                while (norms.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                iterateDocValues(reader.maxDoc(), () -> normsReader.getNorms(field), norms -> {
                     cancellationChecker.logEvent();
                     norms.longValue();
-                }
+                });
                 stats.addNorms(field.name, directory.getBytesRead());
             }
         }
@@ -468,6 +466,7 @@ import java.util.Objects;
         termVectorsReader = termVectorsReader.getMergeInstance();
         directory.resetBytesRead();
         final TermVectorsVisitor visitor = new TermVectorsVisitor();
+        // TODO: Traverse 10-20% documents
         for (int docID = 0; docID < reader.numDocs(); docID++) {
             cancellationChecker.logEvent();
             final Fields vectors = termVectorsReader.get(docID);

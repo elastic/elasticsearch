@@ -40,13 +40,6 @@ public class TransportPutRoleAction extends HandledTransportAction<PutRoleReques
             return;
         }
 
-//        try {
-//            DLSRoleQueryValidator.validateQueryField(request.roleDescriptor().getIndicesPrivileges(), xContentRegistry);
-//        } catch (ElasticsearchException | IllegalArgumentException e) {
-//            listener.onFailure(e);
-//            return;
-//        }
-
         rolesStore.putRole(request, request.roleDescriptor(), listener.delegateFailure((l, created) -> {
             if (created) {
                 logger.info("added role [{}]", request.name());

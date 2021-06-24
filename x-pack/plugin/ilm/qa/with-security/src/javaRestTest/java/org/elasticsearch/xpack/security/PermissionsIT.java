@@ -237,7 +237,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).get(0).state(), equalTo(SnapshotState.SUCCESS));
+                assertThat(getResp.getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
             } catch (ElasticsearchException e) {
                 fail("expected snapshot to exist but it does not: " + e.getDetailedMessage());
             }
@@ -257,7 +257,7 @@ public class PermissionsIT extends ESRestTestCase {
                 GetSnapshotsRequest getSnaps = new GetSnapshotsRequest(repo);
                 getSnaps.snapshots(new String[]{snapName});
                 GetSnapshotsResponse getResp = adminHLRC.snapshot().get(getSnaps, RequestOptions.DEFAULT);
-                assertThat(getResp.getSnapshots(repo).size(), equalTo(0));
+                assertThat(getResp.getSnapshots().size(), equalTo(0));
             } catch (ElasticsearchException e) {
                 // great, we want it to not exist
                 assertThat(e.getDetailedMessage(), containsString("snapshot_missing_exception"));

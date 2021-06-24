@@ -65,7 +65,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
         final List<SnapshotInfo> defaultSorting =
-            clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots(repoName);
+            clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
                 allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order),
@@ -196,7 +196,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             request.addParameter("order", order.toString());
         }
         final Response response = getRestClient().performRequest(request);
-        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(repoName, response);
+        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(response);
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
             assertThat(snapshotInfo.snapshotId().getName(), is(in(allSnapshotNames)));
@@ -219,15 +219,15 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
         request.addParameter("size", String.valueOf(size));
         final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(repoName, response);
+        return readSnapshotInfos(response);
     }
 
-    private static List<SnapshotInfo> readSnapshotInfos(String repoName, Response response) throws IOException {
+    private static List<SnapshotInfo> readSnapshotInfos(Response response) throws IOException {
         final List<SnapshotInfo> snapshotInfos;
         try (InputStream input = response.getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(
                      NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
-            snapshotInfos = GetSnapshotsResponse.fromXContent(parser).getSnapshots(repoName);
+            snapshotInfos = GetSnapshotsResponse.fromXContent(parser).getSnapshots();
         }
         return snapshotInfos;
     }
@@ -249,6 +249,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             request.addParameter("order", order.toString());
         }
         final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(repoName, response);
+        return readSnapshotInfos(response);
     }
 }

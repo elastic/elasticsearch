@@ -92,6 +92,7 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.enrollment.NodeEnrollmentAction;
+import org.elasticsearch.xpack.core.security.action.enrollment.KibanaEnrollmentAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectLogoutAction;
 import org.elasticsearch.xpack.core.security.action.oidc.OpenIdConnectPrepareAuthenticationAction;
@@ -163,6 +164,7 @@ import org.elasticsearch.xpack.security.action.TransportGetApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportGrantApiKeyAction;
 import org.elasticsearch.xpack.security.action.TransportInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.action.enrollment.TransportNodeEnrollmentAction;
+import org.elasticsearch.xpack.security.action.enrollment.TransportKibanaEnrollmentAction;
 import org.elasticsearch.xpack.security.action.filter.SecurityActionFilter;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectAuthenticateAction;
 import org.elasticsearch.xpack.security.action.oidc.TransportOpenIdConnectLogoutAction;
@@ -247,6 +249,7 @@ import org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestGrantApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction;
 import org.elasticsearch.xpack.security.rest.action.enrollment.RestNodeEnrollmentAction;
+import org.elasticsearch.xpack.security.rest.action.enrollment.RestKibanaEnrollAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction;
 import org.elasticsearch.xpack.security.rest.action.oidc.RestOpenIdConnectAuthenticateAction;
@@ -888,6 +891,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new ActionHandler<>(DeleteServiceAccountTokenAction.INSTANCE, TransportDeleteServiceAccountTokenAction.class),
                 new ActionHandler<>(GetServiceAccountCredentialsAction.INSTANCE, TransportGetServiceAccountCredentialsAction.class),
                 new ActionHandler<>(GetServiceAccountAction.INSTANCE, TransportGetServiceAccountAction.class),
+                new ActionHandler<>(KibanaEnrollmentAction.INSTANCE, TransportKibanaEnrollmentAction.class),
                 new ActionHandler<>(NodeEnrollmentAction.INSTANCE, TransportNodeEnrollmentAction.class),
                 usageAction,
                 infoAction);
@@ -954,6 +958,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 new RestDeleteServiceAccountTokenAction(settings, getLicenseState()),
                 new RestGetServiceAccountCredentialsAction(settings, getLicenseState()),
                 new RestGetServiceAccountAction(settings, getLicenseState()),
+                new RestKibanaEnrollAction(settings, getLicenseState()),
                 new RestNodeEnrollmentAction(settings, getLicenseState())
         );
     }

@@ -35,12 +35,14 @@ import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.RestoreInfo;
+import org.elasticsearch.snapshots.SnapshotInfo;
 import org.mockito.internal.util.collections.Sets;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
@@ -209,14 +211,17 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         GetSnapshotsResponse response = execute(request, highLevelClient().snapshot()::get, highLevelClient().snapshot()::getAsync);
 
         assertThat(response.isFailed(), is(false));
-        assertThat(response.getRepositories(), equalTo(Sets.newSet(repository1, repository2)));
+        assertEquals(
+            Sets.newSet(repository1, repository2),
+            response.getSnapshots().stream().map(SnapshotInfo::repository).collect(Collectors.toSet())
+        );
 
-        assertThat(response.getSnapshots(repository1), hasSize(1));
-        assertThat(response.getSnapshots(repository1).get(0).snapshotId().getName(), equalTo(snapshot1));
-
-        assertThat(response.getSnapshots(repository2), hasSize(1));
-        assertThat(response.getSnapshots(repository2).get(0).snapshotId().getName(), equalTo(snapshot2));
-        assertThat(response.getSnapshots(repository2).get(0).userMetadata(), equalTo(originalMetadata));
+        assertThat(response.getSnapshots(), hasSize(2));
+        assertThat(response.getSnapshots().get(0).snapshotId().getName(), equalTo(snapshot1));
+        assertThat(response.getSnapshots().get(0).repository(), equalTo(repository1));
+        assertThat(response.getSnapshots().get(1).snapshotId().getName(), equalTo(snapshot2));
+        assertThat(response.getSnapshots().get(1).userMetadata(), equalTo(originalMetadata));
+        assertThat(response.getSnapshots().get(1).repository(), equalTo(repository2));
     }
 
 

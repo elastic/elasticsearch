@@ -88,12 +88,12 @@ GET /twitter/_search
             {
                 "name": "most_liked",  <2>
                 "size": 3,
-                "sort": ["likes"]
+                "sort": [{ "likes": "desc" }]
             },
             {
                 "name": "most_recent", <3>
                 "size": 3,
-                "sort": [{ "date": "asc" }]
+                "sort": [{ "date": "desc" }]
             }
         ]
     },

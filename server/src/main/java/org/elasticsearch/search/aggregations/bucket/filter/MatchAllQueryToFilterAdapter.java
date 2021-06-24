@@ -13,7 +13,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 
 import java.io.IOException;
 import java.util.function.BiConsumer;
@@ -46,11 +45,6 @@ class MatchAllQueryToFilterAdapter extends QueryToFilterAdapter<MatchAllDocsQuer
             return ctx.reader().maxDoc();  // TODO we could use numDocs even if live is not null because provides accurate numDocs.
         }
         return super.count(ctx, counter, live);
-    }
-
-    @Override
-    long estimateCountCost(LeafReaderContext ctx, CheckedSupplier<Boolean, IOException> canUseMetadata) throws IOException {
-        return canUseMetadata.get() ? 0 : ctx.reader().maxDoc();
     }
 
     @Override

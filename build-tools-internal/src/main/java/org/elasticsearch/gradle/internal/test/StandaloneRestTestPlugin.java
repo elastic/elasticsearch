@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test;
 
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.RepositoriesSetupPlugin;
@@ -46,17 +47,12 @@ public class StandaloneRestTestPlugin implements Plugin<Project> {
         }
 
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
-        project.getPluginManager().apply(JavaBasePlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(RepositoriesSetupPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
 
         project.getTasks().register("buildResources", ExportElasticsearchBuildResourcesTask.class);
-        ElasticsearchJavaPlugin.configureInputNormalization(project);
-        ElasticsearchJavaPlugin.configureCompile(project);
-
-        project.getExtensions().getByType(JavaPluginExtension.class).setSourceCompatibility(BuildParams.getMinimumRuntimeVersion());
-        project.getExtensions().getByType(JavaPluginExtension.class).setTargetCompatibility(BuildParams.getMinimumRuntimeVersion());
 
         // only setup tests to build
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

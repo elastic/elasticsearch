@@ -78,6 +78,8 @@ import org.elasticsearch.client.security.PutRoleRequest;
 import org.elasticsearch.client.security.PutRoleResponse;
 import org.elasticsearch.client.security.PutUserRequest;
 import org.elasticsearch.client.security.PutUserResponse;
+import org.elasticsearch.client.security.KibanaEnrollmentRequest;
+import org.elasticsearch.client.security.KibanaEnrollmentResponse;
 
 import java.io.IOException;
 
@@ -1299,7 +1301,6 @@ public final class SecurityClient {
                 DelegatePkiAuthenticationResponse::fromXContent, listener, emptySet());
     }
 
-
     /**
      * Allows a node to join to a cluster with security features enabled using the Enroll Node API.
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -1321,4 +1322,33 @@ public final class SecurityClient {
         return restHighLevelClient.performRequestAsyncAndParseEntity(NodeEnrollmentRequest.INSTANCE, NodeEnrollmentRequest::getRequest,
             options, NodeEnrollmentResponse::fromXContent, listener, emptySet());
     }
+
+    /**
+     * Allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Kibana API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @return the response
+     * @throws IOException in case there is a problem sending the request or parsing back the response
+     */
+    public KibanaEnrollmentResponse enrollKibana(RequestOptions options) throws IOException {
+        return restHighLevelClient.performRequestAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest,
+            options,
+            KibanaEnrollmentResponse::fromXContent,
+            emptySet());
+    }
+
+    /**
+     * Asynchronously allows a kibana instance to configure itself to connect to a secured cluster using the Enroll Kibana API
+     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
+     * @param listener the listener to be notified upon request completion
+     */
+    public Cancellable enrollKibanaAsync(
+        RequestOptions options,
+        ActionListener<KibanaEnrollmentResponse> listener) {
+        return restHighLevelClient.performRequestAsyncAndParseEntity(
+            KibanaEnrollmentRequest.INSTANCE,
+            KibanaEnrollmentRequest::getRequest, options, KibanaEnrollmentResponse::fromXContent, listener, emptySet());
+    }
+
 }

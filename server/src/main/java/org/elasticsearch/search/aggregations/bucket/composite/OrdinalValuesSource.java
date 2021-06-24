@@ -82,11 +82,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         valuesOrd.set(slot, currentValueOrd);
         assert currentValue == null;
         BytesRef previousValue = values.get(slot);
+        values.set(slot, null);
         if (previousValue != null) {
             // some bytes possibly freed
             breakerConsumer.accept(- previousValue.bytes.length);
         }
-        values.set(slot, null);
     }
 
     @Override
@@ -247,45 +247,59 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
      * in that case remember the term so that future remapping steps can accurately be done.
      */
     private void remapOrdinals(SortedSetDocValues newMapping) throws IOException {
+        for (int i = 0; i < numSlots; i++) {
+            final long ord = valuesOrd.get(i);
+            if (ord == Long.MIN_VALUE) {
+                assert values.get(i) == null;
+            } else {
+                final long newOrd;
+                if (ord >= 0) {
+                    assert values.get(i) == null;
+                    final BytesRef newVal = lookup.lookupOrd(ord);
+                    newOrd = newMapping.lookupTerm(newVal);
+                    if (newOrd < 0) {
+                        final BytesRef copiedNewVal = BytesRef.deepCopyOf(newVal);
+                        breakerConsumer.accept(copiedNewVal.bytes.length);
+                        values.set(i, copiedNewVal);
+                    }
+                } else {
+                    final BytesRef previousVal = values.get(i);
+                    assert previousVal != null;
+                    newOrd = newMapping.lookupTerm(previousVal);
+                    if (newOrd >= 0) {
+                        values.set(i, null);
+                        breakerConsumer.accept(- previousVal.bytes.length);
+                    }
+                }
+                valuesOrd.set(i, newOrd);
+            }
+        }
+
         if (currentValueOrd != null) {
             if (currentValueOrd == Long.MIN_VALUE) {
-                currentValue = null;
-            } else if (currentValueOrd < 0) {
-                // this wasn't set in last leafreader, so use previous value for lookup
-                assert currentValue != null;
+                assert currentValue == null;
             } else {
-                currentValue = BytesRef.deepCopyOf(lookup.lookupOrd(currentValueOrd));
-                assert currentValue != null;
-            }
-            if (currentValue == null) {
-                currentValueOrd = Long.MIN_VALUE;
-            } else {
-                currentValueOrd = newMapping.lookupTerm(currentValue);
+                final long newOrd;
+                if (currentValueOrd >= 0) {
+                    assert currentValue == null;
+                    final BytesRef newVal = lookup.lookupOrd(currentValueOrd);
+                    newOrd = newMapping.lookupTerm(newVal);
+                    if (newOrd < 0) {
+                        currentValue = BytesRef.deepCopyOf(newVal);
+                    }
+                } else {
+                    assert currentValue != null;
+                    newOrd = newMapping.lookupTerm(currentValue);
+                    if (newOrd >= 0) {
+                        currentValue = null;
+                    }
+                }
+                currentValueOrd = newOrd;
             }
         }
 
         if (afterValue != null) {
             afterValueOrd = newMapping.lookupTerm(afterValue);
-        }
-
-        for (int i = 0; i < numSlots; i++) {
-            long ord = valuesOrd.get(i);
-            if (ord == Long.MIN_VALUE) {
-                values.set(i, null);
-            } else if (ord < 0) {
-                // this wasn't set in last leafreader, so use previous value for lookup
-                assert values.get(i) != null;
-            } else {
-                BytesRef bytesRef = BytesRef.deepCopyOf(lookup.lookupOrd(ord));
-                breakerConsumer.accept(bytesRef.bytes.length);
-                values.set(i, bytesRef);
-                assert values.get(i) != null;
-            }
-            if (values.get(i) == null) {
-                valuesOrd.set(i, Long.MIN_VALUE);
-            } else {
-                valuesOrd.set(i, newMapping.lookupTerm(values.get(i)));
-            }
         }
 
         lastLookupOrd = null;

@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -68,7 +67,8 @@ public class DeprecationIssue implements Writeable, ToXContentObject {
     private final boolean resolveDuringRollingUpgrade;
     private final Map<String, Object> meta;
 
-    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade, @Nullable Map<String, Object> meta) {
+    public DeprecationIssue(Level level, String message, String url, @Nullable String details, boolean resolveDuringRollingUpgrade,
+                            @Nullable Map<String, Object> meta) {
         this.level = level;
         this.message = message;
         this.url = url;

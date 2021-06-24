@@ -64,7 +64,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "setting [path.shared_data] is deprecated and will be removed in a future version",
                 expectedUrl,
                 "Found shared data path configured. Discontinue use of this setting.",
-                false), null));
+                false, null)));
     }
 
     public void testCheckReservedPrefixedRealmNames() {

@@ -13,7 +13,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -32,7 +31,7 @@ public class DeprecationIssueTests extends ESTestCase {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
             randomAlphaOfLength(10), details, randomBoolean(),
-            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4)));
+            randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 
     @Before

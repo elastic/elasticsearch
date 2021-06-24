@@ -15,13 +15,13 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 
 import java.io.IOException;
 
 /**
- * A {@link SliceQuery} that partitions documents based on their Lucene ID.
+ * A {@link SliceQuery} that partitions documents based on their Lucene ID. To take
+ * advantage of locality, each slice holds a contiguous range of document IDs.
  *
  * NOTE: Because the query relies on Lucene document IDs, it is not stable across
  * readers. It's intended for scenarios where the reader doesn't change, like in
@@ -39,30 +39,50 @@ public final class DocIdSliceQuery extends SliceQuery {
 
     @Override
     public Weight createWeight(IndexSearcher searcher, ScoreMode scoreMode, float boost) throws IOException {
+        int maxDoc = searcher.getTopReaderContext().reader().maxDoc();
+
+        int remainder = maxDoc % getMax();
+        int quotient = maxDoc / getMax();
+
+        int sliceStart;
+        int sliceSize;
+        if (getId() < remainder) {
+            sliceStart = (quotient + 1) * getId();
+            sliceSize = quotient + 1;
+        } else {
+            sliceStart = remainder * (quotient + 1) + (getId() - remainder) * quotient;
+            sliceSize = quotient;
+        }
+
         return new ConstantScoreWeight(this, boost) {
             @Override
             public Scorer scorer(LeafReaderContext context) {
-                DocIdSetIterator approximation = DocIdSetIterator.all(context.reader().maxDoc());
-                TwoPhaseIterator twoPhase = new TwoPhaseIterator(approximation) {
-                    @Override
-                    public boolean matches() {
-                        int docId = context.docBase + approximation.docID();
-                        return contains(docId);
-                    }
-                    @Override
-                    public float matchCost() {
-                        return 3;
-                    }
-                };
-                return new ConstantScoreScorer(this, score(), scoreMode, twoPhase);
+                DocIdSetIterator iterator = createIterator(context, sliceStart, sliceStart + sliceSize);
+                return new ConstantScoreScorer(this, boost, scoreMode, iterator);
+            }
+
+            private DocIdSetIterator createIterator(LeafReaderContext context, int sliceStart, int sliceEnd) {
+                int leafStart = context.docBase;
+                int leafEnd = context.docBase + context.reader().maxDoc();
+
+                // There is no overlap with this segment, so return empty iterator
+                if (leafEnd <= sliceStart || leafStart >= sliceEnd) {
+                    return DocIdSetIterator.empty();
+                }
+
+                int start = Math.max(leafStart, sliceStart) - context.docBase;
+                int end = Math.min(leafEnd, sliceEnd) - context.docBase;
+                return DocIdSetIterator.range(start, end);
             }
 
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
-                return true;
+                return false;
             }
         };
     }
+
+
 
     @Override
     protected boolean doEquals(SliceQuery o) {

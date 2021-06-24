@@ -63,23 +63,24 @@ public class DocIdSliceQueryTests extends ESTestCase {
         int numDocs = randomIntBetween(100, 200);
         int max = randomIntBetween(2, 10);
 
-        int[] sliceCounters = new int[max];
         for (int i = 0; i < numDocs; i++) {
-            Document doc =  new Document();
+            Document doc = new Document();
             doc.add(new StringField("field", "value", Field.Store.YES));
             w.addDocument(doc);
-
-            int slice = i % max;
-            sliceCounters[slice]++;
         }
 
         IndexReader reader = w.getReader();
         IndexSearcher searcher = newSearcher(reader);
 
+        int remainder = numDocs % max;
+        int quotient = numDocs / max;
+
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         for (int id = 0; id < max; id++) {
             DocIdSliceQuery query = new DocIdSliceQuery(id, max);
-            assertThat(searcher.count(query), equalTo(sliceCounters[id]));
+
+            int expectedCount = id < remainder ? quotient + 1 : quotient;
+            assertThat(searcher.count(query), equalTo(expectedCount));
             booleanQuery.add(query, BooleanClause.Occur.SHOULD);
         }
 
@@ -89,4 +90,5 @@ public class DocIdSliceQueryTests extends ESTestCase {
         reader.close();
         dir.close();
     }
+
 }

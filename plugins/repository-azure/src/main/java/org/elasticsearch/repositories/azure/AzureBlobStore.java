@@ -412,7 +412,7 @@ public class AzureBlobStore implements BlobStore {
             }
 
             @Override
-            protected void onAllPartsReady() {
+            protected void onCompletion() {
                 if (flushedBytes == 0L) {
                     writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                 } else {

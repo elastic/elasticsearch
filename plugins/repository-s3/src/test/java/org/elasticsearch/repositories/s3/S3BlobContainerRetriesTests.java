@@ -324,7 +324,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                             "<InitiateMultipartUploadResult>\n" +
                             "  <Bucket>bucket</Bucket>\n" +
-                            "  <Key>write_large_blob</Key>\n" +
+                            "  <Key>write_large_blob_streaming</Key>\n" +
                             "  <UploadId>TEST</UploadId>\n" +
                             "</InitiateMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
@@ -356,7 +356,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
                     byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
                             "<CompleteMultipartUploadResult>\n" +
                             "  <Bucket>bucket</Bucket>\n" +
-                            "  <Key>write_large_blob</Key>\n" +
+                            "  <Key>write_large_blob_streaming</Key>\n" +
                             "</CompleteMultipartUploadResult>").getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/xml");
                     exchange.sendResponseHeaders(HttpStatus.SC_OK, response.length);
@@ -379,7 +379,7 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
             }
         });
 
-        blobContainer.writeBlob("write_large_blob", false, randomBoolean(), out -> {
+        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
             final byte[] buffer = new byte[16 * 1024];
             long outstanding = blobSize;
             while (outstanding > 0) {

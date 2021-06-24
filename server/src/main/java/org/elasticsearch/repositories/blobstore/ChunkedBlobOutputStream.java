@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.repositories.blobstore;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasables;
@@ -52,6 +53,11 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
     protected boolean successful = false;
 
     /**
+     * Is set to {@code true} once this stream has been closed.
+     */
+    private boolean closed = false;
+
+    /**
      * Number of bytes flushed to blob storage so far.
      */
     protected long flushedBytes = 0L;
@@ -76,9 +82,14 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
     @Override
     public final void close() throws IOException {
+        if (closed) {
+            assert false : "this output stream should only be closed once";
+            throw new AlreadyClosedException("already closed");
+        }
+        closed = true;
         try {
             if (successful) {
-                onAllPartsReady();
+                onCompletion();
             } else {
                 onFailure();
             }
@@ -122,7 +133,7 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
      * Invoked once all write chunks/parts are ready to be combined into the final blob. Implementations must invoke the necessary logic
      * for combining the uploaded chunks into the final blob in this method.
      */
-    protected abstract void onAllPartsReady() throws IOException;
+    protected abstract void onCompletion() throws IOException;
 
     /**
      * Invoked in case writing all chunks of data to storage failed. Implementations should run any cleanup required for the already

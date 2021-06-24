@@ -168,7 +168,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                  }
 
                  @Override
-                 protected void onAllPartsReady() throws IOException {
+                 protected void onCompletion() throws IOException {
                      if (flushedBytes == 0L) {
                          writeBlob(blobName, buffer.bytes(), failIfAlreadyExists);
                      } else {

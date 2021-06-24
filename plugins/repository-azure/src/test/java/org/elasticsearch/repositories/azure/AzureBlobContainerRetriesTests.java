@@ -405,7 +405,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         final CountDown countDownComplete = new CountDown(nbErrors);
 
         final Map<String, BytesReference> blocks = new ConcurrentHashMap<>();
-        httpServer.createContext("/account/container/write_large_blob", exchange -> {
+        httpServer.createContext("/account/container/write_large_blob_streaming", exchange -> {
 
             if ("PUT".equals(exchange.getRequestMethod())) {
                 final Map<String, String> params = new HashMap<>();
@@ -453,7 +453,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         });
 
         final BlobContainer blobContainer = createBlobContainer(maxRetries);
-        blobContainer.writeBlob("write_large_blob", false, randomBoolean(), out -> {
+        blobContainer.writeBlob("write_large_blob_streaming", false, randomBoolean(), out -> {
             int outstanding = data.length;
             while (outstanding > 0) {
                 if (randomBoolean()) {

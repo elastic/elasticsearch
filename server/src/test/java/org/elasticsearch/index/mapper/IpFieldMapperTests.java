@@ -47,6 +47,8 @@ public class IpFieldMapperTests extends MapperTestCase {
         checker.registerConflictCheck("null_value", b -> b.field("null_value", "::1"));
         checker.registerUpdateCheck(b -> b.field("ignore_malformed", false),
             m -> assertFalse(((IpFieldMapper) m).ignoreMalformed()));
+
+        registerDimensionChecks(checker);
     }
 
     public void testExistsQueryDocValuesDisabled() throws IOException {
@@ -92,7 +94,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testNoDocValues() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
             b.field("doc_values", false);
@@ -116,7 +117,6 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     public void testStore() throws Exception {
-
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip");
             b.field("store", true);
@@ -203,6 +203,16 @@ public class IpFieldMapperTests extends MapperTestCase {
             b.field("null_value", ":1");
         }));
         assertWarnings("Error parsing [:1] as IP in [null_value] on field [field]); [null_value] will be ignored");
+    }
+
+    public void testDimension() throws IOException {
+        // Test default setting
+        MapperService mapperService = createMapperService(fieldMapping(b -> minimalMapping(b)));
+        IpFieldMapper.IpFieldType ft = (IpFieldMapper.IpFieldType) mapperService.fieldType("field");
+        assertFalse(ft.isDimension());
+
+        assertDimension(true, IpFieldMapper.IpFieldType::isDimension);
+        assertDimension(false, IpFieldMapper.IpFieldType::isDimension);
     }
 
     @Override

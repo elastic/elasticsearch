@@ -513,6 +513,40 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
                 containsString("user ml_admin lacks permissions on the indices"));
     }
 
+    public void testInsufficientSearchPrivilegesOnPutWithJob() {
+        String jobId = "privs-failed-put-job";
+        Request createJobRequest = new Request("PUT", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId);
+        createJobRequest.setJsonEntity("{\n"
+            + "  \"description\": \"Aggs job\",\n"
+            + "  \"datafeed_config\": {\"indexes\": [\"airline-data-aggs\"]},\n"
+            + "  \"analysis_config\": {\n"
+            + "    \"bucket_span\": \"1h\",\n "
+            + "    \"summary_count_field_name\": \"doc_count\",\n"
+            + "    \"detectors\": [\n"
+            + "      {\n"
+            + "        \"function\": \"mean\",\n"
+            + "        \"field_name\": \"responsetime\",\n"
+            + "        \"by_field_name\":\"airline\"\n"
+            + "       }\n"
+            + "    ]\n"
+            + "  },\n"
+            + "  \"data_description\" : {\"time_field\": \"time stamp\"}\n"
+            + "}");
+        RequestOptions.Builder options = createJobRequest.getOptions().toBuilder();
+        options.addHeader("Authorization", BASIC_AUTH_VALUE_ML_ADMIN);
+        createJobRequest.setOptions(options);
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createJobRequest));
+        assertThat(e.getMessage(), containsString("Cannot create datafeed"));
+        assertThat(e.getMessage(),
+            containsString("user ml_admin lacks permissions on the indices"));
+
+        ResponseException missing = expectThrows(
+            ResponseException.class,
+            () -> client().performRequest(new Request("GET", MachineLearning.BASE_PATH + "anomaly_detectors/" + jobId))
+        );
+        assertThat(missing.getMessage(), containsString("No known job with id"));
+    }
+
     public void testCreationOnPutWithRollup() throws Exception {
         setupDataAccessRole("airline-data-aggs-rollup");
         String jobId = "privs-put-job-rollup";

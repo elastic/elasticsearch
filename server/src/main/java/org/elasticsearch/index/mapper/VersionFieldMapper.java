@@ -11,9 +11,8 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
 
@@ -73,7 +72,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         // that don't have the field. This is consistent with the default value for efficiency.
         Field version = context.version();
         assert version != null;
-        for (Document doc : context.nonRootDocuments()) {
+        for (LuceneDocument doc : context.nonRootDocuments()) {
             doc.add(version);
         }
     }

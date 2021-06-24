@@ -104,7 +104,6 @@ tasks.named("yamlRestCompatTest").configure {
     'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
     'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
     'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
-    'search/10_source_filtering/docvalue_fields with default format', //use_field_mapping change
     'search/150_rewrite_on_coordinator/Ensure that we fetch the document only once', //terms_lookup
     'search/171_terms_query_with_types/Terms Query with No.of terms exceeding index.max_terms_count should FAIL', //bulk
     'search/260_parameter_validation/test size=-1 is deprecated', //size=-1 change

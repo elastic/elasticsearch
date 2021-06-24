@@ -54,10 +54,26 @@ If a failure occurs during a rolling upgrade and older nodes cannot rejoin the
 cluster then you must upgrade the affected nodes. Once upgraded, they will join
 the cluster again.
 ====
+// end::notable-breaking-changes[]
 
 [discrete]
+[[deprecated-7.14]]
+=== Deprecations
+
+The following functionality has been deprecated in {es} 7.14 and will be removed
+in 8.0. While this won't have an immediate impact on your applications, we
+strongly encourage you take the described steps to update your code after
+upgrading to 7.14.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and the
+old behavior is supported until the next major release. To find out if you are
+using any deprecated functionality, enable <<deprecation-logging, deprecation
+logging>>.
+
+// tag::notable-breaking-changes[]
+[discrete]
 [[breaking_714_core_deprecations]]
-=== Core deprecations
+==== Core deprecations
 
 [discrete]
 [[deprecate-single-data-node-watermark]]
@@ -82,22 +98,20 @@ If your cluster has multiple data nodes then the
 has no effect and you should discontinue its use.
 ====
 
-// end::notable-breaking-changes[]
-
 [discrete]
-[[deprecated-7.14]]
-=== Deprecations
+[[breaking_714_search_deprecations]]
+==== Search deprecations
 
-The following functionality has been deprecated in {es} 7.14
-and will be removed in 8.0.
-While this won't have an immediate impact on your applications,
-we strongly encourage you take the described steps to update your code
-after upgrading to 7.14.
+.The `geo_bounding_box` query's `type` parameter is deprecated.
+[%collapsible]
+====
+*Details* +
+The `geo_bounding_box` query's `type` parameter has been deprecated in 7.14.0.
+This parameter is a no-op and has no effect on the query.
 
-NOTE: Significant changes in behavior are deprecated in a minor release and
-the old behavior is supported until the next major release.
-To find out if you are using any deprecated functionality,
-enable <<deprecation-logging, deprecation logging>>.
+*Impact* +
+Discontinue use of the `type` parameter in `geo_bounding_box` queries.
+====
 
 [discrete]
 [[breaking_714_security_changes]]
@@ -118,3 +132,4 @@ Configuring a realm name with a leading underscore is deprecated. In a future re
 it will result in an error on startup if any user configured realm has a name
 with a leading underscore.
 ====
+// end::notable-breaking-changes[]

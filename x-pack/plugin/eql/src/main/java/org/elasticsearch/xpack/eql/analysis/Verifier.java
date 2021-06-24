@@ -67,9 +67,9 @@ import static org.elasticsearch.xpack.ql.common.Failure.fail;
 public class Verifier {
 
     private final Metrics metrics;
-    private final Function<String, Set<String>> versionIncompatibleClusters;
+    private final Function<String, Collection<String>> versionIncompatibleClusters;
 
-    public Verifier(Metrics metrics, Function<String, Set<String>> versionIncompatibleClusters) {
+    public Verifier(Metrics metrics, Function<String, Collection<String>> versionIncompatibleClusters) {
         this.metrics = metrics;
         this.versionIncompatibleClusters = versionIncompatibleClusters;
     }
@@ -285,10 +285,10 @@ public class Verifier {
         }
     }
 
-    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Set<Failure> localFailures) {
+    private void checkRemoteClusterOnSameVersion(LogicalPlan plan, Collection<Failure> localFailures) {
         if (plan instanceof EsRelation) {
             EsRelation esRelation = (EsRelation) plan;
-            Set<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
+            Collection<String> incompatibleClusters = versionIncompatibleClusters.apply(esRelation.index().name());
             if (incompatibleClusters.size() > 0) {
                 localFailures.add(fail(esRelation, "the following remote cluster{} incompatible, being on a version different than local "
                     + "cluster's [{}]: {}", incompatibleClusters.size() > 1 ? "s are" : " is", Version.CURRENT,

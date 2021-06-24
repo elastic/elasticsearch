@@ -38,7 +38,7 @@ public class TomlFoldTests extends ESTestCase {
 
     private static final EqlParser PARSER = new EqlParser();
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private final Analyzer analyzer = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, TEST_VERIFIER);
+    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, TEST_VERIFIER);
 
     private final int num;
     private final EqlFoldSpec spec;
@@ -70,7 +70,7 @@ public class TomlFoldTests extends ESTestCase {
         Expression expr = PARSER.createExpression(spec.expression());
         LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
             singletonList(new Alias(Source.EMPTY, "test", expr)));
-        LogicalPlan analyzed = analyzer.analyze(logicalPlan);
+        LogicalPlan analyzed = ANALYZER.analyze(logicalPlan);
 
         assertTrue(analyzed instanceof Project);
         List<?> projections = ((Project) analyzed).projections();

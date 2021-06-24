@@ -26,9 +26,8 @@ import java.util.Collections;
 
 public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
 
-    // client used to load the test data with, either in the local cluster (for rest/javaRestTests) or remote cluster (for multi-cluster).
-    // note: the client()/adminClient() will always connect to the local cluster.
-    private static RestClient remoteClusterClient;
+    // client used for loading data on a remote cluster only.
+    private static RestClient remoteClient;
 
     @BeforeClass
     public static void initRemoteClusterClients() throws IOException {
@@ -42,16 +41,16 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
             int port = Integer.parseInt(crossClusterHost.substring(portSeparator + 1));
             HttpHost[] remoteHttpHosts = new HttpHost[]{new HttpHost(host, port)};
 
-            remoteClusterClient = clientBuilder(Settings.EMPTY, remoteHttpHosts);
+            remoteClient = clientBuilder(Settings.EMPTY, remoteHttpHosts);
         }
     }
 
     @AfterClass
     public static void closeRemoteClusterClients() throws IOException {
         try {
-            IOUtils.close(remoteClusterClient);
+            IOUtils.close(remoteClient);
         } finally {
-            remoteClusterClient = null;
+            remoteClient = null;
         }
     }
 
@@ -82,12 +81,14 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         return TimeValue.timeValueSeconds(10);
     }
 
+    // returned client is used to load the test data, either in the local cluster (for rest/javaRestTests) or a remote one (for
+    // multi-cluster). note: the client()/adminClient() will always connect to the local cluster.
     protected static RestClient provisioningClient() {
-        return remoteClusterClient == null ? client() : remoteClusterClient;
+        return remoteClient == null ? client() : remoteClient;
     }
 
     protected static RestClient provisioningAdminClient() {
-        return remoteClusterClient == null ? adminClient() : remoteClusterClient;
+        return remoteClient == null ? adminClient() : remoteClient;
     }
 
     protected static void createIndex(String name, String aliases) throws IOException {

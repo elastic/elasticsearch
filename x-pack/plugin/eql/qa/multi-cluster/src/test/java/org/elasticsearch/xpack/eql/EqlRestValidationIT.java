@@ -11,7 +11,7 @@ import org.elasticsearch.test.eql.EqlRestValidationTestCase;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.eql.RemoteClusterUtils.qualifiedPattern;
+import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterPattern;
 
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
@@ -36,6 +36,6 @@ public class EqlRestValidationIT extends EqlRestValidationTestCase {
 
     @Override
     protected String indexPattern(String pattern) {
-        return qualifiedPattern(pattern);
+        return remoteClusterPattern(pattern);
     }
 }

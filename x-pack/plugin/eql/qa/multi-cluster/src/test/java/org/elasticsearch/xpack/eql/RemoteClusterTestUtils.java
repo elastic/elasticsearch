@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.eql;
 
-public class RemoteClusterUtils {
+public class RemoteClusterTestUtils {
     public static final String REMOTE_CLUSTER_NAME = "my_remote_cluster";
 
-    public static String qualifiedIndex(String indexName) {
+    public static String remoteClusterIndex(String indexName) {
         return REMOTE_CLUSTER_NAME + ":" + indexName;
     }
 
-    public static String qualifiedPattern(String pattern) {
+    public static String remoteClusterPattern(String pattern) {
         StringBuilder sb = new StringBuilder();
         for (String index: pattern.split(",")) {
-            sb.append(qualifiedIndex(index));
+            sb.append(remoteClusterIndex(index));
             sb.append(',');
         }
         return sb.substring(0, sb.length() - 1);

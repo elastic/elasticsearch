@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.test.eql.EqlRestTestCase;
 
-import static org.elasticsearch.xpack.eql.RemoteClusterUtils.qualifiedPattern;
+import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterPattern;
 
 public class EqlRestIT extends EqlRestTestCase {
 
     @Override
     protected String indexPattern(String pattern) {
-        return qualifiedPattern(pattern);
+        return remoteClusterPattern(pattern);
     }
 }

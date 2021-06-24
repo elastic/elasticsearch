@@ -33,7 +33,7 @@ testClusters {
 tasks.register("startRemoteCluster", DefaultTestClustersTask.class) {
   useCluster testClusters.'remote-cluster'
   doLast {
-    "Starting remote cluster before integ tests and integTest clustser is started"
+    "Starting remote cluster before integ tests and integTest cluster is started"
   }
 }
 
@@ -45,4 +45,4 @@ tasks.named("integTest").configure {
     nonInputProperties.systemProperty 'tests.rest.cluster.remote.host', "${-> testClusters.'remote-cluster'.getAllHttpSocketURI().get(0)}"
   }
 }
-tasks.named("check").configure{dependsOn("integTest") } // run these tests as part of the "check" task
+tasks.named("check").configure {dependsOn("integTest") } // run these tests as part of the "check" task

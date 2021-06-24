@@ -61,7 +61,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureFieldName;
-import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 
 /**
  * A single search hit.
@@ -537,14 +536,6 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
      */
     public String getClusterAlias() {
         return clusterAlias;
-    }
-
-    /**
-     * @return the index name, if belonging to the local cluster, or the concatenation of the remote cluster alias and the index name,
-     * otherwise.
-     */
-    public String qualifiedIndex() {
-        return buildRemoteIndexName(clusterAlias, index);
     }
 
     public void matchedQueries(String[] matchedQueries) {

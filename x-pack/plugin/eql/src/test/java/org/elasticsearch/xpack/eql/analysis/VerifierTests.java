@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.TypesTests;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
@@ -377,7 +378,7 @@ public class VerifierTests extends ESTestCase {
                 "[process where true] by opcode"));
     }
 
-    private LogicalPlan analyzeWithVerifierFunction(Function<String, Set<String>> versionIncompatibleClusters) {
+    private LogicalPlan analyzeWithVerifierFunction(Function<String, Collection<String>> versionIncompatibleClusters) {
         PreAnalyzer preAnalyzer = new PreAnalyzer();
         Verifier verifier = new Verifier(new Metrics(), versionIncompatibleClusters);
         Analyzer analyzer = new Analyzer(EqlTestUtils.TEST_CFG, new EqlFunctionRegistry(), verifier);

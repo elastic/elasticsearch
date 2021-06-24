@@ -21,10 +21,12 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
         return asArray(EqlSpecLoader.load("/test_extra.toml", new HashSet<>()));
     }
 
+    // constructor for "local" rest tests
     public EqlExtraSpecTestCase(String query, String name, long[] eventIds) {
-        super(TEST_EXTRA_INDEX, query, name, eventIds);
+        this(TEST_EXTRA_INDEX, query, name, eventIds);
     }
 
+    // constructor for multi-cluster tests
     public EqlExtraSpecTestCase(String index, String query, String name, long[] eventIds) {
         super(index, query, name, eventIds);
     }

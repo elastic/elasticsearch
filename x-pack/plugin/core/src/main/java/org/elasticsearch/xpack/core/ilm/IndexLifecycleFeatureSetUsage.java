@@ -171,15 +171,21 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
 
         public PhaseStats(StreamInput in) throws IOException {
             actionNames = in.readStringArray();
-            configurations = in.readOptionalWriteable(ActionConfigStats::new);
             minimumAge = in.readTimeValue();
+            if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+                configurations = in.readOptionalWriteable(ActionConfigStats::new);
+            } else {
+                configurations = ActionConfigStats.builder().build();
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringArray(actionNames);
-            out.writeOptionalWriteable(configurations);
             out.writeTimeValue(minimumAge);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeOptionalWriteable(configurations);
+            }
         }
 
         @Override

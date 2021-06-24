@@ -40,11 +40,14 @@ public class PainlessExplainError extends Error {
      */
     public Map<String, List<String>> getHeaders(PainlessLookup painlessLookup) {
         Map<String, List<String>> headers = new TreeMap<>();
-        String toString = "null";
+        String toString = "Error on painless, null cause received because Debug.explain was called within a painless script";
         String javaClassName = null;
         String painlessClassName = null;
         if (objectToExplain != null) {
-            toString = objectToExplain.toString();
+            if(objectToExplain.toString() == "null")
+                toString = "Error on painless, null cause received because Debug.explain was called within a painless script";
+            else
+                toString = objectToExplain.toString();
             javaClassName = objectToExplain.getClass().getName();
             PainlessClass struct = painlessLookup.lookupPainlessClass(objectToExplain.getClass());
             if (struct != null) {

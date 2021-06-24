@@ -568,7 +568,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .setSimpleReason(
                         String.format(
                             Locale.ROOT,
-                            "Passing currently perceived capacity as down scale delay has not be satisfied; configured delay [%s]"
+                            "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
                                 + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                             downScaleDelay.getStringRep(),
                             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),

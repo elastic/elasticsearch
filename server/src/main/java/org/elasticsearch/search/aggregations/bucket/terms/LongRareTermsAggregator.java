@@ -51,7 +51,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
         int maxDocCount,
         double precision,
         CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        int threshold
     ) throws IOException {
         super(
             name,
@@ -61,7 +62,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
             metadata,
             maxDocCount,
             precision,
-            format
+            format,
+            threshold
         );
         this.valuesSource = valuesSource;
         this.filter = filter;

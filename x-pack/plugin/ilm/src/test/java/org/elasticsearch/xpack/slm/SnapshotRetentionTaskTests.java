@@ -266,8 +266,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
                         deletedSnapshotsInHistory.add(historyItem.getSnapshotName());
                         historyLatch.countDown();
                     }),
-                threadPool,
-                () -> {
+                    () -> {
                     List<SnapshotInfo> snaps = new ArrayList<>(2);
                     snaps.add(eligibleSnapshot);
                     snaps.add(ineligibleSnapshot);
@@ -332,8 +331,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService,
                 System::nanoTime,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
-                    (historyItem) -> fail("should never write history")),
-                threadPool);
+                    (historyItem) -> fail("should never write history"))
+            );
 
             AtomicReference<Exception> errHandlerCalled = new AtomicReference<>(null);
             task.getAllRetainableSnapshots(Collections.singleton(repoId), new ActionListener<Map<String, List<SnapshotInfo>>>() {
@@ -388,8 +387,8 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             SnapshotRetentionTask task = new SnapshotRetentionTask(noOpClient, clusterService,
                 System::nanoTime,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
-                    (historyItem) -> fail("should never write history")),
-                threadPool);
+                    (historyItem) -> fail("should never write history"))
+            );
 
             AtomicBoolean onFailureCalled = new AtomicBoolean(false);
             task.deleteSnapshot("policy", "foo", new SnapshotId("name", "uuid"),
@@ -436,8 +435,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             SnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC,
                     (historyItem) -> fail("should never write history")),
-                threadPool,
-                () -> {
+                    () -> {
                     fail("should not retrieve snapshots");
                     return null;
                 },
@@ -476,8 +474,7 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
             MockSnapshotRetentionTask task = new MockSnapshotRetentionTask(noOpClient, clusterService,
                 new SnapshotLifecycleTaskTests.VerifyingHistoryStore(noOpClient, ZoneOffset.UTC, (historyItem) -> {
                 }),
-                threadPool,
-                () -> {
+                    () -> {
                     retentionWasRun.set(true);
                     return Collections.emptyMap();
                 },
@@ -525,11 +522,10 @@ public class SnapshotRetentionTaskTests extends ESTestCase {
         MockSnapshotRetentionTask(Client client,
                                   ClusterService clusterService,
                                   SnapshotHistoryStore historyStore,
-                                  ThreadPool threadPool,
                                   Supplier<Map<String, List<SnapshotInfo>>> snapshotRetriever,
                                   DeleteSnapshotMock deleteRunner,
                                   LongSupplier nanoSupplier) {
-            super(client, clusterService, nanoSupplier, historyStore, threadPool);
+            super(client, clusterService, nanoSupplier, historyStore);
             this.snapshotRetriever = snapshotRetriever;
             this.deleteRunner = deleteRunner;
         }

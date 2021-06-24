@@ -190,6 +190,13 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this.repositories;
     }
 
+    public boolean isSingleRepositoryRequest() {
+        return repositories.length == 1
+            && repositories[0] != null
+            && "_all".equals(repositories[0]) == false
+            && Regex.isSimpleMatchPattern(repositories[0]) == false;
+    }
+
     /**
      * Sets repository name
      *
@@ -213,13 +220,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             throw new IllegalStateException("more than a single repository set for request");
         }
         return this.repositories[0];
-    }
-
-    public boolean isSingleRepositoryRequest() {
-        return repositories.length == 1
-            && repositories[0] != null
-            && "_all".equals(repositories[0]) == false
-            && Regex.isSimpleMatchPattern(repositories[0]) == false;
     }
 
     /**

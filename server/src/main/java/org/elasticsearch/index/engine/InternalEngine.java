@@ -65,9 +65,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
@@ -1183,7 +1183,7 @@ public class InternalEngine extends Engine {
         return mayHaveBeenIndexBefore;
     }
 
-    private void addDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         if (docs.size() > 1) {
             indexWriter.addDocuments(docs);
         } else {
@@ -1192,9 +1192,9 @@ public class InternalEngine extends Engine {
         numDocAppends.inc(docs.size());
     }
 
-    private void addStaleDocs(final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void addStaleDocs(final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         assert softDeleteEnabled : "Add history documents but soft-deletes is disabled";
-        for (ParseContext.Document doc : docs) {
+        for (LuceneDocument doc : docs) {
             doc.add(softDeletesField); // soft-deleted every document before adding to Lucene
         }
         if (docs.size() > 1) {
@@ -1286,7 +1286,7 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private void updateDocs(final Term uid, final List<ParseContext.Document> docs, final IndexWriter indexWriter) throws IOException {
+    private void updateDocs(final Term uid, final List<LuceneDocument> docs, final IndexWriter indexWriter) throws IOException {
         if (softDeleteEnabled) {
             if (docs.size() > 1) {
                 indexWriter.softUpdateDocuments(uid, docs, softDeletesField);
@@ -1474,7 +1474,7 @@ public class InternalEngine extends Engine {
                 assert tombstone.docs().size() == 1 : "Tombstone doc should have single doc [" + tombstone + "]";
                 tombstone.updateSeqID(delete.seqNo(), delete.primaryTerm());
                 tombstone.version().setLongValue(plan.versionOfDeletion);
-                final ParseContext.Document doc = tombstone.docs().get(0);
+                final LuceneDocument doc = tombstone.docs().get(0);
                 assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null :
                     "Delete tombstone document but _tombstone field is not set [" + doc + " ]";
                 doc.add(softDeletesField);
@@ -1614,7 +1614,7 @@ public class InternalEngine extends Engine {
                         // version field.
                         tombstone.version().setLongValue(1L);
                         assert tombstone.docs().size() == 1 : "Tombstone should have a single doc [" + tombstone + "]";
-                        final ParseContext.Document doc = tombstone.docs().get(0);
+                        final LuceneDocument doc = tombstone.docs().get(0);
                         assert doc.getField(SeqNoFieldMapper.TOMBSTONE_NAME) != null
                             : "Noop tombstone document but _tombstone field is not set [" + doc + " ]";
                         doc.add(softDeletesField);

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -25,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -45,6 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -98,6 +103,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -687,6 +693,127 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(result.isAuthenticated(), is(true));
         assertThat(service.getFromCache(creds.getId()), not(sameInstance(cachedApiKeyHashResult)));
         assertThat(service.getFromCache(creds.getId()).success, is(true));
+    }
+
+    public void testApiKeyAuthCacheWillTraceLogOnEvictionDueToCacheSize() throws IllegalAccessException {
+        final int cacheSize = randomIntBetween(2, 8);
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", cacheSize).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String idPrefix = randomAlphaOfLength(20);
+        final AtomicInteger count = new AtomicInteger(0);
+        IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
+            ));
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "no-thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "replace", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "invalidate", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
+            apiKeyAuthCache.invalidateAll();
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyCacheWillNotTraceLogOnEvictionDueToCacheTtl() throws IllegalAccessException, InterruptedException {
+        ApiKeyService service = createApiKeyService(Settings.builder()
+            .put("xpack.security.authc.api_key.cache.max_keys", 2)
+            .put("xpack.security.authc.api_key.cache.ttl", TimeValue.timeValueMillis(100))
+            .build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+        final String apiKeyId = randomAlphaOfLength(22);
+
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+            // Wait for the entry to expire
+            Thread.sleep(200);
+            assertNull(apiKeyAuthCache.get(apiKeyId));
+            // Cache a new entry
+            apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
+            assertEquals(1, apiKeyAuthCache.count());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws IllegalAccessException {
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String apiKeyId = randomAlphaOfLength(22);
+        apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            // Prepare the warning logging to trigger
+            service.getEvictionCounter().add(4500);
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            // Will not log warning again for the next eviction because of throttling
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "throttling", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(24), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
     }
 
     public void testAuthenticateWhileCacheBeingPopulated() throws Exception {

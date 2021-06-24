@@ -12,6 +12,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.geometry.Geometry;

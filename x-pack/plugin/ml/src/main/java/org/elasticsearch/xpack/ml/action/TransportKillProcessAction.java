@@ -74,7 +74,7 @@ public class TransportKillProcessAction extends TransportTasksAction<JobTask,
         logger.info("[{}] Killing job", jobTask.getJobId());
         auditor.info(jobTask.getJobId(), Messages.JOB_AUDIT_KILLING);
         try {
-            processManager.killProcess(jobTask, true, null);
+            jobTask.killJob("kill process (api)");
             listener.onResponse(new KillProcessAction.Response(true));
         } catch (Exception e) {
             listener.onFailure(e);

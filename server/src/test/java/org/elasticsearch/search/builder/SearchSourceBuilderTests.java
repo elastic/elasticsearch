@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -400,6 +401,17 @@ public class SearchSourceBuilderTests extends AbstractSearchTestCase {
     }
 
     public void testParseIndicesBoost() throws IOException {
+        {
+            String restContent = " { \"indices_boost\": {\"foo\": 1.0, \"bar\": 2.0}}";
+            try (XContentParser parser = createParserWithCompatibilityFor(JsonXContent.jsonXContent, restContent, RestApiVersion.V_7)) {
+                SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.fromXContent(parser);
+                assertEquals(2, searchSourceBuilder.indexBoosts().size());
+                assertEquals(new SearchSourceBuilder.IndexBoost("foo", 1.0f), searchSourceBuilder.indexBoosts().get(0));
+                assertEquals(new SearchSourceBuilder.IndexBoost("bar", 2.0f), searchSourceBuilder.indexBoosts().get(1));
+                assertWarnings("Object format in indices_boost is deprecated, please use array format instead");
+            }
+        }
+
         {
             String restContent = "{" +
                 "    \"indices_boost\" : [\n" +

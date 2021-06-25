@@ -343,7 +343,6 @@ list of indices.
 | `metricbeat_setup` | Set up {metricbeat}.
 | `kibana_admin`     | Load dependencies, such as example dashboards, if available, into {kib}
 | `ingest_admin`     | Set up index templates and, if available, ingest pipelines
-| `beats_admin`      | Enroll and manage configurations in {beats} central management
 |===
 
 **Next**: <<beats-monitoring-role,Create a monitoring role>>

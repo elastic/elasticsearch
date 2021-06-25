@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -23,12 +24,13 @@ import static org.elasticsearch.xpack.deprecation.DeprecationIssue.Level;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class DeprecationIssueTests extends ESTestCase {
-    DeprecationIssue issue;
+
+    private DeprecationIssue issue;
 
     static DeprecationIssue createTestInstance() {
         String details = randomBoolean() ? randomAlphaOfLength(10) : null;
         return new DeprecationIssue(randomFrom(Level.values()), randomAlphaOfLength(10),
-            randomAlphaOfLength(10), details);
+            randomAlphaOfLength(10), details, randomMap(1, 5, () -> Tuple.tuple(randomAlphaOfLength(4), randomAlphaOfLength(4))));
     }
 
     @Before
@@ -37,7 +39,8 @@ public class DeprecationIssueTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
-        DeprecationIssue other = new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails());
+        DeprecationIssue other =
+            new DeprecationIssue(issue.getLevel(), issue.getMessage(), issue.getUrl(), issue.getDetails(), issue.getMeta());
         assertThat(issue, equalTo(other));
         assertThat(other, equalTo(issue));
         assertThat(issue.hashCode(), equalTo(other.hashCode()));
@@ -62,7 +65,9 @@ public class DeprecationIssueTests extends ESTestCase {
             assertTrue(toXContentMap.containsKey("details"));
         }
         String details = (String) toXContentMap.get("details");
-        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> meta = (Map<String, Object>) toXContentMap.get("_meta");
+        DeprecationIssue other = new DeprecationIssue(Level.fromString(level), message, url, details, meta);
         assertThat(issue, equalTo(other));
     }
 }

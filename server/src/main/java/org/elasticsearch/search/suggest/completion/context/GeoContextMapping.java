@@ -24,9 +24,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -171,7 +171,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
     }
 
     @Override
-    public Set<String> parseContext(Document document) {
+    public Set<String> parseContext(LuceneDocument document) {
         final Set<String> geohashes = new HashSet<>();
 
         if (fieldName != null) {

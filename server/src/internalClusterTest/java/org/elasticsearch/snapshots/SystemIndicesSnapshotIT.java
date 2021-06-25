@@ -116,7 +116,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         clusterAdmin().prepareGetRepositories(REPO_NAME).get();
         Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
             .get()
-            .getSnapshots(REPO_NAME)
+            .getSnapshots()
             .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
@@ -274,7 +274,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // verify the correctness of the snapshot
         Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
             .get()
-            .getSnapshots(REPO_NAME)
+            .getSnapshots()
             .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
@@ -719,7 +719,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Verify that the system index was not included
         Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME)
             .get()
-            .getSnapshots(REPO_NAME)
+            .getSnapshots()
             .stream()
             .map(SnapshotInfo::indices)
             .flatMap(Collection::stream)
@@ -843,7 +843,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .prepareGetSnapshots(REPO_NAME)
                 .setSnapshots(partialSnapName)
                 .get();
-            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots(REPO_NAME).get(0);
+            SnapshotInfo snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
             assertNotNull(snapshotInfo);
             assertThat(snapshotInfo.failedShards(), lessThan(snapshotInfo.totalShards()));
             List<String> statesInSnapshot = snapshotInfo.featureStates()

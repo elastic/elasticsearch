@@ -244,15 +244,18 @@ public class LZ4Inflater implements TransportDecompressor {
                             case BLOCK_TYPE_COMPRESSED:
                                 BytesRef ref = reference.iterator().next();
                                 final byte[] compressed;
+                                final int compressedOffset;
                                 if (ref.length >= compressedLength) {
                                     compressed = ref.bytes;
+                                    compressedOffset = ref.offset;
                                 } else {
                                     compressed = getCompressedBuffer(compressedLength);
+                                    compressedOffset = 0;
                                     try (StreamInput streamInput = reference.streamInput()) {
                                         streamInput.readBytes(compressed, 0, compressedLength);
                                     }
                                 }
-                                decompressor.decompress(compressed, 0, uncompressed, 0, decompressedLength);
+                                decompressor.decompress(compressed, compressedOffset, uncompressed, 0, decompressedLength);
                                 break;
                             default:
                                 throw new IllegalStateException(String.format(

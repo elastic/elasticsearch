@@ -1479,7 +1479,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
 
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
-                    snapshot.getSnapshotId(),
+                    snapshot,
                     finalIndices,
                     entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey).collect(Collectors.toList()),
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),

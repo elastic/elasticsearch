@@ -99,6 +99,11 @@ public class RenameProcessorTests extends ESTestCase {
             RandomDocumentPicks.randomFieldName(random()), true);
         processor.execute(ingestDocument);
         assertIngestDocument(originalIngestDocument, ingestDocument);
+
+        Processor processor1 = createRenameProcessor("",
+            RandomDocumentPicks.randomFieldName(random()), true);
+        processor1.execute(ingestDocument);
+        assertIngestDocument(originalIngestDocument, ingestDocument);
     }
 
     public void testRenameNewFieldAlreadyExists() throws Exception {

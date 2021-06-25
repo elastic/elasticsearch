@@ -8,8 +8,11 @@
 
 package org.elasticsearch.transport;
 
-import net.jpountz.lz4.LZ4FrameInputStream;
+import net.jpountz.lz4.LZ4Exception;
+import net.jpountz.lz4.LZ4Factory;
+import net.jpountz.lz4.LZ4FastDecompressor;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -18,72 +21,94 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayDeque;
+import java.util.zip.Checksum;
 
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
-    private final LZ4FrameInputStream inputStream;
-    private final ExpandableStream expandableStream;
+    private final ThreadLocal<byte[]> uncompressed = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
+
+    /**
+     * Magic number of LZ4 block.
+     */
+    static final long MAGIC_NUMBER = (long) 'L' << 56 |
+        (long) 'Z' << 48 |
+        (long) '4' << 40 |
+        (long) 'B' << 32 |
+        'l' << 24 |
+        'o' << 16 |
+        'c' << 8  |
+        'k';
+
+    static final int HEADER_LENGTH = 8 +  // magic number
+        1 +  // token
+        4 +  // compressed length
+        4 +  // decompressed length
+        4;   // checksum
+
+
+    /**
+     * Base value for compression level.
+     */
+    static final int COMPRESSION_LEVEL_BASE = 10;
+
+    static final int MIN_BLOCK_SIZE = 64;
+    static final int MAX_BLOCK_SIZE = 1 << COMPRESSION_LEVEL_BASE + 0x0F;   //  32 M
+    static final int DEFAULT_BLOCK_SIZE = 1 << 16;  // 64 KB
+
+    static final int BLOCK_TYPE_NON_COMPRESSED = 0x10;
+    static final int BLOCK_TYPE_COMPRESSED = 0x20;
+
+    private enum State {
+        INIT_BLOCK,
+        DECOMPRESS_DATA,
+        FINISHED,
+        CORRUPTED
+    }
+
+    private State currentState = State.INIT_BLOCK;
+
+    /**
+     * Underlying decompressor in use.
+     */
+    private LZ4FastDecompressor decompressor;
+
+    /**
+     * Underlying checksum calculator in use.
+     */
+    private Checksum checksum;
+
+    /**
+     * Type of current block.
+     */
+    private int blockType;
+
+    /**
+     * Compressed length of current incoming block.
+     */
+    private int compressedLength;
+
+    /**
+     * Decompressed length of current incoming block.
+     */
+    private int decompressedLength;
+
+    /**
+     * Checksum value of current incoming block.
+     */
+    private int currentChecksum;
+
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private boolean hasSkippedHeader = false;
+    private byte[] compressedBuffer = new byte[0];
+    private boolean hasSkippedESHeader = false;
 
-    public Lz4TransportDecompressor(PageCacheRecycler recycler) throws IOException {
+    public Lz4TransportDecompressor(PageCacheRecycler recycler) {
+        this.decompressor = LZ4Factory.fastestJavaInstance().fastDecompressor();
         this.recycler = recycler;
-        expandableStream = new ExpandableStream();
-        inputStream = new LZ4FrameInputStream(expandableStream);
-        pages = new ArrayDeque<>(4);
-    }
-
-    @Override
-    public int decompress(BytesReference bytesReference) throws IOException {
-        int bytesConsumed = 0;
-        if (hasSkippedHeader == false) {
-            hasSkippedHeader = true;
-            int headerLength = CompressionScheme.HEADER_LENGTH;
-            bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
-            bytesConsumed += headerLength;
-        }
-        final StreamInput underlyingStream = bytesReference.streamInput();
-        this.expandableStream.nextStream(underlyingStream);
-
-        boolean continueDecompressing = true;
-        while (continueDecompressing) {
-            final Recycler.V<byte[]> page;
-            final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
-            if (isNewPage) {
-                pageOffset = 0;
-                page = recycler.bytePage(false);
-            } else {
-                page = pages.getLast();
-            }
-            byte[] output = page.v();
-            int bytesDecompressed;
-            try {
-                bytesDecompressed = inputStream.read(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                pageOffset += Math.max(bytesDecompressed, 0);
-                if (isNewPage) {
-                    if (bytesDecompressed <= 0) {
-                        page.close();
-                        pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-                    } else {
-                        pages.add(page);
-                    }
-                }
-            } catch (IOException e) {
-                throw new IOException("Exception while LZ4 decompressing bytes", e);
-            }
-            if (bytesDecompressed <= 0) {
-                continueDecompressing = false;
-            }
-        }
-
-        assert underlyingStream.available() == 0;
-        bytesConsumed += bytesReference.length();
-
-        return bytesConsumed;
+        this.pages = new ArrayDeque<>(4);
+        this.checksum = null;
     }
 
     @Override
@@ -107,32 +132,193 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
     @Override
     public void close() {
-        try {
-            inputStream.close();
-        } catch (IOException e) {
-            assert false : "Exception should not be thrown.";
-        }
         for (Recycler.V<byte[]> page : pages) {
             page.close();
         }
     }
 
-    private static class ExpandableStream extends InputStream {
-
-        private StreamInput current;
-
-        private void nextStream(StreamInput next) {
-            current = next;
+    @Override
+    public int decompress(BytesReference bytesReference) throws IOException {
+        int bytesConsumed = 0;
+        if (hasSkippedESHeader == false) {
+            hasSkippedESHeader = true;
+            int esHeaderLength = CompressionScheme.HEADER_LENGTH;
+            bytesReference = bytesReference.slice(esHeaderLength, bytesReference.length() - esHeaderLength);
+            bytesConsumed += esHeaderLength;
         }
 
-        @Override
-        public int read() throws IOException {
-            return Math.max(0, current.read());
+        while (true) {
+            int consumed = decodeBlock(bytesReference);
+            bytesConsumed += consumed;
+            int newLength = bytesReference.length() - consumed;
+            if (consumed > 0 && newLength > 0) {
+                bytesReference = bytesReference.slice(consumed, newLength);
+            } else {
+                break;
+            }
         }
 
-        @Override
-        public int read(byte[] b, int off, int len) throws IOException {
-            return Math.max(0, current.read(b, off, len));
+        return bytesConsumed;
+    }
+
+    private int decodeBlock(BytesReference reference) throws IOException {
+        int bytesConsumed = 0;
+        try {
+            switch (currentState) {
+                case INIT_BLOCK:
+                    if (reference.length() < HEADER_LENGTH) {
+                        return bytesConsumed;
+                    }
+                    try (StreamInput in = reference.streamInput()) {
+                        final long magic = in.readLong();
+                        if (magic != MAGIC_NUMBER) {
+                            throw new IllegalStateException("unexpected block identifier");
+                        }
+
+                        final int token = in.readByte();
+                        final int compressionLevel = (token & 0x0F) + COMPRESSION_LEVEL_BASE;
+                        int blockType = token & 0xF0;
+
+                        int compressedLength = Integer.reverseBytes(in.readInt());
+                        if (compressedLength < 0 || compressedLength > MAX_BLOCK_SIZE) {
+                            throw new IllegalStateException(String.format(
+                                "invalid compressedLength: %d (expected: 0-%d)",
+                                compressedLength, MAX_BLOCK_SIZE));
+                        }
+
+                        int decompressedLength = Integer.reverseBytes(in.readInt());
+                        final int maxDecompressedLength = 1 << compressionLevel;
+                        if (decompressedLength < 0 || decompressedLength > maxDecompressedLength) {
+                            throw new IllegalStateException(String.format(
+                                "invalid decompressedLength: %d (expected: 0-%d)",
+                                decompressedLength, maxDecompressedLength));
+                        }
+                        if (decompressedLength == 0 && compressedLength != 0
+                            || decompressedLength != 0 && compressedLength == 0
+                            || blockType == BLOCK_TYPE_NON_COMPRESSED && decompressedLength != compressedLength) {
+                            throw new IllegalStateException(String.format(
+                                "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
+                                compressedLength, decompressedLength));
+                        }
+
+                        int currentChecksum = Integer.reverseBytes(in.readInt());
+                        bytesConsumed += HEADER_LENGTH;
+
+                        if (decompressedLength == 0 && compressedLength == 0) {
+                            if (currentChecksum != 0) {
+                                throw new IllegalStateException("stream corrupted: checksum error");
+                            }
+                            currentState = State.FINISHED;
+                            decompressor = null;
+                            checksum = null;
+                            break;
+                        }
+
+                        this.blockType = blockType;
+                        this.compressedLength = compressedLength;
+                        this.decompressedLength = decompressedLength;
+                        this.currentChecksum = currentChecksum;
+                    }
+
+                    currentState = State.DECOMPRESS_DATA;
+                    break;
+                case DECOMPRESS_DATA:
+                    if (reference.length() < compressedLength) {
+                        break;
+                    }
+
+                    final Checksum checksum = this.checksum;
+                    byte[] uncompressed = this.uncompressed.get();
+                    if (decompressedLength > uncompressed.length) {
+                        uncompressed = new byte[decompressedLength];
+                        this.uncompressed.set(uncompressed);
+                    }
+
+                    try {
+                        switch (blockType) {
+                            case BLOCK_TYPE_NON_COMPRESSED:
+                                try (StreamInput streamInput = reference.streamInput()) {
+                                    streamInput.readBytes(uncompressed, 0, decompressedLength);
+                                }
+                                break;
+                            case BLOCK_TYPE_COMPRESSED:
+                                BytesRef ref = reference.iterator().next();
+                                final byte[] compressed;
+                                final int compressedOffset;
+                                if (ref.length >= compressedLength) {
+                                    compressed = ref.bytes;
+                                    compressedOffset = ref.offset;
+                                } else {
+                                    compressed = getCompressedBuffer(compressedLength);
+                                    compressedOffset = 0;
+                                    try (StreamInput streamInput = reference.streamInput()) {
+                                        streamInput.readBytes(compressed, 0, compressedLength);
+                                    }
+                                }
+                                decompressor.decompress(compressed, compressedOffset, uncompressed, 0, decompressedLength);
+                                break;
+                            default:
+                                throw new IllegalStateException(String.format(
+                                    "unexpected blockType: %d (expected: %d or %d)",
+                                    blockType, BLOCK_TYPE_NON_COMPRESSED, BLOCK_TYPE_COMPRESSED));
+                        }
+                        // Skip inbound bytes after we processed them.
+                        bytesConsumed += compressedLength;
+
+                        if (checksum != null) {
+//                            CompressionUtil.checkChecksum(checksum, uncompressed, currentChecksum);
+                        }
+
+                        int bytesToCopy = decompressedLength;
+                        int uncompressedOffset = 0;
+                        while (bytesToCopy > 0) {
+                            final Recycler.V<byte[]> page;
+                            final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
+                            if (isNewPage) {
+                                pageOffset = 0;
+                                pages.add(recycler.bytePage(false));
+                            }
+                            page = pages.getLast();
+
+                            int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
+                            System.arraycopy(uncompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
+                            pageOffset += toCopy;
+                            bytesToCopy -= toCopy;
+                            uncompressedOffset += toCopy;
+                        }
+                        currentState = State.INIT_BLOCK;
+                    } catch (LZ4Exception e) {
+                        throw new IllegalStateException(e);
+                    }
+                    break;
+                case FINISHED:
+                    break;
+                case CORRUPTED:
+                    throw new IllegalStateException("LZ4 stream corrupted.");
+                default:
+                    throw new IllegalStateException();
+            }
+        } catch (IOException e) {
+            currentState = State.CORRUPTED;
+            throw e;
         }
+        return bytesConsumed;
+    }
+
+    private byte[] getCompressedBuffer(int requiredSize) {
+        if (compressedBuffer.length >= requiredSize) {
+            return compressedBuffer;
+        } else {
+            this.compressedBuffer = new byte[requiredSize];
+            return compressedBuffer;
+        }
+    }
+
+    /**
+     * Returns {@code true} if and only if the end of the compressed stream
+     * has been reached.
+     */
+    public boolean isClosed() {
+        return currentState == State.FINISHED;
     }
 }

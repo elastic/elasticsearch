@@ -48,7 +48,7 @@ public interface TransportDecompressor extends Releasable {
         if (header == CompressionScheme.DEFLATE_HEADER) {
             return new DeflateTransportDecompressor(recycler);
         } else {
-            return new LZ4Inflater(recycler);
+            return new Lz4TransportDecompressor(recycler);
         }
     }
 

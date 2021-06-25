@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import java.util.Objects;
 
 public class KeyAndOrdinal {
-
     final SequenceKey key;
     final Ordinal ordinal;
 

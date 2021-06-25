@@ -22,8 +22,6 @@ import java.util.Map;
  */
 class KeyToSequences implements Accountable {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(KeyToSequences.class);
-
     /**
      * Utility class holding the sequencegroup/until tuple that also handles
      * lazy initialization.
@@ -151,7 +149,7 @@ class KeyToSequences implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + RamUsageEstimator.sizeOfMap(keyToSequences);
+        return RamUsageEstimator.sizeOfMap(keyToSequences);
     }
 
     @Override

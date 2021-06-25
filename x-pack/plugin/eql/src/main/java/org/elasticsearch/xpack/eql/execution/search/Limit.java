@@ -16,7 +16,7 @@ import java.util.Objects;
 
 import static java.util.Collections.emptyList;
 
-public class Limit  {
+public class Limit {
 
     private final int limit;
     private final int offset;

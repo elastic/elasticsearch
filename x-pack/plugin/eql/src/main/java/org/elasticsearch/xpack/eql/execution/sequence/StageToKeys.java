@@ -22,16 +22,12 @@ import static java.util.Collections.emptySet;
 /** Dedicated collection for mapping a stage (represented by the index collection) to a set of keys */
 class StageToKeys implements Accountable {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(StageToKeys.class);
-
     private final List<Set<SequenceKey>> stageToKey;
-    private final long ramBytesUsed;
 
     @SuppressWarnings(value = { "unchecked", "rawtypes" })
     StageToKeys(int stages) {
         // use asList to create an immutable list already initialized to null
         this.stageToKey = Arrays.asList(new Set[stages]);
-        ramBytesUsed = SHALLOW_SIZE + RamUsageEstimator.sizeOfCollection(stageToKey);
     }
 
     void add(int stage, SequenceKey key) {
@@ -81,9 +77,7 @@ class StageToKeys implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        // We have a static size for the stageToKey structure
-        // since the SequenceKey have already been accounted when created
-        return ramBytesUsed;
+        return RamUsageEstimator.sizeOfCollection(stageToKey);
     }
 
     @Override

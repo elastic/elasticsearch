@@ -56,7 +56,7 @@ public class CancellationTests extends ESTestCase {
         ClusterService mockClusterService = mockClusterService();
 
         IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().query("foo where blah"), "",
             mock(TransportService.class), mockClusterService, new ActionListener<>() {
@@ -119,7 +119,7 @@ public class CancellationTests extends ESTestCase {
 
 
         IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
             .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
@@ -184,7 +184,7 @@ public class CancellationTests extends ESTestCase {
         }).when(client).execute(any(), searchRequestCaptor.capture(), any());
 
         IndexResolver indexResolver = new IndexResolver(client, randomAlphaOfLength(10), DefaultDataTypeRegistry.INSTANCE);
-        PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
+        PlanExecutor planExecutor = planExecutor(client, indexResolver);
         CountDownLatch countDownLatch = new CountDownLatch(1);
         TransportEqlSearchAction.operation(planExecutor, task, new EqlSearchRequest().indices("endgame")
             .query("process where foo==3"), "", mock(TransportService.class), mockClusterService, new ActionListener<>() {
@@ -209,6 +209,10 @@ public class CancellationTests extends ESTestCase {
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
         verifyNoMoreInteractions(client, task);
+    }
+
+    private PlanExecutor planExecutor(Client client, IndexResolver indexResolver) {
+        return new PlanExecutor(client, indexResolver, new NoopCircuitBreaker("test"));
     }
 
     private ClusterService mockClusterService() {

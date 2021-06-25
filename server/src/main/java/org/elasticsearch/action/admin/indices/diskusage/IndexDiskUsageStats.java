@@ -42,8 +42,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String TERM_VECTORS = "term_vectors";
     public static final String TERM_VECTORS_IN_BYTES = "term_vectors_in_bytes";
 
-    public static final String INDEX_SIZE = "index_size";
-    public static final String INDEX_SIZE_IN_BYTES = "index_size_in_bytes";
+    public static final String STORE_SIZE = "store_size";
+    public static final String STORE_SIZE_IN_BYTES = "store_size_in_bytes";
 
     private final Map<String, PerFieldDiskUsage> fields;
     private long indexSizeInBytes;
@@ -130,8 +130,8 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         final PerFieldDiskUsage total = total();
-        builder.field(INDEX_SIZE, new ByteSizeValue(indexSizeInBytes));
-        builder.field(INDEX_SIZE_IN_BYTES, indexSizeInBytes);
+        builder.field(STORE_SIZE, new ByteSizeValue(indexSizeInBytes));
+        builder.field(STORE_SIZE_IN_BYTES, indexSizeInBytes);
 
         // all fields
         builder.startObject("all_fields");

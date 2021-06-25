@@ -43,7 +43,7 @@ setup:
   - do:
       indices.disk_usage: { index: "testindex", "run_expensive_tasks": true }
 
-  - gt: { testindex.index_size_in_bytes: 100 }
+  - gt: { testindex.store_size_in_bytes: 100 }
   # all_fields
   - set: { testindex.all_fields: all }
   - gt: { $all.total_in_bytes: 0 }

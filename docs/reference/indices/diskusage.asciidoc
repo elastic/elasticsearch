@@ -84,8 +84,8 @@ The API returns:
         "failed": 0
     },
     "my-index-000001": {
-        "index_size": "929mb", <1>
-        "index_size_in_bytes": 974192723,
+        "store_size": "929mb", <1>
+        "store_size_in_bytes": 974192723,
         "all_fields": {
             "total": "928.9mb", <2>
             "total_in_bytes": 973977084,
@@ -165,10 +165,7 @@ The API returns:
 // TESTRESPONSE[s/: (\-)?[0-9]+/: $body.$_path/]
 // TESTRESPONSE[s/: "[^"]*"/: $body.$_path/]
 
-<1> The total size of only analyzed shards of the index. This size can be
-smaller than the store size of the index because only one copy of each shard
-is examined. Also, some shards can have more than one index commit due to
-snapshots or recoveries.
+<1> The store size of only analyzed shards of the index.
 
 <2> The total size of fields of the analyzed shards of the index. This total
 is usually smaller than the index size specified in <1> as some small metadata

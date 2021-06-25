@@ -270,8 +270,8 @@ public class LZ4Inflater implements TransportDecompressor {
                         }
 
                         int bytesToCopy = decompressedLength;
-                        int bytesCopied = 0;
-                        while (bytesCopied != bytesToCopy) {
+                        int uncompressedOffset = 0;
+                        while (bytesToCopy > 0) {
                             final Recycler.V<byte[]> page;
                             final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
                             if (isNewPage) {
@@ -281,9 +281,10 @@ public class LZ4Inflater implements TransportDecompressor {
                             page = pages.getLast();
 
                             int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                            System.arraycopy(uncompressed, bytesCopied, page.v(), pageOffset, toCopy);
+                            System.arraycopy(uncompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
                             pageOffset += toCopy;
-                            bytesCopied += toCopy;
+                            bytesToCopy -= toCopy;
+                            uncompressedOffset += toCopy;
                         }
                         currentState = State.INIT_BLOCK;
                     } catch (LZ4Exception e) {

@@ -1861,6 +1861,6 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
 
     @Override
     public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), threadContext);
+        return new DlsFlsRequestCacheDifferentiator(getLicenseState(), securityContext);
     }
 }

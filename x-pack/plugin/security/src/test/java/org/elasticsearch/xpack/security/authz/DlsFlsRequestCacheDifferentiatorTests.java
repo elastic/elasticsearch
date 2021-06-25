@@ -17,6 +17,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
@@ -52,7 +53,8 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
         threadContext = new ThreadContext(Settings.EMPTY);
         out = new BytesStreamOutput();
-        differentiator = new DlsFlsRequestCacheDifferentiator(licenseState, new SetOnce<>(threadContext));
+        final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
+        differentiator = new DlsFlsRequestCacheDifferentiator(licenseState, new SetOnce<>(securityContext));
         shardSearchRequest = mock(ShardSearchRequest.class);
         indexName = randomAlphaOfLengthBetween(3, 8);
         dlsIndexName = "dls-" + randomAlphaOfLengthBetween(3, 8);

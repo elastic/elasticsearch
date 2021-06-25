@@ -13,11 +13,12 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 
@@ -26,11 +27,11 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
     private static final Logger logger = LogManager.getLogger(DlsFlsRequestCacheDifferentiator.class);
 
     private final XPackLicenseState licenseState;
-    private final SetOnce<ThreadContext> threadContextHolder;
+    private final SetOnce<SecurityContext> securityContextHolder;
 
-    public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState, SetOnce<ThreadContext> threadContextHolder) {
+    public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState, SetOnce<SecurityContext> securityContextHolder) {
         this.licenseState = licenseState;
-        this.threadContextHolder = threadContextHolder;
+        this.securityContextHolder = securityContextHolder;
     }
 
     @Override
@@ -39,8 +40,9 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
             return;
         }
         var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
+        final SecurityContext securityContext = securityContextHolder.get();
         final IndicesAccessControl indicesAccessControl =
-            threadContextHolder.get().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+            securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
         final String indexName = request.shardId().getIndexName();
         IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(indexName);
         if (indexAccessControl != null) {
@@ -51,6 +53,17 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
                         "document level access controls [{}]. Differentiating request cache key",
                     indexName, flsEnabled, dlsEnabled);
                 indexAccessControl.buildCacheKey(out);
+                if (indexAccessControl.getDocumentPermissions().hasTemplateRoleQuery()) {
+                    out.writeBoolean(true);
+                    final User user = securityContext.getUser();
+                    out.writeString(user.principal());
+                    out.writeOptionalString(user.fullName());
+                    out.writeOptionalString(user.email());
+                    out.writeStringArray(user.roles());
+                    out.writeMap(user.metadata());
+                } else {
+                    out.writeBoolean(false);
+                }
             }
         }
     }

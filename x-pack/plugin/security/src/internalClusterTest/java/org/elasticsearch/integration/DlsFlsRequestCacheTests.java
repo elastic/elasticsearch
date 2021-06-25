@@ -285,15 +285,25 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         final Client client2 = client().filterWithHeader(Map.of(
             "Authorization", basicAuthHeaderValue(DLS_TEMPLATE_ROLE_QUERY_USER_2, new SecureString(TEST_PASSWORD.toCharArray()))));
 
-        // Search first with user1 and only one document should be return with the corresponding username
+        // Search first with user1 and only one document will be return with the corresponding username
         assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
             Set.of("1"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 1);
 
-        // Search with user2 should not use user1's cache because template query is resolved differently for them
+        // Search with user2 will not use user1's cache because template query is resolved differently for them
         assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
             Set.of("2"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 2);
+
+        // Search with user1 again will use user1's cache
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
+            Set.of("1"), Set.of("username"));
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 1, 2);
+
+        // Search with user2 again will use user2's cache
+        assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
+            Set.of("2"), Set.of("username"));
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
     }
 
     private void prepareIndices() {

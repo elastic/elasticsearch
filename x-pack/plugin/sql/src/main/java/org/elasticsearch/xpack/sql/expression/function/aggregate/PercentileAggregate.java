@@ -11,7 +11,7 @@ import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.search.aggregations.metrics.PercentilesMethod;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.Foldables;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.TwoOptionalArguments;
@@ -30,6 +30,7 @@ import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
@@ -92,18 +93,18 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
             return resolution;
         }
 
-        resolution = isFoldable(parameter, sourceText(), ParamOrdinal.SECOND);
+        resolution = isFoldable(parameter, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        resolution = isNumeric(parameter, sourceText(), ParamOrdinal.SECOND);
+        resolution = isNumeric(parameter, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
 
-        ParamOrdinal methodOrdinal = ParamOrdinal.fromIndex(parameters().size() + 1);
-        ParamOrdinal methodParameterOrdinal = ParamOrdinal.fromIndex(parameters().size() + 2);
+        ParamOrdinal methodOrdinal = TypeResolutions.ParamOrdinal.fromIndex(parameters().size() + 1);
+        TypeResolutions.ParamOrdinal methodParameterOrdinal = TypeResolutions.ParamOrdinal.fromIndex(parameters().size() + 2);
 
         if (method != null) {
             resolution = isFoldable(method, sourceText(), methodOrdinal);

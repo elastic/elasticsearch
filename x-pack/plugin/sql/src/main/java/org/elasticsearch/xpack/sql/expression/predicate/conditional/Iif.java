@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.expression.predicate.conditional;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isBoolean;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
@@ -48,7 +50,11 @@ public class Iif extends Case implements OptionalArgument {
             return TypeResolution.TYPE_RESOLVED;
         }
 
-        TypeResolution conditionTypeResolution = isBoolean(conditions().get(0).condition(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution conditionTypeResolution = isBoolean(
+            conditions().get(0).condition(),
+            sourceText(),
+            FIRST
+        );
         if (conditionTypeResolution.unresolved()) {
             return conditionTypeResolution;
         }

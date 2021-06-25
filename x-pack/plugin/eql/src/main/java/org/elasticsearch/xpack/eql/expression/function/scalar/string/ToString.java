@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
+import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
@@ -26,6 +26,7 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.ToStringFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -47,7 +48,7 @@ public class ToString extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isExact(value, sourceText(), ParamOrdinal.DEFAULT);
+        return isExact(value, sourceText(), DEFAULT);
     }
 
     public Expression value() {

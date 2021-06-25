@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ql.expression;
 
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.EsField;
@@ -18,11 +17,38 @@ import java.util.function.Predicate;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.expression.Expressions.name;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 
 public final class TypeResolutions {
+
+    public enum ParamOrdinal {
+        DEFAULT,
+        FIRST,
+        SECOND,
+        THIRD,
+        FOURTH,
+        FIFTH;
+
+        public static ParamOrdinal fromIndex(int index) {
+            switch (index) {
+                case 0:
+                    return FIRST;
+                case 1:
+                    return SECOND;
+                case 2:
+                    return THIRD;
+                case 3:
+                    return FOURTH;
+                case 4:
+                    return FIFTH;
+                default:
+                    return DEFAULT;
+            }
+        }
+    }
 
     private TypeResolutions() {}
 
@@ -62,7 +88,8 @@ public final class TypeResolutions {
             if (exact.hasExact() == false) {
                 return new TypeResolution(format(null, "[{}] cannot operate on {}field of data type [{}]: {}",
                     operationName,
-                    paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ?
+                    paramOrd == null || paramOrd == DEFAULT
+                        ?
                         "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
                     e.dataType().typeName(), exact.errorMsg()));
             }
@@ -91,7 +118,7 @@ public final class TypeResolutions {
     public static TypeResolution isFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable() == false) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a constant, received [{}]",
-                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                 operationName,
                 Expressions.name(e)));
         }
@@ -101,7 +128,7 @@ public final class TypeResolutions {
     public static TypeResolution isNotFoldable(Expression e, String operationName, ParamOrdinal paramOrd) {
         if (e.foldable()) {
             return new TypeResolution(format(null, "{}argument of [{}] must be a table column, found constant [{}]",
-                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                 operationName,
                 Expressions.name(e)));
         }
@@ -116,7 +143,7 @@ public final class TypeResolutions {
         return predicate.test(e.dataType()) || e.dataType() == NULL ?
             TypeResolution.TYPE_RESOLVED :
             new TypeResolution(format(null, "{}argument of [{}] must be [{}], found value [{}] type [{}]",
-                paramOrd == null || paramOrd == ParamOrdinal.DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
+                paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " ",
                 operationName,
                 acceptedTypesForErrorMsg(acceptedTypes),
                 name(e),
@@ -134,4 +161,4 @@ public final class TypeResolutions {
             return acceptedTypes[0];
         }
     }
-}
+};

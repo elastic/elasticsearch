@@ -33,7 +33,7 @@ public abstract class BinaryComparison extends BinaryOperator<Object, Object, Bo
     }
 
     @Override
-    protected TypeResolution resolveInputType(Expression e, Expressions.ParamOrdinal paramOrdinal) {
+    protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isExact(e, sourceText(), paramOrdinal);
     }
 

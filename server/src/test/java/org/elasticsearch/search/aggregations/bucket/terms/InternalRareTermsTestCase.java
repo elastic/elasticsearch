@@ -22,7 +22,7 @@ import java.util.stream.Stream;
 public abstract class InternalRareTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalRareTerms<?, ?>> {
 
     private long maxDocCount;
-    private int threshold;
+    private int threshold = 1;
 
     @Before
     public void init() {

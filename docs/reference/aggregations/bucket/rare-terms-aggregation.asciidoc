@@ -227,6 +227,15 @@ CuckooFilters are described in more detail in the paper:
 https://www.cs.cmu.edu/~dga/papers/cuckoo-conext2014.pdf[Fan, Bin, et al. "Cuckoo filter: Practically better than bloom."]
 Proceedings of the 10th ACM International on Conference on emerging Networking Experiments and Technologies. ACM, 2014.
 
+
+==== Threshold
+The `threshold` parameter defines the number of unique values that are collected using the naive approach and therefore
+doc counts are accurate. Above this value, cuckoo filters are used to collect the values and therefore doc counts might
+become a bit more fuzzy.
+
+The value of this parameter must be a positive integer with a maximum supported value of 500000.
+The default value is `10000`.
+
 ==== Precision
 
 Although the internal CuckooFilter is approximate in nature, the false-negative rate can be controlled with a

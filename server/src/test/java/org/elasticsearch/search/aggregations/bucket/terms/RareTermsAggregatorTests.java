@@ -29,6 +29,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -178,6 +179,49 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 StringRareTerms.Bucket bucket = (StringRareTerms.Bucket) agg.getBuckets().get(0);
                 assertThat(bucket.getKeyAsString(), equalTo("2"));
                 assertThat(bucket.getDocCount(), equalTo(2L));
+            }
+        );
+    }
+
+    public void testThreshold() throws IOException {
+        {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> new RareTermsAggregationBuilder("test").setThreshold(-1));
+            assertThat(ex.getMessage(), equalTo("[threshold] must be a positive integer"));
+        }
+        {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class,
+                () -> new RareTermsAggregationBuilder("test").setThreshold(SetBackedScalingCuckooFilter.maxThreshold() + 1));
+            assertThat(ex.getMessage(), equalTo("[threshold] must be smaller than [" + SetBackedScalingCuckooFilter.maxThreshold() + "]"));
+        }
+        Query query = new MatchAllDocsQuery();
+
+        testSearchCase(query, dataset,
+            aggregation -> aggregation.field(LONG_FIELD)
+                .maxDocCount(2)
+                .setThreshold(1),
+            agg -> {
+                assertEquals(2, agg.getBuckets().size());
+                LongRareTerms.Bucket bucket1 = (LongRareTerms.Bucket) agg.getBuckets().get(0);
+                assertThat(bucket1.getKey(), equalTo(1L));
+                assertThat(bucket1.getDocCount(), equalTo(1L));
+                LongRareTerms.Bucket bucket2 = (LongRareTerms.Bucket) agg.getBuckets().get(1);
+                assertThat(bucket2.getKey(), equalTo(2L));
+                assertThat(bucket2.getDocCount(), equalTo(2L));
+            }
+        );
+        testSearchCase(query, dataset,
+            aggregation -> aggregation.field(LONG_FIELD)
+                .maxDocCount(2)
+                .setThreshold(1000),
+            agg -> {
+                assertEquals(2, agg.getBuckets().size());
+                LongRareTerms.Bucket bucket1 = (LongRareTerms.Bucket) agg.getBuckets().get(0);
+                assertThat(bucket1.getKey(), equalTo(1L));
+                assertThat(bucket1.getDocCount(), equalTo(1L));
+                LongRareTerms.Bucket bucket2 = (LongRareTerms.Bucket) agg.getBuckets().get(1);
+                assertThat(bucket2.getKey(), equalTo(2L));
+                assertThat(bucket2.getDocCount(), equalTo(2L));
             }
         );
     }

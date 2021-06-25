@@ -11,6 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -35,8 +36,10 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     private static final ParseField MAX_DOC_COUNT_FIELD_NAME = new ParseField("max_doc_count");
     private static final ParseField PRECISION = new ParseField("precision");
+    private static final ParseField THRESHOLD = new ParseField("threshold");
 
     private static final int MAX_MAX_DOC_COUNT = 100;
+    private static final int DEFAULT_THRESHOLD = 1000;
     public static final ObjectParser<RareTermsAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, RareTermsAggregationBuilder::new);
     static {
@@ -50,6 +53,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
             IncludeExclude::parseExclude, IncludeExclude.EXCLUDE_FIELD, ObjectParser.ValueType.STRING_ARRAY);
 
         PARSER.declareDouble(RareTermsAggregationBuilder::setPrecision, PRECISION);
+
+        PARSER.declareInt(RareTermsAggregationBuilder::setThreshold, THRESHOLD);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -59,6 +64,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     private IncludeExclude includeExclude = null;
     private int maxDocCount = 1;
     private double precision = 0.001;
+    private int threshold = DEFAULT_THRESHOLD;
 
     public RareTermsAggregationBuilder(String name) {
         super(name);
@@ -88,6 +94,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         super(in);
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         maxDocCount = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            threshold = in.readVInt();
+        }
     }
 
     @Override
@@ -99,6 +108,9 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     protected void innerWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(includeExclude);
         out.writeVInt(maxDocCount);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeVInt(threshold);
+        }
     }
 
     /**
@@ -150,11 +162,28 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
      * This value does, however, affect the overall space usage of the filter.  Coarser precisions provide
      * more compact filters.  The default is 0.01
      */
-    public void setPrecision(double precision) {
+    public RareTermsAggregationBuilder setPrecision(double precision) {
         if (precision < 0.00001) {
             throw new IllegalArgumentException("[precision] must be greater than 0.00001");
         }
         this.precision = precision;
+        return this;
+    }
+
+    public double getThreshold() {
+        return threshold;
+    }
+
+    public RareTermsAggregationBuilder setThreshold(int threshold) {
+        if (threshold < 0) {
+            throw new IllegalArgumentException("[threshold] must be a positive integer");
+        }
+        if (threshold > SetBackedScalingCuckooFilter.maxThreshold()) {
+            throw new IllegalArgumentException(
+                "[threshold] must be smaller than [" + (SetBackedScalingCuckooFilter.maxThreshold()) + "]");
+        }
+        this.threshold = threshold;
+        return this;
     }
 
     @Override
@@ -172,7 +201,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
             context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
 
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            context, parent, subFactoriesBuilder, metadata, maxDocCount, precision, aggregatorSupplier);
+            context, parent, subFactoriesBuilder, metadata, maxDocCount, precision, aggregatorSupplier, threshold);
     }
 
     @Override
@@ -182,12 +211,13 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         }
         builder.field(MAX_DOC_COUNT_FIELD_NAME.getPreferredName(), maxDocCount);
         builder.field(PRECISION.getPreferredName(), precision);
+        builder.field(THRESHOLD.getPreferredName(), threshold);
         return builder;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), includeExclude, maxDocCount, precision);
+        return Objects.hash(super.hashCode(), includeExclude, maxDocCount, precision, threshold);
     }
 
     @Override
@@ -198,7 +228,8 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
         RareTermsAggregationBuilder other = (RareTermsAggregationBuilder) obj;
         return Objects.equals(includeExclude, other.includeExclude)
             && Objects.equals(maxDocCount, other.maxDocCount)
-            && Objects.equals(precision, other.precision);
+            && Objects.equals(precision, other.precision)
+            && Objects.equals(threshold, other.threshold);
     }
 
     @Override

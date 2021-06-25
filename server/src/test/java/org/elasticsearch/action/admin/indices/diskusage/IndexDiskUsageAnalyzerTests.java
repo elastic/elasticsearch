@@ -38,6 +38,9 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
+import org.apache.lucene.search.suggest.document.Completion84PostingsFormat;
+import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
+import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
@@ -143,6 +146,53 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 stats.getFields().get("pt2").getPointsBytes(), stats.total().getPointsBytes() * 2 / 7, 0.01, 512);
             assertFieldStats("pt3", "points",
                 stats.getFields().get("pt3").getPointsBytes(), stats.total().getPointsBytes() * 4 / 7, 0.01, 512);
+        }
+    }
+
+    public void testCompletionField() throws Exception {
+        IndexWriterConfig config = new IndexWriterConfig()
+            .setCommitOnClose(true)
+            .setUseCompoundFile(false)
+            .setCodec(new Lucene87Codec(Lucene87Codec.Mode.BEST_SPEED) {
+                @Override
+                public PostingsFormat getPostingsFormatForField(String field) {
+                    if (field.startsWith("suggest_")) {
+                        return new Completion84PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
+                    } else {
+                        return super.postingsFormat();
+                    }
+                }
+            });
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter writer = new IndexWriter(dir, config)) {
+                int numDocs = randomIntBetween(100, 1000);
+                for (int i = 0; i < numDocs; i++) {
+                    final Document doc = new Document();
+                    if (randomDouble() < 0.5) {
+                        doc.add(new SuggestField("suggest_1", randomAlphaOfLength(10), randomIntBetween(1, 20)));
+                    }
+                    doc.add(new SuggestField("suggest_2", randomAlphaOfLength(10), randomIntBetween(1, 20)));
+                    writer.addDocument(doc);
+                }
+            }
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            assertFieldStats("suggest_1", "inverted_index",
+                stats.getFields().get("suggest_1").getInvertedIndexBytes(),
+                stats.total().totalBytes() / 3, 0.05, 2048);
+
+            assertFieldStats("suggest_2", "inverted_index",
+                stats.getFields().get("suggest_2").getInvertedIndexBytes(),
+                stats.total().totalBytes() * 2 / 3, 0.05, 2048);
+
+            final IndexDiskUsageStats perField = collectPerFieldStats(dir);
+            assertFieldStats("suggest_1", "inverted_index",
+                stats.getFields().get("suggest_1").getInvertedIndexBytes(),
+                perField.getFields().get("suggest_1").getInvertedIndexBytes(), 0.05, 2048);
+
+            assertFieldStats("suggest_2", "inverted_index",
+                stats.getFields().get("suggest_2").getInvertedIndexBytes(),
+                perField.getFields().get("suggest_2").getInvertedIndexBytes(), 0.05, 2048);
         }
     }
 

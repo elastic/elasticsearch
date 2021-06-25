@@ -88,6 +88,7 @@ public class PyTorchModelIT extends ESRestTestCase {
         createModelStoreIndex();
         putTaskConfig();
         putModelDefinition();
+        refreshModelStoreIndex();
         createTrainedModel();
         startDeployment();
         try {
@@ -165,6 +166,11 @@ public class PyTorchModelIT extends ESRestTestCase {
             "        }\n" +
             "    }" +
             "}");
+        client().performRequest(request);
+    }
+
+    private void refreshModelStoreIndex() throws IOException {
+        Request request = new Request("POST", "/" + MODEL_INDEX + "/_refresh");
         client().performRequest(request);
     }
 

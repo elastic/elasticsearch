@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.ml.inference.nlp;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.BertTokenizer;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 
 public class NerProcessor implements NlpTask.Processor {
@@ -57,11 +62,54 @@ public class NerProcessor implements NlpTask.Processor {
         }
     }
 
-
     private final BertRequestBuilder bertRequestBuilder;
+    private final IobTag[] iobMap;
 
-    NerProcessor(BertTokenizer tokenizer) {
+    NerProcessor(BertTokenizer tokenizer, @Nullable List<String> classificationLabels) {
         this.bertRequestBuilder = new BertRequestBuilder(tokenizer);
+        validate(classificationLabels);
+        iobMap = buildIobMap(classificationLabels);
+    }
+
+    /**
+     * Checks labels are valid entity tags and none are duplicated
+     */
+    private void validate(List<String> classificationLabels) {
+        if (classificationLabels == null || classificationLabels.isEmpty()) {
+            return;
+        }
+
+        ValidationException ve = new ValidationException();
+        EnumSet<IobTag> tags = EnumSet.noneOf(IobTag.class);
+        for (String label : classificationLabels) {
+            try {
+                IobTag iobTag = IobTag.valueOf(label);
+                if (tags.contains(iobTag)) {
+                    ve.addValidationError("the classification label [" + label + "] is duplicated in the list " + classificationLabels);
+                }
+                tags.add(iobTag);
+            } catch (IllegalArgumentException iae) {
+                ve.addValidationError("classification label [" + label + "] is not an entity I-O-B tag.");
+            }
+        }
+
+        if (ve.validationErrors().isEmpty() == false) {
+            ve.addValidationError("Valid entity I-O-B tags are " + Arrays.toString(IobTag.values()));
+            throw ve;
+        }
+    }
+
+    static IobTag[] buildIobMap(List<String> classificationLabels) {
+        if (classificationLabels == null || classificationLabels.isEmpty()) {
+            return IobTag.values();
+        }
+
+        IobTag[] map = new IobTag[classificationLabels.size()];
+        for (int i=0; i<classificationLabels.size(); i++) {
+            map[i] = IobTag.valueOf(classificationLabels.get(i));
+        }
+
+        return map;
     }
 
     @Override
@@ -76,6 +124,6 @@ public class NerProcessor implements NlpTask.Processor {
 
     @Override
     public NlpTask.ResultProcessor getResultProcessor() {
-        return new NerResultProcessor(bertRequestBuilder.getTokenization());
+        return new NerResultProcessor(bertRequestBuilder.getTokenization(), iobMap);
     }
 }

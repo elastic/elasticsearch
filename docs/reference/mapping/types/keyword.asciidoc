@@ -152,4 +152,3 @@ The following parameters are accepted by `keyword` fields:
 include::constant-keyword.asciidoc[]
 
 include::wildcard.asciidoc[]
-

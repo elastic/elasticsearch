@@ -15,6 +15,7 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamIndexOutput;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.gateway.CorruptStateException;
 
 import java.io.FilterInputStream;
@@ -64,14 +64,14 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
 
     private final String blobNameFormat;
 
-    private final CheckedFunction<XContentParser, T, IOException> reader;
+    private final CheckedBiFunction<String, XContentParser, T, IOException> reader;
 
     /**
      * @param codec          codec name
      * @param blobNameFormat format of the blobname in {@link String#format} format
      * @param reader         prototype object that can deserialize T from XContent
      */
-    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedFunction<XContentParser, T, IOException> reader) {
+    public ChecksumBlobStoreFormat(String codec, String blobNameFormat, CheckedBiFunction<String, XContentParser, T, IOException> reader) {
         this.reader = reader;
         this.blobNameFormat = blobNameFormat;
         this.codec = codec;
@@ -84,10 +84,11 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      * @param name          name to be translated into
      * @return parsed blob object
      */
-    public T read(BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry) throws IOException {
+    public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
+        throws IOException {
         String blobName = blobName(name);
         try (InputStream in = blobContainer.readBlob(blobName)) {
-            return deserialize(namedXContentRegistry, in);
+            return deserialize(repoName, namedXContentRegistry, in);
         }
     }
 
@@ -95,7 +96,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
         return String.format(Locale.ROOT, blobNameFormat, name);
     }
 
-    public T deserialize(NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
+    public T deserialize(String repoName, NamedXContentRegistry namedXContentRegistry, InputStream input) throws IOException {
         final DeserializeMetaBlobInputStream deserializeMetaBlobInputStream = new DeserializeMetaBlobInputStream(input);
         try {
             CodecUtil.checkHeader(new InputStreamDataInput(deserializeMetaBlobInputStream), codec, VERSION, VERSION);
@@ -110,7 +111,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
                 XContentParser parser = XContentType.SMILE.xContent()
                     .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, wrappedStream)
             ) {
-                result = reader.apply(parser);
+                result = reader.apply(repoName, parser);
             }
             deserializeMetaBlobInputStream.verifyFooter();
             return result;

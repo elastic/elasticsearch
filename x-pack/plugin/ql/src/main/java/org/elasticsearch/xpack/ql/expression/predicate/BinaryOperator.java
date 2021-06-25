@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ql.expression.predicate;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.ArrayList;

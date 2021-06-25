@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.transport;
 
-import net.jpountz.lz4.LZ4FrameOutputStream;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -28,8 +26,9 @@ abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Writeable message) {
-        super(threadContext, version, status, requestId);
+    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, CompressionScheme compressionScheme,
+                    Writeable message) {
+        super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
     }
 
@@ -88,12 +87,18 @@ abstract class OutboundMessage extends NetworkMessage {
 
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
     // resources and write EOS marker bytes but must not yet release the bytes themselves
-    private OutputStreamStreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
-        if (true) {
+    private StreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
+        if (compressionScheme == CompressionScheme.DEFLATE) {
             return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
+        } else if (compressionScheme == CompressionScheme.LZ4) {
+            // TODO: Change after backport
+            if (version.onOrAfter(Version.V_8_0_0)) {
+                return new OutputStreamStreamOutput(CompressionScheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+            } else {
+                return bytesStream;
+            }
         } else {
-            return new OutputStreamStreamOutput(new LZ4FrameOutputStream(Streams.noCloseStream(bytesStream),
-                LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB));
+            throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
         }
     }
 
@@ -106,8 +111,8 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String action;
 
         Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+                boolean isHandshake, CompressionScheme compressionScheme) {
+            super(threadContext, version, setStatus(compressionScheme, isHandshake, message), requestId, compressionScheme, message);
             this.action = action;
         }
 
@@ -121,10 +126,10 @@ abstract class OutboundMessage extends NetworkMessage {
             stream.writeString(action);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        private static byte setStatus(CompressionScheme compressionScheme, boolean isHandshake, Writeable message) {
             byte status = 0;
             status = TransportStatus.setRequest(status);
-            if (compress && OutboundMessage.canCompress(message)) {
+            if (compressionScheme != null && OutboundMessage.canCompress(message)) {
                 status = TransportStatus.setCompress(status);
             }
             if (isHandshake) {
@@ -143,17 +148,18 @@ abstract class OutboundMessage extends NetworkMessage {
 
     static class Response extends OutboundMessage {
 
-        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake, boolean compress) {
-            super(threadContext, version, setStatus(compress, isHandshake, message), requestId, message);
+        Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
+                 CompressionScheme compressionScheme) {
+            super(threadContext, version, setStatus(compressionScheme, isHandshake, message), requestId, compressionScheme, message);
         }
 
-        private static byte setStatus(boolean compress, boolean isHandshake, Writeable message) {
+        private static byte setStatus(CompressionScheme compressionScheme, boolean isHandshake, Writeable message) {
             byte status = 0;
             status = TransportStatus.setResponse(status);
             if (message instanceof RemoteTransportException) {
                 status = TransportStatus.setError(status);
             }
-            if (compress) {
+            if (compressionScheme != null) {
                 status = TransportStatus.setCompress(status);
             }
             if (isHandshake) {

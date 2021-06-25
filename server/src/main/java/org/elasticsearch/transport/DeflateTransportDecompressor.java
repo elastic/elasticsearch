@@ -13,8 +13,6 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
 
@@ -42,7 +40,7 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
         int bytesConsumed = 0;
         if (hasSkippedHeader == false) {
             hasSkippedHeader = true;
-            int headerLength = TransportDecompressor.HEADER_LENGTH;
+            int headerLength = CompressionScheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
             bytesConsumed += headerLength;
         }

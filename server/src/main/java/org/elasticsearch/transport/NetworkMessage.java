@@ -21,12 +21,14 @@ public abstract class NetworkMessage {
     protected final Writeable threadContext;
     protected final long requestId;
     protected final byte status;
+    protected final CompressionScheme compressionScheme;
 
-    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId) {
+    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, CompressionScheme compressionScheme) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;
         this.status = status;
+        this.compressionScheme = compressionScheme;
     }
 
     public Version getVersion() {

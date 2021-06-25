@@ -555,7 +555,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true)
+                .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4))
+                .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 

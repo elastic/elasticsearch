@@ -78,7 +78,7 @@ public class TransportLoggerTests extends ESTestCase {
     }
 
     private BytesReference buildRequest() throws IOException {
-        boolean compress = randomBoolean();
+        CompressionScheme compress = randomFrom(null, CompressionScheme.DEFLATE, CompressionScheme.LZ4);
         try (BytesStreamOutput bytesStreamOutput = new BytesStreamOutput()) {
             OutboundMessage.Request request = new OutboundMessage.Request(new ThreadContext(Settings.EMPTY), new ClusterStatsRequest(),
                 Version.CURRENT, ClusterStatsAction.NAME, randomInt(30), false, compress);

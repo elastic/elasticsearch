@@ -66,7 +66,8 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         StatsTracker statsTracker = new StatsTracker();
-        handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE);
+        handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
+            randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4));
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -119,7 +120,7 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress = randomBoolean();
+        CompressionScheme compress = randomFrom(null, CompressionScheme.DEFLATE, CompressionScheme.LZ4);
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -166,7 +167,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress != null) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());

@@ -44,7 +44,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
         if (hasSkippedHeader == false) {
             hasSkippedHeader = true;
-            int headerLength = TransportDecompressor.HEADER_LENGTH;
+            int headerLength = CompressionScheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
         }
 

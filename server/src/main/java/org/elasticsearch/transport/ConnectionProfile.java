@@ -94,7 +94,8 @@ public final class ConnectionProfile {
      */
     public static ConnectionProfile buildSingleChannelProfile(TransportRequestOptions.Type channelType, @Nullable TimeValue connectTimeout,
                                                               @Nullable TimeValue handshakeTimeout, @Nullable TimeValue pingInterval,
-                                                              @Nullable Boolean compressionEnabled, @Nullable Boolean rawDataCompressionEnabled) {
+                                                              @Nullable Boolean compressionEnabled,
+                                                              @Nullable Boolean rawDataCompressionEnabled) {
         Builder builder = new Builder();
         builder.addConnections(1, channelType);
         final EnumSet<TransportRequestOptions.Type> otherTypes = EnumSet.allOf(TransportRequestOptions.Type.class);

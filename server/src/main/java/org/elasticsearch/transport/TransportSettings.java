@@ -21,6 +21,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.settings.Setting.affixKeySetting;
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.common.settings.Setting.enumSetting;
 import static org.elasticsearch.common.settings.Setting.intSetting;
 import static org.elasticsearch.common.settings.Setting.listSetting;
 import static org.elasticsearch.common.settings.Setting.timeSetting;
@@ -53,6 +54,9 @@ public final class TransportSettings {
         boolSetting("transport.compress", false, Setting.Property.NodeScope);
     public static final Setting<Boolean> TRANSPORT_COMPRESS_RAW_DATA =
         boolSetting("transport.compress_raw_data", false, Setting.Property.NodeScope);
+    public static final Setting<CompressionScheme> TRANSPORT_COMPRESSION_SCHEME =
+        enumSetting(CompressionScheme.class, "transport.compression_scheme", CompressionScheme.DEFLATE,
+            Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =
         timeSetting("transport.ping_schedule", TimeValue.timeValueSeconds(-1), Setting.Property.NodeScope);

@@ -104,6 +104,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
     private final CircuitBreakerService circuitBreakerService;
+    private final CompressionScheme compressionScheme;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -133,14 +134,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
+        this.compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings);
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays, this.compressionScheme);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),
-                TransportRequestOptions.EMPTY, v, false, true));
+                TransportRequestOptions.EMPTY, v, null, true));
         this.keepAlive = new TransportKeepAlive(threadPool, this.outboundHandler::sendBytes);
         this.inboundHandler = new InboundHandler(threadPool, outboundHandler, namedWriteableRegistry, handshaker, keepAlive,
             requestHandlers, responseHandlers);
@@ -244,8 +246,13 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
                 throw new NodeNotConnectedException(node, "connection already closed");
             }
             TcpChannel channel = channel(options.type());
-            boolean shouldCompress = compress || (rawDataCompress && request instanceof RawDataTransportRequest);
-            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
+            CompressionScheme compressionScheme;
+            if (compress || (rawDataCompress && request instanceof RawDataTransportRequest)) {
+                compressionScheme = TcpTransport.this.compressionScheme;
+            } else {
+                compressionScheme = null;
+            }
+            outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compressionScheme, false);
         }
 
         @Override

@@ -95,7 +95,13 @@ public class InboundPipelineTests extends ESTestCase {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
                     final String value = randomAlphaOfLength(randomIntBetween(10, 200));
                     final boolean isRequest = randomBoolean();
-                    final boolean isCompressed = randomBoolean();
+
+                    CompressionScheme scheme;
+                    if (randomBoolean()) {
+                        scheme = null;
+                    } else {
+                        scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+                    }
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -104,19 +110,19 @@ public class InboundPipelineTests extends ESTestCase {
                     OutboundMessage message;
                     if (isRequest) {
                         if (rarely()) {
-                            messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
+                            messageData = new MessageData(version, requestId, true, scheme != null, breakThisAction, null);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, breakThisAction, requestId, false, isCompressed);
+                                version, breakThisAction, requestId, false, scheme);
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
-                            messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
+                            messageData = new MessageData(version, requestId, true, scheme != null, actionName, value);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                                version, actionName, requestId, false, isCompressed);
+                                version, actionName, requestId, false, scheme);
                         }
                     } else {
-                        messageData = new MessageData(version, requestId, false, isCompressed, null, value);
+                        messageData = new MessageData(version, requestId, false, scheme != null, null, value);
                         message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                            version, requestId, false, isCompressed);
+                            version, requestId, false, scheme);
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
@@ -184,10 +190,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    invalidVersion, actionName, requestId, false, false);
+                    invalidVersion, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    invalidVersion, requestId, false, false);
+                    invalidVersion, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);
@@ -221,10 +227,10 @@ public class InboundPipelineTests extends ESTestCase {
             OutboundMessage message;
             if (isRequest) {
                 message = new OutboundMessage.Request(threadContext, new TestRequest(value),
-                    version, actionName, requestId, false, false);
+                    version, actionName, requestId, false, null);
             } else {
                 message = new OutboundMessage.Response(threadContext, new TestResponse(value),
-                    version, requestId, false, false);
+                    version, requestId, false, null);
             }
 
             final BytesReference reference = message.serialize(streamOutput);

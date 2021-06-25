@@ -62,7 +62,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
             int bytesDecompressed;
             try {
                 bytesDecompressed = inputStream.read(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                pageOffset += bytesDecompressed;
+                pageOffset += Math.max(bytesDecompressed, 0);
                 if (isNewPage) {
                     if (bytesDecompressed == 0) {
                         page.close();
@@ -74,7 +74,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
             } catch (IOException e) {
                 throw new IOException("Exception while LZ4 decompressing bytes", e);
             }
-            if (bytesDecompressed == 0) {
+            if (bytesDecompressed <= 0) {
                 continueDecompressing = false;
             }
         }

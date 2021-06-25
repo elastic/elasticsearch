@@ -68,8 +68,14 @@ final class OutboundHandler {
      */
     void sendRequest(final DiscoveryNode node, final TcpChannel channel, final long requestId, final String action,
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
-                     final CompressionScheme compressionScheme, final boolean isHandshake) throws IOException, TransportException {
+                     final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
+        final CompressionScheme compressionScheme;
+        if (compressRequest) {
+            compressionScheme = null;
+        } else {
+            compressionScheme = configuredCompressionScheme;
+        }
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressionScheme);
         if (request.tryIncRef() == false) {

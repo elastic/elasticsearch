@@ -39,14 +39,15 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
     @Override
     public int decompress(BytesReference bytesReference) throws IOException {
-        final StreamInput underlyingStream = bytesReference.streamInput();
-        this.expandableStream.nextStream(underlyingStream);
-
+        int bytesConsumed = 0;
         if (hasSkippedHeader == false) {
             hasSkippedHeader = true;
             int headerLength = CompressionScheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
+            bytesConsumed += headerLength;
         }
+        final StreamInput underlyingStream = bytesReference.streamInput();
+        this.expandableStream.nextStream(underlyingStream);
 
         boolean continueDecompressing = true;
         while (continueDecompressing) {
@@ -80,8 +81,9 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         }
 
         assert underlyingStream.available() == 0;
+        bytesConsumed += bytesReference.length();
 
-        return bytesReference.length();
+        return bytesConsumed;
     }
 
     @Override

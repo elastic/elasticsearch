@@ -100,7 +100,12 @@ public class InboundPipelineTests extends ESTestCase {
                     if (randomBoolean()) {
                         scheme = null;
                     } else {
-                        scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+                        // TODO: Change after backport
+                        if (version.onOrAfter(Version.V_8_0_0)) {
+                            scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+                        } else {
+                            scheme = CompressionScheme.DEFLATE;
+                        }
                     }
                     final long requestId = totalMessages++;
 

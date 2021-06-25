@@ -91,12 +91,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (compressionScheme == CompressionScheme.DEFLATE) {
             return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
         } else if (compressionScheme == CompressionScheme.LZ4) {
-            // TODO: Change after backport
-            if (version.onOrAfter(Version.V_8_0_0)) {
-                return new OutputStreamStreamOutput(CompressionScheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
-            } else {
-                return bytesStream;
-            }
+            return new OutputStreamStreamOutput(CompressionScheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {
             throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
         }
@@ -112,7 +107,8 @@ abstract class OutboundMessage extends NetworkMessage {
 
         Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
                 boolean isHandshake, CompressionScheme compressionScheme) {
-            super(threadContext, version, setStatus(compressionScheme, isHandshake, message), requestId, compressionScheme, message);
+            super(threadContext, version, setStatus(adjustedScheme(version, compressionScheme), isHandshake, message), requestId,
+                adjustedScheme(version, compressionScheme), message);
             this.action = action;
         }
 
@@ -150,7 +146,8 @@ abstract class OutboundMessage extends NetworkMessage {
 
         Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
                  CompressionScheme compressionScheme) {
-            super(threadContext, version, setStatus(compressionScheme, isHandshake, message), requestId, compressionScheme, message);
+            super(threadContext, version, setStatus(adjustedScheme(version, compressionScheme), isHandshake, message), requestId,
+                adjustedScheme(version, compressionScheme), message);
         }
 
         private static byte setStatus(CompressionScheme compressionScheme, boolean isHandshake, Writeable message) {
@@ -174,6 +171,11 @@ abstract class OutboundMessage extends NetworkMessage {
             return "Response{" + requestId + "}{" + isError() + "}{" + isCompress() + "}{" + isHandshake() + "}{"
                     + message.getClass() + "}";
         }
+    }
+
+    private static CompressionScheme adjustedScheme(Version version, CompressionScheme compressionScheme) {
+        // TODO: Change after backport
+        return compressionScheme == CompressionScheme.LZ4 && version.before(Version.V_8_0_0) ? null : compressionScheme;
     }
 
     private static boolean canCompress(Writeable message) {

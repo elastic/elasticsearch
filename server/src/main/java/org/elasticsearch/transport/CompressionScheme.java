@@ -8,7 +8,7 @@
 
 package org.elasticsearch.transport;
 
-import net.jpountz.lz4.LZ4FrameOutputStream;
+import net.jpountz.lz4.LZ4BlockOutputStream;
 
 import org.elasticsearch.common.compress.DeflateCompressor;
 
@@ -25,6 +25,6 @@ public enum CompressionScheme {
 
     public static OutputStream lz4OutputStream(OutputStream outputStream) throws IOException {
         outputStream.write(LZ4_HEADER);
-        return new LZ4FrameOutputStream(outputStream, LZ4FrameOutputStream.BLOCKSIZE.SIZE_64KB);
+        return new LZ4BlockOutputStream(outputStream, 64 * 1024);
     }
 }

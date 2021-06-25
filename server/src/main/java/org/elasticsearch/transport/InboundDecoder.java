@@ -85,28 +85,31 @@ public class InboundDecoder implements Releasable {
                     this.decompressor = decompressor;
                 }
             }
-            int bytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
-            bytesConsumed += bytesToConsume;
+            int maxBytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
+            int bytesConsumedThisDecode = 0;
             ReleasableBytesReference retainedContent;
             if (isDone()) {
-                retainedContent = reference.retainedSlice(0, bytesToConsume);
+                retainedContent = reference.retainedSlice(0, maxBytesToConsume);
             } else {
                 retainedContent = reference.retain();
             }
             if (decompressor != null) {
-                decompress(retainedContent);
+                bytesConsumedThisDecode += decompress(retainedContent);
+                bytesConsumed += bytesConsumedThisDecode;
                 ReleasableBytesReference decompressed;
                 while ((decompressed = decompressor.pollDecompressedPage(isDone())) != null) {
                     fragmentConsumer.accept(decompressed);
                 }
             } else {
+                bytesConsumedThisDecode += maxBytesToConsume;
+                bytesConsumed += maxBytesToConsume;
                 fragmentConsumer.accept(retainedContent);
             }
             if (isDone()) {
                 finishMessage(fragmentConsumer);
             }
 
-            return bytesToConsume;
+            return bytesConsumedThisDecode;
         }
     }
 
@@ -132,10 +135,9 @@ public class InboundDecoder implements Releasable {
         }
     }
 
-    private void decompress(ReleasableBytesReference content) throws IOException {
+    private int decompress(ReleasableBytesReference content) throws IOException {
         try (content) {
-            int consumed = decompressor.decompress(content);
-            assert consumed == content.length();
+            return decompressor.decompress(content);
         }
     }
 

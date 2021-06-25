@@ -120,7 +120,7 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        CompressionScheme compress = randomFrom(null, CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+        boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -167,7 +167,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress != null) {
+        if (compress) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());

@@ -96,7 +96,7 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         // TODO: Can delete test on 9.0
-        CompressionScheme compressionScheme = randomFrom(null, CompressionScheme.DEFLATE, CompressionScheme.DEFLATE);
+        CompressionScheme compressionScheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.DEFLATE, null);
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final Version preHeaderVariableInt = Version.V_7_5_0;

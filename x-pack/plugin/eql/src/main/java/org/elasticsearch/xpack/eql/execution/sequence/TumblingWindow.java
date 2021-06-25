@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -54,7 +53,6 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
 public class TumblingWindow implements Executable {
 
     private static final int CACHE_MAX_SIZE = 64;
-    private static final String CIRCUIT_BREAKER_LABEL = "sequence_matches";
 
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
 
@@ -75,7 +73,6 @@ public class TumblingWindow implements Executable {
     private final List<Criterion<BoxedQueryRequest>> criteria;
     private final Criterion<BoxedQueryRequest> until;
     private final SequenceMatcher matcher;
-    private final CircuitBreaker circuitBreaker;
     // shortcut
     private final int maxStages;
     private final int windowSize;
@@ -87,7 +84,6 @@ public class TumblingWindow implements Executable {
     private boolean restartWindowFromTailQuery;
 
     private long startTime;
-    private long totalRamBytesUsed = 0;
 
     private static class WindowInfo {
         private final int baseStage;
@@ -104,8 +100,7 @@ public class TumblingWindow implements Executable {
     public TumblingWindow(QueryClient client,
                           List<Criterion<BoxedQueryRequest>> criteria,
                           Criterion<BoxedQueryRequest> until,
-                          SequenceMatcher matcher,
-                          CircuitBreaker circuitBreaker) {
+                          SequenceMatcher matcher) {
         this.client = client;
 
         this.until = until;
@@ -117,7 +112,6 @@ public class TumblingWindow implements Executable {
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
-        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -238,7 +232,7 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
 
         // check for matches - if the limit has been reached, abort
-        if (match(baseStage, wrapValues(base, hits)) == false) {
+        if (matcher.match(baseStage, wrapValues(base, hits)) == false) {
             payload(listener);
             return;
         }
@@ -415,7 +409,7 @@ public class TumblingWindow implements Executable {
                 request.nextAfter(tailOrdinal);
 
                 // if the limit has been reached, return what's available
-                if (match(criterion.stage(), wrapValues(criterion, hits)) == false) {
+                if (matcher.match(criterion.stage(), wrapValues(criterion, hits)) == false) {
                     payload(listener);
                     return;
                 }
@@ -562,7 +556,6 @@ public class TumblingWindow implements Executable {
     private void close(ActionListener<Payload> listener) {
         matcher.clear();
         client.close(listener.delegateFailure((l, r) -> {}));
-        clearCircuitBreaker();
     }
 
     private TimeValue timeTook() {
@@ -597,29 +590,6 @@ public class TumblingWindow implements Executable {
 
     private static Ordinal tailOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
         return criterion.ordinal(hits.get(hits.size() - 1));
-    }
-
-    // Wrapper method of matcher.match() which is called for every sub query in the sequence query
-    // and for each subquery every "fetch_size" docs. Doing RAM accounting on object creation is
-    // expensive, so we just calculate the difference in bytes of the total memory that the matcher's
-    // structure occupy, before and after the match() call.
-    private boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
-        boolean matches;
-        long bytesDiff = matcher.ramBytesUsed();
-        matches = matcher.match(stage, hits);
-        bytesDiff -= matcher.ramBytesUsed();
-        addMemory(-bytesDiff);
-        return matches;
-    }
-
-    private void addMemory(long bytes) {
-        totalRamBytesUsed += bytes;
-        circuitBreaker.addEstimateBytesAndMaybeBreak(bytes, CIRCUIT_BREAKER_LABEL);
-    }
-
-    private void clearCircuitBreaker() {
-        circuitBreaker.addWithoutBreaking(-totalRamBytesUsed);
-        totalRamBytesUsed = 0;
     }
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {

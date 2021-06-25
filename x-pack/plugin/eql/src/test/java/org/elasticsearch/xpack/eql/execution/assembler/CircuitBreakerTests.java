@@ -94,8 +94,8 @@ public class CircuitBreakerTests extends ESTestCase {
                     false));
         }
 
-        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null);
-        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher, CIRCUIT_BREAKER);
+        SequenceMatcher matcher = new SequenceMatcher(stages, false, TimeValue.MINUS_ONE, null, CIRCUIT_BREAKER);
+        TumblingWindow window = new TumblingWindow(client, criteria, null, matcher);
         window.execute(wrap(p -> {}, ex -> {
             throw ExceptionsHelper.convertToRuntime(ex);
         }));

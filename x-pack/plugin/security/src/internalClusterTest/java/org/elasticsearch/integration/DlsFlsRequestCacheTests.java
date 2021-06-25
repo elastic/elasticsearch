@@ -16,6 +16,8 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.mustache.MustachePlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.SecuritySingleNodeTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
@@ -27,8 +29,10 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -53,6 +57,10 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     private static final String ALIAS1 = "alias1";
     private static final String ALIAS2 = "alias2";
     private static final String ALL_ALIAS = "all-alias";
+    private static final String DLS_TEMPLATE_ROLE_QUERY_USER_1 = "dls_template_role_query_user_1";
+    private static final String DLS_TEMPLATE_ROLE_QUERY_USER_2 = "dls_template_role_query_user_2";
+    private static final String DLS_TEMPLATE_ROLE_QUERY_ROLE = "dls_template_role_query_role";
+    private static final String DLS_TEMPLATE_ROLE_QUERY_INDEX = "dls-template-role-query-index";
 
     @Override
     protected Settings nodeSettings() {
@@ -63,9 +71,18 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     }
 
     @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        final ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(MustachePlugin.class);
+        return List.copyOf(plugins);
+    }
+
+    @Override
     protected String configUsers() {
         return super.configUsers()
-            + DLS_FLS_USER + ":" + TEST_PASSWORD_HASHED + "\n";
+            + DLS_FLS_USER + ":" + TEST_PASSWORD_HASHED + "\n"
+            + DLS_TEMPLATE_ROLE_QUERY_USER_2 + ":" + TEST_PASSWORD_HASHED + "\n"
+            + DLS_TEMPLATE_ROLE_QUERY_USER_1 + ":" + TEST_PASSWORD_HASHED + "\n";
     }
 
     @Override
@@ -121,13 +138,21 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             + "  - names:\n"
             + "    - \"all-alias\"\n"
             + "    privileges:\n"
-            + "    - \"read\"\n";
+            + "    - \"read\"\n"
+            + DLS_TEMPLATE_ROLE_QUERY_ROLE + ":\n"
+            + "  indices:\n"
+            + "  - names:\n"
+            + "    - \"dls-template-role-query-index\"\n"
+            + "    privileges:\n"
+            + "    - \"read\"\n"
+            + "    query: {\"template\":{\"source\":{\"match\":{\"username\":\"{{_user.username}}\"}}}}\n";
     }
 
     @Override
     protected String configUsersRoles() {
         return super.configUsersRoles()
-            + DLS_FLS_USER + ":" + DLS_FLS_USER + "\n";
+            + DLS_FLS_USER + ":" + DLS_FLS_USER + "\n"
+            + DLS_TEMPLATE_ROLE_QUERY_ROLE + ":" + DLS_TEMPLATE_ROLE_QUERY_USER_1 + "," + DLS_TEMPLATE_ROLE_QUERY_USER_2 + "\n";
     }
 
     @Before
@@ -254,6 +279,23 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertCacheState(INDEX, 2, 5);
     }
 
+    public void testRequestCacheWithTemplateRoleQuery() {
+        final Client client1 = client().filterWithHeader(Map.of(
+            "Authorization", basicAuthHeaderValue(DLS_TEMPLATE_ROLE_QUERY_USER_1, new SecureString(TEST_PASSWORD.toCharArray()))));
+        final Client client2 = client().filterWithHeader(Map.of(
+            "Authorization", basicAuthHeaderValue(DLS_TEMPLATE_ROLE_QUERY_USER_2, new SecureString(TEST_PASSWORD.toCharArray()))));
+
+        // Search first with user1 and only one document should be return with the corresponding username
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
+            Set.of("1"), Set.of("username"));
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 1);
+
+        // Search with user2 should not use user1's cache because template query is resolved differently for them
+        assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
+            Set.of("2"), Set.of("username"));
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 2);
+    }
+
     private void prepareIndices() {
         final Client client = client();
 
@@ -272,18 +314,25 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             .get());
         client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
         client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();
-        ensureGreen(DLS_INDEX, FLS_INDEX, INDEX);
+
+        assertAcked(client.admin().indices().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX).get());
+        client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("1").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_1).get();
+        client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("2").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_2).get();
+
+        ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);
         assertCacheState(DLS_INDEX, 0, 0);
         assertCacheState(FLS_INDEX, 0, 0);
         assertCacheState(INDEX, 0, 0);
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 0, 0);
 
         // Force merge the index to ensure there can be no background merges during the subsequent searches that would invalidate the cache
         final ForceMergeResponse forceMergeResponse = client.admin().indices()
-            .prepareForceMerge(DLS_INDEX, FLS_INDEX, INDEX).setFlush(true).get();
+            .prepareForceMerge(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX).setFlush(true).get();
         ElasticsearchAssertions.assertAllSuccessful(forceMergeResponse);
-        final RefreshResponse refreshResponse = client.admin().indices().prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX).get();
+        final RefreshResponse refreshResponse = client.admin().indices()
+            .prepareRefresh(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX).get();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        ensureGreen(DLS_INDEX, FLS_INDEX, INDEX);
+        ensureGreen(DLS_INDEX, FLS_INDEX, INDEX, DLS_TEMPLATE_ROLE_QUERY_INDEX);
     }
 
     private Client limitedClient() {

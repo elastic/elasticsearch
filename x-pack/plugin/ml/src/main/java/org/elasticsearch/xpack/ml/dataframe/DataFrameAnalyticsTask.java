@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.dataframe;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -19,8 +20,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -187,20 +188,22 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         });
     }
 
-    public void persistProgress() {
-        persistProgress(client, taskParams.getId(), () -> {});
+    public void persistProgress(Runnable runnable) {
+        persistProgress(client, taskParams.getId(), runnable);
     }
 
     // Visible for testing
     void persistProgress(Client client, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
 
+        SetOnce<StoredProgress> storedProgress = new SetOnce<>();
+
         String progressDocId = StoredProgress.documentId(jobId);
 
         // Step 4: Run the runnable provided as the argument
         ActionListener<IndexResponse> indexProgressDocListener = ActionListener.wrap(
             indexResponse -> {
-                LOGGER.debug("[{}] Successfully indexed progress document", jobId);
+                LOGGER.debug("[{}] Successfully indexed progress document: {}", jobId, storedProgress.get().get());
                 runnable.run();
             },
             indexError -> {
@@ -227,10 +230,11 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 }
 
                 List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
-                final StoredProgress progressToStore = new StoredProgress(progress);
-                if (progressToStore.equals(previous)) {
+                storedProgress.set(new StoredProgress(progress));
+                if (storedProgress.get().equals(previous)) {
                     LOGGER.debug(() -> new ParameterizedMessage(
-                        "[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId));
+                        "[{}] new progress is the same as previously persisted progress. Skipping storage of progress: {}",
+                        jobId, progress));
                     runnable.run();
                     return;
                 }
@@ -241,7 +245,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
                     LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
-                    progressToStore.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
+                    storedProgress.get().toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
                 executeAsyncWithOrigin(client, ML_ORIGIN, IndexAction.INSTANCE, indexRequest, indexProgressDocListener);

@@ -74,8 +74,10 @@ NOTE: Using `_all` in a request fails if any snapshots are unavailable.
 Set <<get-snapshot-api-ignore-unavailable,`ignore_unavailable`>> to `true` to return only available snapshots.
 
 [role="child_attributes"]
-[[get-snapshot-api-request-body]]
-==== {api-request-body-title}
+[[get-snapshot-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[get-snapshot-api-ignore-unavailable]]
 `ignore_unavailable`::
@@ -97,6 +99,37 @@ If `true`, returns additional information about each index in the snapshot
 comprising the number of shards in the index, the total size of the index in
 bytes, and the maximum number of segments per shard in the index. Defaults to
 `false`, meaning that this information is omitted.
+
+`sort`::
+(Optional, string)
+Allows setting a sort order for the result. Defaults to `start_time`, i.e. sorting by snapshot start time stamp.
++
+.Valid values for `sort`
+[%collapsible%open]
+====
+`start_time`::
+  Sort snapshots by their start time stamp and break ties by snapshot name.
+
+`duration`::
+  Sort snapshots by their duration and break ties by snapshot name.
+
+`name`::
+  Sort snapshots by their name.
+
+`index_count`::
+  Sort snapshots by the number of indices they contain and break ties by snapshot name.
+====
+
+`size`::
+(Optional, integer)
+ Maximum number of snapshots to return. Defaults to `0` which means return all that match the request without limit.
+
+`order`::
+(Optional, string)
+Sort order. Valid values are `asc` for ascending and `desc` for descending order. Defaults to `asc`, meaning ascending order.
+
+NOTE: The pagination parameters `size`, `order`, and `sort` are not supported when using `verbose=false` and the sort order for
+requests with `verbose=false` is undefined.
 
 [role="child_attributes"]
 [[get-snapshot-api-response-body]]
@@ -251,42 +284,38 @@ The API returns the following response:
 [source,console-result]
 ----
 {
-  "responses": [
+  "snapshots": [
     {
+      "snapshot": "snapshot_2",
+      "uuid": "vdRctLCxSketdKb54xw67g",
       "repository": "my_repository",
-      "snapshots": [
-        {
-          "snapshot": "snapshot_2",
-          "uuid": "vdRctLCxSketdKb54xw67g",
-          "version_id": <version_id>,
-          "version": <version>,
-          "indices": [],
-          "data_streams": [],
-          "feature_states": [],
-          "include_global_state": true,
-          "state": "SUCCESS",
-          "start_time": "2020-07-06T21:55:18.129Z",
-          "start_time_in_millis": 1593093628850,
-          "end_time": "2020-07-06T21:55:18.129Z",
-          "end_time_in_millis": 1593094752018,
-          "duration_in_millis": 0,
-          "failures": [],
-          "shards": {
-            "total": 0,
-            "failed": 0,
-            "successful": 0
-          }
-        }
-      ]
+      "version_id": <version_id>,
+      "version": <version>,
+      "indices": [],
+      "data_streams": [],
+      "feature_states": [],
+      "include_global_state": true,
+      "state": "SUCCESS",
+      "start_time": "2020-07-06T21:55:18.129Z",
+      "start_time_in_millis": 1593093628850,
+      "end_time": "2020-07-06T21:55:18.129Z",
+      "end_time_in_millis": 1593094752018,
+      "duration_in_millis": 0,
+      "failures": [],
+      "shards": {
+        "total": 0,
+        "failed": 0,
+        "successful": 0
+      }
     }
   ]
 }
 ----
-// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.responses.0.snapshots.0.uuid/]
-// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.responses.0.snapshots.0.version_id/]
-// TESTRESPONSE[s/"version": <version>/"version": $body.responses.0.snapshots.0.version/]
-// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.responses.0.snapshots.0.start_time/]
-// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.responses.0.snapshots.0.start_time_in_millis/]
-// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.responses.0.snapshots.0.end_time/]
-// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.responses.0.snapshots.0.end_time_in_millis/]
-// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.responses.0.snapshots.0.duration_in_millis/]
+// TESTRESPONSE[s/"uuid": "vdRctLCxSketdKb54xw67g"/"uuid": $body.snapshots.0.uuid/]
+// TESTRESPONSE[s/"version_id": <version_id>/"version_id": $body.snapshots.0.version_id/]
+// TESTRESPONSE[s/"version": <version>/"version": $body.snapshots.0.version/]
+// TESTRESPONSE[s/"start_time": "2020-07-06T21:55:18.129Z"/"start_time": $body.snapshots.0.start_time/]
+// TESTRESPONSE[s/"start_time_in_millis": 1593093628850/"start_time_in_millis": $body.snapshots.0.start_time_in_millis/]
+// TESTRESPONSE[s/"end_time": "2020-07-06T21:55:18.129Z"/"end_time": $body.snapshots.0.end_time/]
+// TESTRESPONSE[s/"end_time_in_millis": 1593094752018/"end_time_in_millis": $body.snapshots.0.end_time_in_millis/]
+// TESTRESPONSE[s/"duration_in_millis": 0/"duration_in_millis": $body.snapshots.0.duration_in_millis/]

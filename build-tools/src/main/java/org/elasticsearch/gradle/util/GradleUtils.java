@@ -106,7 +106,7 @@ public abstract class GradleUtils {
      *
      * @return A task provider for the newly created test task
      */
-    public static TaskProvider<?> addTestSourceSet(Project project, String sourceSetName) {
+    public static TaskProvider<Test> addTestSourceSet(Project project, String sourceSetName) {
         project.getPluginManager().apply(JavaPlugin.class);
 
         // create our test source set and task

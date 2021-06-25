@@ -29,3 +29,8 @@ tasks.named("test").configure {
   enabled = false
 }
 
+tasks.named('splitPackagesAudit').configure {
+  // these should be moved to an actual package, not the root package
+  ignoreClasses 'org.elasticsearch.DieWithDignityPlugin',
+    'org.elasticsearch.RestDieWithDignityAction'
+}

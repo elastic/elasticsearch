@@ -11,17 +11,19 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.apache.lucene.search.spans.SpanQuery;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.io.IOException;
 import java.util.Objects;
+
+import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUtil.checkNoBoost;
 
 public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMaskingSpanQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "field_masking_span";
@@ -108,6 +110,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
                         throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query must be of type span query");
                     }
                     inner = (SpanQueryBuilder) query;
+                    checkNoBoost(NAME, currentFieldName, parser, inner);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[field_masking_span] query does not support ["
                             + currentFieldName + "]");
@@ -131,7 +134,6 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
         if (field == null) {
             throw new ParsingException(parser.getTokenLocation(), "field_masking_span must have [field] set for it");
         }
-
         FieldMaskingSpanQueryBuilder queryBuilder = new FieldMaskingSpanQueryBuilder(inner, field);
         queryBuilder.boost(boost);
         queryBuilder.queryName(queryName);
@@ -139,7 +141,7 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     }
 
     @Override
-    protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String fieldInQuery = fieldName;
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType != null) {

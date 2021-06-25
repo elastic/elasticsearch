@@ -20,34 +20,46 @@ public class SentimentAnalysisResults implements InferenceResults {
 
     public static final String NAME = "sentiment_analysis_result";
 
-    static final String POSITIVE_SCORE = "positive_score";
-    static final String NEGATIVE_SCORE = "negative_score";
+    private final String class1Label;
+    private final String class2Label;
+    private final double class1Score;
+    private final double class2Score;
 
-    private final double positiveScore;
-    private final double negativeScore;
-
-    public SentimentAnalysisResults(double positiveScore, double negativeScore) {
-        this.positiveScore = positiveScore;
-        this.negativeScore = negativeScore;
+    public SentimentAnalysisResults(String class1Label, double class1Score,
+                                    String class2Label, double class2Score) {
+        this.class1Label = class1Label;
+        this.class1Score = class1Score;
+        this.class2Label = class2Label;
+        this.class2Score = class2Score;
     }
 
     public SentimentAnalysisResults(StreamInput in) throws IOException {
-        positiveScore = in.readDouble();
-        negativeScore = in.readDouble();
+        class1Label = in.readString();
+        class1Score = in.readDouble();
+        class2Label = in.readString();
+        class2Score = in.readDouble();
     }
 
-    public double getPositiveScore() {
-        return positiveScore;
+    public String getClass1Label() {
+        return class1Label;
     }
 
-    public double getNegativeScore() {
-        return negativeScore;
+    public double getClass1Score() {
+        return class1Score;
+    }
+
+    public String getClass2Label() {
+        return class2Label;
+    }
+
+    public double getClass2Score() {
+        return class2Score;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.field(POSITIVE_SCORE, positiveScore);
-        builder.field(NEGATIVE_SCORE, negativeScore);
+        builder.field(class1Label, class1Score);
+        builder.field(class2Label, class2Score);
         return builder;
     }
 
@@ -58,21 +70,23 @@ public class SentimentAnalysisResults implements InferenceResults {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(positiveScore);
-        out.writeDouble(negativeScore);
+        out.writeString(class1Label);
+        out.writeDouble(class1Score);
+        out.writeString(class2Label);
+        out.writeDouble(class2Score);
     }
 
     @Override
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(POSITIVE_SCORE, positiveScore);
-        map.put(NEGATIVE_SCORE, negativeScore);
+        map.put(class1Label, class1Score);
+        map.put(class2Label, class2Score);
         return map;
     }
 
     @Override
     public Object predictedValue() {
-        return positiveScore;
+        return class1Score;
     }
 
     @Override
@@ -80,12 +94,14 @@ public class SentimentAnalysisResults implements InferenceResults {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SentimentAnalysisResults that = (SentimentAnalysisResults) o;
-        return Double.compare(that.positiveScore, positiveScore) == 0 &&
-            Double.compare(that.negativeScore, negativeScore) == 0;
+        return Double.compare(that.class1Score, class1Score) == 0 &&
+            Double.compare(that.class2Score, class2Score) == 0 &&
+            Objects.equals(this.class1Label, that.class1Label) &&
+            Objects.equals(this.class2Label, that.class2Label);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(positiveScore, negativeScore);
+        return Objects.hash(class1Label, class1Score, class2Label, class2Score);
     }
 }

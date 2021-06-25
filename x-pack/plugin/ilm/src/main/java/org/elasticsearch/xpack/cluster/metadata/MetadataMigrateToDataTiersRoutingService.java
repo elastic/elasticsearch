@@ -20,6 +20,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.DataTier;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -119,7 +120,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
     public static Tuple<ClusterState, MigratedEntities> migrateToDataTiersRouting(ClusterState currentState,
                                                                                   @Nullable String nodeAttrName,
                                                                                   @Nullable String indexTemplateToDelete,
-                                                                                  NamedXContentRegistry xContentRegistry, Client client) {
+                                                                                  NamedXContentRegistry xContentRegistry, Client client,
+                                                                                  XPackLicenseState licenseState) {
         IndexLifecycleMetadata currentMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentMetadata != null && currentMetadata.getOperationMode() != STOPPED) {
             throw new IllegalStateException("stop ILM before migrating to data tiers, current state is [" +
@@ -142,7 +144,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
         if (Strings.isNullOrEmpty(nodeAttrName)) {
             attribute = DEFAULT_NODE_ATTRIBUTE_NAME;
         }
-        List<String> migratedPolicies = migrateIlmPolicies(mb, currentState, attribute, xContentRegistry, client);
+        List<String> migratedPolicies = migrateIlmPolicies(mb, currentState, attribute, xContentRegistry, client, licenseState);
         // Creating an intermediary cluster state view as when migrating policy we also update the cachesd phase definition stored in the
         // index metadata so the metadata.builder will probably contain an already updated view over the indices metadata which we don't
         // want to lose when migrating the indices settings
@@ -161,7 +163,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
      * for each of these managed indices.
      */
     static List<String> migrateIlmPolicies(Metadata.Builder mb, ClusterState currentState, String nodeAttrName,
-                                           NamedXContentRegistry xContentRegistry, Client client) {
+                                           NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         IndexLifecycleMetadata currentLifecycleMetadata = currentState.metadata().custom(IndexLifecycleMetadata.TYPE);
         if (currentLifecycleMetadata == null) {
             return Collections.emptyList();
@@ -181,7 +183,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                 assert oldPolicyMetadata != null :
                     "we must only update policies, not create new ones, but " + policyMetadataEntry.getKey() + " didn't exist";
 
-                refreshCachedPhases(mb, currentState, oldPolicyMetadata, newPolicyMetadata, xContentRegistry, client);
+                refreshCachedPhases(mb, currentState, oldPolicyMetadata, newPolicyMetadata, xContentRegistry, client, licenseState);
                 migratedPolicies.add(policyMetadataEntry.getKey());
             }
         }
@@ -198,10 +200,10 @@ public final class MetadataMigrateToDataTiersRoutingService {
      */
     static void refreshCachedPhases(Metadata.Builder mb, ClusterState currentState, LifecyclePolicyMetadata oldPolicyMetadata,
                                     LifecyclePolicyMetadata newPolicyMetadata, NamedXContentRegistry xContentRegistry,
-                                    Client client) {
+                                    Client client, XPackLicenseState licenseState) {
         // this performs a walk through the managed indices and safely updates the cached phase (ie. for the phases we did not
         // remove the allocate action)
-        updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata);
+        updateIndicesForPolicy(mb, currentState, xContentRegistry, client, oldPolicyMetadata.getPolicy(), newPolicyMetadata, licenseState);
 
         LifecyclePolicy newLifecyclePolicy = newPolicyMetadata.getPolicy();
         List<String> migratedPhasesWithoutAllocateAction =
@@ -215,7 +217,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
             // not the same as in the cached phase) so let's forcefully (and still safely :) ) refresh the cached phase for the managed
             // indices in these phases.
             refreshCachedPhaseForPhasesWithoutAllocateAction(mb, currentState, oldPolicyMetadata.getPolicy(), newPolicyMetadata,
-                migratedPhasesWithoutAllocateAction, client);
+                migratedPhasesWithoutAllocateAction, client, licenseState);
         }
     }
 
@@ -230,7 +232,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
     private static void refreshCachedPhaseForPhasesWithoutAllocateAction(Metadata.Builder mb, ClusterState currentState,
                                                                          LifecyclePolicy oldPolicy,
                                                                          LifecyclePolicyMetadata newPolicyMetadata,
-                                                                         List<String> phasesWithoutAllocateAction, Client client) {
+                                                                         List<String> phasesWithoutAllocateAction, Client client,
+                                                                         XPackLicenseState licenseState) {
         String policyName = oldPolicy.getName();
         final List<IndexMetadata> managedIndices =
             StreamSupport.stream(Spliterators.spliteratorUnknownSize(currentState.metadata().indices().valuesIt(), 0), false)
@@ -249,7 +252,7 @@ public final class MetadataMigrateToDataTiersRoutingService {
                         // anymore so let's try to move the index to the next action
 
                         LifecycleExecutionState newLifecycleState = moveStateToNextActionAndUpdateCachedPhase(indexMetadata,
-                            currentExState, System::currentTimeMillis, oldPolicy, newPolicyMetadata, client);
+                            currentExState, System::currentTimeMillis, oldPolicy, newPolicyMetadata, client, licenseState);
                         if (currentExState.equals(newLifecycleState) == false) {
                             mb.put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newLifecycleState.asMap()));
                         }

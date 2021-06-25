@@ -64,7 +64,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                 bytesDecompressed = inputStream.read(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
                 pageOffset += Math.max(bytesDecompressed, 0);
                 if (isNewPage) {
-                    if (bytesDecompressed == 0) {
+                    if (bytesDecompressed <= 0) {
                         page.close();
                         pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
                     } else {

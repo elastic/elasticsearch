@@ -337,7 +337,7 @@ import java.util.Objects;
             }
             // It's expensive to look up every term and visit every document of the postings lists of all terms.
             // As we track the min/max positions of read bytes, we just visit the two ends of a partition containing
-            // the data. We might some small parts of the data, but it's an good trade-off to speed up the process.
+            // the data. We might miss some small parts of the data, but it's an good trade-off to speed up the process.
             TermsEnum termsEnum = terms.iterator();
             if (terms instanceof FieldReader) {
                 final BlockTermState minState = Objects.requireNonNull(

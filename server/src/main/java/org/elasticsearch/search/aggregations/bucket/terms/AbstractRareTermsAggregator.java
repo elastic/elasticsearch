@@ -29,7 +29,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     private final double precision;
     protected final DocValueFormat format;
     private final int filterSeed;
-    private final int threshold;
 
     AbstractRareTermsAggregator(
         String name,
@@ -39,8 +38,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        DocValueFormat format,
-        int threshold
+        DocValueFormat format
     ) throws IOException {
         super(name, factories, context, parent, metadata);
 
@@ -48,7 +46,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         this.precision = precision;
         this.format = format;
         this.filterSeed = context.shardRandomSeed();
-        this.threshold = threshold;
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {
@@ -67,7 +64,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     }
 
     protected SetBackedScalingCuckooFilter newFilter() {
-        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(threshold, new Random(filterSeed), precision);
+        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(10000, new Random(filterSeed), precision);
         filter.registerBreaker(this::addRequestCircuitBreakerBytes);
         return filter;
     }

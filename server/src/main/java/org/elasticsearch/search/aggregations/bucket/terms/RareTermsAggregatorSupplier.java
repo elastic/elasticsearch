@@ -28,6 +28,5 @@ interface RareTermsAggregatorSupplier {
                      AggregationContext context,
                      Aggregator parent,
                      CardinalityUpperBound carinality,
-                     Map<String, Object> metadata,
-                     int threshold) throws IOException;
+                     Map<String, Object> metadata) throws IOException;
 }

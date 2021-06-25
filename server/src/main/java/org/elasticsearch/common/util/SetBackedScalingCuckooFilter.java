@@ -88,8 +88,10 @@ public class SetBackedScalingCuckooFilter implements Writeable {
             throw new IllegalArgumentException("[threshold] must be a positive integer");
         }
 
-        if (threshold > maxThreshold()) {
-            throw new IllegalArgumentException("[threshold] must be smaller than [" + maxThreshold() + "]");
+        // We have to ensure that, in the worst case, two full sets can be converted into
+        // one cuckoo filter without overflowing.  This keeps merging logic simpler
+        if (threshold * 2 > FILTER_CAPACITY) {
+            throw new IllegalArgumentException("[threshold] must be smaller than [" + (FILTER_CAPACITY / 2) + "]");
         }
         if (fpp < 0) {
             throw new IllegalArgumentException("[fpp] must be a positive double");
@@ -99,12 +101,6 @@ public class SetBackedScalingCuckooFilter implements Writeable {
         this.rng = rng;
         this.capacity = FILTER_CAPACITY;
         this.fpp = fpp;
-    }
-
-    public static int maxThreshold() {
-        // We have to ensure that, in the worst case, two full sets can be converted into
-        // one cuckoo filter without overflowing.  This keeps merging logic simpler
-        return FILTER_CAPACITY / 2;
     }
 
     public SetBackedScalingCuckooFilter(SetBackedScalingCuckooFilter other) {

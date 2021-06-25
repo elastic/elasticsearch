@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.Before;
@@ -22,26 +21,23 @@ import java.util.stream.Stream;
 public abstract class InternalRareTermsTestCase extends InternalMultiBucketAggregationTestCase<InternalRareTerms<?, ?>> {
 
     private long maxDocCount;
-    private int threshold;
 
     @Before
     public void init() {
         maxDocCount = randomIntBetween(1, 5);
-        threshold = randomIntBetween(1, SetBackedScalingCuckooFilter.maxThreshold());
     }
 
     @Override
     protected final InternalRareTerms<?, ?> createTestInstance(String name,
                                                                Map<String, Object> metadata,
                                                                InternalAggregations aggregations) {
-        return createTestInstance(name, metadata, aggregations, maxDocCount, threshold);
+        return createTestInstance(name, metadata, aggregations, maxDocCount);
     }
 
     protected abstract InternalRareTerms<?, ?> createTestInstance(String name,
                                                                   Map<String, Object> metadata,
                                                                   InternalAggregations aggregations,
-                                                                  long maxDocCount,
-                                                                  int threshold);
+                                                                  long maxDocCount);
 
     @Override
     protected InternalRareTerms<?, ?> createUnmappedInstance(String name, Map<String, Object> metadata) {

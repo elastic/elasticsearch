@@ -34,7 +34,6 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
     private final double precision;
-    private final int threshold;
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
@@ -63,8 +62,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
-                                    Map<String, Object> metadata,
-                                    int threshold) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 ExecutionMode execution = ExecutionMode.MAP; //TODO global ords not implemented yet, only supports "map"
 
@@ -85,8 +83,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata,
                     maxDocCount,
                     precision,
-                    cardinality,
-                    threshold
+                    cardinality
                 );
 
             }
@@ -110,8 +107,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     AggregationContext context,
                                     Aggregator parent,
                                     CardinalityUpperBound cardinality,
-                                    Map<String, Object> metadata,
-                                    int threshold) throws IOException {
+                                    Map<String, Object> metadata) throws IOException {
 
                 if ((includeExclude != null) && (includeExclude.isRegexBased())) {
                     throw new IllegalArgumentException("Aggregation [" + name + "] cannot support regular expression " +
@@ -137,8 +133,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     maxDocCount,
                     precision,
                     cardinality,
-                    metadata,
-                    threshold
+                    metadata
                 );
             }
         };
@@ -149,14 +144,13 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                       AggregationContext context,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
                                       Map<String, Object> metadata, int maxDocCount, double precision,
-                                      RareTermsAggregatorSupplier aggregatorSupplier, int threshold) throws IOException {
+                                      RareTermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.maxDocCount = maxDocCount;
         this.precision = precision;
-        this.threshold = threshold;
     }
 
     @Override
@@ -188,8 +182,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 context,
                 parent,
                 cardinality,
-                metadata,
-                threshold
+                metadata
             );
     }
 
@@ -209,8 +202,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                 Map<String, Object> metadata,
                 long maxDocCount,
                 double precision,
-                CardinalityUpperBound cardinality,
-                int threshold
+                CardinalityUpperBound cardinality
             ) throws IOException {
                 final IncludeExclude.StringFilter filter = includeExclude == null ? null : includeExclude.convertToStringFilter(format);
                 return new StringRareTermsAggregator(
@@ -224,8 +216,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                     metadata,
                     maxDocCount,
                     precision,
-                    cardinality,
-                    threshold
+                    cardinality
                 );
             }
 
@@ -262,8 +253,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
             Map<String, Object> metadata,
             long maxDocCount,
             double precision,
-            CardinalityUpperBound cardinality,
-            int threshold
+            CardinalityUpperBound cardinality
         ) throws IOException;
 
         abstract boolean needsGlobalOrdinals();

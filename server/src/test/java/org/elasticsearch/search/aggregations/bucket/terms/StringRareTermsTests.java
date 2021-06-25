@@ -28,8 +28,7 @@ public class StringRareTermsTests extends InternalRareTermsTestCase {
     protected InternalRareTerms<?, ?> createTestInstance(String name,
                                                          Map<String, Object> metadata,
                                                          InternalAggregations aggregations,
-                                                         long maxDocCount,
-                                                         int threshold) {
+                                                         long maxDocCount) {
         BucketOrder order = BucketOrder.count(false);
         DocValueFormat format = DocValueFormat.RAW;
         List<StringRareTerms.Bucket> buckets = new ArrayList<>();
@@ -40,7 +39,7 @@ public class StringRareTermsTests extends InternalRareTermsTestCase {
             int docCount = randomIntBetween(1, 100);
             buckets.add(new StringRareTerms.Bucket(term, docCount, aggregations, format));
         }
-        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(threshold, Randomness.get(), 0.01);
+        SetBackedScalingCuckooFilter filter = new SetBackedScalingCuckooFilter(1000, Randomness.get(), 0.01);
         return new StringRareTerms(name, order, metadata, format, buckets, maxDocCount, filter);
     }
 

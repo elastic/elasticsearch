@@ -21,6 +21,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -161,16 +162,81 @@ public class VectorTileRequestTests extends ESTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74338")
     public void testWrongTile() {
-        final int z = randomIntBetween(1, 10);
-        final int x = -randomIntBetween(0, (1 << z) - 1);
-        final int y = -randomIntBetween(0, (1 << z) - 1);
         final String index = randomAlphaOfLength(10);
         final String field = randomAlphaOfLength(10);
-        final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
-        final IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> VectorTileRequest.parseRestRequest(request));
-        assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        {
+            // negative zoom
+            final int z = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int x = 0;
+            final int y = 0;
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
+        }
+        {
+            // too big zoom
+            final int z = -randomIntBetween(GeoTileUtils.MAX_ZOOM + 1, Integer.MAX_VALUE);
+            final int x = 0;
+            final int y = 0;
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Invalid geotile_grid precision of " + z + ". Must be between 0 and 29."));
+        }
+        {
+            // negative x
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int y = randomIntBetween(0, (1 << z) - 1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // too big x
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(Integer.MIN_VALUE, -1);
+            final int y = randomIntBetween(1 << z, Integer.MAX_VALUE);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // negative y
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(0, (1 << z) - 1);
+            final int y = randomIntBetween(Integer.MIN_VALUE, -1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
+        {
+            // too big y
+            final int z = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
+            final int x = randomIntBetween(1 << z, Integer.MAX_VALUE);
+            final int y = randomIntBetween(Integer.MIN_VALUE, -1);
+            final FakeRestRequest request = getBasicRequestBuilder(index, field, z, x, y).build();
+            final IllegalArgumentException ex = expectThrows(
+                IllegalArgumentException.class,
+                () -> VectorTileRequest.parseRestRequest(request)
+            );
+            assertThat(ex.getMessage(), Matchers.equalTo("Zoom/X/Y combination is not valid: " + z + "/" + x + "/" + y));
+        }
     }
 
     private void assertRestRequest(CheckedConsumer<XContentBuilder, IOException> consumer, Consumer<VectorTileRequest> asserter)

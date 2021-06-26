@@ -726,6 +726,7 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
                     ActionRunnable.supply(
                         f,
                         () -> BlobStoreRepository.INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+                            repository.getMetadata().name(),
                             repository.shardContainer(repositoryShardId.index(), repositoryShardId.shardId()),
                             generation,
                             NamedXContentRegistry.EMPTY

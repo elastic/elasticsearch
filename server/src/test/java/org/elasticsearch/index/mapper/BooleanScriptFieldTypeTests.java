@@ -309,7 +309,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             String source = "{\"foo\": " + values + "}";
             ParseContext ctx = mock(ParseContext.class);
             when(ctx.parser()).thenReturn(createParser(JsonXContent.jsonXContent, source));
-            ParseContext.Document doc = new ParseContext.Document();
+            LuceneDocument doc = new LuceneDocument();
             when(ctx.doc()).thenReturn(doc);
             when(ctx.sourceToParse()).thenReturn(new SourceToParse("test", "test", new BytesArray(source), XContentType.JSON));
             doc.add(new StoredField("_source", new BytesRef(source)));

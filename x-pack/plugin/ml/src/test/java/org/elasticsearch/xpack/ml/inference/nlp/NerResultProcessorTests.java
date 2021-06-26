@@ -51,6 +51,42 @@ public class NerResultProcessorTests extends ESTestCase {
         assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
     }
 
+    public void testProcessResults_withIobMap() {
+
+        NerProcessor.IobTag [] iobMap = new NerProcessor.IobTag[] {
+            NerProcessor.IobTag.B_LOC,
+            NerProcessor.IobTag.I_LOC,
+            NerProcessor.IobTag.B_MISC,
+            NerProcessor.IobTag.I_MISC,
+            NerProcessor.IobTag.B_PER,
+            NerProcessor.IobTag.I_PER,
+            NerProcessor.IobTag.B_ORG,
+            NerProcessor.IobTag.I_ORG,
+            NerProcessor.IobTag.O
+        };
+
+        NerResultProcessor processor = createProcessor(
+            Arrays.asList("el", "##astic", "##search", "many", "use", "in", "london"),
+            "Elasticsearch in London",
+            iobMap
+        );
+
+        double[][] scores = {
+            { 0.01, 0.01, 0, 0.01, 0, 0, 7, 3, 0}, // el
+            { 0.01, 0.01, 0, 0, 0, 0, 0, 0, 0}, // ##astic
+            { 0, 0, 0, 0, 0, 0, 0, 0, 0}, // ##search
+            { 0, 0, 0, 0, 0, 0, 0, 0, 5}, // in
+            { 6, 0, 0, 0, 0, 0, 0, 0, 0} // london
+        };
+        NerResults result = (NerResults) processor.processResult(new PyTorchResult("1", scores, null));
+
+        assertThat(result.getEntityGroups().size(), equalTo(2));
+        assertThat(result.getEntityGroups().get(0).getWord(), equalTo("elasticsearch"));
+        assertThat(result.getEntityGroups().get(0).getLabel(), equalTo(NerProcessor.Entity.ORGANISATION.toString()));
+        assertThat(result.getEntityGroups().get(1).getWord(), equalTo("london"));
+        assertThat(result.getEntityGroups().get(1).getLabel(), equalTo(NerProcessor.Entity.LOCATION.toString()));
+    }
+
     public void testGroupTaggedTokens() {
         List<NerResultProcessor.TaggedToken> tokens = new ArrayList<>();
         tokens.add(new NerResultProcessor.TaggedToken("Hi", NerProcessor.IobTag.O, 1.0));
@@ -125,6 +161,15 @@ public class NerResultProcessorTests extends ESTestCase {
             .setWithSpecialTokens(false)
             .build();
         BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
-        return new NerResultProcessor(tokenizationResult);
+        return new NerResultProcessor(tokenizationResult, NerProcessor.IobTag.values());
+    }
+
+    private static NerResultProcessor createProcessor(List<String> vocab, String input, NerProcessor.IobTag[] iobMap){
+        BertTokenizer tokenizer = BertTokenizer.builder(vocab)
+            .setDoLowerCase(true)
+            .setWithSpecialTokens(false)
+            .build();
+        BertTokenizer.TokenizationResult tokenizationResult = tokenizer.tokenize(input);
+        return new NerResultProcessor(tokenizationResult, iobMap);
     }
 }

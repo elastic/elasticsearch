@@ -43,10 +43,10 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
             validationException = addValidationError("realm may not be empty", validationException);
         }
         if (Strings.hasText(queryString) == false && Strings.hasText(content) == false) {
-            validationException = addValidationError("queryString and content may not both be empty", validationException);
+            validationException = addValidationError("query_string and content may not both be empty", validationException);
         }
         if (Strings.hasText(queryString) && Strings.hasText(content)) {
-            validationException = addValidationError("queryString and content may not both present", validationException);
+            validationException = addValidationError("query_string and content may not both present", validationException);
         }
         return validationException;
     }
@@ -56,7 +56,11 @@ public final class SamlCompleteLogoutRequest extends ActionRequest {
     }
 
     public void setQueryString(String queryString) {
-        this.queryString = queryString;
+        if (this.queryString == null) {
+            this.queryString = queryString;
+        } else {
+            throw new IllegalArgumentException("Must use either [query_string] or [queryString], not both at the same time");
+        }
     }
 
     public String getContent() {

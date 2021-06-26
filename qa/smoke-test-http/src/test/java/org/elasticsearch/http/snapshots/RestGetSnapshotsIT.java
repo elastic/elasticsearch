@@ -65,8 +65,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
-        final List<SnapshotInfo> defaultSorting =
-            clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots(repoName);
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
                 allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order),
@@ -205,7 +204,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             request.addParameter("order", order.toString());
         }
         final Response response = getRestClient().performRequest(request);
-        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(repoName, response).v2();
+        final List<SnapshotInfo> snapshotInfos = readSnapshotInfos(response).v2();
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());
         for (SnapshotInfo snapshotInfo : snapshotInfos) {
             assertThat(snapshotInfo.snapshotId().getName(), is(in(allSnapshotNames)));
@@ -215,15 +214,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private static Request baseGetSnapshotsRequest(String repoName) {
         return new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
-    }
-
-    private static Tuple<String, List<SnapshotInfo>> readSnapshotInfos(String repoName, Response response) throws IOException {
-        try (InputStream input = response.getEntity().getContent();
-             XContentParser parser = JsonXContent.jsonXContent.createParser(
-                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
-            final GetSnapshotsResponse getSnapshotsResponse = GetSnapshotsResponse.fromXContent(parser);
-            return Tuple.tuple(getSnapshotsResponse.getNext(repoName), getSnapshotsResponse.getSnapshots(repoName));
-        }
     }
 
     private static Tuple<String, List<SnapshotInfo>> sortedWithLimit(String repoName,
@@ -237,14 +227,23 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         }
         request.addParameter("size", String.valueOf(size));
         final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(repoName, response);
+        return readSnapshotInfos(response);
+    }
+
+    private static Tuple<String, List<SnapshotInfo>> readSnapshotInfos(Response response) throws IOException {
+        try (InputStream input = response.getEntity().getContent();
+             XContentParser parser = JsonXContent.jsonXContent.createParser(
+                     NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, input)) {
+            final GetSnapshotsResponse getSnapshotsResponse = GetSnapshotsResponse.fromXContent(parser);
+            return Tuple.tuple(getSnapshotsResponse.next(), getSnapshotsResponse.getSnapshots());
+        }
     }
 
     private static Tuple<String, List<SnapshotInfo>> sortedWithLimit(String repoName,
-                                                                     GetSnapshotsRequest.SortBy sortBy,
-                                                                     String after,
-                                                                     int size,
-                                                                     SortOrder order) throws IOException {
+                                                      GetSnapshotsRequest.SortBy sortBy,
+                                                      String after,
+                                                      int size,
+                                                      SortOrder order) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {
@@ -257,6 +256,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             request.addParameter("order", order.toString());
         }
         final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(repoName, response);
+        return readSnapshotInfos(response);
     }
 }

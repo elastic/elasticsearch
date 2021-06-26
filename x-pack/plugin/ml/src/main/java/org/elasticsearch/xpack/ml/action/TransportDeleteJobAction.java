@@ -209,7 +209,6 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
         // We clean up the memory tracker on delete rather than close as close is not a master node action
         memoryTracker.removeAnomalyDetectorJob(jobId);
-
         jobManager.deleteJob(request, parentTaskClient, state, listener);
     }
 
@@ -291,7 +290,7 @@ public class TransportDeleteJobAction extends AcknowledgedTransportMasterNodeAct
 
     private void markJobAsDeletingIfNotUsed(String jobId, TaskId taskId, ActionListener<PutJobAction.Response> listener) {
 
-        datafeedConfigProvider.findDatafeedsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
+        datafeedConfigProvider.findDatafeedIdsForJobIds(Collections.singletonList(jobId), ActionListener.wrap(
                 datafeedIds -> {
                     if (datafeedIds.isEmpty() == false) {
                         listener.onFailure(ExceptionsHelper.conflictStatusException("Cannot delete job [" + jobId + "] because datafeed ["

@@ -21,9 +21,11 @@ import java.util.Objects;
 class NerResultProcessor implements NlpTask.ResultProcessor {
 
     private final BertTokenizer.TokenizationResult tokenization;
+    private final NerProcessor.IobTag[] iobMap;
 
-    NerResultProcessor(BertTokenizer.TokenizationResult tokenization) {
+    NerResultProcessor(BertTokenizer.TokenizationResult tokenization, NerProcessor.IobTag[] iobMap) {
         this.tokenization = Objects.requireNonNull(tokenization);
+        this.iobMap = iobMap;
     }
 
     @Override
@@ -69,7 +71,7 @@ class NerResultProcessor implements NlpTask.ResultProcessor {
                 String endTokenWord = tokenization.getTokens().get(endTokenIndex).substring(2);
                 word.append(endTokenWord);
             }
-            double[] avgScores = Arrays.copyOf(scores[startTokenIndex], NerProcessor.IobTag.values().length);
+            double[] avgScores = Arrays.copyOf(scores[startTokenIndex], iobMap.length);
             for (int i = startTokenIndex + 1; i <= endTokenIndex; i++) {
                 for (int j = 0; j < scores[i].length; j++) {
                     avgScores[j] += scores[i][j];
@@ -83,7 +85,7 @@ class NerResultProcessor implements NlpTask.ResultProcessor {
             }
             int maxScoreIndex = NlpHelpers.argmax(avgScores);
             double score = avgScores[maxScoreIndex];
-            taggedTokens.add(new TaggedToken(word.toString(), NerProcessor.IobTag.values()[maxScoreIndex], score));
+            taggedTokens.add(new TaggedToken(word.toString(), iobMap[maxScoreIndex], score));
             startTokenIndex = endTokenIndex + 1;
         }
         return taggedTokens;

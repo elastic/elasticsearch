@@ -133,9 +133,4 @@ public class StringTerms extends InternalMappedTerms<StringTerms, StringTerms.Bu
         return new StringTerms(name, reduceOrder, order, requiredSize, minDocCount, getMetadata(), format, shardSize,
                 showTermDocCountError, otherDocCount, buckets, docCountError);
     }
-
-    @Override
-    protected Bucket[] createBucketsArray(int size) {
-        return new Bucket[size];
-    }
 }

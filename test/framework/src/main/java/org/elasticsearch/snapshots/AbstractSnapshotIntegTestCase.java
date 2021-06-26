@@ -72,6 +72,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -371,6 +372,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
+                repoName,
                 JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -458,7 +460,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(
-            snapshotId,
+            new Snapshot(repoName, snapshotId),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -624,7 +626,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
-                .get().getSnapshots(repository);
+                .get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }
@@ -654,7 +656,21 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for (int i = 0; i < count; i++) {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
-            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+            final Map<String, Object> userMetadata = randomUserMetadata();
+            clusterAdmin()
+                    .prepareCreateSnapshot(repoName, snapshot)
+                    .setWaitForCompletion(true)
+                    .setUserMetadata(userMetadata)
+                    .execute(snapshotsListener.delegateFailure((l, response) -> {
+                        final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
+                        assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
+                        clusterAdmin().prepareGetSnapshots(repoName)
+                                .setSnapshots(snapshot)
+                                .execute(l.delegateFailure((ll, getResponse) -> {
+                                    assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
+                                    ll.onResponse(response);
+                                }));
+                    }));
         }
         for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
             assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
@@ -707,5 +723,35 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         for (int i = 0; i < snapshotInfos.size() - 1; i++) {
             orderAssertion.accept(snapshotInfos.get(i), snapshotInfos.get(i + 1));
         }
+    }
+
+    /**
+     * Randomly either generates some random snapshot user metadata or returns {@code null}.
+     *
+     * @return random snapshot user metadata or {@code null}
+     */
+    @Nullable
+    public static Map<String, Object> randomUserMetadata() {
+        if (randomBoolean()) {
+            return null;
+        }
+
+        Map<String, Object> metadata = new HashMap<>();
+        long fields = randomLongBetween(0, 4);
+        for (int i = 0; i < fields; i++) {
+            if (randomBoolean()) {
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                        randomAlphaOfLengthBetween(5, 5));
+            } else {
+                Map<String, Object> nested = new HashMap<>();
+                long nestedFields = randomLongBetween(0, 4);
+                for (int j = 0; j < nestedFields; j++) {
+                    nested.put(randomValueOtherThanMany(nested::containsKey, () -> randomAlphaOfLengthBetween(2, 10)),
+                            randomAlphaOfLengthBetween(5, 5));
+                }
+                metadata.put(randomValueOtherThanMany(metadata::containsKey, () -> randomAlphaOfLengthBetween(2, 10)), nested);
+            }
+        }
+        return metadata;
     }
 }

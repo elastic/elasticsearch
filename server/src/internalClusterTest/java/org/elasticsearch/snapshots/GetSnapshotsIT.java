@@ -57,7 +57,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) {
-        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots(repoName);
+        final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName).setOrder(order).get().getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
             allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order),
@@ -232,7 +232,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .setSize(size)
             .setOrder(order)
             .get();
-        return Tuple.tuple(response.getNext(repoName), response.getSnapshots(repoName));
+        return Tuple.tuple(response.next(), response.getSnapshots());
     }
 
     private static GetSnapshotsRequestBuilder baseGetSnapshotsRequest(String repoName) {
@@ -243,7 +243,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .setSnapshots(AbstractSnapshotIntegTestCase.OLD_VERSION_SNAPSHOT_PREFIX + "*")
                 .setIgnoreUnavailable(true)
                 .get()
-                .getSnapshots(repoName)
+                .getSnapshots()
                 .isEmpty() == false) {
             builder.setSnapshots(RANDOM_SNAPSHOT_NAME_PREFIX + "*");
         }

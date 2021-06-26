@@ -81,8 +81,6 @@ public class AutodetectBuilderTests extends ESTestCase {
         job.setAnalysisConfig(acBuilder);
 
         DataDescription.Builder dd = new DataDescription.Builder();
-        dd.setFormat(DataDescription.DataFormat.DELIMITED);
-        dd.setFieldDelimiter('|');
         dd.setTimeField("tf");
         job.setDataDescription(dd);
 

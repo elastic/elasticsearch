@@ -31,7 +31,7 @@ public class RemoteClusterRegistry {
     public Set<String> versionIncompatibleClusters(String indexPattern) {
         Set<String> incompatibleClusters = new TreeSet<>();
         for (String clusterAlias: indicesPerRemoteCluster(indexPattern).keySet()) {
-            Version clusterVersion = remoteVersion(clusterAlias);
+            Version clusterVersion = remoteClusterService.getConnection(clusterAlias).getVersion();
             if (clusterVersion.equals(Version.CURRENT) == false) { // TODO: should newer clusters be eventually allowed?
                 incompatibleClusters.add(clusterAlias);
             }
@@ -44,9 +44,5 @@ public class RemoteClusterRegistry {
             Strings.splitStringByCommaToArray(indexPattern));
         indicesMap.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
         return indicesMap;
-    }
-
-    private Version remoteVersion(String clusterAlias) {
-        return remoteClusterService.getConnection(clusterAlias).getVersion();
     }
 }

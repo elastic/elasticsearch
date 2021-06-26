@@ -138,6 +138,10 @@ public class SearchCancellationIT extends ESIntegTestCase {
             SearchResponse response = searchResponse.actionGet();
             logger.info("Search response {}", response);
             assertNotEquals("At least one shard should have failed", 0, response.getFailedShards());
+            for (ShardSearchFailure failure : response.getShardFailures()) {
+                // We should have fail because the search has been cancel. The status of the exceptions should be 400.
+                assertThat(ExceptionsHelper.status(failure.getCause()), equalTo(RestStatus.BAD_REQUEST));
+            }
             return response;
         } catch (SearchPhaseExecutionException ex) {
             // We should have fail because the search has been cancel. The status of the response should be 400.

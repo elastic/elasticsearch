@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -21,7 +22,8 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -31,10 +33,14 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.common.xcontent.DeprecationHandler;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
@@ -47,16 +53,19 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
 import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
@@ -139,6 +148,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
+    private final CircuitBreaker circuitBreaker;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -155,6 +165,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.registry = registry;
         this.reader = reader;
         this.bigArrays = bigArrays;
+        this.circuitBreaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
     }
 
     /**
@@ -308,44 +319,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         return asyncTask;
     }
 
-    private void getEncodedResponse(AsyncExecutionId asyncExecutionId,
-                                    boolean restoreResponseHeaders,
-                                    ActionListener<Tuple<String, Long>> listener) {
-        GetRequest internalGet = new GetRequest(index)
-            .preference(asyncExecutionId.getEncoded())
-            .id(asyncExecutionId.getDocId());
-        clientWithOrigin.get(internalGet, ActionListener.wrap(
-            get -> {
-                if (get.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
-                    return;
-                }
-
-                // check the authentication of the current user against the user that initiated the async task
-                @SuppressWarnings("unchecked")
-                Map<String, String> headers = (Map<String, String>) get.getSource().get(HEADERS_FIELD);
-                if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
-                    return;
-                }
-
-                if (restoreResponseHeaders && get.getSource().containsKey(RESPONSE_HEADERS_FIELD)) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, List<String>> responseHeaders = (Map<String, List<String>>) get.getSource().get(RESPONSE_HEADERS_FIELD);
-                    restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
-                }
-
-                long expirationTime = (long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                String encoded = (String) get.getSource().get(RESULT_FIELD);
-                if (encoded != null) {
-                    listener.onResponse(new Tuple<>(encoded, expirationTime));
-                } else {
-                    listener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        ));
-    }
 
     /**
      * Gets the response from the index if present, or delegate a {@link ResourceNotFoundException}
@@ -355,11 +328,64 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public void getResponse(AsyncExecutionId asyncExecutionId,
                             boolean restoreResponseHeaders,
-                            ActionListener<R> listener) {
-        getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
-            (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
-            listener::onFailure
-        ));
+                            ActionListener<R> outerListener) {
+        final GetRequest getRequest = new GetRequest(index).preference(asyncExecutionId.getEncoded()).id(asyncExecutionId.getDocId());
+        clientWithOrigin.get(getRequest, outerListener.delegateFailure((listener, getResponse) -> {
+            if (getResponse.isExists() == false) {
+                listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                return;
+            }
+            long reservedBytes = 0;
+            // Parse the source manually so we can access the encoded buffer directly without making it a string
+            try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION, getResponse.getSourceInternal(), XContentType.JSON)) {
+                ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
+                R resp = null;
+                Long expirationTime = null;
+                XContentParser.Token token;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                    final String fieldName = parser.currentName();
+                    token = parser.nextToken();
+                    if (fieldName.equals(RESULT_FIELD)) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                        final CharBuffer encodedBuffer = parser.charBuffer();
+                        // We can record the ram usage of a response in the index and use it here; however, we don't do it because
+                        // RamUsageEstimator overestimates the ram usage of a search response by twice as a search response mostly
+                        // consists of string fields. Here we use the length of a decoded string (i.e., 0.75% of Base64 encoded string)
+                        // as the ram usage estimate for the corresponding response.
+                        final long estimatedRamUsageOfResponse = encodedBuffer.length() * 3L / 4L;
+                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamUsageOfResponse, "decode async response");
+                        reservedBytes += estimatedRamUsageOfResponse;
+                        resp = decodeResponse(encodedBuffer);
+                    } else if (fieldName.equals(EXPIRATION_TIME_FIELD)) {
+                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                        expirationTime = (long) parser.numberValue();
+                    } else if (fieldName.equals(HEADERS_FIELD)) {
+                        @SuppressWarnings("unchecked") final Map<String, String> headers =
+                            (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
+                        // check the authentication of the current user against the user that initiated the async task
+                        if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                            throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                        }
+                    } else if (fieldName.equals(RESPONSE_HEADERS_FIELD) && restoreResponseHeaders) {
+                        @SuppressWarnings("unchecked") final Map<String, List<String>> responseHeaders =
+                            (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(parser);
+                        restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                    }
+                }
+                Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
+                Objects.requireNonNull(expirationTime, "Get result doesn't include [" + EXPIRATION_TIME_FIELD + "] field");
+                listener.onResponse(resp.withExpirationTime(expirationTime));
+            } catch (IOException e) {
+                listener.onFailure(new ElasticsearchParseException("Failed to parse the get result", e));
+            } catch (Exception e) {
+                listener.onFailure(e);
+            } finally {
+                // Release the reserved memory after the listener has completed its execution.
+                circuitBreaker.addWithoutBreaking(-reservedBytes);
+            }
+        }));
     }
 
     /**
@@ -452,13 +478,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Decode the provided base-64 bytes into a {@link AsyncSearchResponse}.
      */
-    R decodeResponse(String value) throws IOException {
-        // TODO: Integrate with the circuit breaker
-        try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
-            try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                in.setVersion(Version.readVersion(in));
-                return reader.read(in);
+    private R decodeResponse(CharBuffer encodedBuffer) throws IOException {
+        final InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
+            @Override
+            public int read() {
+                return encodedBuffer.get();
             }
+        });
+        try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
+            in.setVersion(Version.readVersion(in));
+            return reader.read(in);
         }
     }
 

@@ -22,21 +22,17 @@ import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.EVENT;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.JOIN_KEYS_FIVE_OR_MORE;
@@ -71,11 +67,6 @@ public class Verifier {
 
     public Verifier(Metrics metrics) {
         this.metrics = metrics;
-    }
-
-    public Map<Node<?>, String> verifyFailures(LogicalPlan plan) {
-        Collection<Failure> failures = verify(plan, x -> Collections.emptySet());
-        return failures.stream().collect(toMap(Failure::node, Failure::message));
     }
 
     Collection<Failure> verify(LogicalPlan plan, Function<String, Collection<String>> versionIncompatibleClusters) {

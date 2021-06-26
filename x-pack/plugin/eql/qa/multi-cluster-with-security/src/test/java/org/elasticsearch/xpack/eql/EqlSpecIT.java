@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.test.eql.EqlSpecTestCase;
 
+import static org.elasticsearch.test.eql.DataLoader.TEST_INDEX;
 import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIndex;
 
 public class EqlSpecIT extends EqlSpecTestCase {
 
     public EqlSpecIT(String query, String name, long[] eventIds) {
-        super(remoteClusterIndex(indexName()), query, name, eventIds);
+        super(remoteClusterIndex(TEST_INDEX), query, name, eventIds);
     }
 }

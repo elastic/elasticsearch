@@ -31,10 +31,6 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
         super(index, query, name, eventIds);
     }
 
-    protected static String indexName() {
-        return DATE_NANOS_INDEX;
-    }
-
     @Override
     protected String tiebreaker() {
         return "serial_event_id";

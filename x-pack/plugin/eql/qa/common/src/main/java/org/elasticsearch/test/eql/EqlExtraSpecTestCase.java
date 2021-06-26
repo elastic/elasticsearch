@@ -31,10 +31,6 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
         super(index, query, name, eventIds);
     }
 
-    protected static String indexName() {
-        return TEST_EXTRA_INDEX;
-    }
-
     @Override
     protected String tiebreaker() {
         return "sequence";

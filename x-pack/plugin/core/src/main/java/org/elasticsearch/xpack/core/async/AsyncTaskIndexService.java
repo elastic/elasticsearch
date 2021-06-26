@@ -21,7 +21,6 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
@@ -366,68 +366,34 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Retrieve the status of the async search or async or stored eql search.
      * Retrieve from the task if the task is still available or from the index.
      */
-     public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
-            GetAsyncStatusRequest request,
-            TaskManager taskManager,
-            Class<T> tClass,
-            Function<T, SR> statusProducerFromTask,
-            TriFunction<R, Long, String, SR> statusProducerFromIndex,
-            ActionListener<SR> listener) {
+    public <T extends AsyncTask, SR extends SearchStatusResponse> void retrieveStatus(
+        GetAsyncStatusRequest request,
+        TaskManager taskManager,
+        Class<T> tClass,
+        Function<T, SR> statusProducerFromTask,
+        TriFunction<R, Long, String, SR> statusProducerFromIndex,
+        ActionListener<SR> outerListener) {
+        // check if the result has expired
+        outerListener = outerListener.delegateFailure((listener, resp) -> {
+            if (resp.getExpirationTime() < System.currentTimeMillis()) {
+                listener.onFailure(new ResourceNotFoundException(request.getId()));
+            } else {
+                listener.onResponse(resp);
+            }
+        });
         AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
         try {
             T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
             if (asyncTask != null) { // get status response from task
                 SR response = statusProducerFromTask.apply(asyncTask);
-                sendFinalStatusResponse(request, response, listener);
-            } else { // get status response from index
-                getStatusResponseFromIndex(asyncExecutionId, statusProducerFromIndex, listener.delegateFailure(
-                        (l, searchStatusResponse) -> sendFinalStatusResponse(request, searchStatusResponse, l)));
+                outerListener.onResponse(response);
+            } else {
+                // get status response from index
+                getResponse(asyncExecutionId, false, outerListener.delegateFailure((listener, resp) ->
+                    listener.onResponse(statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))));
             }
         } catch (Exception exc) {
-            listener.onFailure(exc);
-        }
-    }
-
-    /**
-     * Gets the status response of the stored search from the index
-     * @param asyncExecutionId – id of the stored search (async search or stored eql search)
-     * @param statusProducer – a producer of a status from the stored search, expirationTime and async search id
-     * @param listener – listener to report result to
-     */
-    private <SR extends SearchStatusResponse> void getStatusResponseFromIndex(
-        AsyncExecutionId asyncExecutionId,
-        TriFunction<R, Long, String, SR> statusProducer,
-        ActionListener<SR> listener) {
-        String asyncId = asyncExecutionId.getEncoded();
-        GetRequest internalGet = new GetRequest(index)
-            .preference(asyncId)
-            .id(asyncExecutionId.getDocId());
-        clientWithOrigin.get(internalGet, ActionListener.wrap(
-            get -> {
-                if (get.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
-                    return;
-                }
-                String encoded = (String) get.getSource().get(RESULT_FIELD);
-                if (encoded != null) {
-                    Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
-                } else {
-                    listener.onResponse(null);
-                }
-            },
-            listener::onFailure
-        ));
-    }
-
-    private static <SR extends SearchStatusResponse> void sendFinalStatusResponse(
-        GetAsyncStatusRequest request,
-        SR response,
-        ActionListener<SR> listener) {
-        if (response.getExpirationTime() < System.currentTimeMillis()) { // check if the result has expired
-            listener.onFailure(new ResourceNotFoundException(request.getId()));
-        } else {
-            listener.onResponse(response);
+            outerListener.onFailure(exc);
         }
     }
 

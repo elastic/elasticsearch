@@ -778,6 +778,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74586")
     public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws Exception {
         ApiKeyService service = createApiKeyService(
             Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());

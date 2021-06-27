@@ -85,7 +85,7 @@ PUT my-index-000001/_mapping
 ------------
 // TEST[continued]
 
-IMPORTANT: On a <<frozen-indices,frozen index>>, global ordinals are discarded
+IMPORTANT: On a <<freeze-index-api,frozen index>>, global ordinals are discarded
 after each search and rebuilt again when they're requested. This means that
 `eager_global_ordinals` should not be used on frozen indices: it would
 cause global ordinals to be reloaded on every search. Instead, the index should

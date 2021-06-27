@@ -10,6 +10,7 @@ package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.DockerRun;
 import org.elasticsearch.packaging.util.Installation;
@@ -45,6 +46,7 @@ import static org.elasticsearch.packaging.util.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
+import static org.elasticsearch.packaging.util.Docker.restartContainer;
 import static org.elasticsearch.packaging.util.Docker.rmDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
@@ -100,7 +102,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that the Docker image can be run, and that it passes various checks.
      */
     public void test010Install() {
-        verifyContainerInstallation(installation, distribution());
+        verifyContainerInstallation(installation);
     }
 
     /**
@@ -674,6 +676,20 @@ public class DockerTests extends PackagingTestCase {
         final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
 
         assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
+    }
+
+    /**
+     * Check that it when configuring logging to write to disk, the container can be restarted.
+     */
+    public void test124CanRestartContainerWithStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        restartContainer();
+
+        // If something went wrong running Elasticsearch the second time, this will fail.
+        waitForElasticsearch(installation);
     }
 
     /**

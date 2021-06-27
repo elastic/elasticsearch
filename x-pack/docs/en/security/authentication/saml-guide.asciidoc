@@ -304,7 +304,7 @@ xpack.security.authc.realms.saml.saml1:
   nameid_format: "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent"
 ------------------------------------------------------------
 
-[[saml-user-properties]]
+[[saml-es-user-properties]]
 ===== {es} user properties
 
 The {es} SAML realm can be configured to map SAML `attributes` to the
@@ -740,7 +740,7 @@ fields.
 This behaviour can be disabled by adding `populate_user_metadata: false` to as
 a setting in the saml realm.
 
-[[saml-kibana]]
+[[saml-configure-kibana]]
 === Configuring {kib}
 
 SAML authentication in {kib} requires a small number of additional settings
@@ -1037,3 +1037,6 @@ POST /_security/saml/invalidate
 The custom web application will then need to also handle the response, which will include a `redirect`
 parameter with a URL in the IdP that contains the SAML Logout response. The application should redirect the user
 there to complete the logout.
+
+For SP-initiated Single Logout, the IdP may send back a logout response which can be verified by {es}
+using the <<security-api-saml-complete-logout,SAML complete logout API>>.

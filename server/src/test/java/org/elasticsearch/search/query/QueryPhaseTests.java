@@ -31,7 +31,6 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FieldComparator;
@@ -686,7 +685,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
         final IndexReader reader = DirectoryReader.open(dir);
 
         TestSearchContext searchContext = spy(new TestSearchContext(
-            searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0)));
+            searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, true)));
 
         // 1. Test a sort on long field
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);
@@ -747,6 +746,37 @@ public class QueryPhaseTests extends IndexShardTestCase {
             TotalHits totalHits = searchContext.queryResult().topDocs().topDocs.totalHits;
             assertEquals(TotalHits.Relation.EQUAL_TO, totalHits.relation);
             assertEquals(numDocs, totalHits.value);
+        }
+
+        {
+            // 7. Test a sort with terminate after
+            sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
+            TestSearchContext newSearchContext = spy(new TestSearchContext(
+                searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, true)));
+            newSearchContext.sort(sortAndFormats);
+            newSearchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            newSearchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            newSearchContext.setSize(10);
+            int terminateAfter = randomIntBetween(1, numDocs/2);
+            newSearchContext.terminateAfter(terminateAfter);
+            QueryPhase.executeInternal(newSearchContext);
+            assertSortResults(newSearchContext.queryResult().topDocs().topDocs, terminateAfter, false);
+            assertTrue(newSearchContext.queryResult().terminatedEarly());
+        }
+
+        {
+            // 8. Test a sort with timeout
+            sortAndFormats = new SortAndFormats(dateSort, new DocValueFormat[]{dateFormat});
+            TestSearchContext newSearchContext = spy(new TestSearchContext(
+                searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0, false)));
+            newSearchContext.sort(sortAndFormats);
+            newSearchContext.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+            newSearchContext.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));
+            newSearchContext.setSize(10);
+            newSearchContext.searcher().addQueryCancellation(() -> { throw new QueryPhase.TimeExceededException(); });
+            QueryPhase.executeInternal(newSearchContext);
+            assertSortResults(newSearchContext.queryResult().topDocs().topDocs, 0, false);
+            assertTrue(newSearchContext.queryResult().searchTimedOut());
         }
 
         reader.close();
@@ -983,13 +1013,14 @@ public class QueryPhaseTests extends IndexShardTestCase {
     }
 
     // used to check that numeric long or date sort optimization was run
-    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader, int queryType) throws IOException {
+    private static ContextIndexSearcher newOptimizedContextSearcher(IndexReader reader,
+                                                                    int queryType,
+                                                                    boolean wrapExitable) throws IOException {
         return new ContextIndexSearcher(reader, IndexSearcher.getDefaultSimilarity(),
-            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true) {
+            IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), wrapExitable) {
 
             @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, CollectorManager manager,
-                               QuerySearchResult result, DocValueFormat[] formats, TotalHits totalHits) throws IOException {
+            public void search(List<LeafReaderContext> ctx, Weight weight, Collector collector) throws IOException {
                 final Query query = weight.getQuery();
                 assertTrue(query instanceof BooleanQuery);
                 List<BooleanClause> clauses = ((BooleanQuery) query).clauses();
@@ -1002,12 +1033,7 @@ public class QueryPhaseTests extends IndexShardTestCase {
                     );
                 }
                 if (queryType == 1) assertTrue(clauses.get(1).getQuery() instanceof DocValuesFieldExistsQuery);
-                super.search(leaves, weight, manager, result, formats, totalHits);
-            }
-
-            @Override
-            public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) {
-                assert (false);  // should not be there, expected to search with CollectorManager
+                super.search(ctx, weight, collector);
             }
         };
     }

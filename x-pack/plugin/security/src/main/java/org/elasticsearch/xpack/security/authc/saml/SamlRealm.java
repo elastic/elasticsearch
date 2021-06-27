@@ -20,15 +20,15 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.SettingsException;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -483,8 +483,10 @@ public final class SamlRealm extends Realm implements Releasable {
         final String name = resolveSingleValueAttribute(attributes, nameAttribute, NAME_ATTRIBUTE.name(config));
         final String mail = resolveSingleValueAttribute(attributes, mailAttribute, MAIL_ATTRIBUTE.name(config));
         UserRoleMapper.UserData userData = new UserRoleMapper.UserData(principal, dn, groups, userMeta, config);
+        logger.debug("SAML attribute mapping = [{}]", userData);
         roleMapper.resolveRoles(userData, ActionListener.wrap(roles -> {
             final User user = new User(principal, roles.toArray(new String[roles.size()]), name, mail, userMeta, true);
+            logger.debug("SAML user = [{}]", user);
             wrappedListener.onResponse(AuthenticationResult.success(user));
         }, wrappedListener::onFailure));
     }
@@ -761,7 +763,15 @@ public final class SamlRealm extends Realm implements Releasable {
         }
 
         List<String> getAttribute(SamlAttributes attributes) {
-            return parser.apply(attributes);
+            final List<String> attrValue = parser.apply(attributes);
+            logger.trace(
+                () -> new ParameterizedMessage(
+                    "Parser [{}] generated values [{}]",
+                    name,
+                    Strings.collectionToCommaDelimitedString(attrValue)
+                )
+            );
+            return attrValue;
         }
 
         @Override

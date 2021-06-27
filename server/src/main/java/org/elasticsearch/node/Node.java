@@ -58,7 +58,7 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -75,7 +75,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -96,6 +96,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -136,6 +137,7 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -148,6 +150,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
@@ -305,6 +308,15 @@ public class Node implements Closeable {
                     "version [{}] is a pre-release version of Elasticsearch and is not suitable for production",
                     Build.CURRENT.getQualifiedVersion());
             }
+            if (Environment.PATH_SHARED_DATA_SETTING.exists(tmpSettings)) {
+                // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
+                // cause ES to fail to start since logging is not yet initialized on first read of the setting
+                deprecationLogger.deprecate(
+                    DeprecationCategory.SETTINGS,
+                    "shared-data-path",
+                    "setting [path.shared_data] is deprecated and will be removed in a future release"
+                );
+            }
 
             if (logger.isDebugEnabled()) {
                 logger.debug("using config [{}], data [{}], logs [{}], plugins [{}]",
@@ -417,6 +429,7 @@ public class Node implements Closeable {
                     plugin -> SystemIndices.pluginToFeature(plugin, settings)
                 ));
             final SystemIndices systemIndices = new SystemIndices(featuresMap);
+            final ExecutorSelector executorSelector = systemIndices.getExecutorSelector();
 
             ModulesBuilder modules = new ModulesBuilder();
             final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
@@ -561,7 +574,7 @@ public class Node implements Closeable {
             final Transport transport = networkModule.getTransportSupplier().get();
             Set<String> taskHeaders = Stream.concat(
                 pluginsService.filterPlugins(ActionPlugin.class).stream().flatMap(p -> p.getTaskHeaders().stream()),
-                Stream.of(Task.X_OPAQUE_ID)
+                Stream.of(Task.X_OPAQUE_ID, Task.TRACE_ID)
             ).collect(Collectors.toSet());
             final TransportService transportService = newTransportService(settings, transport, threadPool,
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
@@ -602,7 +615,7 @@ public class Node implements Closeable {
 
             final SearchService searchService = newSearchService(clusterService, indicesService,
                 threadPool, scriptService, bigArrays, searchModule.getFetchPhase(),
-                responseCollectorService, circuitBreakerService);
+                responseCollectorService, circuitBreakerService, executorSelector);
 
             final List<PersistentTasksExecutor<?>> tasksExecutors = pluginsService
                 .filterPlugins(PersistentTaskPlugin.class).stream()
@@ -616,6 +629,10 @@ public class Node implements Closeable {
                 new PersistentTasksClusterService(settings, registry, clusterService, threadPool);
             resourcesToClose.add(persistentTasksClusterService);
             final PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+
+            final List<ShutdownAwarePlugin> shutdownAwarePlugins = pluginsService.filterPlugins(ShutdownAwarePlugin.class);
+            final PluginShutdownService pluginShutdownService = new PluginShutdownService(shutdownAwarePlugins);
+            clusterService.addListener(pluginShutdownService);
 
             modules.add(b -> {
                     b.bind(Node.class).toInstance(this);
@@ -678,6 +695,8 @@ public class Node implements Closeable {
                     b.bind(ShardLimitValidator.class).toInstance(shardLimitValidator);
                     b.bind(FsHealthService.class).toInstance(fsHealthService);
                     b.bind(SystemIndices.class).toInstance(systemIndices);
+                    b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
+                    b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 }
             );
             injector = modules.createInjector();
@@ -1134,9 +1153,10 @@ public class Node implements Closeable {
     protected SearchService newSearchService(ClusterService clusterService, IndicesService indicesService,
                                              ThreadPool threadPool, ScriptService scriptService, BigArrays bigArrays,
                                              FetchPhase fetchPhase, ResponseCollectorService responseCollectorService,
-                                             CircuitBreakerService circuitBreakerService) {
+                                             CircuitBreakerService circuitBreakerService, ExecutorSelector executorSelector) {
         return new SearchService(clusterService, indicesService, threadPool,
-            scriptService, bigArrays, fetchPhase, responseCollectorService, circuitBreakerService);
+            scriptService, bigArrays, fetchPhase, responseCollectorService, circuitBreakerService,
+            executorSelector);
     }
 
     /**

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.client.transform.transforms.pivot;
 
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -90,7 +90,9 @@ public class GeoTileGroupSource extends SingleGroupSource implements ToXContentO
             builder.field(PRECISION.getPreferredName(), precision);
         }
         if (geoBoundingBox != null) {
-            geoBoundingBox.toXContent(builder, params);
+            builder.startObject(GeoBoundingBox.BOUNDS_FIELD.getPreferredName());
+            geoBoundingBox.toXContentFragment(builder, true);
+            builder.endObject();
         }
         builder.endObject();
         return builder;

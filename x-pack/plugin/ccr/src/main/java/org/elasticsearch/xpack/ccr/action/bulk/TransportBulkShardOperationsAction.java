@@ -17,7 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
@@ -26,29 +26,20 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.index.engine.AlreadyProcessedFollowingEngineException;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.function.Function;
 
 public class TransportBulkShardOperationsAction
         extends TransportWriteAction<BulkShardOperationsRequest, BulkShardOperationsRequest, BulkShardOperationsResponse> {
-
-    private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
-        if (shard.indexSettings().getIndexMetadata().isSystem()) {
-            return Names.SYSTEM_WRITE;
-        } else {
-            return Names.WRITE;
-        }
-    };
 
     @Inject
     public TransportBulkShardOperationsAction(
@@ -60,19 +51,24 @@ public class TransportBulkShardOperationsAction
             final ShardStateAction shardStateAction,
             final ActionFilters actionFilters,
             final IndexingPressure indexingPressure,
-            final SystemIndices systemIndices) {
+            final SystemIndices systemIndices,
+            final ExecutorSelector executorSelector) {
         super(
-                settings,
-                BulkShardOperationsAction.NAME,
-                transportService,
-                clusterService,
-                indicesService,
-                threadPool,
-                shardStateAction,
-                actionFilters,
-                BulkShardOperationsRequest::new,
-                BulkShardOperationsRequest::new,
-                EXECUTOR_NAME_FUNCTION, false, indexingPressure, systemIndices);
+            settings,
+            BulkShardOperationsAction.NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BulkShardOperationsRequest::new,
+            BulkShardOperationsRequest::new,
+            ExecutorSelector::getWriteExecutorForShard,
+            false,
+            indexingPressure,
+            systemIndices
+        );
     }
 
     @Override

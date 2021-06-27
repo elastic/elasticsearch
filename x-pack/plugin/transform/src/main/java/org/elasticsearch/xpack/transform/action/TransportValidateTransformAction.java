@@ -110,8 +110,8 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
         // <5> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(
-            mappings -> {
-                listener.onResponse(new Response(mappings));
+            deducedMappings -> {
+                listener.onResponse(new Response(deducedMappings));
             },
             deduceTargetMappingsException -> listener.onFailure(
                 new RuntimeException(
@@ -158,7 +158,7 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             config.getSource().getIndex(),
             config.getDestination().getIndex(),
             config.getDestination().getPipeline(),
-            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalValidations()),
+            SourceDestValidations.getValidations(request.isDeferValidation(), config.getAdditionalSourceDestValidations()),
             validateSourceDestListener
         );
     }

@@ -612,7 +612,7 @@ More information available https://docs.oracle.com/javase/8/docs/api/java/time/Z
 
 |index_include_frozen
 |false
-|Whether to include <<frozen-indices, frozen-indices>> in the query execution or not (default).
+|Whether to include <<freeze-index-api, frozen-indices>> in the query execution or not (default).
 
 |params
 |none

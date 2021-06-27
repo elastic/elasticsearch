@@ -386,10 +386,10 @@ Follow these steps:
 stream will contain data from your existing stream.
 +
 You can use the resolve index API to check if the name or pattern matches any
-existing indices, index aliases, or data streams. If so, you should consider
-using another name or pattern.
+existing indices, aliases, or data streams. If so, you should consider using
+another name or pattern.
 --
-The following resolve index API request checks for any existing indices, index
+The following resolve index API request checks for any existing indices,
 aliases, or data streams that start with `new-data-stream`. If not, the
 `new-data-stream*` index pattern can be used to create a new data stream.
 

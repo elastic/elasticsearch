@@ -11,7 +11,7 @@ import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;

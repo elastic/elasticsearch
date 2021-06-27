@@ -25,7 +25,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.ManagedHttpClientConnectionFactory;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
 import org.apache.http.ssl.SSLContextBuilder;
-import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -38,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLHandshakeException;
@@ -53,6 +54,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessControlException;
 import java.security.AccessController;
 import java.security.KeyManagementException;
 import java.security.KeyStore;
@@ -63,6 +65,7 @@ import java.security.PrivilegedExceptionAction;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -501,6 +504,31 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
         assertNotNull(exceptionRef.get());
         assertThat(exceptionRef.get(), throwableWithMessage(containsString("failed to initialize SSL TrustManager")));
         assertThat(sslService.sslContextHolder(config).sslContext(), sameInstance(context));
+    }
+
+    /**
+     * Tests that the reloader doesn't throw an exception if a file is unreadable or configured to be outside of the config/ directory.
+     * These errors are handled correctly by the relevant {@link KeyConfig} and {@link TrustConfig} classes, so the reloader should
+     * simply log and continue.
+     */
+    public void testFailureToReadFileDoesntFail() throws Exception {
+        Path tempDir = createTempDir();
+        Path clientCertPath = tempDir.resolve("testclient.crt");
+        Settings settings = baseKeystoreSettings(tempDir, null)
+            .putList("xpack.security.transport.ssl.certificate_authorities", clientCertPath.toString())
+            .put("path.home", createTempDir())
+            .build();
+        Environment env = TestEnvironment.newEnvironment(settings);
+
+        final ResourceWatcherService mockResourceWatcher = Mockito.mock(ResourceWatcherService.class);
+        Mockito.when(mockResourceWatcher.add(Mockito.any(), Mockito.any()))
+            .thenThrow(randomBoolean() ? new AccessControlException("access denied in test") : new IOException("file error for testing"));
+        final Collection<SSLConfiguration> configurations = SSLService.getSSLConfigurations(settings).values();
+        try {
+            new SSLConfigurationReloader(env, null, mockResourceWatcher, configurations);
+        } catch (Exception e) {
+            fail("SSLConfigurationReloader threw exception, but is expected to catch and log file access errors instead:" + e);
+        }
     }
 
     private Settings.Builder baseKeystoreSettings(Path tempDir, MockSecureSettings secureSettings) throws IOException {

@@ -26,20 +26,28 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import java.io.IOException;
 import java.util.Set;
 
-public class ApiKeySearchQueryBuilder {
+public class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
-    private ApiKeySearchQueryBuilder() {}
+    private static final Set<String> ALLOWED_INDEX_FIELD_NAMES =
+        Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time");
 
-    public static BoolQueryBuilder build(GetApiKeyRequest getApiKeyRequest, Authentication authentication) {
-        BoolQueryBuilder finalQuery;
+    private ApiKeyBoolQueryBuilder() {}
+
+    public static ApiKeyBoolQueryBuilder build(GetApiKeyRequest getApiKeyRequest, Authentication authentication) {
+        final ApiKeyBoolQueryBuilder finalQuery = new ApiKeyBoolQueryBuilder();
         if (getApiKeyRequest.getQuery() != null) {
             QueryBuilder processedQuery = doProcess(getApiKeyRequest.getQuery());
             if (false == processedQuery instanceof BoolQueryBuilder) {
-                processedQuery = QueryBuilders.boolQuery().must(processedQuery);
+                finalQuery.must(processedQuery);
+            } else {
+                final BoolQueryBuilder boolQueryBuilder = (BoolQueryBuilder) processedQuery;
+                finalQuery.minimumShouldMatch(boolQueryBuilder.minimumShouldMatch());
+                finalQuery.adjustPureNegative(boolQueryBuilder.adjustPureNegative());
+                boolQueryBuilder.must().forEach(finalQuery::must);
+                boolQueryBuilder.should().forEach(finalQuery::should);
+                boolQueryBuilder.mustNot().forEach(finalQuery::mustNot);
+                boolQueryBuilder.filter().forEach(finalQuery::filter);
             }
-            finalQuery = (BoolQueryBuilder) processedQuery;
-        } else {
-            finalQuery = QueryBuilders.boolQuery();
         }
         finalQuery.filter(QueryBuilders.termQuery("doc_type", "api_key"));
         if (Strings.hasText(getApiKeyRequest.getApiKeyId())) {
@@ -55,7 +63,7 @@ public class ApiKeySearchQueryBuilder {
             finalQuery.filter(QueryBuilders.termQuery("creator.principal", authentication.getUser().principal()));
             finalQuery.filter(QueryBuilders.termQuery("creator.realm", ApiKeyService.getCreatorRealmName(authentication)));
         }
-        return new ApiKeyBoolQueryBuilder(finalQuery);
+        return finalQuery;
     }
 
     private static QueryBuilder doProcess(QueryBuilder qb) {
@@ -64,10 +72,10 @@ public class ApiKeySearchQueryBuilder {
             final BoolQueryBuilder newQuery = QueryBuilders.boolQuery()
                 .minimumShouldMatch(query.minimumShouldMatch())
                 .adjustPureNegative(query.adjustPureNegative());
-            query.must().stream().map(ApiKeySearchQueryBuilder::doProcess).forEach(newQuery::must);
-            query.should().stream().map(ApiKeySearchQueryBuilder::doProcess).forEach(newQuery::should);
-            query.mustNot().stream().map(ApiKeySearchQueryBuilder::doProcess).forEach(newQuery::mustNot);
-            query.filter().stream().map(ApiKeySearchQueryBuilder::doProcess).forEach(newQuery::filter);
+            query.must().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::must);
+            query.should().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::should);
+            query.mustNot().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::mustNot);
+            query.filter().stream().map(ApiKeyBoolQueryBuilder::doProcess).forEach(newQuery::filter);
             return newQuery;
         } else if (qb instanceof TermQueryBuilder) {
             final TermQueryBuilder query = (TermQueryBuilder) qb;
@@ -115,43 +123,28 @@ public class ApiKeySearchQueryBuilder {
         }
     }
 
-    private static class ApiKeyBoolQueryBuilder extends BoolQueryBuilder {
 
-        ApiKeyBoolQueryBuilder(BoolQueryBuilder boolQueryBuilder) {
-            super();
-            minimumShouldMatch(boolQueryBuilder.minimumShouldMatch());
-            adjustPureNegative(boolQueryBuilder.adjustPureNegative());
-            boolQueryBuilder.must().forEach(this::must);
-            boolQueryBuilder.should().forEach(this::should);
-            boolQueryBuilder.mustNot().forEach(this::mustNot);
-            boolQueryBuilder.filter().forEach(this::filter);
-        }
-
-        @Override
-        protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return super.doToQuery(context.withAllowedFieldNames(ApiKeyBoolQueryBuilder::isFieldNameAllowed));
-        }
-
-        @Override
-        protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-            if (queryRewriteContext instanceof SearchExecutionContext) {
-                return super.doRewrite(
-                    ((SearchExecutionContext) queryRewriteContext).withAllowedFieldNames(ApiKeyBoolQueryBuilder::isFieldNameAllowed)
-                );
-            } else {
-                return super.doRewrite(queryRewriteContext);
-            }
-        }
-
-        static boolean isFieldNameAllowed(String fieldName) {
-            if (Set.of("doc_type", "name", "api_key_invalidated", "creation_time", "expiration_time").contains(fieldName)) {
-                return true;
-            } else if (fieldName.startsWith("metadata_flattened.") || fieldName.startsWith("creator.")) {
-                return true;
-            } else {
-                return false;
-            }
-        }
+    @Override
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        context.setAllowedFieldNames(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
+        return super.doToQuery(context);
     }
 
+    @Override
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        if (queryRewriteContext instanceof SearchExecutionContext) {
+            ((SearchExecutionContext) queryRewriteContext).setAllowedFieldNames(ApiKeyBoolQueryBuilder::isIndexFieldNameAllowed);
+        }
+        return super.doRewrite(queryRewriteContext);
+    }
+
+    static boolean isIndexFieldNameAllowed(String fieldName) {
+        if (ALLOWED_INDEX_FIELD_NAMES.contains(fieldName)) {
+            return true;
+        } else if (fieldName.startsWith("metadata_flattened.") || fieldName.startsWith("creator.")) {
+            return true;
+        } else {
+            return false;
+        }
+    }
 }

@@ -20,7 +20,7 @@ import org.elasticsearch.xpack.core.security.action.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.support.ApiKeySearchQueryBuilder;
+import org.elasticsearch.xpack.security.authc.support.ApiKeyBoolQueryBuilder;
 
 public final class TransportGetApiKeyAction extends HandledTransportAction<GetApiKeyRequest,GetApiKeyResponse> {
 
@@ -44,7 +44,7 @@ public final class TransportGetApiKeyAction extends HandledTransportAction<GetAp
         }
 
         if (request.getQuery() != null) {
-            apiKeyService.getApiKeys(ApiKeySearchQueryBuilder.build(request, authentication), listener);
+            apiKeyService.getApiKeys(ApiKeyBoolQueryBuilder.build(request, authentication), listener);
             return;
         }
 

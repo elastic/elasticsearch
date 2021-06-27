@@ -106,7 +106,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
-    private final Predicate<String> allowedFieldNames;
+    private Predicate<String> allowedFieldNames;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -222,30 +222,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
         this.allowedFieldNames = allowedFieldNames;
-    }
-
-    public SearchExecutionContext withAllowedFieldNames(Predicate<String> allowedFieldNames) {
-        return new SearchExecutionContext(
-            shardId,
-            shardRequestIndex,
-            indexSettings,
-            bitsetFilterCache,
-            indexFieldDataService,
-            mapperService,
-            mappingLookup,
-            similarityService,
-            scriptService,
-            getXContentRegistry(),
-            getWriteableRegistry(),
-            client, searcher,
-            nowInMillis,
-            indexNameMatcher,
-            fullyQualifiedIndex,
-            allowExpensiveQueries,
-            valuesSourceRegistry,
-            runtimeMappings,
-            allowedFieldNames
-        );
     }
 
     private void reset() {
@@ -448,6 +424,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     public void setMapUnmappedFieldAsString(boolean mapUnmappedFieldAsString) {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
+    }
+
+    public void setAllowedFieldNames(Predicate<String> allowedFieldNames) {
+        this.allowedFieldNames = allowedFieldNames;
     }
 
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {

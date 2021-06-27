@@ -368,10 +368,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
-                    } else if (fieldName.equals(RESPONSE_HEADERS_FIELD) && restoreResponseHeaders) {
+                    } else if (fieldName.equals(RESPONSE_HEADERS_FIELD)) {
                         @SuppressWarnings("unchecked") final Map<String, List<String>> responseHeaders =
                             (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(parser);
-                        restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                        if (restoreResponseHeaders) {
+                            restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                        }
+                    } else {
+                        XContentParserUtils.parseFieldsValue(parser); // discard
                     }
                 }
                 Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");

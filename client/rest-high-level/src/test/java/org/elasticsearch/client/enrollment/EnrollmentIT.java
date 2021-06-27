@@ -24,7 +24,7 @@ public class EnrollmentIT extends ESRestHighLevelClientTestCase {
         final NodeEnrollmentResponse nodeEnrollmentResponse =
             execute(highLevelClient().security()::enrollNode, highLevelClient().security()::enrollNodeAsync, RequestOptions.DEFAULT);
         assertThat(nodeEnrollmentResponse, notNullValue());
-        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("ECAwGGoA=="));
+        assertThat(nodeEnrollmentResponse.getHttpCaKey(), endsWith("xxxx"));
         assertThat(nodeEnrollmentResponse.getHttpCaCert(), endsWith("ECAwGGoA=="));
         assertThat(nodeEnrollmentResponse.getTransportKey(), endsWith("fSI09on8AgMBhqA="));
         assertThat(nodeEnrollmentResponse.getTransportCert(), endsWith("fSI09on8AgMBhqA="));

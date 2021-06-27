@@ -260,7 +260,6 @@ public class BlobStoreCacheService extends AbstractLifecycleComponent {
      */
     public ByteRange computeBlobCacheByteRange(String fileName, long fileLength, ByteSizeValue maxMetadataLength) {
         final LuceneFilesExtensions fileExtension = LuceneFilesExtensions.fromExtension(IndexFileNames.getExtension(fileName));
-        assert fileExtension != null : "unknown Lucene file extension [" + fileName + "] - should it be considered a metadata file?";
 
         if (useLegacyCachedBlobSizes()) {
             if (fileLength <= ByteSizeUnit.KB.toBytes(8L)) {

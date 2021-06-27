@@ -10,6 +10,7 @@ package org.elasticsearch.search.builder;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -68,6 +70,8 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
+
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
@@ -1163,6 +1167,20 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         scriptFields.add(new ScriptField(parser));
+                    }
+                } else if (parser.getRestApiVersion() == RestApiVersion.V_7 &&
+                    INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    deprecationLogger.compatibleApiWarning("indices_boost_object_format",
+                        "Object format in indices_boost is deprecated, please use array format instead");
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            currentFieldName = parser.currentName();
+                        } else if (token.isValue()) {
+                            indexBoosts.add(new IndexBoost(currentFieldName, parser.floatValue()));
+                        } else {
+                            throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token +
+                                " in [" + currentFieldName + "].", parser.getTokenLocation());
+                        }
                     }
                 } else if (AGGREGATIONS_FIELD.match(currentFieldName, parser.getDeprecationHandler())
                         || AGGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {

@@ -83,7 +83,7 @@ public abstract class AbstractTransportGetResourcesAction<Resource extends ToXCo
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest(getIndices())
-            .indicesOptions(IndicesOptions.fromOptions(true,
+            .indicesOptions(new IndicesOptions(true,
                 indicesOptions.allowNoIndices(),
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),

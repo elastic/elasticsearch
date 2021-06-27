@@ -47,7 +47,7 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
     private final Client client;
     // the most lenient we can get in order to not bomb out if no indices are found, which is a valid case
     // where a user creates and deletes a policy before running execute
-    private static final IndicesOptions LENIENT_OPTIONS = IndicesOptions.fromOptions(true, true, true, true);
+    private static final IndicesOptions LENIENT_OPTIONS = new IndicesOptions(true, true, true, true);
 
     @Inject
     public TransportDeleteEnrichPolicyAction(

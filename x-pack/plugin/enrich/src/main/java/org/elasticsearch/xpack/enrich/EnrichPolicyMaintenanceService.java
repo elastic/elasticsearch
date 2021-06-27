@@ -41,7 +41,7 @@ public class EnrichPolicyMaintenanceService implements LocalNodeMasterListener {
     private static final Logger logger = LogManager.getLogger(EnrichPolicyMaintenanceService.class);
 
     private static final String MAPPING_POLICY_FIELD_PATH = "_meta." + EnrichPolicyRunner.ENRICH_POLICY_NAME_FIELD_NAME;
-    private static final IndicesOptions IGNORE_UNAVAILABLE = IndicesOptions.fromOptions(true, false, false, false);
+    private static final IndicesOptions IGNORE_UNAVAILABLE = new IndicesOptions(true, false, false, false);
 
     private final Settings settings;
     private final Client client;

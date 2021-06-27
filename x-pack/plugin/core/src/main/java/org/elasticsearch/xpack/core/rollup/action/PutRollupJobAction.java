@@ -38,7 +38,7 @@ public class PutRollupJobAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, ToXContentObject {
 
         private RollupJobConfig config;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+        private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, false);
 
         public Request(RollupJobConfig config) {
             this.config = config;

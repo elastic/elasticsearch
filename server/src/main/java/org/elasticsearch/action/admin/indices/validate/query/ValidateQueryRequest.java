@@ -65,7 +65,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      */
     public ValidateQueryRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+        indicesOptions(new IndicesOptions(false, false, true, false));
     }
 
     @Override

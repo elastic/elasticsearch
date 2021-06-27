@@ -38,7 +38,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
         mutators.add(() -> mutation.settings(mutateSettings(request.settings())));
         mutators.add(() -> mutation.indices(mutateIndices(request.indices())));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(request.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+                () -> new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
         mutators.add(() -> mutation.setPreserveExisting(request.isPreserveExisting() == false));
         randomFrom(mutators).run();
         return mutation;
@@ -60,7 +60,7 @@ public class UpdateSettingsRequestSerializationTests extends AbstractWireSeriali
                 : new UpdateSettingsRequest(randomSettings(0, 2), randomIndicesNames(0, 2));
         request.masterNodeTimeout(randomTimeValue());
         request.timeout(randomTimeValue());
-        request.indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+        request.indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         request.setPreserveExisting(randomBoolean());
         return request;
     }

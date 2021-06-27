@@ -107,7 +107,7 @@ public class CountRequestTests extends AbstractRequestTestCase<CountRequest, Que
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(countRequest.indices(), new String[]{randomAlphaOfLength(10)})));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(countRequest.indicesOptions(),
-            () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+            () -> new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
         mutators.add(() -> mutation.types(ArrayUtils.concat(countRequest.types(), new String[]{randomAlphaOfLength(10)})));
         mutators.add(() -> mutation.preference(randomValueOtherThan(countRequest.preference(), () -> randomAlphaOfLengthBetween(3, 10))));
         mutators.add(() -> mutation.routing(randomValueOtherThan(countRequest.routing(), () -> randomAlphaOfLengthBetween(3, 10))));

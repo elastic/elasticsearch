@@ -48,7 +48,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest()
-                .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+                .indicesOptions(new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         }
         if (randomBoolean()) {
             searchRequest.getSearchRequest()

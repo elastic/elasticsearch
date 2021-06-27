@@ -69,7 +69,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
     @Override
     protected ClusterBlockException checkBlock(RolloverRequest request, ClusterState state) {
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(true, true,
+        IndicesOptions indicesOptions = new IndicesOptions(true, true,
             request.indicesOptions().expandWildcardsOpen(), request.indicesOptions().expandWildcardsClosed());
 
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_WRITE,
@@ -84,7 +84,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
-            .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
+            .indicesOptions(new IndicesOptions(true, false, true, true))
             .docs(true);
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         // Rollover can sometimes happen concurrently, to handle these cases, we treat rollover in the same way we would treat a

@@ -139,7 +139,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
         {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-*")
-                .setIndicesOptions(IndicesOptions.fromOptions(true, true, false, true))
+                .setIndicesOptions(new IndicesOptions(true, true, false, true))
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
             assertThat(response.isTimedOut(), equalTo(false));
@@ -209,7 +209,7 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
         {
             ClusterHealthResponse response = client().admin().cluster().prepareHealth("index-*")
-                .setIndicesOptions(IndicesOptions.fromOptions(true, true, false, true))
+                .setIndicesOptions(new IndicesOptions(true, true, false, true))
                 .get();
             assertThat(response.getStatus(), equalTo(ClusterHealthStatus.YELLOW));
             assertThat(response.isTimedOut(), equalTo(false));

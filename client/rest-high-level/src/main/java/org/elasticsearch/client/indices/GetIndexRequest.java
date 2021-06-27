@@ -29,7 +29,7 @@ public class GetIndexRequest extends TimedRequest {
     private transient boolean includeDefaults = false;
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, true);
     private boolean local = false;
 
     public GetIndexRequest(String... indices) {

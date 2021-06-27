@@ -258,21 +258,21 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
-        IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
+        IndicesOptions expandCloseOptions = new IndicesOptions(false, true, false, true);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("f*")
                 .setIndicesOptions(expandCloseOptions).get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("fuu").getState(), equalTo(IndexMetadata.State.CLOSE));
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
-        IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
+        IndicesOptions ignoreUnavailabe = new IndicesOptions(true, true, true, false);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("fzzbzz")
                 .setIndicesOptions(ignoreUnavailabe).get();
         assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
 
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
-        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
+        IndicesOptions allowNoIndices = new IndicesOptions(false, true, true, false);
         clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("a*")
                 .setIndicesOptions(allowNoIndices).get();
         assertThat(clusterStateResponse.getState().metadata().indices().isEmpty(), is(true));
@@ -280,7 +280,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testIndicesOptionsOnAllowNoIndicesFalse() throws Exception {
         // empty wildcard expansion throws exception when allowNoIndices is turned off
-        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
+        IndicesOptions allowNoIndices = new IndicesOptions(false, false, true, false);
         try {
             client().admin().cluster().prepareState().clear().setMetadata(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
             fail("Expected IndexNotFoundException");
@@ -291,7 +291,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
     public void testIndicesIgnoreUnavailableFalse() throws Exception {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
-        IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
+        IndicesOptions allowNoIndices = new IndicesOptions(false, true, true, false);
         try {
             client().admin().cluster().prepareState().clear().setMetadata(true)
                 .setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();

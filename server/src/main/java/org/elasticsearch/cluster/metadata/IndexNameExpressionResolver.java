@@ -438,7 +438,7 @@ public class IndexNameExpressionResolver {
      */
     public Index concreteWriteIndex(ClusterState state, IndicesOptions options, String index, boolean allowNoIndices,
                                     boolean includeDataStreams) {
-        IndicesOptions combinedOptions = IndicesOptions.fromOptions(options.ignoreUnavailable(), allowNoIndices,
+        IndicesOptions combinedOptions = new IndicesOptions(options.ignoreUnavailable(), allowNoIndices,
             options.expandWildcardsOpen(), options.expandWildcardsClosed(), options.expandWildcardsHidden(),
             options.allowAliasesToMultipleIndices(), options.forbidClosedIndices(), options.ignoreAliases(),
             options.ignoreThrottled());

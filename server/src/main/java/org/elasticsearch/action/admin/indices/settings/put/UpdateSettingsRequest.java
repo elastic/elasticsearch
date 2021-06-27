@@ -40,7 +40,7 @@ public class UpdateSettingsRequest extends AcknowledgedRequest<UpdateSettingsReq
         implements IndicesRequest.Replaceable, ToXContentObject {
 
     private String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = new IndicesOptions(false, false, true, true);
     private Settings settings = EMPTY_SETTINGS;
     private boolean preserveExisting = false;
     private String origin = "";

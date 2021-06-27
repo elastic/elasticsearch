@@ -75,7 +75,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         //wildcard doesn't match any authorized index
         createIndicesWithRandomAliases("test1", "test2", "index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("index*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+                .setIndicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean())).get());
         assertEquals("no such index [index*]", e.getMessage());
     }
 
@@ -85,7 +85,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testEmptyClusterSearchForAllDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+                .setIndicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean())).get());
         assertEquals("no such index [[]]", e.getMessage());
     }
 
@@ -96,7 +96,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
 
     public void testEmptyClusterSearchForWildcardDisallowNoIndices() {
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+                .setIndicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean())).get());
         assertEquals("no such index [*]", e.getMessage());
     }
 
@@ -108,7 +108,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyAuthorizedIndicesSearchForAllDisallowNoIndices() {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch()
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+                .setIndicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean())).get());
         assertEquals("no such index [[]]", e.getMessage());
     }
 
@@ -120,7 +120,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
     public void testEmptyAuthorizedIndicesSearchForWildcardDisallowNoIndices() {
         createIndicesWithRandomAliases("index1", "index2");
         IndexNotFoundException e = expectThrows(IndexNotFoundException.class, () -> client().prepareSearch("*")
-                .setIndicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean())).get());
+                .setIndicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean())).get());
         assertEquals("no such index [*]", e.getMessage());
     }
 
@@ -226,7 +226,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
                     .add(Requests.searchRequest())
                     .add(Requests.searchRequest("index1")
-                            .indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean()))).get();
+                            .indicesOptions(new IndicesOptions(true, true, true, randomBoolean()))).get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
@@ -257,7 +257,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
                     .add(Requests.searchRequest())
                     .add(Requests.searchRequest("missing")
-                            .indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean()))).get();
+                            .indicesOptions(new IndicesOptions(true, true, true, randomBoolean()))).get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();
@@ -287,7 +287,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch()
                     .add(Requests.searchRequest())
                     .add(Requests.searchRequest("test4")
-                            .indicesOptions(IndicesOptions.fromOptions(true, true, true, randomBoolean()))).get();
+                            .indicesOptions(new IndicesOptions(true, true, true, randomBoolean()))).get();
             assertReturnedIndices(multiSearchResponse.getResponses()[0].getResponse(), "test1", "test2", "test3");
             assertNoSearchHits(multiSearchResponse.getResponses()[1].getResponse());
         }
@@ -308,7 +308,7 @@ public class ReadActionsTests extends SecurityIntegTestCase {
         {
             MultiSearchResponse multiSearchResponse = client().prepareMultiSearch().add(Requests.searchRequest())
                     .add(Requests.searchRequest("index*")
-                            .indicesOptions(IndicesOptions.fromOptions(randomBoolean(), false, true, randomBoolean()))).get();
+                            .indicesOptions(new IndicesOptions(randomBoolean(), false, true, randomBoolean()))).get();
             assertEquals(2, multiSearchResponse.getResponses().length);
             assertFalse(multiSearchResponse.getResponses()[0].isFailure());
             SearchResponse searchResponse = multiSearchResponse.getResponses()[0].getResponse();

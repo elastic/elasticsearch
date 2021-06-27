@@ -17,7 +17,7 @@ public final class MlIndicesUtils {
     }
 
     public static IndicesOptions addIgnoreUnavailable(IndicesOptions indicesOptions) {
-        return IndicesOptions.fromOptions(true, indicesOptions.allowNoIndices(), indicesOptions.expandWildcardsOpen(),
+        return new IndicesOptions(true, indicesOptions.allowNoIndices(), indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(), indicesOptions);
     }
 }

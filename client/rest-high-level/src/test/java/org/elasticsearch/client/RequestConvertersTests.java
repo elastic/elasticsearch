@@ -1207,7 +1207,7 @@ public class RequestConvertersTests extends ESTestCase {
             // specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();
             IndicesOptions msearchDefault = new MultiSearchRequest().indicesOptions();
-            searchRequest.indicesOptions(IndicesOptions.fromOptions(randomlyGenerated.ignoreUnavailable(),
+            searchRequest.indicesOptions(new IndicesOptions(randomlyGenerated.ignoreUnavailable(),
                     randomlyGenerated.allowNoIndices(), randomlyGenerated.expandWildcardsOpen(), randomlyGenerated.expandWildcardsClosed(),
                     msearchDefault.expandWildcardsHidden(), msearchDefault.allowAliasesToMultipleIndices(),
                     msearchDefault.forbidClosedIndices(), msearchDefault.ignoreAliases(), msearchDefault.ignoreThrottled()));
@@ -1994,7 +1994,7 @@ public class RequestConvertersTests extends ESTestCase {
                                         Map<String, String> expectedParams) {
 
         if (randomBoolean()) {
-            setter.accept(IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            setter.accept(new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 true, false, false, randomBoolean()));
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(getter.get().ignoreUnavailable()));
@@ -2013,7 +2013,7 @@ public class RequestConvertersTests extends ESTestCase {
 
     static IndicesOptions setRandomIndicesOptions(IndicesOptions indicesOptions, Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
+            indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
                 true, false, false, randomBoolean());
         }
         expectedParams.put("ignore_unavailable", Boolean.toString(indicesOptions.ignoreUnavailable()));

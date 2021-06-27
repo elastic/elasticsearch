@@ -797,7 +797,7 @@ public class TrainedModelProvider {
 
         IndicesOptions indicesOptions = SearchRequest.DEFAULT_INDICES_OPTIONS;
         SearchRequest searchRequest = new SearchRequest(InferenceIndexConstants.INDEX_PATTERN)
-            .indicesOptions(IndicesOptions.fromOptions(true,
+            .indicesOptions(new IndicesOptions(true,
                 indicesOptions.allowNoIndices(),
                 indicesOptions.expandWildcardsOpen(),
                 indicesOptions.expandWildcardsClosed(),

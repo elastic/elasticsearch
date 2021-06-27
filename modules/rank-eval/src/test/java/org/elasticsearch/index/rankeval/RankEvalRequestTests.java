@@ -48,7 +48,7 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
         RankEvalRequest rankEvalRequest = new RankEvalRequest(RankEvalSpecTests.createTestItem(), indices);
-        IndicesOptions indicesOptions = IndicesOptions.fromOptions(
+        IndicesOptions indicesOptions = new IndicesOptions(
                 randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean());
         rankEvalRequest.indicesOptions(indicesOptions);
@@ -67,7 +67,7 @@ public class RankEvalRequestTests extends AbstractWireSerializingTestCase<RankEv
         List<Runnable> mutators = new ArrayList<>();
         mutators.add(() -> mutation.indices(ArrayUtils.concat(instance.indices(), new String[] { randomAlphaOfLength(10) })));
         mutators.add(() -> mutation.indicesOptions(randomValueOtherThan(instance.indicesOptions(),
-                () -> IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
+                () -> new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()))));
         mutators.add(() -> {
             if (instance.searchType() == SearchType.DFS_QUERY_THEN_FETCH) {
                 mutation.searchType(SearchType.QUERY_THEN_FETCH);

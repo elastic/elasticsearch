@@ -323,7 +323,7 @@ public class RestSearchAction extends BaseRestHandler {
         ExceptionsHelper.reThrowIfNotNull(validationException);
 
         final IndicesOptions indicesOptions = request.indicesOptions();
-        final IndicesOptions stricterIndicesOptions = IndicesOptions.fromOptions(
+        final IndicesOptions stricterIndicesOptions = new IndicesOptions(
             indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(), false, false, false,
             true, true, indicesOptions.ignoreThrottled());
         request.indicesOptions(stricterIndicesOptions);

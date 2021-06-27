@@ -148,7 +148,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+        options = new IndicesOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
             options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
@@ -199,7 +199,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getMapping("test1").setIndicesOptions(options), true);
         verify(getSettings("test1").setIndicesOptions(options), true);
 
-        options = IndicesOptions.fromOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
+        options = new IndicesOptions(true, options.allowNoIndices(), options.expandWildcardsOpen(),
             options.expandWildcardsClosed(), options);
         verify(search("test1").setIndicesOptions(options), false);
         verify(msearch(options, "test1"), false);
@@ -281,7 +281,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices), false);
 
         // Now force allow_no_indices=true
-        IndicesOptions options = IndicesOptions.fromOptions(false, true, true, false);
+        IndicesOptions options = new IndicesOptions(false, true, true, false);
         verify(search(indices).setIndicesOptions(options), false);
         verify(msearch(options, indices).setIndicesOptions(options), false);
         verify(clearCache(indices).setIndicesOptions(options), false);
@@ -332,7 +332,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(getSettings(indices).setIndicesOptions(options), false);
 
         // Now force allow_no_indices=true
-        options = IndicesOptions.fromOptions(false, true, true, false);
+        options = new IndicesOptions(false, true, true, false);
         verify(search(indices).setIndicesOptions(options), false, 1);
         verify(msearch(options, indices).setIndicesOptions(options), false, 1);
         verify(clearCache(indices).setIndicesOptions(options), false);
@@ -358,7 +358,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
         client().admin().cluster().prepareCreateSnapshot("dummy-repo", "snap1").setWaitForCompletion(true).get();
 
-        IndicesOptions options = IndicesOptions.fromOptions(false, false, true, false);
+        IndicesOptions options = new IndicesOptions(false, false, true, false);
         verify(snapshot("snap2", "foo*", "bar*").setIndicesOptions(options), true);
         verify(restore("snap1", "foo*", "bar*").setIndicesOptions(options), true);
 
@@ -370,11 +370,11 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         //TODO: temporary work-around for #5531
         ensureGreen("barbaz");
         waitForRelocation();
-        options = IndicesOptions.fromOptions(false, false, true, false);
+        options = new IndicesOptions(false, false, true, false);
         verify(snapshot("snap3", "foo*", "bar*").setIndicesOptions(options), false);
         verify(restore("snap3", "foo*", "bar*").setIndicesOptions(options), false);
 
-        options = IndicesOptions.fromOptions(false, false, true, false);
+        options = new IndicesOptions(false, false, true, false);
         verify(snapshot("snap4", "foo*", "baz*").setIndicesOptions(options), true);
         verify(restore("snap3", "foo*", "baz*").setIndicesOptions(options), true);
     }
@@ -426,7 +426,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
         verify(search("test1", "test2"), true);
 
-        IndicesOptions options = IndicesOptions.fromOptions(true, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed());
+        IndicesOptions options = new IndicesOptions(true, true, true, false, IndicesOptions.strictExpandOpenAndForbidClosed());
         verify(search("test1", "test2").setIndicesOptions(options), false);
 
         verify(search(), false);
@@ -451,8 +451,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(client().admin().indices().prepareOpen("_all"), false);
 
         // if there are no indices to open/close throw an exception
-        IndicesOptions openIndicesOptions = IndicesOptions.fromOptions(false, false, false, true);
-        IndicesOptions closeIndicesOptions = IndicesOptions.fromOptions(false, false, true, false);
+        IndicesOptions openIndicesOptions = new IndicesOptions(false, false, false, true);
+        IndicesOptions closeIndicesOptions = new IndicesOptions(false, false, true, false);
 
         verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), false);
         verify(client().admin().indices().prepareClose("bar*").setIndicesOptions(closeIndicesOptions), true);

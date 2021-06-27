@@ -78,7 +78,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     public void testRequestOnClosedIndexIgnoreUnavailable() {
         client().admin().indices().prepareClose("test").get();
         IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();
-        IndicesOptions testOptions = IndicesOptions.fromOptions(true, true, true, false, defaultOptions);
+        IndicesOptions testOptions = new IndicesOptions(true, true, true, false, defaultOptions);
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments("test").setIndicesOptions(testOptions).get();
         assertEquals(0, rsp.getIndices().size());
     }

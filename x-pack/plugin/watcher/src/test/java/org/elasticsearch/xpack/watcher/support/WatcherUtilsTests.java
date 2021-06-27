@@ -92,7 +92,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
     public void testSerializeSearchRequest() throws Exception {
         String[] expectedIndices = generateRandomStringArray(5, 5, true);
-        IndicesOptions expectedIndicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+        IndicesOptions expectedIndicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(),
             randomBoolean(), randomBoolean(), DEFAULT_INDICES_OPTIONS.allowAliasesToMultipleIndices(),
             DEFAULT_INDICES_OPTIONS.forbidClosedIndices(), DEFAULT_INDICES_OPTIONS.ignoreAliases(),
             DEFAULT_INDICES_OPTIONS.ignoreThrottled());
@@ -163,7 +163,7 @@ public class WatcherUtilsTests extends ESTestCase {
 
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
         if (randomBoolean()) {
-            indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(),
+            indicesOptions = new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(),
                 randomBoolean(), randomBoolean(), indicesOptions.allowAliasesToMultipleIndices(),
                 indicesOptions.forbidClosedIndices(), indicesOptions.ignoreAliases(), indicesOptions.ignoreThrottled());
             builder.startObject("indices_options");

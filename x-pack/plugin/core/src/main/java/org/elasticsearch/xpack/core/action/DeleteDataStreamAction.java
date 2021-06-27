@@ -43,7 +43,7 @@ public class DeleteDataStreamAction extends ActionType<AcknowledgedResponse> {
         // empty response can be returned in case wildcards were used or
         // 404 status code returned in case no wildcard were used.
         private final boolean wildcardExpressionsOriginallySpecified;
-        private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, true, true, true, false, false, true, false);
+        private IndicesOptions indicesOptions = new IndicesOptions(false, true, true, true, false, false, true, false);
 
         public Request(String[] names) {
             this.names = Objects.requireNonNull(names);

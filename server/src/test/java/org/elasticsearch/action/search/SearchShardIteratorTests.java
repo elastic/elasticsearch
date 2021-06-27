@@ -36,7 +36,7 @@ public class SearchShardIteratorTests extends ESTestCase {
     public void testGetOriginalIndices() {
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         OriginalIndices originalIndices = new OriginalIndices(new String[]{randomAlphaOfLengthBetween(3, 10)},
-            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
         SearchShardIterator searchShardIterator = new SearchShardIterator(null, shardId, Collections.emptyList(), originalIndices);
         assertSame(originalIndices, searchShardIterator.getOriginalIndices());
     }
@@ -53,7 +53,7 @@ public class SearchShardIteratorTests extends ESTestCase {
         String clusterAlias = randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10);
         ShardId shardId = new ShardId(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLength(10), randomInt());
         OriginalIndices originalIndices = new OriginalIndices(new String[]{randomAlphaOfLengthBetween(3, 10)},
-            IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
+            new IndicesOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()));
 
         String nodeId = randomAlphaOfLengthBetween(3, 10);
         SearchShardIterator searchShardIterator = new SearchShardIterator(clusterAlias, shardId,

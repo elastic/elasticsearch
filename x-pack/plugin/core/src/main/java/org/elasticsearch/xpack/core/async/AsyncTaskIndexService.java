@@ -336,7 +336,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                       boolean restoreResponseHeaders,
                                       boolean requireSameUser,
                                       ActionListener<R> outerListener) {
-        final GetRequest getRequest = new GetRequest(index).preference(asyncExecutionId.getEncoded()).id(asyncExecutionId.getDocId());
+        final GetRequest getRequest = new GetRequest(index)
+            .preference(asyncExecutionId.getEncoded())
+            .id(asyncExecutionId.getDocId())
+            .realtime(true);
         clientWithOrigin.get(getRequest, outerListener.delegateFailure((listener, getResponse) -> {
             if (getResponse.isExists() == false) {
                 listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));

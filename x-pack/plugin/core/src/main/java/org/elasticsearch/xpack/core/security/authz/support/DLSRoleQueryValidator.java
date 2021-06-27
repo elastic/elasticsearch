@@ -122,7 +122,7 @@ public final class DLSRoleQueryValidator {
     }
 
     @Nullable
-    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
+    public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
             try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
                 LoggingDeprecationHandler.INSTANCE, query)) {

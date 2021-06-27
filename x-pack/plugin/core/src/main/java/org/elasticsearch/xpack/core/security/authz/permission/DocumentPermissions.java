@@ -23,15 +23,18 @@ import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
 import static org.apache.lucene.search.BooleanClause.Occur.SHOULD;
@@ -45,6 +48,9 @@ public final class DocumentPermissions implements CacheKey {
     // SortedSet because orders are important when they get serialised for request cache key
     private final SortedSet<BytesReference> queries;
     private final SortedSet<BytesReference> limitedByQueries;
+    private List<String> resolvedQueries;
+    private List<String> resolvedLimitedByQueries;
+
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
 
@@ -80,23 +86,23 @@ public final class DocumentPermissions implements CacheKey {
         return queries != null || limitedByQueries != null;
     }
 
-    public boolean hasTemplateRoleQuery() throws IOException {
-        if (queries != null) {
-            for (BytesReference query : queries) {
-                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
-                    return true;
-                }
-            }
-        }
-        if (limitedByQueries != null) {
-            for (BytesReference query : limitedByQueries) {
-                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
+//    public boolean hasTemplateRoleQuery() throws IOException {
+//        if (queries != null) {
+//            for (BytesReference query : queries) {
+//                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
+//                    return true;
+//                }
+//            }
+//        }
+//        if (limitedByQueries != null) {
+//            for (BytesReference query : limitedByQueries) {
+//                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
+//                    return true;
+//                }
+//            }
+//        }
+//        return false;
+//    }
 
     /**
      * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>
@@ -114,20 +120,21 @@ public final class DocumentPermissions implements CacheKey {
     public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
                                Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
         if (hasDocumentLevelPermissions()) {
+            evaluateQueries(user, scriptService);
             BooleanQuery.Builder filter;
-            if (queries != null && limitedByQueries != null) {
+            if (resolvedQueries != null && resolvedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, scopedFilter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedLimitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
-            } else if (queries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedQueries, filter);
+            } else if (resolvedQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, queries, filter);
-            } else if (limitedByQueries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedQueries, filter);
+            } else if (resolvedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(user, scriptService, shardId, searchExecutionContextProvider, limitedByQueries, filter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedLimitedByQueries, filter);
             } else {
                 assert false : "one of queries and limited-by queries must be non-null";
                 return null;
@@ -137,14 +144,26 @@ public final class DocumentPermissions implements CacheKey {
         return null;
     }
 
-    private static void buildRoleQuery(User user, ScriptService scriptService, ShardId shardId,
+    private void evaluateQueries(User user, ScriptService scriptService) {
+        if (queries != null) {
+            resolvedQueries = queries.stream()
+                .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
+                .collect(Collectors.toUnmodifiableList());
+        }
+        if (limitedByQueries != null) {
+            resolvedLimitedByQueries = limitedByQueries.stream()
+                .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
+                .collect(Collectors.toUnmodifiableList());
+        }
+    }
+
+    private static void buildRoleQuery(ShardId shardId,
                                        Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
-                                       Set<BytesReference> queries,
+                                       List<String> queries,
                                        BooleanQuery.Builder filter) throws IOException {
-        for (BytesReference bytesReference : queries) {
+        for (String query : queries) {
             SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
-            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
-                context.getXContentRegistry(), user);
+            QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(query, context.getXContentRegistry());
             if (queryBuilder != null) {
                 failIfQueryUsesClient(queryBuilder, context);
                 Query roleQuery = context.toQuery(queryBuilder).query();
@@ -235,14 +254,16 @@ public final class DocumentPermissions implements CacheKey {
     public void buildCacheKey(StreamOutput out) throws IOException {
         assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
         if (queries != null) {
+            assert resolvedQueries != null : "queries are not resolved";
             out.writeBoolean(true);
-            out.writeCollection(queries, (o, q) -> q.writeTo(o));
+            out.writeCollection(resolvedQueries, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
         if (limitedByQueries != null) {
+            assert resolvedLimitedByQueries != null : "limited-by queries are not resolved";
             out.writeBoolean(true);
-            out.writeCollection(limitedByQueries, (o, q) -> q.writeTo(o));
+            out.writeCollection(resolvedLimitedByQueries, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }

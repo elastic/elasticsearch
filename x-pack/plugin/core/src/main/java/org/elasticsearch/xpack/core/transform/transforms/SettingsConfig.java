@@ -98,9 +98,9 @@ public class SettingsConfig implements Writeable, ToXContentObject {
 
     public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
         // TODO: make this dependent on search.max_buckets
-        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 10_000)) {
+        if (maxPageSearchSize != null && (maxPageSearchSize < 10 || maxPageSearchSize > 65_536)) {
             validationException = addValidationError(
-                "settings.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 10,000",
+                "settings.max_page_search_size [" + maxPageSearchSize + "] must be greater than 10 and less than 65,536",
                 validationException
             );
         }

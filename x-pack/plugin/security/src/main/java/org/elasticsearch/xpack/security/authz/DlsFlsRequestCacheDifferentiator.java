@@ -18,7 +18,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
-import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 
@@ -53,17 +52,6 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
                         "document level access controls [{}]. Differentiating request cache key",
                     indexName, flsEnabled, dlsEnabled);
                 indexAccessControl.buildCacheKey(out);
-//                if (indexAccessControl.getDocumentPermissions().hasTemplateRoleQuery()) {
-//                    out.writeBoolean(true);
-//                    final User user = securityContext.getUser();
-//                    out.writeString(user.principal());
-//                    out.writeOptionalString(user.fullName());
-//                    out.writeOptionalString(user.email());
-//                    out.writeStringArray(user.roles());
-//                    out.writeMap(user.metadata());
-//                } else {
-//                    out.writeBoolean(false);
-//                }
             }
         }
     }

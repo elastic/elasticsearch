@@ -14,7 +14,6 @@ import org.apache.lucene.search.join.ToChildBlockJoinQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -85,24 +84,6 @@ public final class DocumentPermissions implements CacheKey {
     public boolean hasDocumentLevelPermissions() {
         return queries != null || limitedByQueries != null;
     }
-
-//    public boolean hasTemplateRoleQuery() throws IOException {
-//        if (queries != null) {
-//            for (BytesReference query : queries) {
-//                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
-//                    return true;
-//                }
-//            }
-//        }
-//        if (limitedByQueries != null) {
-//            for (BytesReference query : limitedByQueries) {
-//                if (DLSRoleQueryValidator.isTemplateQuery(query, NamedXContentRegistry.EMPTY)) {
-//                    return true;
-//                }
-//            }
-//        }
-//        return false;
-//    }
 
     /**
      * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>

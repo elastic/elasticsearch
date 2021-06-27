@@ -349,40 +349,45 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
                 R resp = null;
                 Long expirationTime = null;
-                XContentParser.Token token;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
                     final String fieldName = parser.currentName();
-                    token = parser.nextToken();
-                    if (fieldName.equals(RESULT_FIELD)) {
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
-                        final CharBuffer encodedBuffer = parser.charBuffer();
-                        // We can record the ram usage of a response in the index and use it here; however, we don't do it because
-                        // RamUsageEstimator overestimates the ram usage of a search response by twice as a search response mostly
-                        // consists of string fields. Here we use the length of a decoded string (i.e., 0.75% of Base64 encoded string)
-                        // as the ram usage estimate for the corresponding response.
-                        final long estimatedRamUsageOfResponse = encodedBuffer.length() * 3L / 4L;
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamUsageOfResponse, "decode async response");
-                        reservedBytes += estimatedRamUsageOfResponse;
-                        resp = decodeResponse(encodedBuffer);
-                    } else if (fieldName.equals(EXPIRATION_TIME_FIELD)) {
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
-                        expirationTime = (long) parser.numberValue();
-                    } else if (fieldName.equals(HEADERS_FIELD)) {
-                        @SuppressWarnings("unchecked") final Map<String, String> headers =
-                            (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
-                        // check the authentication of the current user against the user that initiated the async task
-                        if (requireSameUser && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
-                            throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
-                        }
-                    } else if (fieldName.equals(RESPONSE_HEADERS_FIELD)) {
-                        @SuppressWarnings("unchecked") final Map<String, List<String>> responseHeaders =
-                            (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(parser);
-                        if (restoreResponseHeaders) {
-                            restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
-                        }
-                    } else {
-                        XContentParserUtils.parseFieldsValue(parser); // discard unknown fields
+                    parser.nextToken();
+                    switch (fieldName) {
+                        case RESULT_FIELD:
+                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                            final CharBuffer encodedBuffer = parser.charBuffer();
+                            // We can record the ram usage of a response in the index and use it here; however, we don't do it because
+                            // RamUsageEstimator overestimates the ram usage of a search response by twice as a search response mostly
+                            // consists of string fields. Here we use the length of a decoded string (i.e., 0.75% of Base64 encoded string)
+                            // as the ram usage estimate for the corresponding response.
+                            final long estimatedRamUsageOfResponse = encodedBuffer.length() * 3L / 4L;
+                            circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamUsageOfResponse, "decode async response");
+                            reservedBytes += estimatedRamUsageOfResponse;
+                            resp = decodeResponse(encodedBuffer);
+                            break;
+                        case EXPIRATION_TIME_FIELD:
+                            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
+                            expirationTime = (long) parser.numberValue();
+                            break;
+                        case HEADERS_FIELD:
+                            @SuppressWarnings("unchecked") final Map<String, String> headers =
+                                (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
+                            // check the authentication of the current user against the user that initiated the async task
+                            if (requireSameUser && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                                throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
+                            }
+                            break;
+                        case RESPONSE_HEADERS_FIELD:
+                            @SuppressWarnings("unchecked") final Map<String, List<String>> responseHeaders =
+                                (Map<String, List<String>>) XContentParserUtils.parseFieldsValue(parser);
+                            if (restoreResponseHeaders) {
+                                restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
+                            }
+                            break;
+                        default:
+                            XContentParserUtils.parseFieldsValue(parser); // consume and discard unknown fields
+                            break;
                     }
                 }
                 Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
@@ -393,7 +398,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             } catch (Exception e) {
                 listener.onFailure(e);
             } finally {
-                // Release the reserved memory after the listener has completed its execution.
+                // Release the reserved memory only after the listener has completed its execution.
                 circuitBreaker.addWithoutBreaking(-reservedBytes);
             }
         }));

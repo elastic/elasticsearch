@@ -8,9 +8,9 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -54,8 +54,12 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
         this.indexShards = unmodifiableMap(indexShards);
     }
 
-    public SnapshotIndexStatus(String index, Map<Integer, SnapshotIndexShardStatus> indexShards, SnapshotShardsStats shardsStats,
-                               SnapshotStats stats) {
+    public SnapshotIndexStatus(
+        String index,
+        Map<Integer, SnapshotIndexShardStatus> indexShards,
+        SnapshotShardsStats shardsStats,
+        SnapshotStats stats
+    ) {
         this.index = index;
         this.indexShards = indexShards;
         this.shardsStats = shardsStats;
@@ -116,13 +120,14 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     static final ObjectParser.NamedObjectParser<SnapshotIndexStatus, Void> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexStatus, String> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_status", true,
+            "snapshot_index_status",
+            true,
             (Object[] parsedObjects, String index) -> {
                 int i = 0;
                 SnapshotShardsStats shardsStats = ((SnapshotShardsStats) parsedObjects[i++]);
                 SnapshotStats stats = ((SnapshotStats) parsedObjects[i++]);
-                @SuppressWarnings("unchecked") List<SnapshotIndexShardStatus> shardStatuses =
-                    (List<SnapshotIndexShardStatus>) parsedObjects[i];
+                @SuppressWarnings("unchecked")
+                List<SnapshotIndexShardStatus> shardStatuses = (List<SnapshotIndexShardStatus>) parsedObjects[i];
 
                 final Map<Integer, SnapshotIndexShardStatus> indexShards;
                 if (shardStatuses == null || shardStatuses.isEmpty()) {
@@ -134,11 +139,14 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                     }
                 }
                 return new SnapshotIndexStatus(index, indexShards, shardsStats, stats);
-        });
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotShardsStats.PARSER.apply(p, null),
-            new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS));
-        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p),
-            new ParseField(SnapshotStats.Fields.STATS));
+            }
+        );
+        innerParser.declareObject(
+            constructorArg(),
+            (p, c) -> SnapshotShardsStats.PARSER.apply(p, null),
+            new ParseField(SnapshotShardsStats.Fields.SHARDS_STATS)
+        );
+        innerParser.declareObject(constructorArg(), (p, c) -> SnapshotStats.fromXContent(p), new ParseField(SnapshotStats.Fields.STATS));
         innerParser.declareNamedObjects(constructorArg(), SnapshotIndexShardStatus.PARSER, new ParseField(Fields.SHARDS));
         PARSER = ((p, c, name) -> innerParser.apply(p, name));
     }

@@ -10,10 +10,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ReferenceManager;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.translog.Translog;
 
@@ -91,7 +91,7 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             assert refreshForcers >= 0;
             refreshForcers += 1;
         }
-        final RunOnce runOnce = new RunOnce(() -> {
+        final Releasable releaseOnce = Releasables.releaseOnce(() -> {
             synchronized (RefreshListeners.this) {
                 assert refreshForcers > 0;
                 refreshForcers -= 1;
@@ -101,12 +101,12 @@ public final class RefreshListeners implements ReferenceManager.RefreshListener,
             try {
                 forceRefresh.run();
             } catch (Exception e) {
-                runOnce.run();
+                releaseOnce.close();
                 throw e;
             }
         }
         assert refreshListeners == null;
-        return () -> runOnce.run();
+        return releaseOnce;
     }
 
     /**

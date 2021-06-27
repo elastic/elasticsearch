@@ -17,8 +17,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -96,8 +94,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
                 table.addCell(componentTemplate.version());
                 Template template = componentTemplate.template();
                 table.addCell(template == null || template.aliases() == null ? 0: template.aliases().size());
-                table.addCell(template == null || template.mappings() == null ? 0:
-                    XContentHelper.convertToMap(template.mappings().uncompressed(), true, XContentType.JSON).v2().size());
+                table.addCell(reverseIndexOnComposedOfToIndexName.getOrDefault(name, new HashSet<>()).size());
                 table.addCell(template == null  || template.settings() == null ? 0: template.settings().keySet().size());
                 table.addCell(componentTemplate.metadata() == null ? 0: componentTemplate.metadata().size());
                 table.addCell(reverseIndexOnComposedOfToIndexName.getOrDefault(name, new HashSet<>()));

@@ -88,10 +88,10 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
 
         try (BlobStore store = newBlobStore(repoName)) {
             assertFalse(Files.exists(repoPath));
-            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            BlobPath blobPath = BlobPath.EMPTY.add("foo");
             store.blobContainer(blobPath);
             Path storePath = repoPath;
-            for (String d : blobPath) {
+            for (String d : blobPath.parts()) {
                 storePath = storePath.resolve(d);
             }
             assertFalse(Files.exists(storePath));
@@ -101,10 +101,10 @@ public abstract class ESFsBasedRepositoryIntegTestCase extends ESBlobStoreReposi
 
         try (BlobStore store = newBlobStore(repoName)) {
             assertTrue(Files.exists(repoPath));
-            BlobPath blobPath = BlobPath.cleanPath().add("foo");
+            BlobPath blobPath = BlobPath.EMPTY.add("foo");
             BlobContainer container = store.blobContainer(blobPath);
             Path storePath = repoPath;
-            for (String d : blobPath) {
+            for (String d : blobPath.parts()) {
                 storePath = storePath.resolve(d);
             }
             assertTrue(Files.exists(storePath));

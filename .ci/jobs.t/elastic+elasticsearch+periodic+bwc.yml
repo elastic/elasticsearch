@@ -1,0 +1,9 @@
+---
+jjbb-template: matrix-gradle-unix.yml
+vars:
+  - job-name: elastic+elasticsearch+%BRANCH%+periodic+bwc
+  - job-display-name: "elastic / elasticsearch # %BRANCH% - backwards compatibility matrix"
+  - job-description: "Testing of the Elasticsearch %BRANCH% branch backwards compatibility matrix.\n"
+  - matrix-yaml-file: ".ci/bwcVersions"
+  - matrix-variable: BWC_VERSION
+  - gradle-args: "-Dbwc.checkout.align=true v$BWC_VERSION#bwcTest"

@@ -1,0 +1,4 @@
+- view:
+    name: "Elasticsearch %BRANCH%"
+    view-type: list
+    regex: '^elastic[-+]elasticsearch\+%BRANCH%\+((?!multijob).)*$'

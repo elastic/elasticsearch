@@ -34,6 +34,8 @@ public class DeprecationRestHandlerTests extends ESTestCase {
      */
     private final String deprecationMessage = randomAlphaOfLengthBetween(1, 30);
     private DeprecationLogger deprecationLogger;
+    private static final RestRequest.Method METHOD = RestRequest.Method.GET;
+    private static final String PATH = "/some/path";
 
     @Before
     public void setup() {
@@ -42,18 +44,19 @@ public class DeprecationRestHandlerTests extends ESTestCase {
     }
 
     public void testNullHandler() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(null, deprecationMessage, deprecationLogger, false));
+        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(null, METHOD, PATH, deprecationMessage,
+            deprecationLogger, false));
     }
 
     public void testInvalidDeprecationMessageThrowsException() {
         String invalidDeprecationMessage = randomFrom("", null, "     ");
 
         expectThrows(IllegalArgumentException.class,
-                     () -> new DeprecationRestHandler(handler, invalidDeprecationMessage, deprecationLogger, false));
+                     () -> new DeprecationRestHandler(handler, METHOD, PATH, invalidDeprecationMessage, deprecationLogger, false));
     }
 
     public void testNullDeprecationLogger() {
-        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(handler, deprecationMessage, null, false));
+        expectThrows(NullPointerException.class, () -> new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, null, false));
     }
 
     public void testHandleRequestLogsThenForwards() throws Exception {
@@ -62,8 +65,8 @@ public class DeprecationRestHandlerTests extends ESTestCase {
             RestChannel channel = mock(RestChannel.class);
             NodeClient client = mock(NodeClient.class);
 
-            DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger,
-                compatibleVersionWarning);
+            DeprecationRestHandler deprecatedHandler = new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage,
+                deprecationLogger, compatibleVersionWarning);
 
             // test it
             deprecatedHandler.handleRequest(request, channel, client);
@@ -72,9 +75,11 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
             // log, then forward
             if (compatibleVersionWarning) {
-                inOrder.verify(deprecationLogger).compatibleApiWarning("deprecated_route", deprecationMessage);
+                inOrder.verify(deprecationLogger)
+                    .compatibleApiWarning("deprecated_route_GET_/some/path", deprecationMessage);
             } else {
-                inOrder.verify(deprecationLogger).deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
+                inOrder.verify(deprecationLogger)
+                    .deprecate(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
             }
 
             inOrder.verify(handler).handleRequest(request, channel, client);
@@ -124,12 +129,14 @@ public class DeprecationRestHandlerTests extends ESTestCase {
 
     public void testSupportsContentStreamTrue() {
         when(handler.supportsContentStream()).thenReturn(true);
-        assertTrue(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, false).supportsContentStream());
+        assertTrue(new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, deprecationLogger,
+            false).supportsContentStream());
     }
 
     public void testSupportsContentStreamFalse() {
         when(handler.supportsContentStream()).thenReturn(false);
-        assertFalse(new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger, false).supportsContentStream());
+        assertFalse(new DeprecationRestHandler(handler, METHOD, PATH, deprecationMessage, deprecationLogger,
+            false).supportsContentStream());
     }
 
     /**

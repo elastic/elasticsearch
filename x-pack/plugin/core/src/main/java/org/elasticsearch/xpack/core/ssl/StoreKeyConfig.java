@@ -7,7 +7,8 @@
 package org.elasticsearch.xpack.core.ssl;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.ssl.cert.CertificateInfo;
@@ -32,13 +33,15 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A key configuration that is backed by a {@link KeyStore}
  */
-class StoreKeyConfig extends KeyConfig {
+public class StoreKeyConfig extends KeyConfig {
 
     private static final String KEYSTORE_FILE = "keystore";
 
@@ -126,6 +129,24 @@ class StoreKeyConfig extends KeyConfig {
         return certificates;
     }
 
+    /**
+     * Returns all certificates that can be found in the keystore, either as part of a PrivateKeyEntry or a TrustedCertificateEntry.
+     * Duplicates are removed.
+     */
+    public Collection<X509Certificate> x509Certificates(Environment environment) throws GeneralSecurityException, IOException {
+        final KeyStore trustStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+        final Set<X509Certificate> certificates = new HashSet<>();
+        final Enumeration<String> aliases = trustStore.aliases();
+        while (aliases.hasMoreElements()) {
+            String alias = aliases.nextElement();
+            final Certificate certificate = trustStore.getCertificate(alias);
+            if (certificate instanceof X509Certificate) {
+                certificates.add((X509Certificate) certificate);
+            }
+        }
+        return certificates;
+    }
+
     @Override
     List<Path> filesToMonitor(@Nullable Environment environment) {
         if (keyStorePath == null) {
@@ -151,6 +172,26 @@ class StoreKeyConfig extends KeyConfig {
             return privateKeys;
         } catch (Exception e) {
             throw new ElasticsearchException("failed to list keys", e);
+        }
+    }
+
+    public List<Tuple<PrivateKey, X509Certificate>> getPrivateKeyEntries(Environment environment) {
+        try {
+            final KeyStore keyStore = getStore(CertParsingUtils.resolvePath(keyStorePath, environment), keyStoreType, keyStorePassword);
+            List<Tuple<PrivateKey, X509Certificate>> entries = new ArrayList<>();
+            for (Enumeration<String> e = keyStore.aliases(); e.hasMoreElements(); ) {
+                final String alias = e.nextElement();
+                if (keyStore.isKeyEntry(alias)) {
+                    Key key = keyStore.getKey(alias, keyPassword.getChars());
+                    Certificate certificate = keyStore.getCertificate(alias);
+                    if (key instanceof PrivateKey && certificate instanceof X509Certificate) {
+                        entries.add(Tuple.tuple((PrivateKey) key, (X509Certificate) certificate));
+                    }
+                }
+            }
+            return entries;
+        } catch (Exception e) {
+            throw new ElasticsearchException("failed to list keys and certificates", e);
         }
     }
 

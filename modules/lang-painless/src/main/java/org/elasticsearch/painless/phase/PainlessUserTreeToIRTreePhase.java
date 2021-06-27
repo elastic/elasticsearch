@@ -330,7 +330,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
     //     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
     // }
     // and
-    // } catch (PainlessError | BootstrapMethodError | OutOfMemoryError | StackOverflowError | Exception e) {
+    // } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
     //     throw this.convertToScriptException(e, e.getHeaders())
     // }
     protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
@@ -414,7 +414,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
             for (Class<?> throwable : new Class<?>[] {
-                    PainlessError.class, BootstrapMethodError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
+                    PainlessError.class, LinkageError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
 
                 String name = throwable.getSimpleName();
                 name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);

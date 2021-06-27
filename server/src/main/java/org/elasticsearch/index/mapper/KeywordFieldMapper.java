@@ -13,12 +13,24 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.index.FilteredTermsEnum;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.MultiTerms;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton.AUTOMATON_TYPE;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -100,6 +112,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
         private final Parameter<String> onScriptError = Parameter.onScriptErrorParam(m -> toType(m).onScriptError, script);
+        private final Parameter<Boolean> dimension;
 
         private final IndexAnalyzers indexAnalyzers;
         private final ScriptCompiler scriptCompiler;
@@ -110,6 +123,13 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
+
+            this.dimension = Parameter.boolParam("dimension", false, m -> toType(m).dimension, false)
+                .setValidator(v -> {
+                    if (v && ignoreAbove.getValue() < ignoreAbove.getDefaultValue()) {
+                        throw new IllegalArgumentException("Field [ignore_above] cannot be set in conjunction with field [dimension]");
+                    }
+                });
         }
 
         public Builder(String name) {
@@ -136,6 +156,11 @@ public final class KeywordFieldMapper extends FieldMapper {
             return this;
         }
 
+        public Builder dimension(boolean dimension) {
+            this.dimension.setValue(dimension);
+            return this;
+        }
+
         private FieldValues<String> scriptValues() {
             if (script.get() == null) {
                 return null;
@@ -151,7 +176,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         protected List<Parameter<?>> getParameters() {
             return List.of(indexed, hasDocValues, stored, nullValue, eagerGlobalOrdinals, ignoreAbove,
                 indexOptions, hasNorms, similarity, normalizer, splitQueriesOnWhitespace,
-                script, onScriptError, meta);
+                script, onScriptError, meta, dimension);
         }
 
         private KeywordFieldType buildFieldType(ContentPath contentPath, FieldType fieldType) {
@@ -197,6 +222,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final NamedAnalyzer normalizer;
         private final boolean eagerGlobalOrdinals;
         private final FieldValues<String> scriptValues;
+        private final boolean isDimension;
 
         public KeywordFieldType(String name, FieldType fieldType,
                                 NamedAnalyzer normalizer, NamedAnalyzer searchAnalyzer, NamedAnalyzer quoteAnalyzer,
@@ -212,6 +238,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.ignoreAbove = builder.ignoreAbove.getValue();
             this.nullValue = builder.nullValue.getValue();
             this.scriptValues = builder.scriptValues();
+            this.isDimension = builder.dimension.getValue();
         }
 
         public KeywordFieldType(String name, boolean isSearchable, boolean hasDocValues, Map<String, String> meta) {
@@ -221,6 +248,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
         }
 
         public KeywordFieldType(String name) {
@@ -237,6 +265,7 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
@@ -246,6 +275,57 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.nullValue = null;
             this.eagerGlobalOrdinals = false;
             this.scriptValues = null;
+            this.isDimension = false;
+        }
+
+        @Override
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
+            throws IOException {
+            IndexReader reader = queryShardContext.searcher().getTopReaderContext().reader();
+
+            Terms terms = MultiTerms.getTerms(reader, name());
+            if (terms == null) {
+                // Field does not exist on this shard.
+                return null;
+            }
+            Automaton a = caseInsensitive
+                ? AutomatonQueries.caseInsensitivePrefix(string)
+                : Automata.makeString(string);
+            a = Operations.concatenate(a, Automata.makeAnyString());
+            a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+
+            CompiledAutomaton automaton = new CompiledAutomaton(a);
+
+            BytesRef searchBytes = searchAfter == null? null: new BytesRef(searchAfter);
+
+            if (automaton.type == AUTOMATON_TYPE.ALL) {
+                TermsEnum result = terms.iterator();
+                if (searchAfter != null) {
+                    result = new SearchAfterTermsEnum(result, searchBytes);
+                }
+                return result;
+            }
+            return terms.intersect(automaton, searchBytes);
+        }
+
+        // Initialises with a seek to a given term but excludes that term
+        // from any results. The problem it addresses is that termsEnum.seekCeil()
+        // would work but either leaves us positioned on the seek term (if it exists) or the
+        // term after (if the seek term doesn't exist). That complicates any subsequent
+        // iteration logic so this class simplifies the pagination use case.
+        final class SearchAfterTermsEnum extends FilteredTermsEnum {
+            private final BytesRef afterRef;
+
+            SearchAfterTermsEnum(TermsEnum tenum, BytesRef termText) {
+                super(tenum);
+                afterRef = termText;
+                setInitialSeekTerm(termText);
+            }
+
+            @Override
+            protected AcceptStatus accept(BytesRef term) {
+                return term.equals(afterRef) ? AcceptStatus.NO : AcceptStatus.YES;
+            }
         }
 
         @Override
@@ -348,6 +428,12 @@ public final class KeywordFieldMapper extends FieldMapper {
             return ignoreAbove;
         }
 
+        /**
+         * @return true if field has been marked as a dimension field
+         */
+        public boolean isDimension() {
+            return isDimension;
+        }
     }
 
     private final boolean indexed;
@@ -363,7 +449,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<String> scriptValues;
     private final ScriptCompiler scriptCompiler;
-
+    private final boolean dimension;
 
     private final IndexAnalyzers indexAnalyzers;
 
@@ -386,6 +472,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptValues = builder.scriptValues();
         this.indexAnalyzers = builder.indexAnalyzers;
         this.scriptCompiler = builder.scriptCompiler;
+        this.dimension = builder.dimension.getValue();
     }
 
     @Override
@@ -413,7 +500,12 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     private void indexValue(ParseContext context, String value) {
 
-        if (value == null || value.length() > ignoreAbove) {
+        if (value == null) {
+            return;
+        }
+
+        if (value.length() > ignoreAbove) {
+            context.addIgnoredField(name());
             return;
         }
 
@@ -468,6 +560,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).init(this);
+        return new Builder(simpleName(), indexAnalyzers, scriptCompiler).dimension(dimension).init(this);
     }
+
 }

@@ -26,9 +26,6 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     /** check if the provided tile is in the solution space of this tiler */
     protected abstract boolean validTile(int x, int y, int z);
 
-    /** Max size of the solution space */
-    protected abstract long getMaxTiles();
-
     @Override
     public long encode(double x, double y) {
         return GeoTileUtils.longEncode(x, y, precision);
@@ -57,6 +54,10 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
             return 0;
         }
 
+        if (precision == 0) {
+            return validTile(0, 0, 0) ? 1 : 0;
+        }
+
         final int minXTile = GeoTileUtils.getXTile(bounds.minX(), tiles);
         final int minYTile = GeoTileUtils.getYTile(bounds.maxY(), tiles);
         final int maxXTile = GeoTileUtils.getXTile(bounds.maxX(), tiles);
@@ -71,7 +72,7 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
         }
     }
 
-    protected GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    private GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
         return validTile(xTile, yTile, precision) ?
             geoValue.relate(GeoTileUtils.toBoundingBox(xTile, yTile, precision)) : GeoRelation.QUERY_DISJOINT;
     }
@@ -149,28 +150,12 @@ abstract class AbstractGeoTileGridTiler extends GeoGridTiler {
     }
 
     private int getNumTilesAtPrecision(int finalPrecision, int currentPrecision) {
-        final long numTilesAtPrecision  = Math.min(1L << (2 * (finalPrecision - currentPrecision)), getMaxTiles());
+        final long numTilesAtPrecision  = Math.min(1L << (2 * (finalPrecision - currentPrecision)), getMaxCells());
         if (numTilesAtPrecision > Integer.MAX_VALUE) {
             throw new IllegalArgumentException("Tile aggregation array overflow");
         }
         return (int) numTilesAtPrecision;
     }
 
-    protected int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex) {
-        zTile++;
-        for (int i = 0; i < 2; i++) {
-            for (int j = 0; j < 2; j++) {
-                int nextX = 2 * xTile + i;
-                int nextY = 2 * yTile + j;
-                if (validTile(nextX, nextY, zTile)) {
-                    if (zTile == precision) {
-                        values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(zTile, nextX, nextY));
-                    } else {
-                        valuesIndex = setValuesForFullyContainedTile(nextX, nextY, zTile, values, valuesIndex);
-                    }
-                }
-            }
-        }
-        return valuesIndex;
-    }
+    protected abstract int setValuesForFullyContainedTile(int xTile, int yTile, int zTile, GeoShapeCellValues values, int valuesIndex);
 }

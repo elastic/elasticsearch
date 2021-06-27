@@ -77,7 +77,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search-q]
   (Optional, string) A comma-separated list of stored fields to return in the 
   response.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-routing]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
 

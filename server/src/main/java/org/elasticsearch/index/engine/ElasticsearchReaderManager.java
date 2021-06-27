@@ -15,7 +15,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.ReferenceManager;
 
 import org.apache.lucene.search.SearcherManager;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 
 /**

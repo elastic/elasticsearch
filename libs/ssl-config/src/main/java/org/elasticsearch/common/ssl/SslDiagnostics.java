@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.ssl;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import javax.net.ssl.SSLSession;
 import java.security.cert.CertificateEncodingException;
@@ -376,7 +376,7 @@ public class SslDiagnostics {
 
     private static String fingerprintDescription(X509Certificate certificate) {
         try {
-            final String fingerprint = SslUtil.calculateFingerprint(certificate);
+            final String fingerprint = SslUtil.calculateFingerprint(certificate, "SHA-1");
             return "fingerprint [" + fingerprint + "]";
         } catch (CertificateEncodingException e) {
             return "invalid encoding [" + e.toString() + "]";

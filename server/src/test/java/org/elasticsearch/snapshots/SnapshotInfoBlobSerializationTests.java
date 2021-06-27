@@ -33,9 +33,20 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
     @Override
     protected SnapshotInfo copyInstance(SnapshotInfo instance, Version version) throws IOException {
         final PlainActionFuture<SnapshotInfo> future = new PlainActionFuture<>();
-        BlobStoreRepository.SNAPSHOT_FORMAT.serialize(instance, "test", randomBoolean(), BigArrays.NON_RECYCLING_INSTANCE,
-                bytes -> ActionListener.completeWith(future,
-                        () -> BlobStoreRepository.SNAPSHOT_FORMAT.deserialize("test", NamedXContentRegistry.EMPTY, bytes)));
+        BlobStoreRepository.SNAPSHOT_FORMAT.serialize(
+            instance,
+            "test",
+            randomBoolean(),
+            BigArrays.NON_RECYCLING_INSTANCE,
+            bytes -> ActionListener.completeWith(
+                future,
+                () -> BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+                    instance.repository(),
+                    NamedXContentRegistry.EMPTY,
+                    bytes.streamInput()
+                )
+            )
+        );
         return future.actionGet();
     }
 

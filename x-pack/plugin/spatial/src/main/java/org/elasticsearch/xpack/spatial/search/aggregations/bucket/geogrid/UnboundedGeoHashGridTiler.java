@@ -27,7 +27,7 @@ public class UnboundedGeoHashGridTiler extends AbstractGeoHashGridTiler {
     }
 
     @Override
-    protected long getMaxHashes() {
+    protected long getMaxCells() {
         return maxHashes;
     }
 }

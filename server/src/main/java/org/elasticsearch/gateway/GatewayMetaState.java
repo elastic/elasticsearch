@@ -29,7 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -122,7 +122,7 @@ public class GatewayMetaState implements Closeable {
                     if (DiscoveryNode.isMasterNode(settings)) {
                         persistedState = new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState);
                     } else {
-                        persistedState = new AsyncLucenePersistedState(settings, transportService.getThreadPool(),
+                        persistedState = new AsyncPersistedState(settings, transportService.getThreadPool(),
                             new LucenePersistedState(persistedClusterStateService, currentTerm, clusterState));
                     }
                     if (DiscoveryNode.canContainData(settings)) {
@@ -244,16 +244,16 @@ public class GatewayMetaState implements Closeable {
     // visible for testing
     public boolean allPendingAsyncStatesWritten() {
         final PersistedState ps = persistedState.get();
-        if (ps instanceof AsyncLucenePersistedState) {
-            return ((AsyncLucenePersistedState) ps).allPendingAsyncStatesWritten();
+        if (ps instanceof AsyncPersistedState) {
+            return ((AsyncPersistedState) ps).allPendingAsyncStatesWritten();
         } else {
             return true;
         }
     }
 
-    static class AsyncLucenePersistedState extends InMemoryPersistedState {
+    static class AsyncPersistedState extends InMemoryPersistedState {
 
-        private static final Logger logger = LogManager.getLogger(AsyncLucenePersistedState.class);
+        private static final Logger logger = LogManager.getLogger(AsyncPersistedState.class);
 
         static final String THREAD_NAME = "AsyncLucenePersistedState#updateTask";
 
@@ -265,7 +265,7 @@ public class GatewayMetaState implements Closeable {
 
         private final Object mutex = new Object();
 
-        AsyncLucenePersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
+        AsyncPersistedState(Settings settings, ThreadPool threadPool, PersistedState persistedState) {
             super(persistedState.getCurrentTerm(), persistedState.getLastAcceptedState());
             final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
             threadPoolExecutor = EsExecutors.newFixed(
@@ -396,7 +396,7 @@ public class GatewayMetaState implements Closeable {
 
         // As the close method can be concurrently called to the other PersistedState methods, this class has extra protection in place.
         private final AtomicReference<PersistedClusterStateService.Writer> persistenceWriter = new AtomicReference<>();
-        boolean writeNextStateFully;
+        private boolean writeNextStateFully;
 
         LucenePersistedState(PersistedClusterStateService persistedClusterStateService, long currentTerm, ClusterState lastAcceptedState)
             throws IOException {
@@ -439,13 +439,15 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, lastAcceptedState);
-                    writeNextStateFully = false;
                 } else {
+                    writeNextStateFully = true; // in case of failure; this flag is cleared on success
                     getWriterSafe().writeIncrementalTermUpdateAndCommit(currentTerm, lastAcceptedState.version());
                 }
-            } catch (Exception e) {
-                handleExceptionOnWrite(e);
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
             }
+
+            writeNextStateFully = false;
             this.currentTerm = currentTerm;
         }
 
@@ -454,8 +456,8 @@ public class GatewayMetaState implements Closeable {
             try {
                 if (writeNextStateFully) {
                     getWriterSafe().writeFullStateAndCommit(currentTerm, clusterState);
-                    writeNextStateFully = false;
                 } else {
+                    writeNextStateFully = true; // in case of failure; this flag is cleared on success
                     if (clusterState.term() != lastAcceptedState.term()) {
                         assert clusterState.term() > lastAcceptedState.term() : clusterState.term() + " vs " + lastAcceptedState.term();
                         // In a new currentTerm, we cannot compare the persisted metadata's lastAcceptedVersion to those in the new state,
@@ -466,10 +468,11 @@ public class GatewayMetaState implements Closeable {
                         getWriterSafe().writeIncrementalStateAndCommit(currentTerm, lastAcceptedState, clusterState);
                     }
                 }
-            } catch (Exception e) {
-                handleExceptionOnWrite(e);
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
             }
 
+            writeNextStateFully = false;
             lastAcceptedState = clusterState;
         }
 
@@ -494,11 +497,6 @@ public class GatewayMetaState implements Closeable {
                     throw ExceptionsHelper.convertToRuntime(e);
                 }
             }
-        }
-
-        private void handleExceptionOnWrite(Exception e) {
-            writeNextStateFully = true;
-            throw ExceptionsHelper.convertToRuntime(e);
         }
 
         @Override

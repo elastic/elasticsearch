@@ -17,6 +17,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
@@ -76,10 +77,9 @@ final class FieldTypeLookup {
             }
         }
 
-        for (RuntimeField runtimeField : runtimeFields) {
-            MappedFieldType runtimeFieldType = runtimeField.asMappedFieldType();
+        for (MappedFieldType fieldType : RuntimeField.collectFieldTypes(runtimeFields).values()) {
             //this will override concrete fields with runtime fields that have the same name
-            fullNameToFieldType.put(runtimeFieldType.name(), runtimeFieldType);
+            fullNameToFieldType.put(fieldType.name(), fieldType);
         }
     }
 
@@ -140,27 +140,20 @@ final class FieldTypeLookup {
     }
 
     /**
-     * Returns all the mapped field types.
+     * Returns a set of field names that match a regex-like pattern
+     *
+     * All field names in the returned set are guaranteed to resolve to a field
      */
-    Collection<MappedFieldType> get() {
-        return fullNameToFieldType.values();
-    }
-
-    /**
-     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
-     */
-    Set<String> simpleMatchToFullName(String pattern) {
+    Set<String> getMatchingFieldNames(String pattern) {
+        if (Regex.isMatchAllPattern(pattern)) {
+            return Collections.unmodifiableSet(fullNameToFieldType.keySet());
+        }
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
-            return Collections.singleton(pattern);
+            return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
         }
-        Set<String> fields = new HashSet<>();
-        for (String field : fullNameToFieldType.keySet()) {
-            if (Regex.simpleMatch(pattern, field)) {
-                fields.add(field);
-            }
-        }
-        return fields;
+        return fullNameToFieldType.keySet().stream().filter(field -> Regex.simpleMatch(pattern, field))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     /**

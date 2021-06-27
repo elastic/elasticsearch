@@ -1,0 +1,44 @@
+---
+- job:
+    name: elastic+elasticsearch+%BRANCH%+multijob+platform-support-windows
+    display-name: "elastic / elasticsearch # %BRANCH% - windows compatibility"
+    description: "Elasticsearch %BRANCH% Windows compatibility testing.\n"
+    project-type: matrix
+    node: master
+    # Use a hard-coded workspace directory to avoid hitting file path limits with auto-generated workspace path
+    child-workspace: "C:\\Users\\jenkins\\workspace\\platform-support\\${BUILD_NUMBER}"
+    scm:
+      - git:
+          wipe-workspace: false
+    axes:
+      - axis:
+          type: label-expression
+          name: os
+          values:
+            - "windows-2012-r2"
+            - "windows-2016"
+            - "windows-2019"
+      # We shred out Windows testing into 4 parallel builds like on intake for expediency.
+      # Our tests run much slower on Windows so this avoids issues with builds timing out.
+      - axis:
+          type: user-defined
+          name: GRADLE_TASK
+          values:
+            - 'checkPart1'
+            - 'checkPart2'
+            - 'bwcTestSnapshots'
+            - 'checkRestCompat'
+    builders:
+      - inject:
+          properties-file: '.ci/java-versions.properties'
+          properties-content: |
+            JAVA_HOME=$USERPROFILE\\.java\\$ES_BUILD_JAVA
+            RUNTIME_JAVA_HOME=$USERPROFILE\\.java\\$ES_RUNTIME_JAVA
+            JAVA15_HOME=$USERPROFILE\\.java\\openjdk15
+      - batch: |
+          del /f /s /q %USERPROFILE%\.gradle\init.d\*.*
+          mkdir %USERPROFILE%\.gradle\init.d
+          copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
+          (
+            echo call %GRADLEW_BAT% --max-workers=4 -Dbwc.checkout.align=true %GRADLE_TASK% ^|^| exit /b 1
+          ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

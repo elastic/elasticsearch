@@ -16,7 +16,9 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.TermsLookup;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -80,22 +82,36 @@ public class DocumentPermissionsTests extends ESTestCase {
     public void testWriteCacheKeyWillDistinguishBetweenQueriesAndLimitedByQueries() throws IOException {
         final BytesStreamOutput out0 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions0 =
-            new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")), null);
+            new DocumentPermissions(
+                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                    new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")),
+                null);
+        documentPermissions0.evaluateQueries(mock(User.class), mock(ScriptService.class));
         documentPermissions0.buildCacheKey(out0);
 
         final BytesStreamOutput out1 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions1 =
-            new DocumentPermissions(Set.of(new BytesArray("q1"), new BytesArray("q2")), Set.of(new BytesArray("q3")));
+            new DocumentPermissions(
+                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
+                Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        documentPermissions1.evaluateQueries(mock(User.class), mock(ScriptService.class));
         documentPermissions1.buildCacheKey(out1);
 
         final BytesStreamOutput out2 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions2 =
-            new DocumentPermissions(Set.of(new BytesArray("q1")), Set.of(new BytesArray("q2"), new BytesArray("q3")));
+            new DocumentPermissions(
+                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
+                Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        documentPermissions2.evaluateQueries(mock(User.class), mock(ScriptService.class));
         documentPermissions2.buildCacheKey(out2);
 
         final BytesStreamOutput out3 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions3 =
-            new DocumentPermissions(null, Set.of(new BytesArray("q1"), new BytesArray("q2"), new BytesArray("q3")));
+            new DocumentPermissions(
+                null,
+                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                    new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+        documentPermissions3.evaluateQueries(mock(User.class), mock(ScriptService.class));
         documentPermissions3.buildCacheKey(out3);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));

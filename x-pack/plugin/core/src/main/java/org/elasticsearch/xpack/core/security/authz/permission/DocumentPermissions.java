@@ -47,8 +47,8 @@ public final class DocumentPermissions implements CacheKey {
     // SortedSet because orders are important when they get serialised for request cache key
     private final SortedSet<BytesReference> queries;
     private final SortedSet<BytesReference> limitedByQueries;
-    private List<String> resolvedQueries;
-    private List<String> resolvedLimitedByQueries;
+    private List<String> evaluatedQueries;
+    private List<String> evaluatedLimitedByQueries;
 
 
     private static DocumentPermissions ALLOW_ALL = new DocumentPermissions();
@@ -103,19 +103,19 @@ public final class DocumentPermissions implements CacheKey {
         if (hasDocumentLevelPermissions()) {
             evaluateQueries(user, scriptService);
             BooleanQuery.Builder filter;
-            if (resolvedQueries != null && resolvedLimitedByQueries != null) {
+            if (evaluatedQueries != null && evaluatedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
                 BooleanQuery.Builder scopedFilter = new BooleanQuery.Builder();
-                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedLimitedByQueries, scopedFilter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedLimitedByQueries, scopedFilter);
                 filter.add(scopedFilter.build(), FILTER);
 
-                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedQueries, filter);
-            } else if (resolvedQueries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedQueries, filter);
+            } else if (evaluatedQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedQueries, filter);
-            } else if (resolvedLimitedByQueries != null) {
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedQueries, filter);
+            } else if (evaluatedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
-                buildRoleQuery(shardId, searchExecutionContextProvider, resolvedLimitedByQueries, filter);
+                buildRoleQuery(shardId, searchExecutionContextProvider, evaluatedLimitedByQueries, filter);
             } else {
                 assert false : "one of queries and limited-by queries must be non-null";
                 return null;
@@ -125,14 +125,15 @@ public final class DocumentPermissions implements CacheKey {
         return null;
     }
 
-    private void evaluateQueries(User user, ScriptService scriptService) {
+    // package private for test
+    void evaluateQueries(User user, ScriptService scriptService) {
         if (queries != null) {
-            resolvedQueries = queries.stream()
+            evaluatedQueries = queries.stream()
                 .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
                 .collect(Collectors.toUnmodifiableList());
         }
         if (limitedByQueries != null) {
-            resolvedLimitedByQueries = limitedByQueries.stream()
+            evaluatedLimitedByQueries = limitedByQueries.stream()
                 .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
                 .collect(Collectors.toUnmodifiableList());
         }
@@ -235,16 +236,16 @@ public final class DocumentPermissions implements CacheKey {
     public void buildCacheKey(StreamOutput out) throws IOException {
         assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
         if (queries != null) {
-            assert resolvedQueries != null : "queries are not resolved";
+            assert evaluatedQueries != null : "queries are not evaluated";
             out.writeBoolean(true);
-            out.writeCollection(resolvedQueries, StreamOutput::writeString);
+            out.writeCollection(evaluatedQueries, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
         if (limitedByQueries != null) {
-            assert resolvedLimitedByQueries != null : "limited-by queries are not resolved";
+            assert evaluatedLimitedByQueries != null : "limited-by queries are not evaluated";
             out.writeBoolean(true);
-            out.writeCollection(resolvedLimitedByQueries, StreamOutput::writeString);
+            out.writeCollection(evaluatedLimitedByQueries, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }

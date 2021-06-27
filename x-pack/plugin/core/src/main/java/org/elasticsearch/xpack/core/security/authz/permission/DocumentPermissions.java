@@ -125,8 +125,7 @@ public final class DocumentPermissions implements CacheKey {
         return null;
     }
 
-    // package private for test
-    void evaluateQueries(User user, ScriptService scriptService) {
+    public void evaluateQueries(User user, ScriptService scriptService) {
         if (queries != null) {
             evaluatedQueries = queries.stream()
                 .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))

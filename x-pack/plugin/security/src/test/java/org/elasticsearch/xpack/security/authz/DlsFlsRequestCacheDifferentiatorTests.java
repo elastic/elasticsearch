@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -61,6 +63,9 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         flsIndexName = "fls-" + randomAlphaOfLengthBetween(3, 8);
         dlsFlsIndexName = "dls-fls-" + randomAlphaOfLengthBetween(3, 8);
 
+        final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
+        documentPermissions1.evaluateQueries(mock(User.class), mock(ScriptService.class));
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
             new IndicesAccessControl(true,
                 Map.of(
@@ -70,12 +75,11 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
                         DocumentPermissions.allowAll()),
                     flsIndexName,
                     new IndicesAccessControl.IndexAccessControl(true,
-                        FieldPermissions.DEFAULT,
-                        DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"term\":{\"number\":1}}")))),
+                        FieldPermissions.DEFAULT, documentPermissions1),
                     dlsFlsIndexName,
                     new IndicesAccessControl.IndexAccessControl(true,
                         new FieldPermissions(new FieldPermissionsDefinition(new String[]{"*"}, new String[]{"private"})),
-                        DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"term\":{\"number\":1}}"))))
+                        documentPermissions1)
                 )
             ));
     }

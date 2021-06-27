@@ -328,7 +328,14 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      */
     public void getResponse(AsyncExecutionId asyncExecutionId,
                             boolean restoreResponseHeaders,
-                            ActionListener<R> outerListener) {
+                            ActionListener<R> listener) {
+        getResponseFromIndex(asyncExecutionId, restoreResponseHeaders, true, listener);
+    }
+
+    private void getResponseFromIndex(AsyncExecutionId asyncExecutionId,
+                                      boolean restoreResponseHeaders,
+                                      boolean requireSameUser,
+                                      ActionListener<R> outerListener) {
         final GetRequest getRequest = new GetRequest(index).preference(asyncExecutionId.getEncoded()).id(asyncExecutionId.getDocId());
         clientWithOrigin.get(getRequest, outerListener.delegateFailure((listener, getResponse) -> {
             if (getResponse.isExists() == false) {
@@ -365,7 +372,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                         @SuppressWarnings("unchecked") final Map<String, String> headers =
                             (Map<String, String>) XContentParserUtils.parseFieldsValue(parser);
                         // check the authentication of the current user against the user that initiated the async task
-                        if (ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
+                        if (requireSameUser && ensureAuthenticatedUserIsSame(headers, securityContext.getAuthentication()) == false) {
                             throw new ResourceNotFoundException(asyncExecutionId.getEncoded());
                         }
                     } else if (fieldName.equals(RESPONSE_HEADERS_FIELD)) {
@@ -375,7 +382,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             restoreResponseHeadersContext(securityContext.getThreadContext(), responseHeaders);
                         }
                     } else {
-                        XContentParserUtils.parseFieldsValue(parser); // discard
+                        XContentParserUtils.parseFieldsValue(parser); // discard unknown fields
                     }
                 }
                 Objects.requireNonNull(resp, "Get result doesn't include [" + RESULT_FIELD + "] field");
@@ -419,7 +426,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 outerListener.onResponse(response);
             } else {
                 // get status response from index
-                getResponse(asyncExecutionId, false, outerListener.delegateFailure((listener, resp) ->
+                getResponseFromIndex(asyncExecutionId, false, false, outerListener.delegateFailure((listener, resp) ->
                     listener.onResponse(statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))));
             }
         } catch (Exception exc) {

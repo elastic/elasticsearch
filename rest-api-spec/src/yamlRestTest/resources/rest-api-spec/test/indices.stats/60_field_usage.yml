@@ -10,6 +10,8 @@ setup:
       indices.create:
         index: testindex
         body:
+          settings:
+            routing.rebalance.enable: none
           mappings:
             properties:
               name:

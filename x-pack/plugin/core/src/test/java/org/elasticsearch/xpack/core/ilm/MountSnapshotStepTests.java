@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotR
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.ilm.AbstractStepMasterTimeoutTestCase.emptyClusterState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;

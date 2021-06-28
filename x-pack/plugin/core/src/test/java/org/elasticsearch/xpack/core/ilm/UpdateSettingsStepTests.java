@@ -19,7 +19,7 @@ import org.mockito.Mockito;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<UpdateSettingsStep> {
+public class UpdateSettingsStepTests extends AbstractStepTestCase<UpdateSettingsStep> {
 
     @Override
     public UpdateSettingsStep createRandomInstance() {
@@ -58,8 +58,7 @@ public class UpdateSettingsStepTests extends AbstractStepMasterTimeoutTestCase<U
         return new UpdateSettingsStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getSettings());
     }
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
     }

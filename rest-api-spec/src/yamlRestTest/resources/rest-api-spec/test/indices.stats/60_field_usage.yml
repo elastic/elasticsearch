@@ -168,7 +168,6 @@ setup:
         id:    testid
         term_statistics : true
         fields: name
-        realtime: false
 
   - do:
       indices.field_usage_stats: { index: testindex }

@@ -69,4 +69,12 @@ public class RecoverySettingsDynamicUpdateTests extends ESTestCase {
         ).build());
         assertEquals(new TimeValue(duration, timeUnit), recoverySettings.internalActionLongTimeout());
     }
+
+    public void testRepositoryName() {
+        final String repoName = randomAlphaOfLength(15);
+        clusterSettings.applySettings(
+            Settings.builder().put(RecoverySettings.INDICES_RECOVERY_REPOSITORY_NAME_SETTING.getKey(), repoName).build()
+        );
+        assertEquals(repoName, recoverySettings.getRepositoryName());
+    }
 }

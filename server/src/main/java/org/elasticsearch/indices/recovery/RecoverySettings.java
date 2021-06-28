@@ -129,6 +129,13 @@ public class RecoverySettings {
             INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING::get, TimeValue.timeValueSeconds(0),
             Property.Dynamic, Property.NodeScope);
 
+    /**
+     * Repository to be used during peer recoveries to fetch index files if any of the available snapshots
+     * contains the recovering index and the data is fresh enough to be used as a base during peer recovery.
+     */
+    public static final Setting<String> INDICES_RECOVERY_REPOSITORY_NAME_SETTING =
+        Setting.simpleString("indices.recovery.repository_name", Property.Dynamic, Property.NodeScope);
+
     public static final ByteSizeValue DEFAULT_CHUNK_SIZE = new ByteSizeValue(512, ByteSizeUnit.KB);
 
     private volatile ByteSizeValue maxBytesPerSec;
@@ -141,6 +148,7 @@ public class RecoverySettings {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionRetryTimeout;
     private volatile TimeValue internalActionLongTimeout;
+    private volatile String repositoryName;
 
     private volatile ByteSizeValue chunkSize = DEFAULT_CHUNK_SIZE;
 
@@ -163,6 +171,7 @@ public class RecoverySettings {
         } else {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.getMbFrac());
         }
+        this.repositoryName = INDICES_RECOVERY_REPOSITORY_NAME_SETTING.get(settings);
 
 
         logger.debug("using max_bytes_per_sec[{}]", maxBytesPerSec);
@@ -177,6 +186,7 @@ public class RecoverySettings {
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_INTERNAL_LONG_ACTION_TIMEOUT_SETTING,
             this::setInternalActionLongTimeout);
         clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_ACTIVITY_TIMEOUT_SETTING, this::setActivityTimeout);
+        clusterSettings.addSettingsUpdateConsumer(INDICES_RECOVERY_REPOSITORY_NAME_SETTING, this::setRepositoryName);
     }
 
     public RateLimiter rateLimiter() {
@@ -262,5 +272,13 @@ public class RecoverySettings {
 
     private void setMaxConcurrentOperations(int maxConcurrentOperations) {
         this.maxConcurrentOperations = maxConcurrentOperations;
+    }
+
+    public String getRepositoryName() {
+        return repositoryName;
+    }
+
+    public void setRepositoryName(String repositoryName) {
+        this.repositoryName = repositoryName;
     }
 }

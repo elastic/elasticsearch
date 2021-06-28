@@ -749,3 +749,36 @@ keytool -delete -noprompt -alias <old-ca>  -keystore config/http.p12 \
    `-alias`:: Name of the old CA certificate that you want to remove from your
    truststore.
 ====
+
+[discrete]
+[[http-kibana-newca-whatsnext]]
+==== What's next?
+Well done! You've updated the keystore for the HTTP layer. You can now
+<<node-certs-different-kibana,update encryption between {kib} and {es}>>.
+
+[[node-certs-different-kibana]]
+==== Update encryption between {kib} and {es}
+
+When you ran the `elasticsearch-certutil` tool with the `http` option, it
+created a `/kibana` directory containing an `elasticsearch-ca.pem` file. You
+use this file to configure {kib} to trust the {es} CA for the HTTP
+layer.
+
+. Copy the `elasticsearch-ca.pem` file to the {kib} configuration directory,
+as defined by the `KBN_PATH_CONF` path.
++
+NOTE: `KBN_PATH_CONF` contains the path for the {kib} configuration files. If
+you installed {kib} using archive distributions (`zip` or `tar.gz`), the
+path defaults to `KBN_HOME/config`. If you used package distributions
+(Debian or RPM), the path defaults to `/etc/kibana`.
+
+. If you modified the filename for the `elasticsearch-ca.pem` file, edit
+`kibana.yml` and update the configuration to specify the location of the
+security certificate for the HTTP layer.
++
+[source,yaml]
+----
+elasticsearch.ssl.certificateAuthorities: KBN_PATH_CONF/elasticsearch-ca.pem
+----
+
+. Restart {kib}.

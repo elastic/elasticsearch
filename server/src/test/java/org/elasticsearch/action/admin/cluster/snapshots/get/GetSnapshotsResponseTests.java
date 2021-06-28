@@ -126,7 +126,7 @@ public class GetSnapshotsResponseTests extends ESTestCase {
             responses,
             failures,
             randomBoolean()
-                ? Base64.getEncoder()
+                ? Base64.getUrlEncoder()
                     .encodeToString(
                         (randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5) + "," + randomAlphaOfLengthBetween(1, 5))
                             .getBytes(StandardCharsets.UTF_8)

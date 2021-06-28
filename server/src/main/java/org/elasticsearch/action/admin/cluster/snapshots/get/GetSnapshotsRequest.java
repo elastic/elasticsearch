@@ -330,13 +330,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public static After fromParam(String param) {
-            final String[] parts = new String(Base64.getDecoder().decode(param), StandardCharsets.UTF_8).split(",");
+            final String[] parts = new String(Base64.getUrlDecoder().decode(param), StandardCharsets.UTF_8).split(",");
             if (parts.length != 3) {
-                throw new IllegalArgumentException(
-                    "after param must be base64 encoded and of the form ${sort_value},${repository_name},${snapshot_name} but was ["
-                        + param
-                        + "]"
-                );
+                throw new IllegalArgumentException("invalid ?after parameter [" + param + "]");
             }
             return new After(parts[0], parts[1], parts[2]);
         }
@@ -385,7 +381,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public String asQueryParam() {
-            return Base64.getEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
+            return Base64.getUrlEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
         }
 
         @Override

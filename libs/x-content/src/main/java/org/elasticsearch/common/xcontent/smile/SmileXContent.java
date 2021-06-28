@@ -113,4 +113,11 @@ public class SmileXContent implements XContent {
         return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(data, offset, length),
             restApiVersion);
     }
+
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                       String content, RestApiVersion restApiVersion) throws IOException {
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(content),
+            restApiVersion);
+    }
 }

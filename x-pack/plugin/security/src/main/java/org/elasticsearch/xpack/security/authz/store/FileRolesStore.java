@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
@@ -318,7 +319,7 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
                 return null;
             } else {
                 try {
-                    DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry);
+                    DLSRoleQueryValidator.validateQueryField(descriptor.getIndicesPrivileges(), xContentRegistry, RestApiVersion.current());
                 } catch (ElasticsearchException | IllegalArgumentException e) {
                     logger.error((Supplier<?>) () -> new ParameterizedMessage(
                         "invalid role definition [{}] in roles file [{}]. failed to validate query field. skipping role...", roleName,

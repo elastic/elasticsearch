@@ -149,7 +149,6 @@ tasks.named("yamlRestCompatTest").configure {
     'ml/set_upgrade_mode/Test setting upgrade_mode to false when it is already false',
     'ml/trained_model_cat_apis/Test cat trained models',
     'roles/11_idx_arrays/Test put role api using as array of index names',
-    'roles/30_prohibited_role_query/Test use prohibited query inside role query',
     'rollup/delete_job/Test basic delete_job',
     'rollup/delete_job/Test delete job twice',
     'rollup/delete_job/Test delete running job',

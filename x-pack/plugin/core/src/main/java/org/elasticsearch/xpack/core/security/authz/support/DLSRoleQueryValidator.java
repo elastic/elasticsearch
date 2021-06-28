@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.BoostingQueryBuilder;
@@ -45,23 +46,23 @@ public final class DLSRoleQueryValidator {
     /**
      * Validates the query field in the {@link RoleDescriptor.IndicesPrivileges} only if it is not a template query.<br>
      * It parses the query and builds the {@link QueryBuilder}, also checks if the query type is supported in DLS role query.
-     *
-     * @param indicesPrivileges {@link RoleDescriptor.IndicesPrivileges}
+     *  @param indicesPrivileges {@link RoleDescriptor.IndicesPrivileges}
      * @param xContentRegistry  {@link NamedXContentRegistry} for finding named queries
+     * @param restApiVersion
      */
     public static void validateQueryField(RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-                                          NamedXContentRegistry xContentRegistry) {
+                                          NamedXContentRegistry xContentRegistry, RestApiVersion restApiVersion) {
         if (indicesPrivileges != null) {
             for (int i = 0; i < indicesPrivileges.length; i++) {
                 BytesReference query = indicesPrivileges[i].getQuery();
                 try {
                     if (query != null) {
-                        if (isTemplateQuery(query, xContentRegistry)) {
+                        if (isTemplateQuery(query, xContentRegistry, restApiVersion)) {
                             // skip template query, this requires runtime information like 'User' information.
                             continue;
                         }
 
-                        evaluateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry);
+                        evaluateAndVerifyRoleQuery(query.utf8ToString(), xContentRegistry, restApiVersion);
                     }
                 } catch (ParsingException | IllegalArgumentException |  IOException e) {
                     throw new ElasticsearchParseException("failed to parse field 'query' for indices [" +
@@ -72,9 +73,10 @@ public final class DLSRoleQueryValidator {
         }
     }
 
-    private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
-            LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
+    private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry, RestApiVersion restApiVersion)
+        throws IOException {
+        try (XContentParser parser = XContentType.JSON.xContent().createParserForCompatibility(xContentRegistry,
+            LoggingDeprecationHandler.INSTANCE, query.streamInput(), restApiVersion)) {
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
                 throw new XContentParseException(parser.getTokenLocation(), "expected [" + XContentParser.Token.START_OBJECT + "] but " +
@@ -103,17 +105,19 @@ public final class DLSRoleQueryValidator {
      * @param scriptService    {@link ScriptService} used for evaluation of a template query
      * @param xContentRegistry {@link NamedXContentRegistry} for finding named queries
      * @param user             {@link User} used when evaluation a template query
+     * @param restApiVersion
      * @return {@link QueryBuilder} if the query is valid and allowed, in case {@link RoleDescriptor.IndicesPrivileges}
      * * does not have a query field then it returns {@code null}.
      */
     @Nullable
     public static QueryBuilder evaluateAndVerifyRoleQuery(BytesReference query, ScriptService scriptService,
-                                                          NamedXContentRegistry xContentRegistry, User user) {
+                                                          NamedXContentRegistry xContentRegistry, User user,
+                                                          RestApiVersion restApiVersion) {
         if (query != null) {
             String templateResult = SecurityQueryTemplateEvaluator.evaluateTemplate(query.utf8ToString(), scriptService,
                 user);
             try {
-                return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry);
+                return evaluateAndVerifyRoleQuery(templateResult, xContentRegistry, restApiVersion);
             } catch (ElasticsearchParseException | ParsingException | XContentParseException | IOException e) {
                 throw new ElasticsearchParseException("failed to parse field 'query' from the role descriptor", e);
             }
@@ -122,10 +126,11 @@ public final class DLSRoleQueryValidator {
     }
 
     @Nullable
-    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
+    private static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry,
+                                                           RestApiVersion restApiVersion) throws IOException {
         if (query != null) {
-            try (XContentParser parser = XContentFactory.xContent(query).createParser(xContentRegistry,
-                LoggingDeprecationHandler.INSTANCE, query)) {
+            try (XContentParser parser = XContentFactory.xContent(query).createParserForCompatibility(xContentRegistry,
+                LoggingDeprecationHandler.INSTANCE, query, restApiVersion)) {
                 QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                 verifyRoleQuery(queryBuilder);
                 return queryBuilder;

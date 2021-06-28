@@ -88,4 +88,8 @@ public interface XContent {
                                 DeprecationHandler deprecationHandler, byte[] data, int offset, int length,
                                                 RestApiVersion restApiVersion) throws IOException;
 
+    XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry,
+                                                DeprecationHandler deprecationHandler, String content,
+                                                RestApiVersion restApiVersion) throws IOException;
+
 }

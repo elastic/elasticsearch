@@ -36,6 +36,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
@@ -435,8 +436,8 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                             querySource,
                             scriptService,
                             queryShardContext.getXContentRegistry(),
-                            securityContext.getUser()
-                        );
+                            securityContext.getUser(),
+                            RestApiVersion.current());
                         QueryBuilder rewrittenQueryBuilder = Rewriteable.rewrite(queryBuilder, queryShardContext);
                         if (rewrittenQueryBuilder instanceof MatchAllQueryBuilder) {
                             // One of the roles assigned has "all" permissions - allow unfettered access to termsDict

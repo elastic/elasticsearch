@@ -112,4 +112,9 @@ public class CborXContent implements XContent {
         return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(data, offset, length), restApiVersion);
     }
 
+    @Override
+    public XContentParser createParserForCompatibility(NamedXContentRegistry xContentRegistry, DeprecationHandler deprecationHandler,
+                                                       String content, RestApiVersion restApiVersion) throws IOException {
+        return new CborXContentParser(xContentRegistry, deprecationHandler, cborFactory.createParser(content), restApiVersion);
+    }
 }

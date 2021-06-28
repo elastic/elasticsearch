@@ -64,6 +64,10 @@ public abstract class RestActionTestCase extends ESTestCase {
      */
     protected void dispatchRequest(RestRequest request) {
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        dispatchRequest(request, channel);
+    }
+
+    protected void dispatchRequest(RestRequest request, FakeRestChannel channel) {
         ThreadContext threadContext = verifyingClient.threadPool().getThreadContext();
         try(ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             controller.dispatchRequest(request, channel, threadContext);

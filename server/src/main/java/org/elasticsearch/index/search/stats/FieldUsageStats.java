@@ -79,9 +79,9 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
     }
 
     PerFieldUsageStats total() {
-        final PerFieldUsageStats total = new PerFieldUsageStats();
+        PerFieldUsageStats total = PerFieldUsageStats.EMPTY;
         for (PerFieldUsageStats value : stats.values()) {
-            total.add(value);
+            total = total.add(value);
         }
         return total;
     }
@@ -101,7 +101,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     public FieldUsageStats add(FieldUsageStats other) {
         FieldUsageStats newStats = new FieldUsageStats(stats);
-        other.stats.forEach((k, v) -> newStats.stats.computeIfAbsent(k, f -> new PerFieldUsageStats()).add(v));
+        other.stats.forEach((k, v) -> newStats.stats.merge(k, PerFieldUsageStats.EMPTY, PerFieldUsageStats::add));
         return newStats;
     }
 
@@ -121,38 +121,54 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     public static class PerFieldUsageStats implements ToXContentFragment, Writeable {
 
-        public long any;
-        public long proximity;
-        public long terms;
-        public long postings;
-        public long termFrequencies;
-        public long positions;
-        public long offsets;
-        public long docValues;
-        public long storedFields;
-        public long norms;
-        public long payloads;
-        public long termVectors;
-        public long points;
+        static final PerFieldUsageStats EMPTY = new PerFieldUsageStats(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 
-        public PerFieldUsageStats() {
+        private final long any;
+        private final long proximity;
+        private final long terms;
+        private final long postings;
+        private final long termFrequencies;
+        private final long positions;
+        private final long offsets;
+        private final long docValues;
+        private final long storedFields;
+        private final long norms;
+        private final long payloads;
+        private final long termVectors;
+        private final long points;
 
+        public PerFieldUsageStats(long any, long proximity, long terms, long postings, long termFrequencies, long positions, long offsets,
+                                  long docValues, long storedFields, long norms, long payloads, long termVectors, long points) {
+            this.any = any;
+            this.proximity = proximity;
+            this.terms = terms;
+            this.postings = postings;
+            this.termFrequencies = termFrequencies;
+            this.positions = positions;
+            this.offsets = offsets;
+            this.docValues = docValues;
+            this.storedFields = storedFields;
+            this.norms = norms;
+            this.payloads = payloads;
+            this.termVectors = termVectors;
+            this.points = points;
         }
 
-        private void add(PerFieldUsageStats other) {
-            any += other.any;
-            proximity += other.proximity;
-            terms += other.terms;
-            postings += other.postings;
-            termFrequencies += other.termFrequencies;
-            positions += other.positions;
-            offsets += other.offsets;
-            docValues += other.docValues;
-            storedFields += other.storedFields;
-            norms += other.norms;
-            payloads += other.payloads;
-            termVectors += other.termVectors;
-            points += other.points;
+        private PerFieldUsageStats add(PerFieldUsageStats other) {
+            return new PerFieldUsageStats(
+                any + other.any,
+                proximity + other.proximity,
+                terms + other.terms,
+                postings + other.postings,
+                termFrequencies + other.termFrequencies,
+                positions + other.positions,
+                offsets + other.offsets,
+                docValues + other.docValues,
+                storedFields + other.storedFields,
+                norms + other.norms,
+                payloads + other.payloads,
+                termVectors + other.termVectors,
+                points + other.points);
         }
 
         public PerFieldUsageStats(StreamInput in) throws IOException {

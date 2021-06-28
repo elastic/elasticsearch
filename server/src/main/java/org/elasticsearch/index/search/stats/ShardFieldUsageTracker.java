@@ -48,20 +48,10 @@ public class ShardFieldUsageTracker {
         for (Map.Entry<String, InternalFieldStats> entry : perFieldStats.entrySet()) {
             InternalFieldStats ifs = entry.getValue();
             if (CollectionUtils.isEmpty(fields) || Regex.simpleMatch(fields, entry.getKey())) {
-                PerFieldUsageStats pf = new PerFieldUsageStats();
-                pf.any = ifs.any.longValue();
-                pf.proximity = ifs.proximity.longValue();
-                pf.terms = ifs.terms.longValue();
-                pf.postings = ifs.postings.longValue();
-                pf.termFrequencies = ifs.termFrequencies.longValue();
-                pf.positions = ifs.positions.longValue();
-                pf.offsets = ifs.offsets.longValue();
-                pf.docValues = ifs.docValues.longValue();
-                pf.storedFields = ifs.storedFields.longValue();
-                pf.norms = ifs.norms.longValue();
-                pf.payloads = ifs.payloads.longValue();
-                pf.termVectors = ifs.termVectors.longValue();
-                pf.points = ifs.points.longValue();
+                PerFieldUsageStats pf = new PerFieldUsageStats(ifs.any.longValue(), ifs.proximity.longValue(), ifs.terms.longValue(),
+                    ifs.postings.longValue(), ifs.termFrequencies.longValue(), ifs.positions.longValue(), ifs.offsets.longValue(),
+                    ifs.docValues.longValue(), ifs.storedFields.longValue(), ifs.norms.longValue(), ifs.payloads.longValue(),
+                    ifs.termVectors.longValue(), ifs.points.longValue());
                 stats.put(entry.getKey(), pf);
             }
         }

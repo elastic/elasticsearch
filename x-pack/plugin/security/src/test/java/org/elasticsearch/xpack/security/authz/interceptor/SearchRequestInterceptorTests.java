@@ -26,7 +26,7 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.TreeMap;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
@@ -72,7 +72,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, new TreeMap<>(), future);
+        interceptor.disableFeatures(searchRequest, Map.of(), future);
         future.actionGet();
         verify(searchRequest).requestCache(false);
     }
@@ -90,7 +90,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, new TreeMap<>(), future);
+        interceptor.disableFeatures(searchRequest, Map.of(), future);
         future.actionGet();
         if (remoteIndices.length > 0) {
             verify(searchRequest).requestCache(false);

@@ -124,10 +124,12 @@ For these queries, the query string is <<analysis-normalizers,normalized>>. Only
 per-character filters from the field's analyzer are applied. For a list of these
 filters, see <<analysis-normalizers>>.
 
-The query uses the {wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein
-distance] to find all terms with a maximum of two changes, where a change is the
-insertion, deletion or substitution of a single character, or transposition of
-two adjacent characters.
+The query uses the
+{wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]
+to find all terms with a maximum of
+two changes, where a change is the insertion, deletion
+or substitution of a single character, or transposition of two adjacent
+characters.
 
 The default _edit distance_ is `2`, but an edit distance of `1` should be
 sufficient to catch 80% of all human misspellings. It can be specified as:

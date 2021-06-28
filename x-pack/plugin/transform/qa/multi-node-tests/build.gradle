@@ -3,7 +3,7 @@ apply plugin: 'elasticsearch.java-rest-test'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(path: xpackModule('transform'))
-  testImplementation project(':client:rest-high-level')
+  javaRestTestImplementation project(':client:rest-high-level')
 }
 
 // location for keys and certificates

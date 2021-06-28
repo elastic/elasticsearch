@@ -17,9 +17,9 @@ setup:
         refresh: true
         body:
           - '{"index": {}}'
-          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}}'
+          - '{"latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 6]}, "_doc_count": 51}'
           - '{"index": {}}'
-          - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}}'
+          - '{"latency": {"values" : [0, 0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 2, 5, 10, 1, 8]}, "_doc_count": 29}'
 ---
 "Histogram requires values in increasing order":
   - do:

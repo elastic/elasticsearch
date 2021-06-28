@@ -8,11 +8,13 @@
 package org.elasticsearch.xpack.analytics.aggregations.bucket.range;
 
 import org.apache.lucene.document.DoubleDocValuesField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -216,14 +218,18 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     public void testOverlapping() throws Exception {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(singleton(histogramFieldDocValues(
-                HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6})));
-            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5})));
-            w.addDocument(singleton(histogramFieldDocValues(
-                HISTO_FIELD_NAME,
-                new double[] {-10, 0.01, 10, 10, 30},
-                new int[] {10, 2, 4, 14, 11}
-            )));
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 16))
+            );
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 13))
+            );
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30}, new int[] {10, 2, 4, 14, 11}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 41))
+            );
 
             RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
                 .field(HISTO_FIELD_NAME)
@@ -273,14 +279,18 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
     public void testNonOverlapping() throws Exception {
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(singleton(
-                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6})));
-            w.addDocument(singleton(histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5})));
-            w.addDocument(singleton(histogramFieldDocValues(
-                HISTO_FIELD_NAME,
-                new double[] {-10, 0.01, 10, 10, 30},
-                new int[] {10, 2, 4, 14, 11}
-            )));
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {0, 1.2, 10, 12, 24}, new int[] {3, 1, 2, 4, 6}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 16))
+            );
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {5.3, 6, 6, 20}, new int[] {1, 3, 4, 5}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 13))
+            );
+            w.addDocument(Arrays.asList(
+                histogramFieldDocValues(HISTO_FIELD_NAME, new double[] {-10, 0.01, 10, 10, 30}, new int[] {10, 2, 4, 14, 11}),
+                new NumericDocValuesField(DocCountFieldMapper.NAME, 41))
+            );
 
             RangeAggregationBuilder aggBuilder = new RangeAggregationBuilder("my_agg")
                 .field(HISTO_FIELD_NAME)

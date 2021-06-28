@@ -131,8 +131,9 @@ public abstract class HistoBackedRangeAggregator extends RangeAggregator {
                         final double value = sketch.value();
                         assert previousValue <= value : "histogram field [" + name + "] unexpectedly out of order";
                         previousValue = value;
-                        // Collecting the bucket automatically increments the count at least 1, account for that here
-                        final int count = sketch.count() - 1;
+                        // Collecting the bucket automatically increments the count by the docCountProvider,
+                        // account for that here
+                        final int count = sketch.count() - docCountProvider.getDocCount(doc);
                         lo = HistoBackedRangeAggregator.this.collect(sub, doc, value, bucket, lo, count);
                     }
                 }

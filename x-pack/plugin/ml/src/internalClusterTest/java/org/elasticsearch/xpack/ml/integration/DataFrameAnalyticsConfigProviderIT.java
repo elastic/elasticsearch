@@ -316,7 +316,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
             blockingCall(
-                actionListener -> configProvider.put(initialConfig, emptyMap(),TIMEOUT,  actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(initialConfig, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(initialConfig)));

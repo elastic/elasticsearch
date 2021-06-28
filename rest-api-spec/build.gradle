@@ -112,13 +112,6 @@ tasks.named("yamlRestCompatTest").configure {
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
     'search_shards/10_basic/Search shards aliases with and without filters',
-    'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
-    'snapshot.get/10_basic/Get missing snapshot info throws an exception',
-    'snapshot.get/10_basic/Get snapshot info',
-    'snapshot.get/10_basic/Get snapshot info contains include_global_state',
-    'snapshot.get/10_basic/Get snapshot info when verbose is false',
-    'snapshot.get/10_basic/Get snapshot info with metadata',
-    'snapshot.get/10_basic/Get snapshot info with index details',
     'suggest/20_completion/Suggestions with source should work'
    ] + v7compatiblityNotSupportedTests())
     .join(',')

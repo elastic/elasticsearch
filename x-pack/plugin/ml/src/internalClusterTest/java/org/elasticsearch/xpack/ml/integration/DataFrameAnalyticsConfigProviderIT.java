@@ -137,7 +137,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);
             blockingCall(
-                actionListener -> configProvider.put(initialConfig, emptyMap(),TIMEOUT,  actionListener), configHolder, exceptionHolder);
+                actionListener -> configProvider.put(initialConfig, emptyMap(), TIMEOUT, actionListener), configHolder, exceptionHolder);
 
             assertThat(configHolder.get(), is(notNullValue()));
             assertThat(configHolder.get(), is(equalTo(initialConfig)));

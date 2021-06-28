@@ -58,7 +58,7 @@ NOTE: APIs with a single target, such as the <<docs-get,get document API>>, do
 not support multi-target syntax.
 
 [discrete]
-[[hidden]]
+[[multi-hidden]]
 ==== Hidden data streams and indices
 
 For most APIs, wildcard expressions do not match hidden data streams and indices

@@ -1601,7 +1601,13 @@ See the {glossary}/terms.html[Elastic glossary].
 [role="exclude",id="multi-index"]
 === Multi-target syntax
 
-See <<api-multi-index>>.
+See <<api-multi-index>>. 
+
+[float]
+[[hidden]]
+==== Hidden data streams and indices
+
+See <<multi-hidden>>. 
 
 [role="exclude",id="date-math-index-names"]
 === Date math support in system and index alias names 
@@ -1617,5 +1623,3 @@ See <<api-cron-expressions>>.
 === URL-based access control
 
 See <<api-url-access-control>>.
-
-

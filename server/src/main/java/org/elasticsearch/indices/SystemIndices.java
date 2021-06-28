@@ -67,6 +67,7 @@ public class SystemIndices {
     );
 
     private final Automaton systemNameAutomaton;
+    private final CharacterRunAutomaton netNewSystemIndexAutomaton;
     private final CharacterRunAutomaton systemNameRunAutomaton;
     private final CharacterRunAutomaton systemIndexRunAutomaton;
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
@@ -89,6 +90,7 @@ public class SystemIndices {
         Automaton systemDataStreamIndicesAutomata = buildDataStreamBackingIndicesAutomaton(featureDescriptors);
         this.systemDataStreamIndicesRunAutomaton = new CharacterRunAutomaton(systemDataStreamIndicesAutomata);
         this.systemDataStreamPredicate = buildDataStreamNamePredicate(featureDescriptors);
+        this.netNewSystemIndexAutomaton = buildNetNewIndexCharacterRunAutomaton(featureDescriptors);
         this.productToSystemIndicesMatcher = getProductToSystemIndicesMap(featureDescriptors);
         this.executorSelector = new ExecutorSelector(this);
         this.systemNameAutomaton = MinimizationOperations.minimize(
@@ -196,6 +198,10 @@ public class SystemIndices {
 
     public Automaton getSystemNameAutomaton() {
         return systemNameAutomaton;
+    }
+
+    public boolean isNetNewSystemIndex(String indexName) {
+        return netNewSystemIndexAutomaton.run(indexName);
     }
 
     /**
@@ -307,6 +313,15 @@ public class SystemIndices {
         return MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE);
     }
 
+    private static CharacterRunAutomaton buildNetNewIndexCharacterRunAutomaton(Map<String, Feature> featureDescriptors) {
+        Optional<Automaton> automaton = featureDescriptors.values().stream()
+            .flatMap(feature -> feature.getIndexDescriptors().stream())
+            .filter(SystemIndexDescriptor::isNetNew)
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
+            .reduce(Operations::union);
+        return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(EMPTY), Integer.MAX_VALUE));
+    }
+
     private static Automaton featureToIndexAutomaton(Feature feature) {
         Optional<Automaton> systemIndexAutomaton = feature.getIndexDescriptors().stream()
             .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
@@ -389,6 +404,17 @@ public class SystemIndices {
             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
             names.toArray(Strings.EMPTY_ARRAY)
         );
+    }
+
+    public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
+        final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
+        if (product == null) {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        } else {
+            return new IllegalArgumentException("Indices " + Arrays.toString(names.toArray(Strings.EMPTY_ARRAY)) +
+                " use and access is reserved for system operations");
+        }
     }
 
     IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {

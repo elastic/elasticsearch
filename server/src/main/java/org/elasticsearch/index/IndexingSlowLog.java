@@ -155,12 +155,12 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         private static Map<String, Object> prepareMap(Index index, ParsedDocument doc, long tookInNanos, boolean reformat,
                                                       int maxSourceCharsToLog) {
             Map<String,Object> map = new HashMap<>();
-            map.put("message", index);
-            map.put("took", TimeValue.timeValueNanos(tookInNanos));
-            map.put("took_millis", ""+TimeUnit.NANOSECONDS.toMillis(tookInNanos));
-            map.put("id", doc.id());
+            map.put("elasticsearch.slowlog.message", index);
+            map.put("elasticsearch.slowlog.took", TimeValue.timeValueNanos(tookInNanos).toString());
+            map.put("elasticsearch.slowlog.took_millis", String.valueOf(TimeUnit.NANOSECONDS.toMillis(tookInNanos)));
+            map.put("elasticsearch.slowlog.id", doc.id());
             if (doc.routing() != null) {
-                map.put("routing", doc.routing());
+                map.put("elasticsearch.slowlog.routing", doc.routing());
             }
 
             if (maxSourceCharsToLog == 0 || doc.source() == null || doc.source().length() == 0) {
@@ -171,11 +171,11 @@ public final class IndexingSlowLog implements IndexingOperationListener {
                 String trim = Strings.cleanTruncate(source, maxSourceCharsToLog).trim();
                 StringBuilder sb  = new StringBuilder(trim);
                 StringBuilders.escapeJson(sb,0);
-                map.put("source", sb.toString());
+                map.put("elasticsearch.slowlog.source", sb.toString());
             } catch (IOException e) {
                 StringBuilder sb  = new StringBuilder("_failed_to_convert_[" + e.getMessage()+"]");
                 StringBuilders.escapeJson(sb,0);
-                map.put("source", sb.toString());
+                map.put("elasticsearch.slowlog.source", sb.toString());
                 /*
                  * We choose to fail to write to the slow log and instead let this percolate up to the post index listener loop where this
                  * will be logged at the warn level.

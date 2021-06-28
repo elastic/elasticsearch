@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.eql.execution.payload.AbstractPayload;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
+
 class SequencePayload extends AbstractPayload {
 
     private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
@@ -28,7 +30,7 @@ class SequencePayload extends AbstractPayload {
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {
-                events.add(new Event(hit.getIndex(), hit.getId(), hit.getSourceRef(), hit.getFields()));
+                events.add(new Event(qualifiedIndex(hit), hit.getId(), hit.getSourceRef(), hit.getFields()));
             }
             values.add(new org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence(s.key().asList(), events));
         }

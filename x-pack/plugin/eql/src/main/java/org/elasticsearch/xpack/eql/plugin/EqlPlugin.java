@@ -65,8 +65,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
         return createComponents(client, clusterService.getClusterName().value(), namedWriteableRegistry);
     }
 
-    private Collection<Object> createComponents(Client client, String clusterName,
-                                                NamedWriteableRegistry namedWriteableRegistry) {
+    private Collection<Object> createComponents(Client client, String clusterName, NamedWriteableRegistry namedWriteableRegistry) {
         IndexResolver indexResolver = new IndexResolver(client, clusterName, DefaultDataTypeRegistry.INSTANCE);
         PlanExecutor planExecutor = new PlanExecutor(client, indexResolver, namedWriteableRegistry);
         return Arrays.asList(planExecutor);

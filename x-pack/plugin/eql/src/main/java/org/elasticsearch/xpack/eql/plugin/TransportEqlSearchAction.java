@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -39,6 +40,7 @@ import org.elasticsearch.xpack.eql.execution.PlanExecutor;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
+import org.elasticsearch.xpack.eql.util.RemoteClusterRegistry;
 import org.elasticsearch.xpack.ql.async.AsyncTaskManagementService;
 import org.elasticsearch.xpack.ql.expression.Order;
 
@@ -60,12 +62,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
     private final PlanExecutor planExecutor;
     private final ThreadPool threadPool;
     private final TransportService transportService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
 
     @Inject
     public TransportEqlSearchAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                     ThreadPool threadPool, ActionFilters actionFilters, PlanExecutor planExecutor,
-                                    NamedWriteableRegistry registry, Client client, BigArrays bigArrays) {
+                                    NamedWriteableRegistry registry, IndexNameExpressionResolver indexNameExpressionResolver,
+                                    Client client, BigArrays bigArrays) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new);
 
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -74,6 +78,7 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
         this.planExecutor = planExecutor;
         this.threadPool = threadPool;
         this.transportService = transportService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(XPackPlugin.ASYNC_RESULTS_INDEX, client, ASYNC_SEARCH_ORIGIN,
             registry, taskManager, EqlSearchAction.INSTANCE.name(), this, EqlSearchTask.class, clusterService, threadPool, bigArrays);
@@ -88,7 +93,8 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, listener);
+        operation(planExecutor, task, request, username(securityContext), transportService, clusterService,
+            indexNameExpressionResolver, listener);
     }
 
     @Override
@@ -108,13 +114,14 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             asyncTaskManagementService.asyncExecute(request, request.waitForCompletionTimeout(), request.keepAlive(),
                 request.keepOnCompletion(), listener);
         } else {
-            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService, listener);
+            operation(planExecutor, (EqlSearchTask) task, request, username(securityContext), transportService, clusterService,
+                indexNameExpressionResolver, listener);
         }
     }
 
     public static void operation(PlanExecutor planExecutor, EqlSearchTask task, EqlSearchRequest request, String username,
                                  TransportService transportService, ClusterService clusterService,
-                                 ActionListener<EqlSearchResponse> listener) {
+                                 IndexNameExpressionResolver indexNameExpressionResolver, ActionListener<EqlSearchResponse> listener) {
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -132,9 +139,11 @@ public class TransportEqlSearchAction extends HandledTransportAction<EqlSearchRe
             .size(request.size())
             .fetchSize(request.fetchSize());
 
+        RemoteClusterRegistry remoteClusterRegistry = new RemoteClusterRegistry(transportService.getRemoteClusterService(),
+            request.indicesOptions(), clusterService, indexNameExpressionResolver);
         EqlConfiguration cfg = new EqlConfiguration(request.indices(), zoneId, username, clusterName, filter,
                 request.runtimeMappings(), fetchFields, timeout, request.indicesOptions(), request.fetchSize(),
-                clientId, new TaskId(nodeId, task.getId()), task);
+                clientId, new TaskId(nodeId, task.getId()), task, remoteClusterRegistry::versionIncompatibleClusters);
         executeRequestWithRetryAttempt(clusterService, listener::onFailure,
             onFailure -> planExecutor.eql(cfg, request.query(), params,
                 wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), onFailure)),

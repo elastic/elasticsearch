@@ -128,6 +128,7 @@ If the request succeeds, a response like the following will be received:
 [source,console-result]
 ------------------------------------------------------------------------------
 {
+  "dry_run": false,
   "removed_legacy_template":"global-template", <1>
   "migrated_ilm_policies":["policy_with_allocate_action"], <2>
   "migrated_indices":["warm-index-to-migrate-000001"] <3>

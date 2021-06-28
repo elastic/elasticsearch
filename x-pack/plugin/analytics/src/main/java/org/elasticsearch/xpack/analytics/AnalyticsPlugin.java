@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HyperLogLogPlusPlusFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -148,7 +148,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
+        return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER,
+            HyperLogLogPlusPlusFieldMapper.CONTENT_TYPE, HyperLogLogPlusPlusFieldMapper.PARSER);
     }
 
     @Override
@@ -161,7 +162,8 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerHistoBackedAverageAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedHistogramAggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
-            AnalyticsAggregatorFactory::registerHistoBackedMaxggregator
+            AnalyticsAggregatorFactory::registerHistoBackedMaxggregator,
+            AnalyticsAggregatorFactory::registerHyperLogLogPlusPlusBackedCardinalityAggregator
         );
     }
 

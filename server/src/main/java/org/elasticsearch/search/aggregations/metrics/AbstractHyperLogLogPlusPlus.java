@@ -35,13 +35,13 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     }
 
     /** Algorithm used in the given bucket */
-    protected abstract boolean getAlgorithm(long bucketOrd);
+    public abstract boolean getAlgorithm(long bucketOrd);
 
     /** Get linear counting algorithm */
-    protected abstract AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd);
+    public abstract AbstractLinearCounting.EncodedHashesIterator getLinearCounting(long bucketOrd);
 
     /** Get HyperLogLog algorithm */
-    protected abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
+    public abstract AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd);
 
     /** Get the number of data structures */
     public abstract long maxOrd();
@@ -54,8 +54,8 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     public AbstractHyperLogLogPlusPlus clone(long bucketOrd, BigArrays bigArrays) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             // we use a sparse structure for linear counting
-            AbstractLinearCounting.HashesIterator iterator = getLinearCounting(bucketOrd);
-            int size = Math.toIntExact(iterator.size());
+            AbstractLinearCounting.EncodedHashesIterator iterator = getLinearCounting(bucketOrd);
+            final int size = Math.toIntExact(iterator.size());
             HyperLogLogPlusPlusSparse clone = new HyperLogLogPlusPlusSparse(precision(), bigArrays, 1);
             clone.ensureCapacity(0, size);
             while (iterator.next()) {
@@ -72,7 +72,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
     private Object getComparableData(long bucketOrd) {
         if (getAlgorithm(bucketOrd) == LINEAR_COUNTING) {
             Set<Integer> values = new HashSet<>();
-            AbstractLinearCounting.HashesIterator iteratorValues = getLinearCounting(bucketOrd);
+            AbstractLinearCounting.EncodedHashesIterator iteratorValues = getLinearCounting(bucketOrd);
             while (iteratorValues.next()) {
                 values.add(iteratorValues.value());
             }
@@ -97,7 +97,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
         out.writeVInt(precision());
         if (getAlgorithm(bucket) == LINEAR_COUNTING) {
             out.writeBoolean(LINEAR_COUNTING);
-            AbstractLinearCounting.HashesIterator hashes = getLinearCounting(bucket);
+            AbstractLinearCounting.EncodedHashesIterator hashes = getLinearCounting(bucket);
             out.writeVLong(hashes.size());
             while (hashes.next()) {
                 out.writeInt(hashes.value());

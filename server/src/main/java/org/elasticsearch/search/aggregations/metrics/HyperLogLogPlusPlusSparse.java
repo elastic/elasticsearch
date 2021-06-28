@@ -51,17 +51,17 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
     }
 
     @Override
-    protected boolean getAlgorithm(long bucketOrd) {
+    public boolean getAlgorithm(long bucketOrd) {
         return LINEAR_COUNTING;
     }
 
     @Override
-    protected AbstractLinearCounting.HashesIterator getLinearCounting(long bucketOrd) {
+    public AbstractLinearCounting.EncodedHashesIterator getLinearCounting(long bucketOrd) {
         return lc.values(bucketOrd);
     }
 
     @Override
-    protected AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
+    public AbstractHyperLogLog.RunLenIterator getHyperLogLog(long bucketOrd) {
         throw new IllegalArgumentException("Implementation does not support HLL structures");
     }
 
@@ -105,7 +105,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
             }
             this.values = values;
             this.sizes = sizes;
-            iterator = new LinearCountingIterator();
+            iterator = new LinearCountingIterator(p);
         }
 
         @Override
@@ -137,7 +137,7 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         }
 
         @Override
-        protected HashesIterator values(long bucketOrd) {
+        public EncodedHashesIterator values(long bucketOrd) {
             iterator.reset(values.get(bucketOrd), size(bucketOrd));
             return iterator;
         }
@@ -174,19 +174,26 @@ final class HyperLogLogPlusPlusSparse extends AbstractHyperLogLogPlusPlus implem
         }
     }
 
-    private static class LinearCountingIterator implements AbstractLinearCounting.HashesIterator {
+    private static class LinearCountingIterator implements AbstractLinearCounting.EncodedHashesIterator {
 
+        private final int precision;
         IntArray values;
         int size, value;
         private long pos;
 
-        LinearCountingIterator() {
+        LinearCountingIterator(int precision) {
+            this.precision = precision;
         }
 
         void reset(IntArray values, int size) {
             this.values = values;
             this.size = size;
             this.pos = 0;
+        }
+
+        @Override
+        public int precision() {
+            return precision;
         }
 
         @Override

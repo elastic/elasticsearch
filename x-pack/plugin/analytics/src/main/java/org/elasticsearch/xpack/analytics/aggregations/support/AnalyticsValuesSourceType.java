@@ -16,6 +16,7 @@ import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.fielddata.IndexHyperLogLogPlusPlusFieldData;
 
 import java.util.Locale;
 
@@ -41,6 +42,40 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
                     "], but got [" + fieldContext.fieldType().typeName() + "]");
             }
             return new HistogramValuesSource.Histogram.Fielddata((IndexHistogramFieldData) indexFieldData);
+        }
+
+        @Override
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
+            throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
+        }
+    },
+    HYPERLOGLOGPLUSPLUS() {
+        @Override
+        public ValuesSource getEmpty() {
+            // TODO: Is this the correct exception type here?
+            throw new IllegalArgumentException("Can't deal with unmapped CardinalityValuesSource type " + this.value());
+        }
+
+        @Override
+        public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
+            throw new AggregationExecutionException("value source of type [" + this.value() + "] is not supported by scripts");
+        }
+
+        @Override
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
+            final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
+
+            if ((indexFieldData instanceof IndexHyperLogLogPlusPlusFieldData) == false) {
+                throw new IllegalArgumentException("Expected hll++ type on field [" + fieldContext.field() +
+                    "], but got [" + fieldContext.fieldType().typeName() + "]");
+            }
+            final IndexHyperLogLogPlusPlusFieldData hyperLogLogPlusPlusFieldData = (IndexHyperLogLogPlusPlusFieldData) indexFieldData;
+            return new HyperLogLogPlusPlusValuesSource.HyperLogLogPlusPlusSketch.Fielddata(hyperLogLogPlusPlusFieldData);
         }
 
         @Override

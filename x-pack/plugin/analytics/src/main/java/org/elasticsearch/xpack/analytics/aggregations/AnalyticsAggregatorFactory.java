@@ -7,7 +7,9 @@
 package org.elasticsearch.xpack.analytics.aggregations;
 
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.AbstractHyperLogLog;
 import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
@@ -27,7 +29,9 @@ import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedSumAggr
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentileRanksAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedTDigestPercentilesAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.metrics.HistoBackedValueCountAggregator;
+import org.elasticsearch.xpack.analytics.aggregations.metrics.HyperLogLogPlusPlusBackedCardinalityAggregator;
 import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.HyperLogLogPlusPlusFieldMapper.HyperLogLogPlusPlusFieldType;
 
 public class AnalyticsAggregatorFactory {
 
@@ -79,7 +83,7 @@ public class AnalyticsAggregatorFactory {
         builder.register(ValueCountAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
             HistoBackedValueCountAggregator::new,
-                true);
+            true);
     }
 
     public static void registerHistoBackedAverageAggregator(ValuesSourceRegistry.Builder builder) {
@@ -90,7 +94,7 @@ public class AnalyticsAggregatorFactory {
         builder.register(HistogramAggregationBuilder.REGISTRY_KEY,
             AnalyticsValuesSourceType.HISTOGRAM,
             HistoBackedHistogramAggregator::new,
-                true);
+            true);
     }
 
     public static void registerHistoBackedMinggregator(ValuesSourceRegistry.Builder builder) {
@@ -99,6 +103,20 @@ public class AnalyticsAggregatorFactory {
 
     public static void registerHistoBackedMaxggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(MaxAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HISTOGRAM, HistoBackedMaxAggregator::new, true);
+    }
+
+    public static void registerHyperLogLogPlusPlusBackedCardinalityAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, AnalyticsValuesSourceType.HYPERLOGLOGPLUSPLUS,
+            (name, valuesSource, precision, context, parent, metadata) -> {
+                final HyperLogLogPlusPlusFieldType fieldType = (HyperLogLogPlusPlusFieldType) valuesSource.fieldType();
+                if (fieldType.precision() >= precision) {
+                    return new HyperLogLogPlusPlusBackedCardinalityAggregator(name, valuesSource, precision, context, parent, metadata);
+                }
+                throw new IllegalArgumentException("Cardinality aggregation precision ["  + precision + "] " +
+                    "is not compatible with field precision [" + fieldType.precision() + "]. Precision threshold must " +
+                    "be lower or equal than [" + AbstractHyperLogLog.thresholdFromPrecision(fieldType.precision()) + "]");
+            },
+            true);
     }
 
 }

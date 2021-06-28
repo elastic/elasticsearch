@@ -16,11 +16,10 @@ tasks.register("copyKeyCerts", Copy) {
   }
   into keystoreDir
 }
-// Add keys and cets to test classpath: it expects it there
-sourceSets.test.resources.srcDir(keystoreDir)
-tasks.named("processTestResources").configure { dependsOn("copyKeyCerts") }
-tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
+// Add keys and cets to javaRestTest classpath: it expects it there
+sourceSets.javaRestTest.resources.srcDir(keystoreDir)
 
+tasks.named("processJavaRestTestResources").configure { dependsOn("copyKeyCerts") }
 tasks.named("javaRestTest").configure { dependsOn "copyKeyCerts" }
 
 testClusters.javaRestTest {

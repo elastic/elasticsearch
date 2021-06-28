@@ -5,6 +5,21 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
+/*
+ * Copyright 2014 The Netty Project
+ *
+ * The Netty Project licenses this file to you under the Apache License, version
+ * 2.0 (the "License"); you may not use this file except in compliance with the
+ * License. You may obtain a copy of the License at:
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+ * License for the specific language governing permissions and limitations under
+ * the License.
+ */
 
 package org.elasticsearch.transport;
 
@@ -25,6 +40,14 @@ import java.util.ArrayDeque;
 import java.util.Locale;
 import java.util.zip.Checksum;
 
+/**
+ * This file is forked from the https://netty.io project. In particular it forks the follow file
+ * io.netty.handler.codec.compression.Lz4FrameDecoder.
+ *
+ * It modifies the original netty code to operate on byte arrays opposed to ByteBufs.
+ * Additionally, it integrates the decompression code to work in the Elasticsearch transport
+ * pipeline, Finally, it replaces the custom Netty decoder exceptions.
+ */
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
     private final ThreadLocal<byte[]> uncompressed = ThreadLocal.withInitial(() -> new byte[64 * 1024]);

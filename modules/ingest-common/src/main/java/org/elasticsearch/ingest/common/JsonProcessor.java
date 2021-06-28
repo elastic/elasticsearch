@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContentParser;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -62,7 +61,7 @@ public final class JsonProcessor extends AbstractProcessor {
     public static Object apply(Object fieldValue, boolean allowDuplicateKeys) {
         BytesReference bytesRef = fieldValue == null ? new BytesArray("null") : new BytesArray(fieldValue.toString());
         try (InputStream stream = bytesRef.streamInput();
-             JsonXContentParser parser = (JsonXContentParser) JsonXContent.jsonXContent
+             XContentParser parser = JsonXContent.jsonXContent
                  .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, stream)) {
             parser.allowDuplicateKeys(allowDuplicateKeys);
             XContentParser.Token token = parser.nextToken();
@@ -119,7 +118,7 @@ public final class JsonProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         if (addToRoot) {
-           apply(document.getSourceAndMetadata(), field, allowDuplicateKeys);
+            apply(document.getSourceAndMetadata(), field, allowDuplicateKeys);
         } else {
             document.setFieldValue(targetField, apply(document.getFieldValue(field, Object.class), allowDuplicateKeys));
         }

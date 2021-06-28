@@ -100,8 +100,7 @@ public class InboundPipelineTests extends ESTestCase {
                     if (randomBoolean()) {
                         scheme = null;
                     } else {
-                        // TODO: Change after backport
-                        if (version.onOrAfter(Version.V_8_0_0)) {
+                        if (version.onOrAfter(CompressionScheme.LZ4_VERSION)) {
                             scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
                         } else {
                             scheme = CompressionScheme.DEFLATE;

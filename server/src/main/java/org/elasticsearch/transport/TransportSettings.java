@@ -52,8 +52,8 @@ public final class TransportSettings {
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
     public static final Setting<Boolean> TRANSPORT_COMPRESS =
         boolSetting("transport.compress", false, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TRANSPORT_COMPRESS_RAW_DATA =
-        boolSetting("transport.compress_raw_data", false, Setting.Property.NodeScope);
+    public static final Setting<Boolean> TRANSPORT_COMPRESS_INDEXING_DATA =
+        boolSetting("transport.compress_indexing_data", false, Setting.Property.NodeScope);
     public static final Setting<CompressionScheme> TRANSPORT_COMPRESSION_SCHEME =
         enumSetting(CompressionScheme.class, "transport.compression_scheme", CompressionScheme.DEFLATE,
             Setting.Property.NodeScope);

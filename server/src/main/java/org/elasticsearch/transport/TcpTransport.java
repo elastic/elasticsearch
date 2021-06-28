@@ -201,7 +201,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             version = handshakeVersion;
             compress = connectionProfile.getCompressionEnabled();
-            rawDataCompress = connectionProfile.getRawDataCompressionEnabled();
+            rawDataCompress = connectionProfile.getIndexingDataCompressionEnabled();
         }
 
         @Override

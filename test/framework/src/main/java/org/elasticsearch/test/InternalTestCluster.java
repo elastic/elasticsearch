@@ -441,7 +441,7 @@ public final class InternalTestCluster extends TestCluster {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
         builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
-        builder.put(TransportSettings.TRANSPORT_COMPRESS_RAW_DATA.getKey(), random.nextBoolean());
+        builder.put(TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA.getKey(), random.nextBoolean());
         if (random.nextBoolean()) {
             builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), CompressionScheme.DEFLATE);
         } else {

@@ -46,7 +46,7 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         ClusterConnectionManager connectionManager = new ClusterConnectionManager(TestProfiles.LIGHT_PROFILE, mock(Transport.class));
         assertEquals(TimeValue.MINUS_ONE, connectionManager.getConnectionProfile().getPingInterval());
         assertEquals(false, connectionManager.getConnectionProfile().getCompressionEnabled());
-        assertEquals(false, connectionManager.getConnectionProfile().getRawDataCompressionEnabled());
+        assertEquals(false, connectionManager.getConnectionProfile().getIndexingDataCompressionEnabled());
         RemoteConnectionManager remoteConnectionManager = new RemoteConnectionManager("cluster-alias", connectionManager);
         FakeConnectionStrategy first = new FakeConnectionStrategy("cluster-alias", mock(TransportService.class), remoteConnectionManager,
             RemoteConnectionStrategy.ConnectionStrategy.PROXY);
@@ -64,8 +64,10 @@ public class RemoteConnectionStrategyTests extends ESTestCase {
         } else if (change.equals(compress)) {
             newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("cluster-alias").getKey(), true);
         } else if (change.equals(rawDataCompress)) {
-            newBuilder.put(RemoteClusterService.REMOTE_CLUSTER_COMPRESS_RAW_DATA.getConcreteSettingForNamespace("cluster-alias").getKey(),
-                true);
+            newBuilder.put(
+                RemoteClusterService.REMOTE_CLUSTER_COMPRESS_INDEXING_DATA.getConcreteSettingForNamespace("cluster-alias").getKey(),
+                true
+            );
         } else {
             throw new AssertionError("Unexpected option: " + change);
         }

@@ -95,10 +95,10 @@ public final class RemoteClusterService extends RemoteClusterAware implements Cl
         (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS,
             new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
-    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS_RAW_DATA = Setting.affixKeySetting(
+    public static final Setting.AffixSetting<Boolean> REMOTE_CLUSTER_COMPRESS_INDEXING_DATA = Setting.affixKeySetting(
         "cluster.remote.",
-        "transport.compress_raw_data",
-        (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS_RAW_DATA,
+        "transport.compress_indexing_data",
+        (ns, key) -> boolSetting(key, TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA,
             new RemoteConnectionEnabled<>(ns, key), Setting.Property.Dynamic, Setting.Property.NodeScope));
 
     private final boolean enabled;

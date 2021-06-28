@@ -125,7 +125,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
             .setConnectTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings))
             .setCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace(clusterAlias).get(settings))
-            .setRawDataCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS_RAW_DATA
+            .setIndexingDataCompressionEnabled(RemoteClusterService.REMOTE_CLUSTER_COMPRESS_INDEXING_DATA
                 .getConcreteSettingForNamespace(clusterAlias).get(settings))
             .setPingInterval(RemoteClusterService.REMOTE_CLUSTER_PING_SCHEDULE.getConcreteSettingForNamespace(clusterAlias).get(settings))
             .addConnections(0, TransportRequestOptions.Type.BULK, TransportRequestOptions.Type.STATE,
@@ -357,7 +357,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private boolean connectionProfileChanged(ConnectionProfile oldProfile, ConnectionProfile newProfile) {
         return Objects.equals(oldProfile.getCompressionEnabled(), newProfile.getCompressionEnabled()) == false
             || Objects.equals(oldProfile.getPingInterval(), newProfile.getPingInterval()) == false
-            || Objects.equals(oldProfile.getRawDataCompressionEnabled(), newProfile.getRawDataCompressionEnabled()) == false;
+            || Objects.equals(oldProfile.getIndexingDataCompressionEnabled(), newProfile.getIndexingDataCompressionEnabled()) == false;
     }
 
     static class StrategyValidator<T> implements Setting.Validator<T> {

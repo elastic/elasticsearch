@@ -123,8 +123,7 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress;
-        // TODO: Change after backport
-        if (compressionScheme == CompressionScheme.LZ4 && version.before(Version.V_8_0_0)) {
+        if (compressionScheme == CompressionScheme.LZ4 && version.before(CompressionScheme.LZ4_VERSION)) {
             compress = false;
         } else {
             compress = randomBoolean();
@@ -192,8 +191,7 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress;
-        // TODO: Change after backport
-        if (compressionScheme == CompressionScheme.LZ4 && version.before(Version.V_8_0_0)) {
+        if (compressionScheme == CompressionScheme.LZ4 && version.before(CompressionScheme.LZ4_VERSION)) {
             compress = false;
         } else {
             compress = randomBoolean();

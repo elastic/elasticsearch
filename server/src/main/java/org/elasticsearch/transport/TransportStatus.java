@@ -47,6 +47,11 @@ public final class TransportStatus {
         return value;
     }
 
+    public static byte unSetCompress(byte value) {
+        value |= STATUS_COMPRESS;
+        return value;
+    }
+
     static boolean isHandshake(byte value) { // pkg private since it's only used internally
         return (value & STATUS_HANDSHAKE) != 0;
     }

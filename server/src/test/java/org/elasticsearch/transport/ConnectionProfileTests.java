@@ -47,7 +47,7 @@ public class ConnectionProfileTests extends ESTestCase {
         }
         final boolean setRawDataCompress = randomBoolean();
         if (setRawDataCompress) {
-            builder.setRawDataCompressionEnabled(rawDataCompressionEnabled);
+            builder.setIndexingDataCompressionEnabled(rawDataCompressionEnabled);
         }
         final boolean setPingInterval = randomBoolean();
         if (setPingInterval) {
@@ -87,9 +87,9 @@ public class ConnectionProfileTests extends ESTestCase {
         }
 
         if (setRawDataCompress) {
-            assertEquals(rawDataCompressionEnabled, build.getRawDataCompressionEnabled());
+            assertEquals(rawDataCompressionEnabled, build.getIndexingDataCompressionEnabled());
         } else {
-            assertNull(build.getRawDataCompressionEnabled());
+            assertNull(build.getIndexingDataCompressionEnabled());
         }
 
         if (setPingInterval) {
@@ -186,7 +186,7 @@ public class ConnectionProfileTests extends ESTestCase {
         }
         final boolean connectionRawDataCompressSet = randomBoolean();
         if (connectionRawDataCompressSet) {
-            builder.setRawDataCompressionEnabled(randomBoolean());
+            builder.setIndexingDataCompressionEnabled(randomBoolean());
         }
 
         final ConnectionProfile profile = builder.build();
@@ -203,8 +203,9 @@ public class ConnectionProfileTests extends ESTestCase {
             equalTo(pingIntervalSet ? profile.getPingInterval() : defaultProfile.getPingInterval()));
         assertThat(resolved.getCompressionEnabled(),
             equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
-        assertThat(resolved.getRawDataCompressionEnabled(),
-            equalTo(connectionRawDataCompressSet ? profile.getRawDataCompressionEnabled() : defaultProfile.getRawDataCompressionEnabled()));
+        assertThat(resolved.getIndexingDataCompressionEnabled(),
+            equalTo(connectionRawDataCompressSet ? profile.getIndexingDataCompressionEnabled() :
+                defaultProfile.getIndexingDataCompressionEnabled()));
     }
 
     public void testDefaultConnectionProfile() {
@@ -218,7 +219,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
-        assertEquals(TransportSettings.TRANSPORT_COMPRESS_RAW_DATA.get(Settings.EMPTY), profile.getRawDataCompressionEnabled());
+        assertEquals(TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA.get(Settings.EMPTY), profile.getIndexingDataCompressionEnabled());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());

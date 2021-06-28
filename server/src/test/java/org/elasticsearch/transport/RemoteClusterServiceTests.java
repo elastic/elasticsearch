@@ -369,9 +369,9 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     Settings.Builder settingsChange = Settings.builder();
                     TimeValue pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(6, 8));
                     settingsChange.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule);
-                    boolean rawDataOption = randomBoolean();
-                    if (rawDataOption) {
-                        settingsChange.put("cluster.remote.cluster_1.transport.compress_raw_data", true);
+                    boolean indexingDataOption = randomBoolean();
+                    if (indexingDataOption) {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compress_indexing_data", true);
                     } else {
                         settingsChange.put("cluster.remote.cluster_1.transport.compress", true);
                     }
@@ -382,12 +382,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     ConnectionProfile connectionProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
                     assertEquals(pingSchedule, connectionProfile.getPingInterval());
-                    if (rawDataOption) {
+                    if (indexingDataOption) {
                         assertEquals(false, connectionProfile.getCompressionEnabled());
-                        assertEquals(true, connectionProfile.getRawDataCompressionEnabled());
+                        assertEquals(true, connectionProfile.getIndexingDataCompressionEnabled());
                     } else {
                         assertEquals(true, connectionProfile.getCompressionEnabled());
-                        assertEquals(false, connectionProfile.getRawDataCompressionEnabled());
+                        assertEquals(false, connectionProfile.getIndexingDataCompressionEnabled());
                     }
                 }
             }

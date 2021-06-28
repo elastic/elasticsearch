@@ -36,7 +36,7 @@ public final class ConnectionProfile {
             return fallbackProfile;
         } else if (profile.getConnectTimeout() != null && profile.getHandshakeTimeout() != null
             && profile.getPingInterval() != null && profile.getCompressionEnabled() != null
-            && profile.getRawDataCompressionEnabled() != null) {
+            && profile.getIndexingDataCompressionEnabled() != null) {
             return profile;
         } else {
             ConnectionProfile.Builder builder = new ConnectionProfile.Builder(profile);
@@ -52,8 +52,8 @@ public final class ConnectionProfile {
             if (profile.getCompressionEnabled() == null) {
                 builder.setCompressionEnabled(fallbackProfile.getCompressionEnabled());
             }
-            if (profile.getRawDataCompressionEnabled() == null) {
-                builder.setRawDataCompressionEnabled(fallbackProfile.getRawDataCompressionEnabled());
+            if (profile.getIndexingDataCompressionEnabled() == null) {
+                builder.setIndexingDataCompressionEnabled(fallbackProfile.getIndexingDataCompressionEnabled());
             }
             return builder.build();
         }
@@ -76,7 +76,7 @@ public final class ConnectionProfile {
         builder.setHandshakeTimeout(TransportSettings.CONNECT_TIMEOUT.get(settings));
         builder.setPingInterval(TransportSettings.PING_SCHEDULE.get(settings));
         builder.setCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS.get(settings));
-        builder.setRawDataCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS_RAW_DATA.get(settings));
+        builder.setIndexingDataCompressionEnabled(TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA.get(settings));
         builder.addConnections(connectionsPerNodeBulk, TransportRequestOptions.Type.BULK);
         builder.addConnections(connectionsPerNodePing, TransportRequestOptions.Type.PING);
         // if we are not master eligible we don't need a dedicated channel to publish the state
@@ -114,7 +114,7 @@ public final class ConnectionProfile {
             builder.setCompressionEnabled(compressionEnabled);
         }
         if (rawDataCompressionEnabled != null) {
-            builder.setRawDataCompressionEnabled(rawDataCompressionEnabled);
+            builder.setIndexingDataCompressionEnabled(rawDataCompressionEnabled);
         }
         return builder.build();
     }
@@ -125,18 +125,18 @@ public final class ConnectionProfile {
     private final TimeValue handshakeTimeout;
     private final TimeValue pingInterval;
     private final Boolean compressionEnabled;
-    private final Boolean rawDataCompressionEnabled;
+    private final Boolean indexingDataCompressionEnabled;
 
     private ConnectionProfile(List<ConnectionTypeHandle> handles, int numConnections, TimeValue connectTimeout,
                               TimeValue handshakeTimeout, TimeValue pingInterval, Boolean compressionEnabled,
-                              Boolean rawDataCompressionEnabled) {
+                              Boolean indexingDataCompressionEnabled) {
         this.handles = handles;
         this.numConnections = numConnections;
         this.connectTimeout = connectTimeout;
         this.handshakeTimeout = handshakeTimeout;
         this.pingInterval = pingInterval;
         this.compressionEnabled = compressionEnabled;
-        this.rawDataCompressionEnabled = rawDataCompressionEnabled;
+        this.indexingDataCompressionEnabled = indexingDataCompressionEnabled;
     }
 
     /**
@@ -149,7 +149,7 @@ public final class ConnectionProfile {
         private TimeValue connectTimeout;
         private TimeValue handshakeTimeout;
         private Boolean compressionEnabled;
-        private Boolean rawDataCompressionEnabled;
+        private Boolean indexingDataCompressionEnabled;
         private TimeValue pingInterval;
 
         /** create an empty builder */
@@ -164,7 +164,7 @@ public final class ConnectionProfile {
             connectTimeout = source.getConnectTimeout();
             handshakeTimeout = source.getHandshakeTimeout();
             compressionEnabled = source.getCompressionEnabled();
-            rawDataCompressionEnabled = source.getRawDataCompressionEnabled();
+            indexingDataCompressionEnabled = source.getIndexingDataCompressionEnabled();
             pingInterval = source.getPingInterval();
         }
         /**
@@ -206,10 +206,10 @@ public final class ConnectionProfile {
         }
 
         /**
-         * Sets raw data compression enabled for this connection profile
+         * Sets indexing data compression enabled for this connection profile
          */
-        public Builder setRawDataCompressionEnabled(boolean rawDataCompressionEnabled) {
-            this.rawDataCompressionEnabled = rawDataCompressionEnabled;
+        public Builder setIndexingDataCompressionEnabled(boolean indexingDataCompressionEnabled) {
+            this.indexingDataCompressionEnabled = indexingDataCompressionEnabled;
             return this;
         }
 
@@ -244,7 +244,7 @@ public final class ConnectionProfile {
                 throw new IllegalStateException("not all types are added for this connection profile - missing types: " + types);
             }
             return new ConnectionProfile(Collections.unmodifiableList(handles), numConnections, connectTimeout, handshakeTimeout,
-                pingInterval, compressionEnabled, rawDataCompressionEnabled);
+                pingInterval, compressionEnabled, indexingDataCompressionEnabled);
         }
 
     }
@@ -279,11 +279,11 @@ public final class ConnectionProfile {
     }
 
     /**
-     * Returns boolean indicating if raw data compression is enabled or <code>null</code> if no explicit raw data compression
-     * is set on this profile.
+     * Returns boolean indicating if indexing data compression is enabled or <code>null</code> if no explicit
+     * indexing data compression is set on this profile.
      */
-    public Boolean getRawDataCompressionEnabled() {
-        return rawDataCompressionEnabled;
+    public Boolean getIndexingDataCompressionEnabled() {
+        return indexingDataCompressionEnabled;
     }
 
     /**

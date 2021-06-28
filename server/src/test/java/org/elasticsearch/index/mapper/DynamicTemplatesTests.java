@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -72,7 +71,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));
@@ -127,7 +126,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
 
         merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
-        Document doc = parsedDoc.rootDoc();
+        LuceneDocument doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
         assertThat(f.name(), equalTo("name"));

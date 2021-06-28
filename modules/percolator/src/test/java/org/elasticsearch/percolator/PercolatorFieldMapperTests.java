@@ -48,6 +48,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -173,7 +174,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper.mappers(),
             mapperService.getIndexSettings(), null, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
-        ParseContext.Document document = parseContext.doc();
+        LuceneDocument document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_COMPLETE));
@@ -225,7 +226,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper.mappers(),
             mapperService.getIndexSettings(), null, null, null, null);
         fieldMapper.processQuery(bq.build(), parseContext);
-        ParseContext.Document document = parseContext.doc();
+        LuceneDocument document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getField(fieldType.extractionResultField.name()).stringValue(), equalTo(EXTRACTION_PARTIAL));
@@ -275,7 +276,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper.mappers(),
             mapperService.getIndexSettings(), null, null, null, null);
         fieldMapper.processQuery(query, parseContext);
-        ParseContext.Document document = parseContext.doc();
+        LuceneDocument document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(1));
@@ -290,7 +291,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         ParseContext.InternalParseContext parseContext = new ParseContext.InternalParseContext(documentMapper.mappers(),
             mapperService.getIndexSettings(), null, null, null, null);
         fieldMapper.processQuery(phraseQuery, parseContext);
-        ParseContext.Document document = parseContext.doc();
+        LuceneDocument document = parseContext.doc();
 
         PercolatorFieldMapper.PercolatorFieldType fieldType = (PercolatorFieldMapper.PercolatorFieldType) fieldMapper.fieldType();
         assertThat(document.getFields().size(), equalTo(3));

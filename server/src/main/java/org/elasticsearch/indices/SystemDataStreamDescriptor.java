@@ -50,6 +50,16 @@ public class SystemDataStreamDescriptor {
                                       List<String> allowedElasticProductOrigins,
                                       ExecutorNames executorNames) {
         this.dataStreamName = Objects.requireNonNull(dataStreamName, "dataStreamName must be specified");
+        if (dataStreamName.length() < 2) {
+            throw new IllegalArgumentException(
+                "system data stream name [" + dataStreamName + "] but must at least 2 characters in length"
+            );
+        }
+        if (dataStreamName.charAt(0) != '.') {
+            throw new IllegalArgumentException(
+                "system data stream name [" + dataStreamName + "] but must start with the character [.]"
+            );
+        }
         this.description = Objects.requireNonNull(description, "description must be specified");
         this.type = Objects.requireNonNull(type, "type must be specified");
         this.composableIndexTemplate = Objects.requireNonNull(composableIndexTemplate, "composableIndexTemplate must be provided");

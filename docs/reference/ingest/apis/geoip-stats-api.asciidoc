@@ -23,6 +23,9 @@ GET _ingest/geoip/stats
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
+* If <<ingest-geoip-downloader-enabled,`ingest.geoip.downloader.enabled`>> is
+disabled, this API returns zero values and an empty `nodes` object.
+
 [role="child_attributes"]
 [[geoip-stats-api-response-body]]
 ==== {api-response-body-title}

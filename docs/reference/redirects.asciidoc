@@ -1574,3 +1574,8 @@ include::redirects.asciidoc[tag=frozen-index-redirect]
 === Monitoring frozen indices
 
 include::redirects.asciidoc[tag=frozen-index-redirect]
+
+[role="exclude",id="glossary"]
+=== Glossary
+
+See the {glossary}/terms.html[Elastic glossary].

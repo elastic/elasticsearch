@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
@@ -144,6 +145,10 @@ public class Querier {
             l = new ScrollActionListener(listener, client, cfg, output, query);
         }
 
+        if (cfg.task() != null && cfg.task().isCancelled()) {
+            listener.onFailure(new TaskCancelledException("cancelled"));
+            return;
+        }
         client.search(search, l);
     }
 

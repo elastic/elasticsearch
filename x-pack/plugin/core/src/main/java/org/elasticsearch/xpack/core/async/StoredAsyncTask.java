@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.async;
+package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -13,8 +13,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.xpack.core.async.AsyncExecutionId;
-import org.elasticsearch.xpack.core.async.AsyncTask;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -71,7 +69,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * This method is called when the task is finished successfully before unregistering the task and storing the results
      */
-    protected synchronized void onResponse(Response response) {
+    public synchronized void onResponse(Response response) {
         for (ActionListener<Response> listener : completionListeners) {
             listener.onResponse(response);
         }
@@ -80,7 +78,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * This method is called when the task failed before unregistering the task and storing the results
      */
-    protected synchronized void onFailure(Exception e) {
+    public synchronized void onFailure(Exception e) {
         for (ActionListener<Response> listener : completionListeners) {
             listener.onFailure(e);
         }
@@ -89,7 +87,7 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     /**
      * Return currently available partial or the final results
      */
-    protected abstract Response getCurrentResult();
+    public abstract Response getCurrentResult();
 
     @Override
     public void cancelTask(TaskManager taskManager, Runnable runnable, String reason) {

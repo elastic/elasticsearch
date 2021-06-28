@@ -4,17 +4,18 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.eql.action;
+package org.elasticsearch.xpack.ql.async;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
-import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -22,9 +23,9 @@ import java.util.Objects;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * A response for eql search status request
+ * A response for *QL search status request
  */
-public class EqlStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
+public class QlStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -32,12 +33,20 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     private final long expirationTimeMillis;
     private final RestStatus completionStatus;
 
-    public EqlStatusResponse(String id,
-            boolean isRunning,
-            boolean isPartial,
-            Long startTimeMillis,
-            long expirationTimeMillis,
-            RestStatus completionStatus) {
+    public interface AsyncStatus {
+        String id();
+
+        boolean isRunning();
+
+        boolean isPartial();
+    }
+
+    public QlStatusResponse(String id,
+                            boolean isRunning,
+                            boolean isPartial,
+                            Long startTimeMillis,
+                            long expirationTimeMillis,
+                            RestStatus completionStatus) {
         this.id = id;
         this.isRunning = isRunning;
         this.isPartial = isPartial;
@@ -47,40 +56,40 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     }
 
     /**
-     * Get status from the stored eql search response
+     * Get status from the stored Ql search response
      * @param storedResponse - a response from a stored search
      * @param expirationTimeMillis – expiration time in milliseconds
      * @param id – encoded async search id
      * @return a status response
      */
-    public static EqlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<EqlSearchResponse> storedResponse,
-            long expirationTimeMillis, String id) {
-        EqlSearchResponse searchResponse = storedResponse.getResponse();
+    public static <S extends Writeable & AsyncStatus> QlStatusResponse getStatusFromStoredSearch(StoredAsyncResponse<S> storedResponse,
+                                                                                                 long expirationTimeMillis, String id) {
+        S searchResponse = storedResponse.getResponse();
         if (searchResponse != null) {
-            assert searchResponse.isRunning() == false : "Stored eql search response must have a completed status!";
-            return new EqlStatusResponse(
+            assert searchResponse.isRunning() == false : "Stored Ql search response must have a completed status!";
+            return new QlStatusResponse(
                 searchResponse.id(),
                 false,
                 searchResponse.isPartial(),
-                null,  // we dont' store in the index start time for completed response
+                null,  // we don't store in the index the start time for completed response
                 expirationTimeMillis,
                 RestStatus.OK
             );
         } else {
             Exception exc = storedResponse.getException();
-            assert exc != null : "Stored eql response must either have a search response or an exception!";
-            return new EqlStatusResponse(
+            assert exc != null : "Stored Ql response must either have a search response or an exception!";
+            return new QlStatusResponse(
                 id,
                 false,
                 false,
-                null, // we dont' store in the index start time for completed response
+                null, // we don't store in the index the start time for completed response
                 expirationTimeMillis,
                 ExceptionsHelper.status(exc)
             );
         }
     }
 
-    public EqlStatusResponse(StreamInput in) throws IOException {
+    public QlStatusResponse(StreamInput in) throws IOException {
         this.id = in.readString();
         this.isRunning = in.readBoolean();
         this.isPartial = in.readBoolean();
@@ -109,15 +118,17 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("id", id);
-        builder.field("is_running", isRunning);
-        builder.field("is_partial", isPartial);
-        if (startTimeMillis != null) { // start time is available only for a running eql search
-            builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        }
-        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
-        if (isRunning == false) { // completion status is available only for a completed eql search
-            builder.field("completion_status", completionStatus.getStatus());
+        {
+            builder.field("id", id);
+            builder.field("is_running", isRunning);
+            builder.field("is_partial", isPartial);
+            if (startTimeMillis != null) { // start time is available only for a running eql search
+                builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
+            }
+            builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+            if (isRunning == false) { // completion status is available only for a completed eql search
+                builder.field("completion_status", completionStatus.getStatus());
+            }
         }
         builder.endObject();
         return builder;
@@ -127,7 +138,7 @@ public class EqlStatusResponse extends ActionResponse implements SearchStatusRes
     public boolean equals(Object obj) {
         if (this == obj) return true;
         if (obj == null || getClass() != obj.getClass()) return false;
-        EqlStatusResponse other = (EqlStatusResponse) obj;
+        QlStatusResponse other = (QlStatusResponse) obj;
         return id.equals(other.id)
             && isRunning == other.isRunning
             && isPartial == other.isPartial

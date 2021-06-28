@@ -24,6 +24,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -326,10 +328,10 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public static After fromParam(String param) {
-            final String[] parts = param.split(",");
+            final String[] parts = new String(Base64.getDecoder().decode(param), StandardCharsets.UTF_8).split(",");
             if (parts.length != 2) {
                 throw new IllegalArgumentException(
-                    "after param must be of the form ${sort_value},${snapshot_name} but was [" + param + "]"
+                    "after param must be base64 encoded and of the form ${sort_value},${snapshot_name} but was [" + param + "]"
                 );
             }
             return new After(parts[0], parts[1]);
@@ -374,7 +376,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         }
 
         public String asQueryParam() {
-            return value + "," + snapshotName;
+            return Base64.getEncoder().encodeToString((value + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
         }
 
         @Override

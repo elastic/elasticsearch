@@ -120,9 +120,9 @@ You can run <<query-dsl-fuzzy-query,`fuzzy` queries>> using the `~` operator:
 
     quikc~ brwn~ foks~
 
-For these queries, the query string is <<analysis-normalizers,normalized>>. Only
-per-character filters from the analyzer are applied. For a list of these
-filters, see <<analysis-normalizers>>.
+For these queries, the query string is <<analysis-normalizers,normalized>>. If
+present, only certain filters from the analyzer are applied. For a list of
+applicable filters, see <<analysis-normalizers>>.
 
 The query uses the
 {wikipedia}/Damerau-Levenshtein_distance[Damerau-Levenshtein distance]

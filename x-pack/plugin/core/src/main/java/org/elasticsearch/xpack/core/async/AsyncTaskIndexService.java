@@ -119,8 +119,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
-    private final ClusterService clusterService;
-
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -138,7 +136,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.registry = registry;
         this.reader = reader;
         this.bigArrays = bigArrays;
-        this.clusterService = clusterService;
     }
 
     /**

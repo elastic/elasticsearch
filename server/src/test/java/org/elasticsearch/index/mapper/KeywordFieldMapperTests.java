@@ -210,13 +210,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         // used by TermVectorsService
         assertArrayEquals(new String[] { "1234" }, TermVectorsService.getValues(doc.rootDoc().getFields("field")));
-
-        /*
-         * Assert that by default we don't run any analysis on the text.
-         * Technically this just asserts that this test case didn't touch
-         * any of Lucene's thread local reusable analyzer components.
-         */
-        assertNull(Analyzer.GLOBAL_REUSE_STRATEGY.getReusableComponents(Lucene.KEYWORD_ANALYZER.analyzer(), "field"));
     }
 
     public void testIgnoreAbove() throws IOException {

@@ -164,7 +164,8 @@ setup:
       termvectors:
         index: testindex
         id:    testid
-        "term_statistics" : true
+        term_statistics : true
+        fields: name
 
   - do:
       indices.field_usage_stats: { index: testindex }

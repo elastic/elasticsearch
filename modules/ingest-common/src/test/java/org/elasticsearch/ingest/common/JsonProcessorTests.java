@@ -195,7 +195,8 @@ public class JsonProcessorTests extends ESTestCase {
         assertEquals("see", sourceAndMetadata.get("c"));
 
         JsonProcessor strictJsonProcessor = new JsonProcessor(processorTag, null, "a", null, true, false);
-        Exception exception = expectThrows(IllegalArgumentException.class, () -> strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
+        Exception exception = expectThrows(IllegalArgumentException.class, () ->
+            strictJsonProcessor.execute(RandomDocumentPicks.randomIngestDocument(random(), document)));
         assertThat(exception.getMessage(), containsString("Duplicate field 'a'"));
     }
 

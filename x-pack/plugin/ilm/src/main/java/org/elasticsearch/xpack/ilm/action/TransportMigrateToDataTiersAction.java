@@ -22,6 +22,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -38,16 +39,18 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
+    private final XPackLicenseState licenseState;
 
     @Inject
     public TransportMigrateToDataTiersAction(TransportService transportService, ClusterService clusterService,
                                              ThreadPool threadPool, ActionFilters actionFilters,
                                              IndexNameExpressionResolver indexNameExpressionResolver,
-                                             NamedXContentRegistry xContentRegistry, Client client) {
+                                             NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         super(MigrateToDataTiersAction.NAME, transportService, clusterService, threadPool, actionFilters, MigrateToDataTiersRequest::new,
             indexNameExpressionResolver, MigrateToDataTiersResponse::new, ThreadPool.Names.SAME);
         this.xContentRegistry = xContentRegistry;
         this.client = client;
+        this.licenseState = licenseState;
     }
 
     @Override
@@ -65,7 +68,7 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             public ClusterState execute(ClusterState currentState) throws Exception {
                 Tuple<ClusterState, MigratedEntities> migratedEntitiesTuple =
                     migrateToDataTiersRouting(state, request.getNodeAttributeName(), request.getLegacyTemplateToDelete(),
-                        xContentRegistry, client);
+                        xContentRegistry, client, licenseState);
 
                 migratedEntities.set(migratedEntitiesTuple.v2());
                 return migratedEntitiesTuple.v1();

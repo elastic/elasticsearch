@@ -49,7 +49,7 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
     private String dlsFlsIndexName;
 
     @Before
-    public void init() {
+    public void init() throws IOException {
         licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS)).thenReturn(true);
@@ -65,15 +65,16 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
 
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
             Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
+
         documentPermissions1.evaluateQueries(mock(User.class), mock(ScriptService.class));
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
             new IndicesAccessControl(true,
                 Map.of(
-                    dlsIndexName,
+                    flsIndexName,
                     new IndicesAccessControl.IndexAccessControl(true,
                         new FieldPermissions(new FieldPermissionsDefinition(new String[]{"*"}, new String[]{"private"})),
                         DocumentPermissions.allowAll()),
-                    flsIndexName,
+                    dlsIndexName,
                     new IndicesAccessControl.IndexAccessControl(true,
                         FieldPermissions.DEFAULT, documentPermissions1),
                     dlsFlsIndexName,

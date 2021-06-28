@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
@@ -120,5 +121,19 @@ public class DocumentPermissionsTests extends ESTestCase {
         assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out2.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out1.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out2.bytes()), BytesReference.toBytes(out3.bytes())), is(false));
+    }
+
+    public void testHasStoredScript() throws IOException {
+        final Set<BytesReference> queries = new HashSet<>();
+        if (randomBoolean()) {
+            queries.add(new BytesArray("{\"term\":{\"username\":\"foo\"}}"));
+        }
+        final boolean hasStoredScript = randomBoolean();
+        if (hasStoredScript) {
+            queries.add(new BytesArray("{\"template\":{\"id\":\"my-script\"}}"));
+        }
+        final DocumentPermissions documentPermissions0 =
+            randomBoolean() ? new DocumentPermissions(queries, null) : new DocumentPermissions(null, queries);
+        assertThat(documentPermissions0.hasStoredScript(), is(hasStoredScript));
     }
 }

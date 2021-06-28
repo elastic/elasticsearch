@@ -19,7 +19,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
 import java.util.Arrays;
-import java.util.SortedMap;
+import java.util.Map;
 
 import static org.elasticsearch.transport.RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR;
 
@@ -35,7 +35,7 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
 
     @Override
     void disableFeatures(IndicesRequest indicesRequest,
-                         SortedMap<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
+                         Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchRequest request = (SearchRequest) indicesRequest;
         // TODO: The version check can be removed in 8.0 because 7.last will have support for request caching with DLS/FLS

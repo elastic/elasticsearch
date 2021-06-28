@@ -21,8 +21,8 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestIn
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Base class for interceptors that disables features when field level security is configured for indices a request
@@ -51,7 +51,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
                 var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(Feature.SECURITY_DLS_FLS));
                 final IndicesAccessControl indicesAccessControl
                     = threadContext.getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
-                final SortedMap<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new TreeMap<>();
+                final Map<String, IndicesAccessControl.IndexAccessControl> accessControlByIndex = new HashMap<>();
                 for (String index : requestIndices(indicesRequest)) {
                     IndicesAccessControl.IndexAccessControl indexAccessControl = indicesAccessControl.getIndexPermissions(index);
                     if (indexAccessControl != null) {
@@ -77,7 +77,7 @@ abstract class FieldAndDocumentLevelSecurityRequestInterceptor implements Reques
     }
 
     abstract void disableFeatures(IndicesRequest indicesRequest,
-                                  SortedMap<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
+                                  Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
                                   ActionListener<Void> listener);
 
     String[] requestIndices(IndicesRequest indicesRequest) {

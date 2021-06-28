@@ -54,8 +54,9 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
             .build();
     }
 
-    public void testDlsTemplateRoleWithPainlessWillWorkCorrectly() throws IOException, InterruptedException {
+    public void testRequestCacheDisabledForDlsTemplateRoleWithPainless() throws IOException {
         final RestClient adminClient = adminClient();
+        final RestClient client = client();
 
         final Request putScriptRequest = new Request("PUT", "_scripts/range-now");
         putScriptRequest.setJsonEntity("{\"script\":{\"lang\":\"painless\"," +
@@ -68,14 +69,14 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
             "\"settings\":{\"number_of_shards\":1,\"number_of_replicas\":0}}");
         assertOK(adminClient.performRequest(putIndexRequest));
 
-        // A doc in the past
+        // A doc in the past 1 min
         final Request putDocRequest1 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/1");
-        putDocRequest1.setJsonEntity("{\"date\":" + Instant.now().minus(Duration.ofSeconds(2)).toEpochMilli() + "}");
+        putDocRequest1.setJsonEntity("{\"date\":" + Instant.now().minus(Duration.ofSeconds(60)).toEpochMilli() + "}");
         assertOK(adminClient.performRequest(putDocRequest1));
 
-        // A doc in the future
+        // A doc in the future 1 min
         final Request putDocRequest2 = new Request("PUT", DLS_TEMPLATE_PAINLESS_INDEX + "/_doc/2");
-        putDocRequest2.setJsonEntity("{\"date\":" + Instant.now().plus(Duration.ofSeconds(2)).toEpochMilli() + "}");
+        putDocRequest2.setJsonEntity("{\"date\":" + Instant.now().plus(Duration.ofSeconds(60)).toEpochMilli() + "}");
         assertOK(adminClient.performRequest(putDocRequest2));
 
         final Request refreshRequest = new Request("POST", DLS_TEMPLATE_PAINLESS_INDEX + "/_refresh");
@@ -86,18 +87,9 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         searchRequest.addParameter("request_cache", "true");
         searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD)));
-        assertSearchResponse(adminClient.performRequest(searchRequest), Set.of("1"));
-        assertCacheState(0, 1);
-
-        // Wait for the future to come and search again should get both past and future docs
-        Thread.sleep(2500);
-        assertSearchResponse(adminClient.performRequest(searchRequest), Set.of("1", "2"));
-        assertCacheState(0, 2);
-
-        // Since now is resolved to different value each time, this means no cache entry can be reused
-        Thread.sleep(100);
-        assertSearchResponse(adminClient.performRequest(searchRequest), Set.of("1", "2"));
-        assertCacheState(0, 3);
+        assertSearchResponse(client.performRequest(searchRequest), Set.of("1"));
+        // Cache should not be used since DLS query uses stored script
+        assertCacheState(0, 0);
     }
 
     @SuppressWarnings("unchecked")

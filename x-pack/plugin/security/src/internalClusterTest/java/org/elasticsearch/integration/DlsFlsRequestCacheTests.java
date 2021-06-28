@@ -13,8 +13,10 @@ import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.mustache.MustachePlugin;
@@ -61,6 +63,7 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
     private static final String DLS_TEMPLATE_ROLE_QUERY_USER_2 = "dls_template_role_query_user_2";
     private static final String DLS_TEMPLATE_ROLE_QUERY_ROLE = "dls_template_role_query_role";
     private static final String DLS_TEMPLATE_ROLE_QUERY_INDEX = "dls-template-role-query-index";
+    private static final String DLS_TEMPLATE_ROLE_QUERY_ALIAS = "dls-template-role-query-alias";
 
     @Override
     protected Settings nodeSettings() {
@@ -145,7 +148,12 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
             + "    - \"dls-template-role-query-index\"\n"
             + "    privileges:\n"
             + "    - \"read\"\n"
-            + "    query: {\"template\":{\"source\":{\"match\":{\"username\":\"{{_user.username}}\"}}}}\n";
+            + "    query: {\"template\":{\"source\":{\"match\":{\"username\":\"{{_user.username}}\"}}}}\n"
+            + "  - names:\n"
+            + "    - \"dls-template-role-query-alias\"\n"
+            + "    privileges:\n"
+            + "    - \"read\"\n"
+            + "    query: {\"template\":{\"id\":\"my-script\"}}\n";
     }
 
     @Override
@@ -304,10 +312,21 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         assertSearchResponse(client2.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_INDEX).setRequestCache(true).get(),
             Set.of("2"), Set.of("username"));
         assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
+
+        // Since the DLS for the alias uses a stored script, this should cause the request cached to be disabled
+        assertSearchResponse(client1.prepareSearch(DLS_TEMPLATE_ROLE_QUERY_ALIAS).setRequestCache(true).get(),
+            Set.of("1"), Set.of("username"));
+        // No cache should be used
+        assertCacheState(DLS_TEMPLATE_ROLE_QUERY_INDEX, 2, 2);
     }
 
     private void prepareIndices() {
         final Client client = client();
+
+        assertAcked(client.admin().cluster().preparePutStoredScript().setId("my-script")
+            .setContent(new BytesArray("{\"script\":{\"source\":" +
+                "\"{\\\"match\\\":{\\\"username\\\":\\\"{{_user.username}}\\\"}}\",\"lang\":\"mustache\"}}"), XContentType.JSON)
+            .get());
 
         assertAcked(client.admin().indices().prepareCreate(DLS_INDEX).addAlias(new Alias("dls-alias")).get());
         client.prepareIndex(DLS_INDEX).setId("101").setSource("number", 101, "letter", "A").get();
@@ -325,7 +344,8 @@ public class DlsFlsRequestCacheTests extends SecuritySingleNodeTestCase {
         client.prepareIndex(INDEX).setId("1").setSource("number", 1, "letter", "a", "private", "sesame_1", "public", "door_1").get();
         client.prepareIndex(INDEX).setId("2").setSource("number", 2, "letter", "b", "private", "sesame_2", "public", "door_2").get();
 
-        assertAcked(client.admin().indices().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX).get());
+        assertAcked(client.admin().indices().prepareCreate(DLS_TEMPLATE_ROLE_QUERY_INDEX)
+            .addAlias(new Alias(DLS_TEMPLATE_ROLE_QUERY_ALIAS)).get());
         client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("1").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_1).get();
         client.prepareIndex(DLS_TEMPLATE_ROLE_QUERY_INDEX).setId("2").setSource("username", DLS_TEMPLATE_ROLE_QUERY_USER_2).get();
 

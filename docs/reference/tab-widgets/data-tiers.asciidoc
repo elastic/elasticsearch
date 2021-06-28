@@ -44,7 +44,7 @@ assign other nodes to more than one tier.
 
 [source,yaml]
 ----
-node.roles: [ data_hot, data_content ]
+node.roles: [ data_content, data_hot, data_warm ]
 ----
 
 Assign your nodes any other roles needed for your cluster. For example, a small

@@ -119,6 +119,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
+    private final ClusterService clusterService;
 
 
     public AsyncTaskIndexService(String index,
@@ -137,6 +138,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.registry = registry;
         this.reader = reader;
         this.bigArrays = bigArrays;
+        this.clusterService = clusterService;
     }
 
     /**
@@ -496,8 +498,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(os);
-        Version.writeVersion(Version.CURRENT, out);
+        out.setVersion(minNodeVersion);
+        Version.writeVersion(minNodeVersion, out);
         response.writeTo(out);
     }
 
@@ -508,7 +512,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         // TODO: Integrate with the circuit breaker
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                in.setVersion(Version.readVersion(in));
+                final Version version = Version.readVersion(in);
+                assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
+                in.setVersion(version);
                 return reader.read(in);
             }
         }

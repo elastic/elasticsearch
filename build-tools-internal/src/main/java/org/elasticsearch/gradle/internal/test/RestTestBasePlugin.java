@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.internal.test;
 
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
+import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
@@ -24,7 +25,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(TestClustersPlugin.class);
+        project.getPluginManager().apply(InternalTestClustersPlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")

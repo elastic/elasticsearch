@@ -21,8 +21,14 @@ public abstract class EqlDateNanosSpecTestCase extends BaseEqlSpecTestCase {
         return asArray(EqlSpecLoader.load("/test_queries_date_nanos.toml", new HashSet<>()));
     }
 
+    // constructor for "local" rest tests
     public EqlDateNanosSpecTestCase(String query, String name, long[] eventIds) {
-        super(DATE_NANOS_INDEX, query, name, eventIds);
+        this(DATE_NANOS_INDEX, query, name, eventIds);
+    }
+
+    // constructor for multi-cluster tests
+    public EqlDateNanosSpecTestCase(String index, String query, String name, long[] eventIds) {
+        super(index, query, name, eventIds);
     }
 
     @Override

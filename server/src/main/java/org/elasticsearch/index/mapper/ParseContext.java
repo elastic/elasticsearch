@@ -9,8 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexSettings;
@@ -21,7 +19,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -29,121 +26,6 @@ import java.util.Set;
 import java.util.function.Function;
 
 public abstract class ParseContext {
-
-    /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
-    public static class Document implements Iterable<IndexableField> {
-
-        private final Document parent;
-        private final String path;
-        private final String prefix;
-        private final List<IndexableField> fields;
-        private Map<Object, IndexableField> keyedFields;
-
-        private Document(String path, Document parent) {
-            fields = new ArrayList<>();
-            this.path = path;
-            this.prefix = path.isEmpty() ? "" : path + ".";
-            this.parent = parent;
-        }
-
-        public Document() {
-            this("", null);
-        }
-
-        /**
-         * Return the path associated with this document.
-         */
-        public String getPath() {
-            return path;
-        }
-
-        /**
-         * Return a prefix that all fields in this document should have.
-         */
-        public String getPrefix() {
-            return prefix;
-        }
-
-        /**
-         * Return the parent document, or null if this is the root document.
-         */
-        public Document getParent() {
-            return parent;
-        }
-
-        @Override
-        public Iterator<IndexableField> iterator() {
-            return fields.iterator();
-        }
-
-        public List<IndexableField> getFields() {
-            return fields;
-        }
-
-        public void addAll(List<? extends IndexableField> fields) {
-            this.fields.addAll(fields);
-        }
-
-        public void add(IndexableField field) {
-            // either a meta fields or starts with the prefix
-            assert field.name().startsWith("_") || field.name().startsWith(prefix) : field.name() + " " + prefix;
-            fields.add(field);
-        }
-
-        /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
-        public void addWithKey(Object key, IndexableField field) {
-            if (keyedFields == null) {
-                keyedFields = new HashMap<>();
-            } else if (keyedFields.containsKey(key)) {
-                throw new IllegalStateException("Only one field can be stored per key");
-            }
-            keyedFields.put(key, field);
-            add(field);
-        }
-
-        /** Get back fields that have been previously added with {@link #addWithKey(Object, IndexableField)}. */
-        public IndexableField getByKey(Object key) {
-            return keyedFields == null ? null : keyedFields.get(key);
-        }
-
-        public IndexableField[] getFields(String name) {
-            List<IndexableField> f = new ArrayList<>();
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    f.add(field);
-                }
-            }
-            return f.toArray(new IndexableField[f.size()]);
-        }
-
-        public IndexableField getField(String name) {
-            for (IndexableField field : fields) {
-                if (field.name().equals(name)) {
-                    return field;
-                }
-            }
-            return null;
-        }
-
-        public String get(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.stringValue() != null) {
-                    return f.stringValue();
-                }
-            }
-            return null;
-        }
-
-        public BytesRef getBinaryValue(String name) {
-            for (IndexableField f : fields) {
-                if (f.name().equals(name) && f.binaryValue() != null) {
-                    return f.binaryValue();
-                }
-            }
-            return null;
-        }
-
-    }
 
     private static class FilterParseContext extends ParseContext {
 
@@ -159,7 +41,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Iterable<Document> nonRootDocuments() {
+        public Iterable<LuceneDocument> nonRootDocuments() {
             return in.nonRootDocuments();
         }
 
@@ -199,17 +81,17 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Document rootDoc() {
+        public LuceneDocument rootDoc() {
             return in.rootDoc();
         }
 
         @Override
-        public Document doc() {
+        public LuceneDocument doc() {
             return in.doc();
         }
 
         @Override
-        protected void addDoc(Document doc) {
+        protected void addDoc(LuceneDocument doc) {
             in.addDoc(doc);
         }
 
@@ -301,8 +183,8 @@ public abstract class ParseContext {
         private final Function<DateFormatter, MappingParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
-        private final Document document;
-        private final List<Document> documents = new ArrayList<>();
+        private final LuceneDocument document;
+        private final List<LuceneDocument> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
         private final List<Mapper> dynamicMappers = new ArrayList<>();
@@ -327,7 +209,7 @@ public abstract class ParseContext {
             this.indexAnalyzers = indexAnalyzers;
             this.parserContextFunction = parserContext;
             this.parser = parser;
-            this.document = new Document();
+            this.document = new LuceneDocument();
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
@@ -361,21 +243,21 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Document rootDoc() {
+        public LuceneDocument rootDoc() {
             return documents.get(0);
         }
 
-        List<Document> docs() {
+        List<LuceneDocument> docs() {
             return this.documents;
         }
 
         @Override
-        public Document doc() {
+        public LuceneDocument doc() {
             return this.document;
         }
 
         @Override
-        protected void addDoc(Document doc) {
+        protected void addDoc(LuceneDocument doc) {
             numNestedDocs ++;
             if (numNestedDocs > maxAllowedNumNestedDocs) {
                 throw new MapperParsingException(
@@ -463,7 +345,7 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Iterable<Document> nonRootDocuments() {
+        public Iterable<LuceneDocument> nonRootDocuments() {
             if (docsReversed) {
                 throw new IllegalStateException("documents are already reversed");
             }
@@ -474,7 +356,7 @@ public abstract class ParseContext {
             if (documents.size() > 1) {
                 docsReversed = true;
                 // We preserve the order of the children while ensuring that parents appear after them.
-                List<Document> newDocs = reorderParent(documents);
+                List<LuceneDocument> newDocs = reorderParent(documents);
                 documents.clear();
                 documents.addAll(newDocs);
             }
@@ -484,10 +366,10 @@ public abstract class ParseContext {
          * Returns a copy of the provided {@link List} where parent documents appear
          * after their children.
          */
-        private List<Document> reorderParent(List<Document> docs) {
-            List<Document> newDocs = new ArrayList<>(docs.size());
-            LinkedList<Document> parents = new LinkedList<>();
-            for (Document doc : docs) {
+        private List<LuceneDocument> reorderParent(List<LuceneDocument> docs) {
+            List<LuceneDocument> newDocs = new ArrayList<>(docs.size());
+            LinkedList<LuceneDocument> parents = new LinkedList<>();
+            for (LuceneDocument doc : docs) {
                 while (parents.peek() != doc.getParent()){
                     newDocs.add(parents.poll());
                 }
@@ -522,7 +404,7 @@ public abstract class ParseContext {
      * Returns an Iterable over all non-root documents. If there are no non-root documents
      * the iterable will return an empty iterator.
      */
-    public abstract Iterable<Document> nonRootDocuments();
+    public abstract Iterable<LuceneDocument> nonRootDocuments();
 
 
     /**
@@ -582,7 +464,7 @@ public abstract class ParseContext {
      * Return a new context that will be used within a nested document.
      */
     public final ParseContext createNestedContext(String fullPath) {
-        final Document doc = new Document(fullPath, doc());
+        final LuceneDocument doc = new LuceneDocument(fullPath, doc());
         addDoc(doc);
         return switchDoc(doc);
     }
@@ -590,10 +472,10 @@ public abstract class ParseContext {
     /**
      * Return a new context that has the provided document as the current document.
      */
-    public final ParseContext switchDoc(final Document document) {
+    public final ParseContext switchDoc(final LuceneDocument document) {
         return new FilterParseContext(this) {
             @Override
-            public Document doc() {
+            public LuceneDocument doc() {
                 return document;
             }
         };
@@ -637,11 +519,11 @@ public abstract class ParseContext {
 
     public abstract XContentParser parser();
 
-    public abstract Document rootDoc();
+    public abstract LuceneDocument rootDoc();
 
-    public abstract Document doc();
+    public abstract LuceneDocument doc();
 
-    protected abstract void addDoc(Document doc);
+    protected abstract void addDoc(LuceneDocument doc);
 
     public abstract RootObjectMapper root();
 

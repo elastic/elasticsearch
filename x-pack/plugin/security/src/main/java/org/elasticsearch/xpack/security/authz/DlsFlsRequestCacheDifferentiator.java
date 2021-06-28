@@ -14,10 +14,12 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.core.MemoizedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
 
 import java.io.IOException;
 
@@ -27,10 +29,14 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
 
     private final XPackLicenseState licenseState;
     private final SetOnce<SecurityContext> securityContextHolder;
+    private final SetOnce<ScriptService> scriptServiceReference;
 
-    public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState, SetOnce<SecurityContext> securityContextHolder) {
+    public DlsFlsRequestCacheDifferentiator(XPackLicenseState licenseState,
+                                            SetOnce<SecurityContext> securityContextReference,
+                                            SetOnce<ScriptService> scriptServiceReference) {
         this.licenseState = licenseState;
-        this.securityContextHolder = securityContextHolder;
+        this.securityContextHolder = securityContextReference;
+        this.scriptServiceReference = scriptServiceReference;
     }
 
     @Override
@@ -51,7 +57,8 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
                 logger.debug("index [{}] with field level access controls [{}] " +
                         "document level access controls [{}]. Differentiating request cache key",
                     indexName, flsEnabled, dlsEnabled);
-                indexAccessControl.buildCacheKey(out);
+                indexAccessControl.buildCacheKey(
+                    out, SecurityQueryTemplateEvaluator.wrap(securityContext.getUser(), scriptServiceReference.get()));
             }
         }
     }

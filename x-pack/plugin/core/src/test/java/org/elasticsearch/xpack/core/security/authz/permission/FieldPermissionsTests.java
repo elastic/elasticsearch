@@ -25,7 +25,7 @@ import static org.mockito.Matchers.same;
 
 public class FieldPermissionsTests extends ESTestCase {
 
-    public void testFieldPermissionsIntersection() throws IOException {
+    public void testFieldPermissionsIntersection() {
 
         final FieldPermissions fieldPermissions = FieldPermissions.DEFAULT;
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
@@ -110,7 +110,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))));
-        fieldPermissions0.buildCacheKey(out0);
+        fieldPermissions0.buildCacheKey(out0, BytesReference::utf8ToString);
 
         // Mixed definition
         final BytesStreamOutput out1 = new BytesStreamOutput();
@@ -119,7 +119,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }))))
             .limitFieldPermissions(new FieldPermissions(fieldPermissionDef(new String[] { "z*" }, new String[] { "z2" })));
-        fieldPermissions1.buildCacheKey(out1);
+        fieldPermissions1.buildCacheKey(out1, BytesReference::utf8ToString);
 
         // Another mixed definition
         final BytesStreamOutput out2 = new BytesStreamOutput();
@@ -130,7 +130,7 @@ public class FieldPermissionsTests extends ESTestCase {
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))
             )));
-        fieldPermissions2.buildCacheKey(out2);
+        fieldPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
         // Just limited by
         final BytesStreamOutput out3 = new BytesStreamOutput();
@@ -140,7 +140,7 @@ public class FieldPermissionsTests extends ESTestCase {
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })))));
-        fieldPermissions3.buildCacheKey(out3);
+        fieldPermissions3.buildCacheKey(out3, BytesReference::utf8ToString);
 
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out1.bytes())), is(false));
         assertThat(Arrays.equals(BytesReference.toBytes(out0.bytes()), BytesReference.toBytes(out2.bytes())), is(false));

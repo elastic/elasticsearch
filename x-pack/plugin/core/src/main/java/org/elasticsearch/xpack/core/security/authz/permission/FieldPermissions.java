@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
@@ -220,11 +221,11 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     @Override
-    public void buildCacheKey(StreamOutput out) throws IOException {
-        fieldPermissionsDefinition.buildCacheKey(out);
+    public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
+        fieldPermissionsDefinition.buildCacheKey(out, context);
         if (limitedByFieldPermissionsDefinition != null) {
             out.writeBoolean(true);
-            limitedByFieldPermissionsDefinition.buildCacheKey(out);
+            limitedByFieldPermissionsDefinition.buildCacheKey(out, context);
         } else {
             out.writeBoolean(false);
         }

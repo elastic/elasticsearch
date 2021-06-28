@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -56,7 +55,8 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         threadContext = new ThreadContext(Settings.EMPTY);
         out = new BytesStreamOutput();
         final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, threadContext);
-        differentiator = new DlsFlsRequestCacheDifferentiator(licenseState, new SetOnce<>(securityContext));
+        differentiator = new DlsFlsRequestCacheDifferentiator(
+            licenseState, new SetOnce<>(securityContext), new SetOnce<>(mock(ScriptService.class)));
         shardSearchRequest = mock(ShardSearchRequest.class);
         indexName = randomAlphaOfLengthBetween(3, 8);
         dlsIndexName = "dls-" + randomAlphaOfLengthBetween(3, 8);
@@ -66,7 +66,6 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
             Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
 
-        documentPermissions1.evaluateQueries(mock(User.class), mock(ScriptService.class));
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
             new IndicesAccessControl(true,
                 Map.of(

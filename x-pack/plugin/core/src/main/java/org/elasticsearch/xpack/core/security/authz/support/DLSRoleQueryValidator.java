@@ -74,7 +74,7 @@ public final class DLSRoleQueryValidator {
         }
     }
 
-    public static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
+    private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, query.utf8ToString())) {
             return isTemplateQuery(parser);

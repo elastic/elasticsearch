@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField;
 import org.elasticsearch.xpack.core.security.authz.permission.DocumentPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 
 import java.io.IOException;
@@ -138,16 +139,16 @@ public class IndicesAccessControl {
         }
 
         @Override
-        public void buildCacheKey(StreamOutput out) throws IOException {
+        public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
             if (documentPermissions.hasDocumentLevelPermissions()) {
                 out.writeBoolean(true);
-                documentPermissions.buildCacheKey(out);
+                documentPermissions.buildCacheKey(out, context);
             } else {
                 out.writeBoolean(false);
             }
             if (fieldPermissions.hasFieldLevelSecurity()) {
                 out.writeBoolean(true);
-                fieldPermissions.buildCacheKey(out);
+                fieldPermissions.buildCacheKey(out, context);
             } else {
                 out.writeBoolean(false);
             }

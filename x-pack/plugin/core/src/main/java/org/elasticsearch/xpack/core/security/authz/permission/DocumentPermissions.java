@@ -24,6 +24,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator;
+import org.elasticsearch.xpack.core.security.authz.support.SecurityQueryTemplateEvaluator.DlsQueryEvaluationContext;
 import org.elasticsearch.xpack.core.security.support.CacheKey;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -120,7 +121,7 @@ public final class DocumentPermissions implements CacheKey {
     public BooleanQuery filter(User user, ScriptService scriptService, ShardId shardId,
                                Function<ShardId, SearchExecutionContext> searchExecutionContextProvider) throws IOException {
         if (hasDocumentLevelPermissions()) {
-            evaluateQueries(user, scriptService);
+            evaluateQueries(SecurityQueryTemplateEvaluator.wrap(user, scriptService));
             BooleanQuery.Builder filter;
             if (evaluatedQueries != null && evaluatedLimitedByQueries != null) {
                 filter = new BooleanQuery.Builder();
@@ -144,16 +145,12 @@ public final class DocumentPermissions implements CacheKey {
         return null;
     }
 
-    public void evaluateQueries(User user, ScriptService scriptService) {
-        if (queries != null) {
-            evaluatedQueries = queries.stream()
-                .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
-                .collect(Collectors.toUnmodifiableList());
+    private void evaluateQueries(DlsQueryEvaluationContext context) {
+        if (queries != null && evaluatedQueries == null) {
+            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
         }
-        if (limitedByQueries != null) {
-            evaluatedLimitedByQueries = limitedByQueries.stream()
-                .map(q -> SecurityQueryTemplateEvaluator.evaluateTemplate(q.utf8ToString(), scriptService, user))
-                .collect(Collectors.toUnmodifiableList());
+        if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
         }
     }
 
@@ -251,17 +248,16 @@ public final class DocumentPermissions implements CacheKey {
     }
 
     @Override
-    public void buildCacheKey(StreamOutput out) throws IOException {
+    public void buildCacheKey(StreamOutput out, DlsQueryEvaluationContext context) throws IOException {
         assert false == (queries == null && limitedByQueries == null) : "one of queries and limited-by queries must be non-null";
-        if (queries != null) {
-            assert evaluatedQueries != null : "queries are not evaluated";
+        evaluateQueries(context);
+        if (evaluatedQueries != null) {
             out.writeBoolean(true);
             out.writeCollection(evaluatedQueries, StreamOutput::writeString);
         } else {
             out.writeBoolean(false);
         }
-        if (limitedByQueries != null) {
-            assert evaluatedLimitedByQueries != null : "limited-by queries are not evaluated";
+        if (evaluatedLimitedByQueries != null) {
             out.writeBoolean(true);
             out.writeCollection(evaluatedLimitedByQueries, StreamOutput::writeString);
         } else {

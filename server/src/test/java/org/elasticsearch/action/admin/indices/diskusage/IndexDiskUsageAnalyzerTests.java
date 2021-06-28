@@ -65,7 +65,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class IndexDiskUsageAnalyzerTests extends ESTestCase {
 
-    public void testStoreFields() throws Exception {
+    public void testStoredFields() throws Exception {
         try (Directory dir = newDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {

@@ -59,7 +59,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `run_expensive_tasks`::
 (Required, Boolean) Analyzing field disk usage is resource-intensive. To use the
-API, this parameter must `true`. Defaults to `false`.
+API, this parameter must be set to `true`. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 

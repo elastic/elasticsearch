@@ -101,7 +101,7 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
 
     public FieldUsageStats add(FieldUsageStats other) {
         FieldUsageStats newStats = new FieldUsageStats(stats);
-        other.stats.forEach((k, v) -> newStats.stats.merge(k, PerFieldUsageStats.EMPTY, PerFieldUsageStats::add));
+        other.stats.forEach((k, v) -> newStats.stats.merge(k, v, PerFieldUsageStats::add));
         return newStats;
     }
 

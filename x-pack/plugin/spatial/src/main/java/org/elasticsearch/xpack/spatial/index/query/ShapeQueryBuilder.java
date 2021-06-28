@@ -18,8 +18,8 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractGeometryQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.spatial.index.mapper.ShapeQueryable;
 
 import java.io.IOException;

@@ -6,6 +6,7 @@ setup:
       features:
         - "headers"
         - "warnings"
+        - "allowed_warnings_regex"
 
 ---
 "Test geo_shape with type":
@@ -13,8 +14,8 @@ setup:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      warnings:
-        - "Deprecated field [template] used, replaced by [index_patterns]"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
       indices.create:
         index: shapes
         include_type_name: true
@@ -30,8 +31,8 @@ setup:
       headers:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
-      warnings:
-        - "Deprecated field [template] used, replaced by [index_patterns]"
+      allowed_warnings_regex:
+        - "\\[types removal\\].*"
       index:
         index:  shapes
         type:   _doc
@@ -49,11 +50,10 @@ setup:
         Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
         Accept: "application/vnd.elasticsearch+json;compatible-with=7"
       warnings:
-        - "Deprecated field [template] used, replaced by [index_patterns]"
+        - "[types removal] Types are deprecated in [geo_shape] queries. The type should no longer be specified in the [indexed_shape] section."
       search:
         rest_total_hits_as_int: true
         index: shapes
-        type: _doc
         size: 0
         body:
           query:
@@ -66,6 +66,5 @@ setup:
                         type: "_doc"
                         id: "deu"
                         path: "location"
-                field: location
 
   - match: {hits.total:      1    }

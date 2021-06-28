@@ -9,17 +9,15 @@
 package org.elasticsearch.action.admin.indices.stats;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
+import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,14 +30,12 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class TransportFieldUsageAction extends TransportBroadcastAction<FieldUsageStatsRequest, FieldUsageStatsResponse,
-    FieldUsageShardRequest, FieldUsageShardResponse> {
+public class TransportFieldUsageAction extends TransportBroadcastByNodeAction<FieldUsageStatsRequest, FieldUsageStatsResponse,
+    FieldUsageShardResponse> {
 
     private final IndicesService indicesService;
 
@@ -49,54 +45,26 @@ public class TransportFieldUsageAction extends TransportBroadcastAction<FieldUsa
                                      IndicesService indexServices, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver) {
         super(FieldUsageStatsAction.NAME, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-            FieldUsageStatsRequest::new, FieldUsageShardRequest::new, ThreadPool.Names.SAME);
+            FieldUsageStatsRequest::new, ThreadPool.Names.SAME);
         this.indicesService = indexServices;
     }
 
     @Override
-    protected void doExecute(Task task, FieldUsageStatsRequest request, ActionListener<FieldUsageStatsResponse> listener) {
-        super.doExecute(task, request, listener);
-    }
-
-    @Override
-    protected FieldUsageShardRequest newShardRequest(int numShards, ShardRouting shard, FieldUsageStatsRequest request) {
-        return new FieldUsageShardRequest(shard.shardId(), request);
-    }
-
-    @Override
-    protected FieldUsageShardResponse readShardResponse(StreamInput in) throws IOException {
+    protected FieldUsageShardResponse readShardResult(StreamInput in) throws IOException {
         return new FieldUsageShardResponse(in);
     }
 
     @Override
-    protected FieldUsageShardResponse shardOperation(FieldUsageShardRequest request, Task task) throws IOException {
-        final ShardId shardId = request.shardId();
-        final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        return new FieldUsageShardResponse(shardId, shard.fieldUsageStats(request.fields()));
-    }
-
-    @Override
-    protected FieldUsageStatsResponse newResponse(FieldUsageStatsRequest request,
-                                                  AtomicReferenceArray<?> shardsResponses,
+    protected FieldUsageStatsResponse newResponse(FieldUsageStatsRequest request, int totalShards, int successfulShards, int failedShards,
+                                                  List<FieldUsageShardResponse> fieldUsages,
+                                                  List<DefaultShardOperationFailedException> shardFailures,
                                                   ClusterState clusterState) {
-        int successfulShards = 0;
-        final List<DefaultShardOperationFailedException> shardFailures = new ArrayList<>();
         final Map<String, FieldUsageStats> combined = new HashMap<>();
-        for (int i = 0; i < shardsResponses.length(); i++) {
-            final Object r = shardsResponses.get(i);
-            if (r instanceof FieldUsageShardResponse) {
-                ++successfulShards;
-                FieldUsageShardResponse resp = (FieldUsageShardResponse) r;
-                combined.merge(resp.getIndex(), resp.stats, FieldUsageStats::add);
-            } else if (r instanceof DefaultShardOperationFailedException) {
-                shardFailures.add((DefaultShardOperationFailedException) r);
-            } else {
-                assert false : "unknown response [" + r + "]";
-                throw new IllegalStateException("unknown response [" + r + "]");
-            }
+        for (FieldUsageShardResponse response : fieldUsages) {
+            combined.merge(response.routing.shardId().getIndexName(), response.stats, FieldUsageStats::add);
         }
         return new FieldUsageStatsResponse(
-            shardsResponses.length(),
+            totalShards,
             successfulShards,
             shardFailures.size(),
             shardFailures,
@@ -104,19 +72,23 @@ public class TransportFieldUsageAction extends TransportBroadcastAction<FieldUsa
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(ClusterState clusterState,
-                                                        FieldUsageStatsRequest request,
-                                                        String[] concreteIndices) {
-        final GroupShardsIterator<ShardIterator> groups = clusterService
-            .operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
-        for (ShardIterator group : groups) {
-            // fails fast if any non-active groups
-            if (group.size() == 0) {
-                throw new NoShardAvailableActionException(group.shardId());
-            }
-        }
-        return groups;
+    protected FieldUsageStatsRequest readRequestFrom(StreamInput in) throws IOException {
+        return new FieldUsageStatsRequest(in);
+    }
+
+    @Override
+    protected void shardOperation(FieldUsageStatsRequest request, ShardRouting shardRouting, Task task,
+                                  ActionListener<FieldUsageShardResponse> listener) {
+        ActionListener.completeWith(listener, () -> {
+            final ShardId shardId = shardRouting.shardId();
+            final IndexShard shard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
+            return new FieldUsageShardResponse(shardRouting, shard.fieldUsageStats(request.fields()));
+        });
+    }
+
+    @Override
+    protected ShardsIterator shards(ClusterState clusterState, FieldUsageStatsRequest request, String[] concreteIndices) {
+        return clusterState.routingTable().allActiveShards(concreteIndices);
     }
 
     @Override

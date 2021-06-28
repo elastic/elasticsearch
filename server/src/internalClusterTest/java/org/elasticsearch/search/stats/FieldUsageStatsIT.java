@@ -11,13 +11,16 @@ package org.elasticsearch.search.stats;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsAction;
 import org.elasticsearch.action.admin.indices.stats.FieldUsageStatsRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.stats.FieldUsageStats;
 import org.elasticsearch.index.search.stats.FieldUsageStats.UsageContext;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -27,24 +30,32 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
-public class FieldUsageStatsIT extends ESSingleNodeTestCase {
+public class FieldUsageStatsIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings() {
-        return Settings.builder().put("search.aggs.rewrite_to_filter_by_filter", false).build();
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("search.aggs.rewrite_to_filter_by_filter", false)
+            .build();
     }
 
     public void testFieldUsageStats() throws ExecutionException, InterruptedException {
-        int numShards = 2;
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        int numShards = randomIntBetween(1, 2);
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder()
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
-            .put(SETTING_NUMBER_OF_REPLICAS, 0)));
+            .put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        for (int i = 1; i < 10; i++) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+        LocalDate date = LocalDate.of(2015, 9, 1);
+
+        for (int i = 0; i < 30; i++) {
             client().prepareIndex("test").setId(Integer.toString(i)).setSource(
-                "field", "value", "field2", "value2", "date_field", "2015/09/0" + i).get();
+                "field", "value", "field2", "value2", "date_field", formatter.format(date.plusDays(i))).get();
         }
         client().admin().indices().prepareRefresh("test").get();
+
+        ensureGreen("test");
 
         FieldUsageStats stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
 
@@ -54,12 +65,14 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertFalse(stats.hasField("date_field"));
 
         SearchResponse searchResponse = client().prepareSearch()
+            .setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
             .setSize(100)
+            .setPreference("fixed")
             .get();
-        assertHitCount(searchResponse, 9);
+        assertHitCount(searchResponse, 30);
         assertAllSuccessful(searchResponse);
 
         stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
@@ -88,9 +101,11 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertEquals(1L * numShards, stats.get("field.keyword").getDocValues());
 
         client().prepareSearch()
+            .setSearchType(SearchType.DEFAULT)
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
-            .setSize(100)
+            .setSize(0)
+            .setPreference("fixed")
             .get();
 
         stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");
@@ -106,9 +121,11 @@ public class FieldUsageStatsIT extends ESSingleNodeTestCase {
         assertEquals(2L * numShards, client().admin().indices().prepareStats("test").clear().setSearch(true).get()
             .getIndex("test").getTotal().getSearch().getTotal().getQueryCount());
         client().prepareSearch()
+            .setSearchType(SearchType.DEFAULT)
             .setPreFilterShardSize(1)
             .setQuery(QueryBuilders.rangeQuery("date_field").from("2016/01/01"))
             .setSize(100)
+            .setPreference("fixed")
             .get();
 
         stats = client().execute(FieldUsageStatsAction.INSTANCE, new FieldUsageStatsRequest()).get().getStats().get("test");

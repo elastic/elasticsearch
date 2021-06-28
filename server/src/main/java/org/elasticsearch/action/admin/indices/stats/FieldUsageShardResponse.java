@@ -8,32 +8,34 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.search.stats.FieldUsageStats;
-import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class FieldUsageShardResponse extends BroadcastShardResponse {
+public class FieldUsageShardResponse implements Writeable {
+
+    final ShardRouting routing;
 
     final FieldUsageStats stats;
 
     FieldUsageShardResponse(StreamInput in) throws IOException {
-        super(in);
+        routing = new ShardRouting(in);
         stats = new FieldUsageStats(in);
     }
 
-    FieldUsageShardResponse(ShardId shardId, FieldUsageStats stats) {
-        super(shardId);
+    FieldUsageShardResponse(ShardRouting routing, FieldUsageStats stats) {
+        this.routing = Objects.requireNonNull(routing, "routing must be non null");
         this.stats = Objects.requireNonNull(stats, "stats must be non null");
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        routing.writeTo(out);
         stats.writeTo(out);
     }
 }

@@ -42,7 +42,7 @@ public class MigrateToDataTiersResponseTests extends AbstractWireSerializingTest
                     randomList(6, 10, () -> randomAlphaOfLengthBetween(5, 50)), instance.isDryRun());
             case 3:
                 return new MigrateToDataTiersResponse(instance.getRemovedIndexTemplateName(), instance.getMigratedPolicies(),
-                    instance.getMigratedIndices(), !instance.isDryRun());
+                    instance.getMigratedIndices(), instance.isDryRun() ? false : true);
             default:
                 throw new UnsupportedOperationException();
         }

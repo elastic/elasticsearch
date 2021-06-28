@@ -185,7 +185,7 @@ GET /%3Clogstash-%7Bnow%2Fd-2d%7D%3E%2C%3Clogstash-%7Bnow%2Fd-1d%7D%3E%2C%3Clogs
 include::rest-api/cron-expressions.asciidoc[]
 
 [discrete]
-[[api-url- access-control]]
+[[api-url-access-control]]
 === URL-based access control
 
 Many users use a proxy with URL-based access control to secure access to

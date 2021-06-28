@@ -6,11 +6,11 @@
  */
 package org.elasticsearch.xpack.datastreams.rest;
 
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 
 import java.io.IOException;
 import java.util.List;

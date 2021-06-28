@@ -8,12 +8,12 @@ package org.elasticsearch.xpack.runtimefields.test;
 
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;

@@ -203,6 +203,17 @@ public class DotExpanderProcessorTests extends ESTestCase {
         assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("foo.bar", Map.class).size(), equalTo(1));
         assertThat(document.getFieldValue("foo.bar.baz", String.class), equalTo("qux"));
+
+        source = new HashMap<>();
+        inner = new HashMap<>();
+        inner.put("bar.baz", "qux");
+        source.put("foo", inner);
+        document = new IngestDocument(source, Map.of());
+        processor = new DotExpanderProcessor("_tag", null, null, "*");
+        processor.execute(document);
+        assertThat(document.getFieldValue("foo", Map.class).size(), equalTo(1));
+        IngestDocument finalDocument = document;
+        expectThrows(IllegalArgumentException.class, () -> finalDocument.getFieldValue("foo.bar", Map.class));
     }
 
 }

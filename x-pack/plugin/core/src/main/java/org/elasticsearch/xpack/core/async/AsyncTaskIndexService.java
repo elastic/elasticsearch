@@ -501,7 +501,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         final InputStream encodedIn = Base64.getDecoder().wrap(new InputStream() {
             @Override
             public int read() {
-                return encodedBuffer.get();
+                if (encodedBuffer.hasRemaining()) {
+                    return encodedBuffer.get();
+                } else {
+                    return -1; // end of stream
+                }
             }
         });
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {

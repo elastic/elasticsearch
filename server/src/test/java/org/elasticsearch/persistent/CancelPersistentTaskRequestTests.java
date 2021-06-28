@@ -11,13 +11,13 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.RemovePersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiLettersOfLength;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 
-public class RemovePersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class CancelPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAsciiLettersOfLength(10));
+        return new Request(randomAsciiOfLength(10));
     }
 
     @Override

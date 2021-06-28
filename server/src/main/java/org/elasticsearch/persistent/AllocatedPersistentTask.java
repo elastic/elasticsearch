@@ -57,20 +57,6 @@ public class AllocatedPersistentTask extends CancellableTask {
         persistentTasksService.sendUpdateStateRequest(persistentTaskId, allocationId, state, listener);
     }
 
-    /**
-     * Unassign the corresponding persistent task from its current node.
-     * <p>
-     * This will trigger an attempt to reassign the task. If there is nothing
-     * in the task assignment logic to prevent it being assigned back to the
-     * same node then this may happen. It is expected that callers will have
-     * done something that will prevent the task assignment logic immediately
-     * reassigning the task back to the same node.
-     */
-    public void unassign(final String reason,
-                         final ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>> listener) {
-        persistentTasksService.sendUnassignRequest(persistentTaskId, allocationId, reason, listener);
-    }
-
     public String getPersistentTaskId() {
         return persistentTaskId;
     }

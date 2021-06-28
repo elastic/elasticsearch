@@ -72,7 +72,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
         persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
-        waitForTaskToStart();
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
+                    .getTasks().size(), equalTo(1));
+        });
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
         logger.info("Found running task with id {} and parent {}", firstRunningTask.getId(), firstRunningTask.getParentTaskId());
@@ -99,7 +103,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         String taskId = UUIDs.base64UUID();
         persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
         long allocationId = future.get().getAllocationId();
-        waitForTaskToStart();
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
+                    .getTasks().size(), equalTo(1));
+        });
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .setDetailed(true).get().getTasks().get(0);
         logger.info("Found running task with id {} and parent {}", firstRunningTask.getId(), firstRunningTask.getParentTaskId());
@@ -252,7 +260,11 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         persistentTasksService.sendStartRequest(taskId, TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future2);
         assertFutureThrows(future2, ResourceAlreadyExistsException.class);
 
-        waitForTaskToStart();
+        assertBusy(() -> {
+            // Wait for the task to start
+            assertThat(client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
+                    .getTasks().size(), equalTo(1));
+        });
 
         TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
                 .get().getTasks().get(0);
@@ -270,7 +282,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         });
     }
 
-    public void testUnassignRunningPersistentTaskViaClusterService() throws Exception {
+    public void testUnassignRunningPersistentTask() throws Exception {
         PersistentTasksClusterService persistentTasksClusterService =
             internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
         // Speed up rechecks to a rate that is quicker than what settings would allow
@@ -291,7 +303,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         PlainActionFuture<PersistentTask<?>> unassignmentFuture = new PlainActionFuture<>();
 
-        // Disallow re-assignment after it is unassigned to verify master and node state
+        // Disallow re-assignment after it is unallocated to verify master and node state
         TestPersistentTasksExecutor.setNonClusterStateCondition(false);
 
         persistentTasksClusterService.unassignPersistentTask(taskId,
@@ -314,54 +326,6 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
         });
 
         // Allow it to be reassigned again to the same node
-        TestPersistentTasksExecutor.setNonClusterStateCondition(true);
-
-        // Verify it starts again
-        waitForTaskToStart();
-
-        assertClusterStateHasTask(taskId);
-
-        // Complete or cancel the running task
-        TaskInfo taskInfo = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-            .get().getTasks().get(0);
-        stopOrCancelTask(taskInfo.getTaskId());
-    }
-
-    public void testUnassignViaAllocatedTask() throws Exception {
-        PersistentTasksClusterService persistentTasksClusterService =
-            internalCluster().getInstance(PersistentTasksClusterService.class, internalCluster().getMasterName());
-        // Speed up rechecks to a rate that is quicker than what settings would allow
-        persistentTasksClusterService.setRecheckInterval(TimeValue.timeValueMillis(1));
-        PersistentTasksService persistentTasksService = internalCluster().getInstance(PersistentTasksService.class);
-        PlainActionFuture<PersistentTask<TestParams>> future = new PlainActionFuture<>();
-        persistentTasksService.sendStartRequest(UUIDs.base64UUID(), TestPersistentTasksExecutor.NAME, new TestParams("Blah"), future);
-        String taskId = future.get().getId();
-        long allocationId = future.get().getAllocationId();
-        waitForTaskToStart();
-        TaskInfo firstRunningTask = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]")
-            .get().getTasks().get(0);
-
-        // Disallow re-assignment after it is unassigned to verify master and node state
-        TestPersistentTasksExecutor.setNonClusterStateCondition(false);
-
-        // Verifying parent
-        assertThat(firstRunningTask.getParentTaskId().getId(), equalTo(allocationId));
-        assertThat(firstRunningTask.getParentTaskId().getNodeId(), equalTo("cluster"));
-
-        assertThat(new TestTasksRequestBuilder(client()).setOperation("unassign").setTaskId(firstRunningTask.getTaskId())
-            .get().getTasks().size(), equalTo(1));
-
-        assertBusy(() -> {
-            // Verify that the task is NOT running on any node
-            List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get()
-                .getTasks();
-            assertThat(tasks.size(), equalTo(0));
-
-            // Verify that the task is STILL in internal cluster state
-            assertClusterStateHasTask(taskId);
-        });
-
-        // Allow it to be reassigned again
         TestPersistentTasksExecutor.setNonClusterStateCondition(true);
 
         // Verify it starts again

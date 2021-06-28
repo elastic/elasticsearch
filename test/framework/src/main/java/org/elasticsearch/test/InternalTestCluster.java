@@ -142,6 +142,7 @@ import static org.elasticsearch.discovery.DiscoveryModule.ZEN2_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
@@ -440,8 +441,15 @@ public final class InternalTestCluster extends TestCluster {
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = Settings.builder();
-        builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
-        builder.put(TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA.getKey(), random.nextBoolean());
+        if (randomBoolean()) {
+            builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.FALSE);
+        } else {
+            if (rarely(random)) {
+                builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE);
+            } else {
+                builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.INDEXING_DATA);
+            }
+        }
         if (random.nextBoolean()) {
             builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), Compression.Scheme.DEFLATE);
         } else {

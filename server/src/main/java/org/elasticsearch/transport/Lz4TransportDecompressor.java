@@ -166,7 +166,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         int bytesConsumed = 0;
         if (hasSkippedESHeader == false) {
             hasSkippedESHeader = true;
-            int esHeaderLength = Compression.HEADER_LENGTH;
+            int esHeaderLength = Compression.Scheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(esHeaderLength, bytesReference.length() - esHeaderLength);
             bytesConsumed += esHeaderLength;
         }

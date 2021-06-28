@@ -171,7 +171,7 @@ public class MockNioTransport extends TcpTransport {
         builder.setConnectTimeout(connectionProfile.getConnectTimeout());
         builder.setPingInterval(connectionProfile.getPingInterval());
         builder.setCompressionEnabled(connectionProfile.getCompressionEnabled());
-        builder.setIndexingDataCompressionEnabled(connectionProfile.getIndexingDataCompressionEnabled());
+        builder.setCompressionScheme(connectionProfile.getCompressionScheme());
         return builder.build();
     }
 

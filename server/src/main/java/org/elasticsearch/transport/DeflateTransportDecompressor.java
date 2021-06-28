@@ -40,7 +40,7 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
         int bytesConsumed = 0;
         if (hasSkippedHeader == false) {
             hasSkippedHeader = true;
-            int headerLength = Compression.HEADER_LENGTH;
+            int headerLength = Compression.Scheme.HEADER_LENGTH;
             bytesReference = bytesReference.slice(headerLength, bytesReference.length() - headerLength);
             bytesConsumed += headerLength;
         }

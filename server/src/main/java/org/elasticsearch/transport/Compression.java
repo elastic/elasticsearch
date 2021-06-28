@@ -23,32 +23,38 @@ public class Compression {
     public enum Scheme {
         LZ4,
         DEFLATE;
-    }
+        // TODO: Change after backport
+        static final Version LZ4_VERSION = Version.V_8_0_0;
+        static final byte[] DEFLATE_HEADER = DeflateCompressor.HEADER;
+        static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
+        static final int HEADER_LENGTH = 4;
+        private static final int LZ4_BLOCK_SIZE;
 
-    // TODO: Change after backport
-    static final Version LZ4_VERSION = Version.V_8_0_0;
-    static final byte[] DEFLATE_HEADER = DeflateCompressor.HEADER;
-    static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
-    static final int HEADER_LENGTH = 4;
-    static final int LZ4_BLOCK_SIZE;
-
-    static {
-        String blockSizeString = System.getProperty("es.transport.compression.lz4_block_size");
-        if (blockSizeString != null) {
-            int lz4BlockSize = Integer.parseInt(blockSizeString);
-            if (lz4BlockSize < 1024 || lz4BlockSize > (512 * 1024)) {
-                throw new IllegalArgumentException("lz4_block_size must be >= 1KB and <= 512KB");
+        static {
+            String blockSizeString = System.getProperty("es.transport.compression.lz4_block_size");
+            if (blockSizeString != null) {
+                int lz4BlockSize = Integer.parseInt(blockSizeString);
+                if (lz4BlockSize < 1024 || lz4BlockSize > (512 * 1024)) {
+                    throw new IllegalArgumentException("lz4_block_size must be >= 1KB and <= 512KB");
+                }
+                LZ4_BLOCK_SIZE = lz4BlockSize;
+            } else {
+                // 16KB block size to minimize the allocation of large buffers
+                LZ4_BLOCK_SIZE = 16 * 1024;
             }
-            LZ4_BLOCK_SIZE = lz4BlockSize;
-        } else {
+        }
+
+        public static OutputStream lz4OutputStream(OutputStream outputStream) throws IOException {
+            outputStream.write(LZ4_HEADER);
             // 16KB block size to minimize the allocation of large buffers
-            LZ4_BLOCK_SIZE = 16 * 1024;
+            return new LZ4BlockOutputStream(outputStream, LZ4_BLOCK_SIZE, LZ4Factory.safeInstance().fastCompressor());
         }
     }
 
-    public static OutputStream lz4OutputStream(OutputStream outputStream) throws IOException {
-        outputStream.write(LZ4_HEADER);
-        // 16KB block size to minimize the allocation of large buffers
-        return new LZ4BlockOutputStream(outputStream, LZ4_BLOCK_SIZE, LZ4Factory.safeInstance().fastCompressor());
+    public enum Enabled {
+        TRUE,
+        INDEXING_DATA,
+        FALSE
     }
+
 }

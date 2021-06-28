@@ -50,10 +50,8 @@ public final class TransportSettings {
         intSetting("transport.publish_port", -1, -1, Setting.Property.NodeScope);
     public static final Setting.AffixSetting<Integer> PUBLISH_PORT_PROFILE = affixKeySetting("transport.profiles.", "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope));
-    public static final Setting<Boolean> TRANSPORT_COMPRESS =
-        boolSetting("transport.compress", false, Setting.Property.NodeScope);
-    public static final Setting<Boolean> TRANSPORT_COMPRESS_INDEXING_DATA =
-        boolSetting("transport.compress_indexing_data", false, Setting.Property.NodeScope);
+    public static final Setting<Compression.Enabled> TRANSPORT_COMPRESS =
+        enumSetting(Compression.Enabled.class, "transport.compress", Compression.Enabled.FALSE, Setting.Property.NodeScope);
     public static final Setting<Compression.Scheme> TRANSPORT_COMPRESSION_SCHEME =
         enumSetting(Compression.Scheme.class, "transport.compression_scheme", Compression.Scheme.DEFLATE,
             Setting.Property.NodeScope);

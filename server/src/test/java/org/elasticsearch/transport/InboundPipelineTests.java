@@ -100,7 +100,7 @@ public class InboundPipelineTests extends ESTestCase {
                     if (randomBoolean()) {
                         scheme = null;
                     } else {
-                        if (version.onOrAfter(Compression.LZ4_VERSION)) {
+                        if (version.onOrAfter(Compression.Scheme.LZ4_VERSION)) {
                             scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
                         } else {
                             scheme = Compression.Scheme.DEFLATE;

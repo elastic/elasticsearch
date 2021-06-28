@@ -556,7 +556,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 });
 
             Settings settingsWithCompress = Settings.builder()
-                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true)
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE)
                 .put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(),
                     randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4))
                 .build();
@@ -602,7 +602,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     }
                 });
 
-            Settings settingsWithCompress = Settings.builder().put(TransportSettings.TRANSPORT_COMPRESS.getKey(), true).build();
+            Settings settingsWithCompress = Settings.builder()
+                .put(TransportSettings.TRANSPORT_COMPRESS.getKey(), Compression.Enabled.TRUE)
+                .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
             connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
 

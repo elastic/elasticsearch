@@ -369,11 +369,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     Settings.Builder settingsChange = Settings.builder();
                     TimeValue pingSchedule = TimeValue.timeValueSeconds(randomIntBetween(6, 8));
                     settingsChange.put("cluster.remote.cluster_1.transport.ping_schedule", pingSchedule);
-                    boolean indexingDataOption = randomBoolean();
-                    if (indexingDataOption) {
-                        settingsChange.put("cluster.remote.cluster_1.transport.compress_indexing_data", true);
+                    boolean compressionScheme = randomBoolean();
+                    Compression.Enabled enabled = randomFrom(Compression.Enabled.TRUE, Compression.Enabled.INDEXING_DATA);
+                    if (compressionScheme) {
+                        settingsChange.put("cluster.remote.cluster_1.transport.compression_scheme", Compression.Scheme.LZ4);
                     } else {
-                        settingsChange.put("cluster.remote.cluster_1.transport.compress", true);
+                        settingsChange.put("cluster.remote.cluster_1.transport.compress", enabled);
                     }
                     settingsChange.putList("cluster.remote.cluster_1.seeds", cluster1Seed.getAddress().toString());
                     service.validateAndUpdateRemoteCluster("cluster_1", settingsChange.build());
@@ -382,12 +383,12 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     remoteClusterConnection = service.getRemoteClusterConnection("cluster_1");
                     ConnectionProfile connectionProfile = remoteClusterConnection.getConnectionManager().getConnectionProfile();
                     assertEquals(pingSchedule, connectionProfile.getPingInterval());
-                    if (indexingDataOption) {
-                        assertEquals(false, connectionProfile.getCompressionEnabled());
-                        assertEquals(true, connectionProfile.getIndexingDataCompressionEnabled());
+                    if (compressionScheme) {
+                        assertEquals(Compression.Enabled.FALSE, connectionProfile.getCompressionEnabled());
+                        assertEquals(Compression.Scheme.LZ4, connectionProfile.getCompressionScheme());
                     } else {
-                        assertEquals(true, connectionProfile.getCompressionEnabled());
-                        assertEquals(false, connectionProfile.getIndexingDataCompressionEnabled());
+                        assertEquals(enabled, connectionProfile.getCompressionEnabled());
+                        assertEquals(Compression.Scheme.DEFLATE, connectionProfile.getCompressionScheme());
                     }
                 }
             }

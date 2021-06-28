@@ -64,6 +64,6 @@ public abstract class NetworkMessage {
     }
 
     private static Compression.Scheme adjustedScheme(Version version, Compression.Scheme compressionScheme) {
-        return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.LZ4_VERSION) ? null : compressionScheme;
+        return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION) ? null : compressionScheme;
     }
 }

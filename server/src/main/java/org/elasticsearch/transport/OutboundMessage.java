@@ -91,7 +91,7 @@ abstract class OutboundMessage extends NetworkMessage {
         if (compressionScheme == Compression.Scheme.DEFLATE) {
             return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
         } else if (compressionScheme == Compression.Scheme.LZ4) {
-            return new OutputStreamStreamOutput(Compression.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+            return new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {
             throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
         }

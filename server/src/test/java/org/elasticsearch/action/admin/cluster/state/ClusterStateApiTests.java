@@ -11,7 +11,7 @@ package org.elasticsearch.action.admin.cluster.state;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.concurrent.TimeUnit;

@@ -44,32 +44,37 @@ specify this parameter, the API returns information about all buckets.
 
 `anomaly_score`::
 (Optional, double) Returns buckets with anomaly scores greater or equal than
-this value.
+this value. Defaults to `0.0`.
 
 `desc`::
-(Optional, Boolean) If true, the buckets are sorted in descending order.
+(Optional, Boolean) If true, the buckets are sorted in descending order. Defaults to `false`.
 
 `end`::
 (Optional, string) Returns buckets with timestamps earlier than this time.
+Defaults to `-1`, which means it is unset and results are not limited to 
+specific timestamps.
 
 `exclude_interim`::
 (Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 
 `expand`::
-(Optional, Boolean) If true, the output includes anomaly records.
+(Optional, Boolean) If true, the output includes anomaly records. Defaults to `false`.
 
 `page`.`from`::
-(Optional, integer) Skips the specified number of buckets.
+(Optional, integer) Skips the specified number of buckets. Defaults to `0`.
+
 `page`.`size`::
-(Optional, integer) Specifies the maximum number of buckets to obtain.
+(Optional, integer) Specifies the maximum number of buckets to obtain. Defaults to `100`.
 
 `sort`::
 (Optional, string) Specifies the sort field for the requested buckets. By
 default, the buckets are sorted by the `timestamp` field.
 
 `start`::
-(Optional, string) Returns buckets with timestamps after this time.
+(Optional, string) Returns buckets with timestamps after this time. Defaults to 
+`-1`, which means it is unset and results are not limited to specific 
+timestamps.
 
 [role="child_attributes"]
 [[ml-get-bucket-results]]

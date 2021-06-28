@@ -84,7 +84,7 @@ public class MlClassicTokenizer extends AbstractMlTokenizer {
 
         // Characters that may exist in the term attribute beyond its defined length are ignored
         termAtt.setLength(length);
-        offsetAtt.setOffset(start, start + length);
+        offsetAtt.setOffset(correctOffset(start), correctOffset(start + length));
         posIncrAtt.setPositionIncrement(skippedPositions + 1);
 
         return true;

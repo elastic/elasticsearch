@@ -4,8 +4,7 @@
 <titleabbrev>Rollover</titleabbrev>
 ++++
 
-Creates a new index for a <<data-streams,data stream>> or
-<<indices-add-alias,index alias>>.
+Creates a new index for a <<data-streams,data stream>> or <<alias,index alias>>.
 
 [source,console]
 ----
@@ -123,9 +122,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 [[rollover-index-api-request-body]]
 ==== {api-request-body-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=aliases]
+`aliases`::
+(Optional, object of objects) Aliases for the target index. Data streams do not
+support this parameter.
 +
-Data streams do not support this parameter.
+include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 [[rollover-conditions]]
 `conditions`::

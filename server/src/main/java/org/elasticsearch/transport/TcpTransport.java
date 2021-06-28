@@ -36,7 +36,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.PortsRange;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -243,6 +243,15 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             TcpChannel channel = channel(options.type());
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), compress, false);
+        }
+
+        @Override
+        public String toString() {
+            final StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("NodeChannels[");
+            node.appendDescriptionWithoutAttributes(stringBuilder);
+            stringBuilder.append("]");
+            return stringBuilder.toString();
         }
     }
 

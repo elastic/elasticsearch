@@ -5,7 +5,7 @@
 <titleabbrev>Migrate to data stream</titleabbrev>
 ++++
 
-Converts an <<indices-aliases,index alias>> to a <<data-streams,data stream>>.
+Converts an <<alias,index alias>> to a <<data-streams,data stream>>.
 
 ////
 [source,console]
@@ -90,8 +90,8 @@ following criteria:
 
 - The alias must have a <<write-index,write index>>.
 - All indices for the alias have a `@timestamp` field mapping of a `date` or `date_nanos` field type.
-- The alias must not have any <<filtered,filters>>.
-- The alias must not use <<aliases-routing,custom routing>>.
+- The alias must not have any <<filter-alias,filters>>.
+- The alias must not use <<alias-routing,custom routing>>.
 
 If successful, the request removes the alias and creates a data stream with the
 same name. The alias's indices become hidden backing indices for the stream. The

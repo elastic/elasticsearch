@@ -23,28 +23,6 @@ mounted indices>> exclusively.
 [[data-tier-allocation-filters]]
 ==== Data tier allocation settings
 
-
-`index.routing.allocation.include._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has at
-    least one of to the comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
-
-`index.routing.allocation.require._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _all_
-    of the comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
-
-`index.routing.allocation.exclude._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _none_ of the
-    comma-separated values.
-
-    deprecated::[7.13, Filtering based on `include._tier`, `require._tier` and `exclude._tier` is deprecated, use <<tier-preference-allocation-filter,_tier_preference>> instead]
-
 [[tier-preference-allocation-filter]]
 `index.routing.allocation.include._tier_preference`::
 

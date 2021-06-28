@@ -66,7 +66,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('security'))))
   // ml deps
   api project(':libs:elasticsearch-grok')
-  api "net.sf.supercsv:super-csv:${versions.supercsv}"
+  api "org.apache.commons:commons-math3:3.6.1"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true
   }

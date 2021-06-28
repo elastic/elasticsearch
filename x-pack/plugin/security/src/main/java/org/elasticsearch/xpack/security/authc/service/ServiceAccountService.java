@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.action.service.GetServiceAccountCredentialsResponse;
+import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -23,9 +24,11 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.support.HttpTlsRuntimeCheck;
 
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_NAME_FIELD;
+import static org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings.TOKEN_SOURCE_FIELD;
 import static org.elasticsearch.xpack.security.authc.service.ElasticServiceAccounts.ACCOUNTS;
 
 public class ServiceAccountService {
@@ -113,9 +116,10 @@ public class ServiceAccountService {
                 return;
             }
 
-            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(success -> {
-                if (success) {
-                    listener.onResponse(createAuthentication(account, serviceAccountToken, nodeName));
+            serviceAccountTokenStore.authenticate(serviceAccountToken, ActionListener.wrap(storeAuthenticationResult -> {
+                if (storeAuthenticationResult.isSuccess()) {
+                    listener.onResponse(
+                        createAuthentication(account, serviceAccountToken, storeAuthenticationResult.getTokenSource() , nodeName));
                 } else {
                     final ElasticsearchSecurityException e = createAuthenticationException(serviceAccountToken);
                     logger.debug(e.getMessage());
@@ -139,12 +143,13 @@ public class ServiceAccountService {
         });
     }
 
-    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, String nodeName) {
+    private Authentication createAuthentication(ServiceAccount account, ServiceAccountToken token, TokenSource tokenSource,
+                                                String nodeName) {
         final User user = account.asUser();
         final Authentication.RealmRef authenticatedBy =
             new Authentication.RealmRef(ServiceAccountSettings.REALM_NAME, ServiceAccountSettings.REALM_TYPE, nodeName);
         return new Authentication(user, authenticatedBy, null, Version.CURRENT, Authentication.AuthenticationType.TOKEN,
-            Map.of(TOKEN_NAME_FIELD, token.getTokenName()));
+            Map.of(TOKEN_NAME_FIELD, token.getTokenName(), TOKEN_SOURCE_FIELD, tokenSource.name().toLowerCase(Locale.ROOT)));
     }
 
     private ElasticsearchSecurityException createAuthenticationException(ServiceAccountToken serviceAccountToken) {

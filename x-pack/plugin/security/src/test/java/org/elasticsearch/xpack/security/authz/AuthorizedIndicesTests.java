@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.not;
 public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithoutRoles() {
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(Role.EMPTY, getRequestInfo(""), Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
@@ -77,7 +77,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
-        List<String> list =
+        Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
@@ -88,14 +88,14 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
     public void testAuthorizedIndicesUserWithSomeRolesEmptyMetadata() {
         Role role = Role.builder("role").add(IndexPrivilege.ALL, "*").build();
-        List<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
+        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
 
     public void testSecurityIndicesAreRemovedFromRegularUser() {
         Role role = Role.builder("user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
-        List<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
+        Set<String> authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME),
             Metadata.EMPTY_METADATA.getIndicesLookup());
         assertTrue(authorizedIndices.isEmpty());
     }
@@ -120,7 +120,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .build(), true)
                 .build();
 
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
         assertThat(authorizedIndices, containsInAnyOrder("an-index", "another-index"));
         assertThat(authorizedIndices, not(contains(internalSecurityIndex)));
@@ -146,12 +146,12 @@ public class AuthorizedIndicesTests extends ESTestCase {
                         .build(), true)
                 .build();
 
-        List<String> authorizedIndices =
+        Set<String> authorizedIndices =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
         assertThat(authorizedIndices, containsInAnyOrder(
             "an-index", "another-index", RestrictedIndicesNames.SECURITY_MAIN_ALIAS, internalSecurityIndex));
 
-        List<String> authorizedIndicesSuperUser =
+        Set<String> authorizedIndicesSuperUser =
             RBACEngine.resolveAuthorizedIndicesFromRole(role, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
         assertThat(authorizedIndicesSuperUser, containsInAnyOrder(
             "an-index", "another-index", RestrictedIndicesNames.SECURITY_MAIN_ALIAS, internalSecurityIndex));
@@ -192,7 +192,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         final Set<RoleDescriptor> descriptors = Sets.newHashSet(aStarRole, bRole);
         CompositeRolesStore.buildRoleFromDescriptors(descriptors, new FieldPermissionsCache(Settings.EMPTY), null, future);
         Role roles = future.actionGet();
-        List<String> list =
+        Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, getRequestInfo(SearchAction.NAME), metadata.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab"));
         assertFalse(list.contains("bbbbb"));
@@ -239,7 +239,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[]{"a*"});
         AuthorizationEngine.RequestInfo requestInfo = new AuthorizationEngine.RequestInfo(null, request, SearchAction.NAME);
-        List<String> list =
+        Set<String> list =
             RBACEngine.resolveAuthorizedIndicesFromRole(roles, requestInfo, metadata.getIndicesLookup());
         assertThat(list, containsInAnyOrder("a1", "a2", "aaaaaa", "b", "ab", "adatastream1", backingIndex));
         assertFalse(list.contains("bbbbb"));

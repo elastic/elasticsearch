@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;

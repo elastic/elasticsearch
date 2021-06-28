@@ -22,9 +22,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -204,7 +204,7 @@ public class TransportPutDataFrameAnalyticsAction
         ClusterState clusterState = clusterService.state();
         if (clusterState == null) {
             logger.warn("Cannot update doc mapping because clusterState == null");
-            configProvider.put(config, headers, listener);
+            configProvider.put(config, headers, masterNodeTimeout, listener);
             return;
         }
         ElasticsearchMappings.addDocMappingIfMissing(
@@ -214,7 +214,7 @@ public class TransportPutDataFrameAnalyticsAction
             clusterState,
             masterNodeTimeout,
             ActionListener.wrap(
-                unused -> configProvider.put(config, headers, ActionListener.wrap(
+                unused -> configProvider.put(config, headers, masterNodeTimeout, ActionListener.wrap(
                     indexResponse -> {
                         auditor.info(
                             config.getId(),

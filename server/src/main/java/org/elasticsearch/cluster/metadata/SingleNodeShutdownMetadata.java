@@ -10,7 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diffable;
-import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -19,6 +19,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -234,16 +235,52 @@ public class SingleNodeShutdownMetadata extends AbstractDiffable<SingleNodeShutd
      */
     public enum Type {
         REMOVE,
-        RESTART
+        RESTART;
+
+        public static Type parse(String type) {
+            if ("remove".equals(type.toLowerCase(Locale.ROOT))) {
+                return REMOVE;
+            } else if ("restart".equals(type.toLowerCase(Locale.ROOT))) {
+                return RESTART;
+            } else {
+                throw new IllegalArgumentException("unknown shutdown type: " + type);
+            }
+        }
     }
 
     /**
      * Describes the status of a component of shutdown.
      */
     public enum Status {
+        // These are ordered (see #combine(...))
         NOT_STARTED,
         IN_PROGRESS,
         STALLED,
-        COMPLETE
+        COMPLETE;
+
+        /**
+         * Merges multiple statuses into a single, final, status
+         *
+         * For example, if called with NOT_STARTED, IN_PROGRESS, and STALLED, the returned state is STALLED.
+         * Called with IN_PROGRESS, IN_PROGRESS, NOT_STARTED, the returned state is IN_PROGRESS.
+         * Called with IN_PROGRESS, NOT_STARTED, COMPLETE, the returned state is IN_PROGRESS
+         * Called with COMPLETE, COMPLETE, COMPLETE, the returned state is COMPLETE
+         * Called with an empty array, the returned state is COMPLETE
+         */
+        public static Status combine(Status... statuses) {
+            int statusOrd = -1;
+            for (Status status : statuses) {
+                // Max the status up to, but not including, "complete"
+                if (status != COMPLETE) {
+                    statusOrd = Math.max(status.ordinal(), statusOrd);
+                }
+            }
+            if (statusOrd == -1) {
+                // Either all the statuses were complete, or there were no statuses given
+                return COMPLETE;
+            } else {
+                return Status.values()[statusOrd];
+            }
+        }
     }
 }

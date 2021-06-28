@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.sql.planner;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.UnaryString
 import org.elasticsearch.xpack.sql.optimizer.Optimizer;
 import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.sql.plan.physical.LocalExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.sql.planner.QueryFolder.FoldAggregate.GroupingContext;
 import org.elasticsearch.xpack.sql.planner.QueryTranslator.QueryTranslation;
@@ -73,6 +74,7 @@ import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 import org.elasticsearch.xpack.sql.querydsl.agg.AggFilter;
 import org.elasticsearch.xpack.sql.querydsl.agg.GroupByDateHistogram;
 import org.elasticsearch.xpack.sql.querydsl.container.MetricAggRef;
+import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 import org.elasticsearch.xpack.sql.util.DateUtils;
@@ -1205,8 +1207,8 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
-    // and SUM(all nulls)
+    // should be removed as soon as root cause https://github.com/elastic/elasticsearch/issues/71582 is fixed and the sum aggregation
+    // results can differentiate between SUM(all zeroes) and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(
             "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
@@ -1284,5 +1286,42 @@ public class QueryTranslatorTests extends ESTestCase {
             .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
 
         assertEquals(expectedCondition, condition);
+    }
+
+    // Subqueries
+    /////////////////////
+    public void testMultiLevelSubqueryWithoutRelation1() {
+        PhysicalPlan p = optimizeAndPlan(
+                "SELECT int FROM (" +
+                "  SELECT int FROM (" +
+                "    SELECT 1 AS int" +
+                "  ) AS subq1" +
+                ") AS subq2");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(1, le.executable().output().size());
+        assertEquals("int", le.executable().output().get(0).name());
+    }
+
+    public void testMultiLevelSubqueryWithoutRelation2() {
+        PhysicalPlan p = optimizeAndPlan(
+                "SELECT i, string FROM (" +
+                "  SELECT * FROM (" +
+                "    SELECT int as i, str AS string FROM (" +
+                "      SELECT * FROM (" +
+                "        SELECT int, s AS str FROM (" +
+                "          SELECT 1 AS int, 'foo' AS s" +
+                "        ) AS subq1" +
+                "      )" +
+                "    ) AS subq2" +
+                "  ) AS subq3" +
+                ")");
+        assertThat(p, instanceOf(LocalExec.class));
+        LocalExec le = (LocalExec) p;
+        assertThat(le.executable(), instanceOf(SingletonExecutable.class));
+        assertEquals(2, le.executable().output().size());
+        assertEquals("i", le.executable().output().get(0).name());
+        assertEquals("string", le.executable().output().get(1).name());
     }
 }

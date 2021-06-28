@@ -9,10 +9,10 @@
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -67,9 +67,11 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
     }
 
     private static final ConstructingObjectParser<SnapshotsStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        "snapshots_status_response", true,
+        "snapshots_status_response",
+        true,
         (Object[] parsedObjects) -> {
-            @SuppressWarnings("unchecked") List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
+            @SuppressWarnings("unchecked")
+            List<SnapshotStatus> snapshots = (List<SnapshotStatus>) parsedObjects[0];
             return new SnapshotsStatusResponse(snapshots);
         }
     );

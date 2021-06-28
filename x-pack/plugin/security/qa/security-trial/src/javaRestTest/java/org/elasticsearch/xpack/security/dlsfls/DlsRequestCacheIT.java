@@ -38,7 +38,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
 
     @Before
     public void createUsers() throws IOException {
-        createUser(DLS_USER, DLS_USER_PASSWORD, List.of("dls_painless_role"));
+        createUser(DLS_USER, DLS_USER_PASSWORD, org.elasticsearch.core.List.of("dls_painless_role"));
     }
 
     @After
@@ -87,7 +87,7 @@ public class DlsRequestCacheIT extends SecurityOnTrialLicenseRestTestCase {
         searchRequest.addParameter("request_cache", "true");
         searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
             UsernamePasswordToken.basicAuthHeaderValue(DLS_USER, DLS_USER_PASSWORD)));
-        assertSearchResponse(client.performRequest(searchRequest), Set.of("1"));
+        assertSearchResponse(client.performRequest(searchRequest), org.elasticsearch.core.Set.of("1"));
         // Cache should not be used since DLS query uses stored script
         assertCacheState(0, 0);
     }

@@ -12,7 +12,7 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.JavaBasePlugin;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -33,7 +33,7 @@ public class PrecommitTaskPlugin implements Plugin<Project> {
                 );
         project.getPluginManager().withPlugin("java", p -> {
             // run compilation as part of precommit
-            project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets().all(sourceSet ->
+            project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets().all(sourceSet ->
                     precommit.configure(t -> t.shouldRunAfter(sourceSet.getClassesTaskName()))
             );
             // make sure tests run after all precommit tasks

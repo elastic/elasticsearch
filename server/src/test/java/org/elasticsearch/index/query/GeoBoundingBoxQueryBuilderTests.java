@@ -78,25 +78,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             builder.ignoreUnmapped(randomBoolean());
         }
 
-        builder.type(randomFrom(GeoExecType.values()));
         return builder;
     }
 
     public void testValidationNullFieldname() {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GeoBoundingBoxQueryBuilder((String) null));
         assertEquals("Field name must not be empty.", e.getMessage());
-    }
-
-    public void testValidationNullType() {
-        GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.type((GeoExecType) null));
-        assertEquals("Type is not allowed to be null.", e.getMessage());
-    }
-
-    public void testValidationNullTypeString() {
-        GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> qb.type((String) null));
-        assertEquals("cannot parse type from null string", e.getMessage());
     }
 
     public void testExceptionOnMissingTypes() {
@@ -376,8 +363,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
-                        "    \"ignore_unmapped\" : false,\n" +
+                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
                 "}";
@@ -389,7 +375,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, -71.12, parsed.bottomRight().getLon(), 0.0001);
         assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
-        assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 
     public void testFromWKT() throws IOException {
@@ -400,7 +385,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -416,7 +400,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"bottom_right\" : [ -71.12, 40.01 ]\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -433,7 +416,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(expectedJson, -71.12, parsed.bottomRight().getLon(), delta);
         assertEquals(expectedJson, 40.01, parsed.bottomRight().getLat(), delta);
         assertEquals(expectedJson, 1.0, parsed.boost(), delta);
-        assertEquals(expectedJson, GeoExecType.MEMORY, parsed.type());
     }
 
     public void testFromGeohash() throws IOException {
@@ -445,7 +427,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"bottom_right\" : \"dq\"\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -459,7 +440,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"bottom_right\" : [ -67.5, 33.75 ]\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +
@@ -472,7 +452,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, -67.5, parsed.bottomRight().getLon(), 0.0001);
         assertEquals(json, 33.75, parsed.bottomRight().getLat(), 0.0001);
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
-        assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 
     public void testMalformedGeohashes() {
@@ -484,7 +463,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                 "      \"wkt\" : \"BBOX (-74.1, -71.12, 40.73, 40.01)\"\n" +
                 "    },\n" +
                 "    \"validation_method\" : \"STRICT\",\n" +
-                "    \"type\" : \"MEMORY\",\n" +
                 "    \"ignore_unmapped\" : false,\n" +
                 "    \"boost\" : 1.0\n" +
                 "  }\n" +

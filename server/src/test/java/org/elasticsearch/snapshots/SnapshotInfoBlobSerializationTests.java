@@ -32,7 +32,11 @@ public class SnapshotInfoBlobSerializationTests extends AbstractWireTestCase<Sna
     protected SnapshotInfo copyInstance(SnapshotInfo instance, Version version) throws IOException {
         final BytesStreamOutput out = new BytesStreamOutput();
         BlobStoreRepository.SNAPSHOT_FORMAT.serialize(instance, "test", randomBoolean(), out);
-        return BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(NamedXContentRegistry.EMPTY, out.bytes().streamInput());
+        return BlobStoreRepository.SNAPSHOT_FORMAT.deserialize(
+            instance.repository(),
+            NamedXContentRegistry.EMPTY,
+            out.bytes().streamInput()
+        );
     }
 
 }

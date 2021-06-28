@@ -13,7 +13,6 @@ testClusters {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2
     setting 'node.roles', '[data,ingest,master]'
-    setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'xpack.security.enabled', 'true'
@@ -23,7 +22,6 @@ testClusters {
 
   'integTest' {
     testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'
     setting 'xpack.watcher.enabled', 'false'
     setting 'cluster.remote.my_remote_cluster.seeds', {

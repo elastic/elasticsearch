@@ -554,16 +554,21 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
                                                                                    final PluginsAndModules pluginsAndModules,
                                                                                    final ClusterState clusterState) {
-        DeprecationIssue nodeDeprecationIssue = getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(settings);
+        DeprecationIssue nodeDeprecationIssue =
+            getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(settings, DeprecationIssue.Level.CRITICAL);
         if (nodeDeprecationIssue != null) {
             return nodeDeprecationIssue;
         }
 
-        // The setting is dynamic so it can be defined stored in the ClusterState settings
-        return getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(clusterState.metadata().settings());
+        // The setting is dynamic so it can be defined in the ClusterState settings
+        return getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(
+            clusterState.metadata().settings(),
+            DeprecationIssue.Level.WARNING
+        );
     }
 
-    private static DeprecationIssue getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(Settings settings) {
+    private static DeprecationIssue getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(Settings settings,
+                                                                                                         DeprecationIssue.Level level) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",

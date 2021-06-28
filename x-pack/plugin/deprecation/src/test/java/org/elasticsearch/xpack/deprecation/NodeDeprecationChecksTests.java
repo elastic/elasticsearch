@@ -767,9 +767,11 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final Settings nodeSettings;
         final ClusterState clusterState;
+        final DeprecationIssue.Level expectedLevel;
         if (randomBoolean()) {
             nodeSettings = deprecatedSetting;
             clusterState = ClusterState.EMPTY_STATE;
+            expectedLevel = DeprecationIssue.Level.CRITICAL;
         } else {
             nodeSettings = Settings.EMPTY;
             Metadata.Builder metadataBuilder = Metadata.builder();
@@ -781,9 +783,10 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             clusterState = ClusterState.builder(new ClusterName("test"))
                 .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
                 .build();
+            expectedLevel = DeprecationIssue.Level.WARNING;
         }
 
-        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+        final DeprecationIssue expectedIssue = new DeprecationIssue(expectedLevel,
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),

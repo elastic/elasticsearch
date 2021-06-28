@@ -149,7 +149,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfig configWithSameId = DataFrameAnalyticsConfigTests.createRandom(configId);
             blockingCall(
-                actionListener -> configProvider.put(configWithSameId, emptyMap(),TIMEOUT,  actionListener),
+                actionListener -> configProvider.put(configWithSameId, emptyMap(), TIMEOUT, actionListener),
                 configHolder,
                 exceptionHolder);
 

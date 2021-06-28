@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -17,6 +20,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -24,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.settings.SecureString;
@@ -44,6 +49,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -94,8 +100,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -162,8 +170,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         this.cacheInvalidatorRegistry = mock(CacheInvalidatorRegistry.class);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
-    public void testCreateApiKeyWillUseBulkAction() {
+    public void testCreateApiKeyWillUseBulkAction() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
         final Authentication authentication = new Authentication(
@@ -173,8 +180,18 @@ public class ApiKeyServiceTests extends ESTestCase {
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            bulkActionInvoked.set(true);
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         service.createApiKey(authentication, createApiKeyRequest, org.elasticsearch.core.Set.of(), new PlainActionFuture<>());
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     public void testCreateApiKeyWillCacheOnCreation() {
@@ -693,6 +710,130 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(service.getFromCache(creds.getId()).success, is(true));
     }
 
+    public void testApiKeyAuthCacheWillTraceLogOnEvictionDueToCacheSize() throws IllegalAccessException {
+        final int cacheSize = randomIntBetween(2, 8);
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", cacheSize).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String idPrefix = randomAlphaOfLength(20);
+        final AtomicInteger count = new AtomicInteger(0);
+        IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.PatternSeenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
+            ));
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "no-thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "replace", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "invalidate", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + idPrefix + "*] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
+            apiKeyAuthCache.invalidateAll();
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    public void testApiKeyCacheWillNotTraceLogOnEvictionDueToCacheTtl() throws IllegalAccessException, InterruptedException {
+        ApiKeyService service = createApiKeyService(Settings.builder()
+            .put("xpack.security.authc.api_key.cache.max_keys", 2)
+            .put("xpack.security.authc.api_key.cache.ttl", TimeValue.timeValueMillis(100))
+            .build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+        final String apiKeyId = randomAlphaOfLength(22);
+
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.TRACE);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [" + apiKeyId + "] was evicted from the authentication cache*"
+            ));
+            apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+            // Wait for the entry to expire
+            Thread.sleep(200);
+            assertNull(apiKeyAuthCache.get(apiKeyId));
+            // Cache a new entry
+            apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
+            assertEquals(1, apiKeyAuthCache.count());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74586")
+    public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws Exception {
+        ApiKeyService service = createApiKeyService(
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());
+        final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
+
+        // Fill the cache
+        final String apiKeyId = randomAlphaOfLength(22);
+        apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+        final Logger logger = LogManager.getLogger(ApiKeyService.class);
+        Loggers.setLevel(logger, Level.WARN);
+        final MockLogAppender appender = new MockLogAppender();
+        Loggers.addAppender(logger, appender);
+        appender.start();
+
+        try {
+            // Prepare the warning logging to trigger
+            service.getEvictionCounter().add(4500);
+            // Ensure the counter is updated
+            assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "thrashing", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+
+            // Will not log warning again for the next eviction because of throttling
+            appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
+                "throttling", ApiKeyService.class.getName(), Level.WARN,
+                "Possible thrashing for API key authentication cache,*"
+            ));
+            apiKeyAuthCache.put(randomAlphaOfLength(24), new ListenableFuture<>());
+            appender.assertAllExpectationsMatched();
+        } finally {
+            appender.stop();
+            Loggers.setLevel(logger, Level.INFO);
+            Loggers.removeAppender(logger, appender);
+        }
+    }
+
     public void testAuthenticateWhileCacheBeingPopulated() throws Exception {
         final String apiKey = randomAlphaOfLength(16);
         Hasher hasher = getFastStoredHashAlgoForTests();
@@ -1093,8 +1234,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74427")
-    public void testCreateApiKeyWillEnsureMetadataCompatibility() {
+    public void testCreateApiKeyWillEnsureMetadataCompatibility() throws Exception {
         when(securityIndex.getInstallableMappingVersion()).thenReturn(Version.V_7_12_0);
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
@@ -1110,9 +1250,19 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomFrom(org.elasticsearch.core.Map.of(), null));
         when(client.prepareIndex(anyString(), anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
+
+        final AtomicBoolean bulkActionInvoked = new AtomicBoolean(false);
+        doAnswer(inv -> {
+            final Object[] args = inv.getArguments();
+            BulkRequest bulkRequest = (BulkRequest) args[1];
+            assertThat(bulkRequest.numberOfActions(), is(1));
+            assertThat(bulkRequest.requests().get(0), instanceOf(IndexRequest.class));
+            bulkActionInvoked.set(true);
+            return null;
+        }).when(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
         final PlainActionFuture<CreateApiKeyResponse> future2 = new PlainActionFuture<>();
         service.createApiKey(authentication, request2, Collections.emptySet(), future2);
-        verify(client).execute(eq(BulkAction.INSTANCE), any(BulkRequest.class), any());
+        assertBusy(() -> assertTrue(bulkActionInvoked.get()));
     }
 
     public void testGetApiKeyMetadata() throws IOException {

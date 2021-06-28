@@ -377,6 +377,38 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
             containsString("java.lang.String cannot be cast to"));
     }
 
+    public void testFormatObjectChecked() {
+        DocValueFormat weekYearMonth = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("YYYY-MM-dd"),
+            ZoneOffset.UTC,
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        expectThrows(IllegalArgumentException.class, () -> InternalComposite.formatObject(epoch, weekYearMonth));
+    }
+
+    public void testFormatDateEpochTimezone() {
+        DocValueFormat epochSecond = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_second"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        DocValueFormat epochMillis = new DocValueFormat.DateTime(
+            // YYYY is week-based year.  The parser will ignore MM (month-of-year) and dd (day-of-month)
+            DateFormatter.forPattern("epoch_millis"),
+            ZoneOffset.ofHours(-2),
+            DateFieldMapper.Resolution.MILLISECONDS
+        );
+        long epoch = 1622060077L; // May 25th 2021, evening
+        Object actual = InternalComposite.formatObject(epoch, epochSecond);
+        assertEquals("1622060.077", actual.toString());
+
+        actual = InternalComposite.formatObject(epoch, epochMillis);
+        assertEquals("1622060077", actual.toString());
+    }
+
     private InternalComposite.ArrayMap createMap(List<String> fields, Comparable[] values) {
         List<DocValueFormat> formats = IntStream.range(0, fields.size())
             .mapToObj(i -> DocValueFormat.RAW).collect(Collectors.toList());

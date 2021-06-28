@@ -118,7 +118,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final DocumentParser documentParser;
     private final Version indexVersionCreated;
     private final MapperRegistry mapperRegistry;
-    private final Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier;
+    private final Supplier<MappingParserContext> parserContextSupplier;
 
     private volatile String defaultMappingSource;
     private volatile DocumentMapper mapper;
@@ -132,12 +132,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction =
-            dateFormatter -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
+        Function<DateFormatter, MappingParserContext> parserContextFunction =
+            dateFormatter -> new MappingParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexVersionCreated, searchExecutionContextSupplier, dateFormatter,
                 scriptCompiler, indexAnalyzers, indexSettings, idFieldDataEnabled);
         this.documentParser = new DocumentParser(xContentRegistry,
-            dateFormatter -> new Mapper.TypeParser.ParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
+            dateFormatter -> new MappingParserContext.DynamicTemplateParserContext(parserContextFunction.apply(dateFormatter)),
             indexSettings, indexAnalyzers);
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers =
             mapperRegistry.getMetadataMapperParsers(indexSettings.getIndexVersionCreated());
@@ -167,7 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.indexAnalyzers.get(analyzerName);
     }
 
-    public Mapper.TypeParser.ParserContext parserContext() {
+    public MappingParserContext parserContext() {
         return parserContextSupplier.get();
     }
 

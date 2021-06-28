@@ -35,8 +35,8 @@ public class MappingParserTests extends MapperServiceTestCase {
         IndexAnalyzers indexAnalyzers = createIndexAnalyzers();
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Collections.emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
-        Supplier<Mapper.TypeParser.ParserContext> parserContextSupplier =
-            () -> new Mapper.TypeParser.ParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
+        Supplier<MappingParserContext> parserContextSupplier =
+            () -> new MappingParserContext(similarityService::getSimilarity, mapperRegistry.getMapperParsers()::get,
                 mapperRegistry.getRuntimeFieldParsers()::get, indexSettings.getIndexVersionCreated(),
                 () -> {
                     throw new UnsupportedOperationException();

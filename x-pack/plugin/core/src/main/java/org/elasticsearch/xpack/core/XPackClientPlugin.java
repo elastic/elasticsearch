@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsa
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
 import org.elasticsearch.xpack.core.enrich.EnrichFeatureSet;
@@ -482,6 +483,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 DeleteSnapshotLifecycleAction.INSTANCE,
                 ExecuteSnapshotLifecycleAction.INSTANCE,
                 GetSnapshotLifecycleStatsAction.INSTANCE,
+                MigrateToDataTiersAction.INSTANCE,
                 // Freeze
                 FreezeIndexAction.INSTANCE,
                 // Data Frame

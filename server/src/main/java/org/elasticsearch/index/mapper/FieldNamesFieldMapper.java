@@ -158,7 +158,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
             if (fieldType().isEnabled() == false) {
                 return;
             }
-            for (ParseContext.Document document : context.docs()) {
+            for (LuceneDocument document : context.docs()) {
                 final List<String> paths = new ArrayList<>(document.getFields().size());
                 String previousPath = ""; // used as a sentinel - field names can't be empty
                 for (IndexableField field : document.getFields()) {

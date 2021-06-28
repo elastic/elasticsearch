@@ -26,7 +26,6 @@ import org.junit.Before;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.is;
@@ -72,7 +71,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(searchRequest.indices()).thenReturn(randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8)));
         when(searchRequest.source()).thenReturn(SearchSourceBuilder.searchSource());
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, Map.of(), future);
+        interceptor.disableFeatures(searchRequest, org.elasticsearch.core.Map.of(), future);
         future.actionGet();
         verify(searchRequest).requestCache(false);
     }
@@ -87,10 +86,10 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         final ArrayList<String> allIndices =
             Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(allIndices, random());
-        when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
+        when(searchRequest.indices()).thenReturn(allIndices.toArray(new String[0]));
 
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
-        interceptor.disableFeatures(searchRequest, Map.of(), future);
+        interceptor.disableFeatures(searchRequest, org.elasticsearch.core.Map.of(), future);
         future.actionGet();
         if (remoteIndices.length > 0) {
             verify(searchRequest).requestCache(false);
@@ -108,7 +107,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         final ArrayList<String> allIndices =
             Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices)).collect(Collectors.toCollection(ArrayList::new));
         Collections.shuffle(allIndices, random());
-        when(searchRequest.indices()).thenReturn(allIndices.toArray(String[]::new));
+        when(searchRequest.indices()).thenReturn(allIndices.toArray(new String[0]));
 
         if (remoteIndices.length > 0) {
             assertThat(interceptor.hasRemoteIndices(searchRequest), is(true));

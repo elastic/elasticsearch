@@ -27,8 +27,6 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDe
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -64,11 +62,11 @@ public class DlsFlsRequestCacheDifferentiatorTests extends ESTestCase {
         dlsFlsIndexName = "dls-fls-" + randomAlphaOfLengthBetween(3, 8);
 
         final DocumentPermissions documentPermissions1 = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
+            org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"number\":1}}")));
 
         threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY,
             new IndicesAccessControl(true,
-                Map.of(
+                org.elasticsearch.core.Map.of(
                     flsIndexName,
                     new IndicesAccessControl.IndexAccessControl(true,
                         new FieldPermissions(new FieldPermissionsDefinition(new String[]{"*"}, new String[]{"private"})),

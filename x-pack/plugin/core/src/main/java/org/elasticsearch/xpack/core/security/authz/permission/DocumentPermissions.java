@@ -73,11 +73,11 @@ public final class DocumentPermissions implements CacheKey {
     }
 
     public Set<BytesReference> getQueries() {
-        return queries == null ? null : Set.copyOf(queries);
+        return queries == null ? null : org.elasticsearch.core.Set.copyOf(queries);
     }
 
     public Set<BytesReference> getLimitedByQueries() {
-        return limitedByQueries == null ? null : Set.copyOf(limitedByQueries);
+        return limitedByQueries == null ? null : org.elasticsearch.core.Set.copyOf(limitedByQueries);
     }
 
     /**
@@ -147,10 +147,10 @@ public final class DocumentPermissions implements CacheKey {
 
     private void evaluateQueries(DlsQueryEvaluationContext context) {
         if (queries != null && evaluatedQueries == null) {
-            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedQueries = queries.stream().map(context::evaluate).collect(Collectors.toList());
         }
         if (limitedByQueries != null && evaluatedLimitedByQueries == null) {
-            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toUnmodifiableList());
+            evaluatedLimitedByQueries = limitedByQueries.stream().map(context::evaluate).collect(Collectors.toList());
         }
     }
 

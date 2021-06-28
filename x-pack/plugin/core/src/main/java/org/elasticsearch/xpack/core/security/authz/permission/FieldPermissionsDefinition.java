@@ -15,9 +15,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
+import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.stream.IntStream;
 
 /**
  * Represents the definition of a {@link FieldPermissions}. Field permissions are defined as a
@@ -38,7 +40,7 @@ public final class FieldPermissionsDefinition implements CacheKey {
     }
 
     public Set<FieldGrantExcludeGroup> getFieldGrantExcludeGroups() {
-        return Set.copyOf(fieldGrantExcludeGroups);
+        return org.elasticsearch.core.Set.copyOf(fieldGrantExcludeGroups);
     }
 
     @Override
@@ -117,8 +119,36 @@ public final class FieldPermissionsDefinition implements CacheKey {
 
         @Override
         public int compareTo(FieldGrantExcludeGroup o) {
-            final int compare = Arrays.compare(grantedFields, o.grantedFields);
-            return compare == 0 ? Arrays.compare(excludedFields, o.excludedFields) : compare;
+            if (this == o) {
+                return 0;
+            }
+            final int compare = compareFields(grantedFields, o.grantedFields);
+            return compare == 0 ? compareFields(excludedFields, o.excludedFields) : compare;
+        }
+
+        static int compareFields(String[] fields, String[] otherFields) {
+            if (fields == otherFields) {
+                return 0;
+            }
+            if (fields == null || otherFields == null) {
+                return fields == null ? -1 : 1;
+            }
+            final OptionalInt compare = IntStream.range(0, Math.min(fields.length, otherFields.length))
+                .map(i -> {
+                    final String field = fields[i];
+                    final String otherField = otherFields[i];
+                    if (field == otherField) {
+                        return 0;
+                    }
+                    if (field == null || otherField == null) {
+                        return field == null ? -1 : 1;
+                    }
+                    return field.compareTo(otherField);
+                })
+                .filter(v -> v != 0)
+                .findFirst();
+
+            return compare.orElseGet(() -> fields.length - otherFields.length);
         }
     }
 }

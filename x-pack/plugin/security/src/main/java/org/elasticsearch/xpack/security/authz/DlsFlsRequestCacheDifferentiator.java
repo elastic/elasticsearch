@@ -44,7 +44,8 @@ public class DlsFlsRequestCacheDifferentiator implements CheckedBiConsumer<Shard
         if (false == licenseState.isSecurityEnabled()) {
             return;
         }
-        var licenseChecker = new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
+        final MemoizedSupplier<Boolean> licenseChecker =
+            new MemoizedSupplier<>(() -> licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_DLS_FLS));
         final SecurityContext securityContext = securityContextHolder.get();
         final IndicesAccessControl indicesAccessControl =
             securityContext.getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);

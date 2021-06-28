@@ -82,7 +82,7 @@ public class DocumentPermissionsTests extends ESTestCase {
         final BytesStreamOutput out0 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions0 =
             new DocumentPermissions(
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
                     new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")),
                 null);
         documentPermissions0.buildCacheKey(out0, BytesReference::utf8ToString);
@@ -90,22 +90,22 @@ public class DocumentPermissionsTests extends ESTestCase {
         final BytesStreamOutput out1 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions1 =
             new DocumentPermissions(
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
-                Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"), new BytesArray("{\"term\":{\"q2\":\"v2\"}}")),
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
         documentPermissions1.buildCacheKey(out1, BytesReference::utf8ToString);
 
         final BytesStreamOutput out2 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions2 =
             new DocumentPermissions(
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
-                Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}")),
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
         documentPermissions2.buildCacheKey(out2, BytesReference::utf8ToString);
 
         final BytesStreamOutput out3 = new BytesStreamOutput();
         final DocumentPermissions documentPermissions3 =
             new DocumentPermissions(
                 null,
-                Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
+                org.elasticsearch.core.Set.of(new BytesArray("{\"term\":{\"q1\":\"v1\"}}"),
                     new BytesArray("{\"term\":{\"q2\":\"v2\"}}"), new BytesArray("{\"term\":{\"q3\":\"v3\"}}")));
         documentPermissions3.buildCacheKey(out3, BytesReference::utf8ToString);
 

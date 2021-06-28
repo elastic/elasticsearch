@@ -313,13 +313,13 @@ public class SearchModuleTests extends ESTestCase {
     }
 
     public void testRegisterNullRequestCacheKeyDifferentiator() {
-        final SearchModule module = new SearchModule(Settings.EMPTY, List.of());
+        final SearchModule module = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of());
         assertThat(module.getRequestCacheKeyDifferentiator(), nullValue());
     }
 
     public void testRegisterRequestCacheKeyDifferentiator() {
         final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator = (r, o) -> { };
-        final SearchModule module = new SearchModule(Settings.EMPTY, List.of(new SearchPlugin() {
+        final SearchModule module = new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of(new SearchPlugin() {
             @Override
             public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
                 return requestCacheKeyDifferentiator;
@@ -332,17 +332,18 @@ public class SearchModuleTests extends ESTestCase {
         final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator1 = (r, o) -> {};
         final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator2 = (r, o) -> {};
         final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, List.of(new SearchPlugin() {
-                @Override
-                public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-                    return differentiator1;
-                }
-            }, new SearchPlugin() {
-                @Override
-                public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
-                    return differentiator2;
-                }
-            })));
+            expectThrows(IllegalArgumentException.class, () -> new SearchModule(Settings.EMPTY, false, org.elasticsearch.core.List.of(
+                new SearchPlugin() {
+                    @Override
+                    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+                        return differentiator1;
+                    }
+                }, new SearchPlugin() {
+                    @Override
+                    public CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> getRequestCacheKeyDifferentiator() {
+                        return differentiator2;
+                    }
+                })));
         assertThat(e.getMessage(), containsString("Cannot have more than one plugin providing a request cache key differentiator"));
     }
 

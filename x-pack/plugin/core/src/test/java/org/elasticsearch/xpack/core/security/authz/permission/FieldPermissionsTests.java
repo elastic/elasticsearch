@@ -16,7 +16,6 @@ import org.hamcrest.core.IsSame;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -106,7 +105,7 @@ public class FieldPermissionsTests extends ESTestCase {
         // Just definition
         final BytesStreamOutput out0 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions0 = new FieldPermissions(
-            new FieldPermissionsDefinition(Set.of(
+            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))));
@@ -115,7 +114,7 @@ public class FieldPermissionsTests extends ESTestCase {
         // Mixed definition
         final BytesStreamOutput out1 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions1 = new FieldPermissions(
-            new FieldPermissionsDefinition(Set.of(
+            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }))))
             .limitFieldPermissions(new FieldPermissions(fieldPermissionDef(new String[] { "z*" }, new String[] { "z2" })));
@@ -124,9 +123,9 @@ public class FieldPermissionsTests extends ESTestCase {
         // Another mixed definition
         final BytesStreamOutput out2 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions2 = new FieldPermissions(
-            new FieldPermissionsDefinition(Set.of(
+            new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }))))
-            .limitFieldPermissions(new FieldPermissions(new FieldPermissionsDefinition(Set.of(
+            .limitFieldPermissions(new FieldPermissions(new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                 new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" }))
             )));
@@ -136,7 +135,7 @@ public class FieldPermissionsTests extends ESTestCase {
         final BytesStreamOutput out3 = new BytesStreamOutput();
         final FieldPermissions fieldPermissions3 = new FieldPermissions().limitFieldPermissions(
             new FieldPermissions(
-                new FieldPermissionsDefinition(Set.of(
+                new FieldPermissionsDefinition(org.elasticsearch.core.Set.of(
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "x*" }, new String[] { "x2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "y*" }, new String[] { "y2" }),
                     new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "z*" }, new String[] { "z2" })))));

@@ -258,6 +258,7 @@ import org.elasticsearch.xpack.ml.autoscaling.MlAutoscalingNamedWritableProvider
 import org.elasticsearch.xpack.ml.datafeed.DatafeedConfigAutoUpdater;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedContextProvider;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedJobBuilder;
+import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedRunner;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
@@ -699,7 +700,17 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             threadPool,
             client,
             notifier,
-            xContentRegistry);
+            xContentRegistry,
+            indexNameExpressionResolver
+        );
+        DatafeedManager datafeedManager = new DatafeedManager(
+            datafeedConfigProvider,
+            jobConfigProvider,
+            xContentRegistry,
+            clusterService,
+            settings,
+            client
+        );
 
         // special holder for @link(MachineLearningFeatureSetUsage) which needs access to job manager if ML is enabled
         JobManagerHolder jobManagerHolder = new JobManagerHolder(jobManager);
@@ -852,7 +863,8 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 autodetectProcessManager,
                 new MlInitializationService(settings, threadPool, clusterService, client, mlAssignmentNotifier),
                 jobDataCountsPersister,
-            datafeedRunner,
+                datafeedRunner,
+                datafeedManager,
                 anomalyDetectionAuditor,
                 dataFrameAnalyticsAuditor,
                 inferenceAuditor,
@@ -1300,8 +1312,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public void cleanUpFeature(
         ClusterService clusterService,
         Client client,
-        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener) {
+        ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> finalListener
+    ) {
         logger.info("Starting machine learning feature reset");
+
+        final Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> unsetResetModeListener = ActionListener.wrap(
             success -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(true), ActionListener.wrap(
@@ -1316,22 +1331,33 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                     );
                 })
             ),
-            failure -> client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
-                resetSuccess -> finalListener.onFailure(failure),
-                resetFailure -> {
-                    logger.error("failed to disable reset mode after state clean up failure", resetFailure);
-                    finalListener.onFailure(failure);
-                })
-            )
+            failure -> {
+                logger.error("failed to reset machine learning", failure);
+                client.execute(SetResetModeAction.INSTANCE, SetResetModeActionRequest.disabled(false), ActionListener.wrap(
+                    resetSuccess -> finalListener.onFailure(failure),
+                    resetFailure -> {
+                        logger.error("failed to disable reset mode after state clean up failure", resetFailure);
+                        finalListener.onFailure(failure);
+                    })
+                );
+            }
         );
-
-        Map<String, Boolean> results = new ConcurrentHashMap<>();
 
         ActionListener<ListTasksResponse> afterWaitingForTasks = ActionListener.wrap(
             listTasksResponse -> {
                 listTasksResponse.rethrowFailures("Waiting for indexing requests for .ml-* indices");
                 if (results.values().stream().allMatch(b -> b)) {
-                    // Call into the original listener to clean up the indices
+                    if (memoryTracker.get() != null) {
+                        memoryTracker.get().awaitAndClear(ActionListener.wrap(
+                            cacheCleared -> SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener),
+                            clearFailed -> {
+                                logger.error("failed to clear memory tracker cache via machine learning reset feature API", clearFailed);
+                                SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
+                            }
+                        ));
+                        return;
+                    }
+                    // Call into the original listener to clean up the indices and then clear ml memory cache
                     SystemIndexPlugin.super.cleanUpFeature(clusterService, client, unsetResetModeListener);
                 } else {
                     final List<String> failedComponents = results.entrySet().stream()

@@ -13,7 +13,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/enroll_node",
+          "path":"/_security/enroll/node",
           "methods":[
             "GET"
           ]

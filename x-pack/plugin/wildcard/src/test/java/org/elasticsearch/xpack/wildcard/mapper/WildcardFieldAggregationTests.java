@@ -13,7 +13,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
@@ -46,7 +46,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         wildcardFieldType = wildcardFieldMapper.fieldType();
     }
 
-    private void addFields(ParseContext.Document parseDoc, Document doc, String docContent) throws IOException {
+    private void addFields(LuceneDocument parseDoc, Document doc, String docContent) throws IOException {
         ArrayList<IndexableField> fields = new ArrayList<>();
         wildcardFieldMapper.createFields(docContent, parseDoc, fields);
 
@@ -55,7 +55,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
         }
     }
 
-    private void indexDoc(ParseContext.Document parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
+    private void indexDoc(LuceneDocument parseDoc, Document doc, RandomIndexWriter iw) throws IOException {
         IndexableField field = parseDoc.getByKey(wildcardFieldMapper.name());
         if (field != null) {
             doc.add(field);
@@ -65,7 +65,7 @@ public class WildcardFieldAggregationTests extends AggregatorTestCase {
 
     private void indexStrings(RandomIndexWriter iw, String... values) throws IOException {
         Document doc = new Document();
-        ParseContext.Document parseDoc = new ParseContext.Document();
+        LuceneDocument parseDoc = new LuceneDocument();
         for (String value : values) {
             addFields(parseDoc, doc, value);
         }

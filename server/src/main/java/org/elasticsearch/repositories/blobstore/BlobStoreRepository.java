@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -55,12 +54,10 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.metrics.CounterMetric;
@@ -77,6 +74,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -237,7 +237,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public static final Setting<Integer> MAX_SNAPSHOTS_SETTING = Setting.intSetting(
         "max_number_of_snapshots",
-        500,
+        Integer.MAX_VALUE,
         1,
         Setting.Property.NodeScope
     );
@@ -259,13 +259,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<Metadata> GLOBAL_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "metadata",
         METADATA_NAME_FORMAT,
-        Metadata::fromXContent
+        (repoName, parser) -> Metadata.fromXContent(parser)
     );
 
     public static final ChecksumBlobStoreFormat<IndexMetadata> INDEX_METADATA_FORMAT = new ChecksumBlobStoreFormat<>(
         "index-metadata",
         METADATA_NAME_FORMAT,
-        IndexMetadata::fromXContent
+        (repoName, parser) -> IndexMetadata.fromXContent(parser)
     );
 
     private static final String SNAPSHOT_CODEC = "snapshot";
@@ -279,13 +279,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshot> INDEX_SHARD_SNAPSHOT_FORMAT = new ChecksumBlobStoreFormat<>(
         SNAPSHOT_CODEC,
         SNAPSHOT_NAME_FORMAT,
-        BlobStoreIndexShardSnapshot::fromXContent
+        (repoName, parser) -> BlobStoreIndexShardSnapshot.fromXContent(parser)
     );
 
     public static final ChecksumBlobStoreFormat<BlobStoreIndexShardSnapshots> INDEX_SHARD_SNAPSHOTS_FORMAT = new ChecksumBlobStoreFormat<>(
         "snapshots",
         SNAPSHOT_INDEX_NAME_FORMAT,
-        BlobStoreIndexShardSnapshots::fromXContent
+        (repoName, parser) -> BlobStoreIndexShardSnapshots.fromXContent(parser)
     );
 
     public static final Setting<ByteSizeValue> MAX_SNAPSHOT_BYTES_PER_SEC = Setting.byteSizeSetting(
@@ -997,7 +997,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             for (String indexMetaGeneration : indexMetaGenerations) {
                 executor.execute(ActionRunnable.supply(allShardCountsListener, () -> {
                     try {
-                        return INDEX_METADATA_FORMAT.read(indexContainer, indexMetaGeneration, namedXContentRegistry).getNumberOfShards();
+                        return INDEX_METADATA_FORMAT.read(metadata.name(), indexContainer, indexMetaGeneration, namedXContentRegistry)
+                            .getNumberOfShards();
                     } catch (Exception ex) {
                         logger.warn(
                             () -> new ParameterizedMessage(
@@ -1482,7 +1483,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             Exception failure = null;
             SnapshotInfo snapshotInfo = null;
             try {
-                snapshotInfo = SNAPSHOT_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
+                snapshotInfo = SNAPSHOT_FORMAT.read(metadata.name(), blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
             } catch (NoSuchFileException ex) {
                 failure = new SnapshotMissingException(metadata.name(), snapshotId, ex);
             } catch (IOException | NotXContentException ex) {
@@ -1508,7 +1509,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     @Override
     public Metadata getSnapshotGlobalMetadata(final SnapshotId snapshotId) {
         try {
-            return GLOBAL_METADATA_FORMAT.read(blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
+            return GLOBAL_METADATA_FORMAT.read(metadata.name(), blobContainer(), snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -1520,6 +1521,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
         try {
             return INDEX_METADATA_FORMAT.read(
+                metadata.name(),
                 indexContainer(index),
                 repositoryData.indexMetaDataGenerations().indexMetaBlobId(snapshotId, index),
                 namedXContentRegistry
@@ -2773,7 +2775,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 final ShardSnapshotResult shardSnapshotResult = new ShardSnapshotResult(
                     indexGeneration,
                     ByteSizeValue.ofBytes(blobStoreIndexShardSnapshot.totalSize()),
-                    snapshotIndexCommit.getSegmentCount()
+                    getSegmentInfoFileCount(blobStoreIndexShardSnapshot.indexFiles())
                 );
                 snapshotStatus.moveToDone(threadPool.absoluteTimeInMillis(), shardSnapshotResult);
                 context.onResponse(shardSnapshotResult);
@@ -3213,7 +3215,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      */
     public BlobStoreIndexShardSnapshot loadShardSnapshot(BlobContainer shardContainer, SnapshotId snapshotId) {
         try {
-            return INDEX_SHARD_SNAPSHOT_FORMAT.read(shardContainer, snapshotId.getUUID(), namedXContentRegistry);
+            return INDEX_SHARD_SNAPSHOT_FORMAT.read(metadata.name(), shardContainer, snapshotId.getUUID(), namedXContentRegistry);
         } catch (NoSuchFileException ex) {
             throw new SnapshotMissingException(metadata.name(), snapshotId, ex);
         } catch (IOException ex) {
@@ -3245,7 +3247,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             if (generation.equals(ShardGenerations.NEW_SHARD_GEN)) {
                 return new Tuple<>(BlobStoreIndexShardSnapshots.EMPTY, ShardGenerations.NEW_SHARD_GEN);
             }
-            return new Tuple<>(INDEX_SHARD_SNAPSHOTS_FORMAT.read(shardContainer, generation, namedXContentRegistry), generation);
+            return new Tuple<>(
+                INDEX_SHARD_SNAPSHOTS_FORMAT.read(metadata.name(), shardContainer, generation, namedXContentRegistry),
+                generation
+            );
         }
         final Tuple<BlobStoreIndexShardSnapshots, Long> legacyIndex = buildBlobStoreIndexShardSnapshots(blobs, shardContainer);
         return new Tuple<>(legacyIndex.v1(), String.valueOf(legacyIndex.v2()));
@@ -3262,6 +3267,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         long latest = latestGeneration(blobs);
         if (latest >= 0) {
             final BlobStoreIndexShardSnapshots shardSnapshots = INDEX_SHARD_SNAPSHOTS_FORMAT.read(
+                metadata.name(),
                 shardContainer,
                 Long.toString(latest),
                 namedXContentRegistry

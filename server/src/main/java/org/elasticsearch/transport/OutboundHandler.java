@@ -72,9 +72,9 @@ final class OutboundHandler {
         Version version = Version.min(this.version, channelVersion);
         final CompressionScheme compressionScheme;
         if (compressRequest) {
-            compressionScheme = null;
-        } else {
             compressionScheme = configuredCompressionScheme;
+        } else {
+            compressionScheme = null;
         }
         OutboundMessage.Request message =
             new OutboundMessage.Request(threadPool.getThreadContext(), request, version, action, requestId, isHandshake, compressionScheme);
@@ -103,9 +103,9 @@ final class OutboundHandler {
         Version version = Version.min(this.version, nodeVersion);
         final CompressionScheme compressionScheme;
         if (compressResponse) {
-            compressionScheme = null;
-        } else {
             compressionScheme = configuredCompressionScheme;
+        } else {
+            compressionScheme = null;
         }
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), response, version,
             requestId, isHandshake, compressionScheme);

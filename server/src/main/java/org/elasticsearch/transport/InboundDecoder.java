@@ -85,14 +85,16 @@ public class InboundDecoder implements Releasable {
                     this.decompressor = decompressor;
                 }
             }
-            int maxBytesToConsume = Math.min(reference.length(), totalNetworkSize - bytesConsumed);
-            int bytesConsumedThisDecode = 0;
+            int remainingToConsume = totalNetworkSize - bytesConsumed;
+            int maxBytesToConsume = Math.min(reference.length(), remainingToConsume);
             ReleasableBytesReference retainedContent;
-            if (isDone()) {
+            if (maxBytesToConsume == remainingToConsume) {
                 retainedContent = reference.retainedSlice(0, maxBytesToConsume);
             } else {
                 retainedContent = reference.retain();
             }
+
+            int bytesConsumedThisDecode = 0;
             if (decompressor != null) {
                 bytesConsumedThisDecode += decompress(retainedContent);
                 bytesConsumed += bytesConsumedThisDecode;

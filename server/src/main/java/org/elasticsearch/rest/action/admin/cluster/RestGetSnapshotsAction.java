@@ -60,7 +60,7 @@ public class RestGetSnapshotsAction extends BaseRestHandler {
         getSnapshotsRequest.size(size);
         final String afterString = request.param("after");
         if (afterString != null) {
-            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromParam(afterString));
+            getSnapshotsRequest.after(GetSnapshotsRequest.After.fromQueryParam(afterString));
         }
         final SortOrder order = SortOrder.fromString(request.param("order", getSnapshotsRequest.order().toString()));
         getSnapshotsRequest.order(order);

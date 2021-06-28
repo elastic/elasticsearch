@@ -329,7 +329,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             this(in.readString(), in.readString(), in.readString());
         }
 
-        public static After fromParam(String param) {
+        public static After fromQueryParam(String param) {
             final String[] parts = new String(Base64.getUrlDecoder().decode(param), StandardCharsets.UTF_8).split(",");
             if (parts.length != 3) {
                 throw new IllegalArgumentException("invalid ?after parameter [" + param + "]");

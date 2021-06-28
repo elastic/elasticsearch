@@ -98,7 +98,7 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
     }
 
     public GetSnapshotsRequestBuilder setAfter(String after) {
-        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromParam(after));
+        return setAfter(after == null ? null : GetSnapshotsRequest.After.fromQueryParam(after));
     }
 
     public GetSnapshotsRequestBuilder setAfter(@Nullable GetSnapshotsRequest.After after) {

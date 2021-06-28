@@ -1,0 +1,71 @@
+---
+setup:
+  - skip:
+      version: "9.0.0 - "
+      reason: "compatible from 8.x to 7.x"
+      features:
+        - "headers"
+        - "warnings"
+
+---
+"Test geo_shape with type":
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated field [template] used, replaced by [index_patterns]"
+      indices.create:
+        index: shapes
+        include_type_name: true
+        body:
+          mappings:
+            _doc:
+              properties:
+                location:
+                  type: geo_shape
+
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated field [template] used, replaced by [index_patterns]"
+      index:
+        index:  shapes
+        type:   _doc
+        id:     deu
+        body:
+          location:
+            type : "envelope"
+            coordinates:  [[13.0, 53.0], [14.0, 52.0]]
+
+  - do:
+      indices.refresh: {}
+
+  - do:
+      headers:
+        Content-Type: "application/vnd.elasticsearch+json;compatible-with=7"
+        Accept: "application/vnd.elasticsearch+json;compatible-with=7"
+      warnings:
+        - "Deprecated field [template] used, replaced by [index_patterns]"
+      search:
+        rest_total_hits_as_int: true
+        index: shapes
+        type: _doc
+        size: 0
+        body:
+          query:
+            bool:
+              filter:
+                geo_shape:
+                  location:
+                    indexed_shape:
+                        index: "shapes"
+                        type: "_doc"
+                        id: "deu"
+                        path: "location"
+                field: location
+
+  - match: {hits.total:      1    }

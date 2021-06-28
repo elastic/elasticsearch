@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Locale;
 import java.util.zip.Checksum;
 
 public class Lz4TransportDecompressor implements TransportDecompressor {
@@ -181,7 +182,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
                         int compressedLength = Integer.reverseBytes(in.readInt());
                         if (compressedLength < 0 || compressedLength > MAX_BLOCK_SIZE) {
-                            throw new IllegalStateException(String.format(
+                            throw new IllegalStateException(String.format(Locale.ROOT,
                                 "invalid compressedLength: %d (expected: 0-%d)",
                                 compressedLength, MAX_BLOCK_SIZE));
                         }
@@ -189,14 +190,14 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int decompressedLength = Integer.reverseBytes(in.readInt());
                         final int maxDecompressedLength = 1 << compressionLevel;
                         if (decompressedLength < 0 || decompressedLength > maxDecompressedLength) {
-                            throw new IllegalStateException(String.format(
+                            throw new IllegalStateException(String.format(Locale.ROOT,
                                 "invalid decompressedLength: %d (expected: 0-%d)",
                                 decompressedLength, maxDecompressedLength));
                         }
                         if (decompressedLength == 0 && compressedLength != 0
                             || decompressedLength != 0 && compressedLength == 0
                             || blockType == BLOCK_TYPE_NON_COMPRESSED && decompressedLength != compressedLength) {
-                            throw new IllegalStateException(String.format(
+                            throw new IllegalStateException(String.format(Locale.ROOT,
                                 "stream corrupted: compressedLength(%d) and decompressedLength(%d) mismatch",
                                 compressedLength, decompressedLength));
                         }
@@ -258,7 +259,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                                 decompressor.decompress(compressed, compressedOffset, uncompressed, 0, decompressedLength);
                                 break;
                             default:
-                                throw new IllegalStateException(String.format(
+                                throw new IllegalStateException(String.format(Locale.ROOT,
                                     "unexpected blockType: %d (expected: %d or %d)",
                                     blockType, BLOCK_TYPE_NON_COMPRESSED, BLOCK_TYPE_COMPRESSED));
                         }

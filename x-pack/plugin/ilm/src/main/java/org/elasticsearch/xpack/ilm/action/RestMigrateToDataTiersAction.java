@@ -28,7 +28,7 @@ public class RestMigrateToDataTiersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_migrate_to_data_tiers"));
+        return List.of(new Route(POST, "/_ilm/migrate_to_data_tiers"));
     }
 
     @Override

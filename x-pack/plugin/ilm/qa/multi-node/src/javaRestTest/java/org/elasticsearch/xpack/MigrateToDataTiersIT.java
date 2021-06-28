@@ -80,7 +80,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
     }
 
     public void testAPIFailsIfILMIsNotStopped() throws IOException {
-        Request migrateRequest = new Request("POST", "_migrate_to_data_tiers");
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(migrateRequest));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(RestStatus.INTERNAL_SERVER_ERROR.getStatus()));
         assertThat(e.getMessage(), containsString("stop ILM before migrating to data tiers, current state is [RUNNING]"));
@@ -155,7 +155,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "data", "warm");
         createIndex(indexWithDataWarmRouting, settings.build());
 
-        Request migrateRequest = new Request("POST", "_migrate_to_data_tiers");
+        Request migrateRequest = new Request("POST", "_ilm/migrate_to_data_tiers");
         migrateRequest.setJsonEntity(
             "{\"legacy_template_to_delete\": \"" + templateName + "\", \"node_attribute\": \"data\"}"
         );

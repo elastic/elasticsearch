@@ -1,6 +1,6 @@
 [role="xpack"]
 [testenv="basic"]
-[[cluster-migrate-to-data-tiers]]
+[[ilm-migrate-to-data-tiers]]
 === Migrate to data tiers routing API
 ++++
 <titleabbrev>Migrate indices and ILM policies to data tiers routing</titleabbrev>
@@ -23,10 +23,10 @@ in the <<data-tier-migration, migration guide>>:
 . <<remove-custom-allocation-settings, Remove custom allocation settings from existing {ilm-init} policies>>
 . <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<data-tier-shard-filtering,tier preference>>
 
-[[cluster-migrate-to-data-tiers-request]]
+[[ilm-migrate-to-data-tiers-request]]
 ==== {api-request-title}
 
-`POST /_migrate_to_data_tiers`
+`POST /_ilm/migrate_to_data_tiers`
 
 The API accepts an optional body that allows you to specify:
 
@@ -34,14 +34,14 @@ The API accepts an optional body that allows you to specify:
 - The name of the custom node attribute used for the indices and ILM policies allocation filtering.
 Defaults to `data`.
 
-[[cluster-migrate-to-data-tiers-prereqs]]
+[[ilm-migrate-to-data-tiers-prereqs]]
 ==== {api-prereq-title}
 
 * {ilm-init} must be stopped before performing the migration. Use the <<ilm-stop-request, stop ILM API>>
 to stop {ilm-init} and <<ilm-get-status-request, get status API>> to wait until the
 reported operation mode is `STOPPED`.
 
-[[cluster-migrate-to-data-tiers-example]]
+[[ilm-migrate-to-data-tiers-example]]
 ==== {api-examples-title}
 
 The following example migrates the indices and ILM policies away from defining
@@ -106,7 +106,7 @@ POST _ilm/start
 
 [source,console]
 ----------------------------------------------------------------
-POST /_migrate_to_data_tiers
+POST /_ilm/migrate_to_data_tiers
 {
   "legacy_template_to_delete": "global-template",
   "node_attribute": "custom_attribute_name"

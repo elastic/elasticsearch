@@ -46,7 +46,7 @@ Recovery automatically occurs during the following processes:
 
 * Node startup or failure. This type of recovery is called a local store
   recovery.
-* <<glossary-replica-shard,Primary shard replication>>.
+* Primary shard replication.
 * Relocation of a shard to a different node in the same cluster.
 * <<snapshots-restore-snapshot,Snapshot restoration>>.
 
@@ -94,8 +94,7 @@ The recovery is related to
 a <<snapshots-restore-snapshot,snapshot restoration>>.
 
 `REPLICA`::
-The recovery is related to
-a <<glossary-replica-shard,primary shard replication>>.
+The recovery is related to a primary shard replication.
 
 `RELOCATING`::
 The recovery is related to

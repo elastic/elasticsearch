@@ -63,7 +63,6 @@ public class GeoDistanceRangeAggregatorFactory extends ValuesSourceAggregatorFac
                     rangeFactory,
                     ranges,
                     averageDocsPerRange,
-                    null, // null here because we didn't try filters at all
                     keyed,
                     context,
                     parent,

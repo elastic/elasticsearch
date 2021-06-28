@@ -372,6 +372,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
         final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
+                repoName,
                 JsonXContent.jsonXContent.createParser(
                         NamedXContentRegistry.EMPTY,
                         DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
@@ -459,7 +460,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final SnapshotId snapshotId = new SnapshotId(snapshotName, UUIDs.randomBase64UUID(random()));
         logger.info("--> adding old version FAILED snapshot [{}] to repository [{}]", snapshotId, repoName);
         final SnapshotInfo snapshotInfo = new SnapshotInfo(
-            snapshotId,
+            new Snapshot(repoName, snapshotId),
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList(),
@@ -625,7 +626,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
     protected SnapshotInfo getSnapshot(String repository, String snapshot) {
         final List<SnapshotInfo> snapshotInfos = clusterAdmin().prepareGetSnapshots(repository).setSnapshots(snapshot)
-                .get().getSnapshots(repository);
+                .get().getSnapshots();
         assertThat(snapshotInfos, hasSize(1));
         return snapshotInfos.get(0);
     }
@@ -666,7 +667,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                         clusterAdmin().prepareGetSnapshots(repoName)
                                 .setSnapshots(snapshot)
                                 .execute(l.delegateFailure((ll, getResponse) -> {
-                                    assertEquals(snapshotInfoInResponse, getResponse.getSnapshots(repoName).get(0));
+                                    assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));
                                     ll.onResponse(response);
                                 }));
                     }));

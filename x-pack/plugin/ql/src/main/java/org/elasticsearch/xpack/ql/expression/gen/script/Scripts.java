@@ -117,25 +117,8 @@ public final class Scripts {
     /**
      * This method replaces any .docValue(doc,params.%s) call with a variable.
      * Each variable is then used in a {@code java.util.function.Predicate} to iterate over the doc_values in a Painless script.
-     * Multiple .docValue(doc,params.%s) calls for the same field will use, in the end, only one .docValue call, meaning
-     * the same value of the field will be used in all usages in the script.
-     * 
-     * For example, a query of the form fieldA - fieldB > 0 that gets translated into the following Painless script
-     * {@code InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.sub(
-     * InternalQlScriptUtils.docValue(doc,params.v0),InternalQlScriptUtils.docValue(doc,params.v1)),params.v2))}
-     * will become, after this method rewrite
-     * {@code InternalEqlScriptUtils.multiValueDocValues(doc,params.v0,X1 -> InternalEqlScriptUtils.multiValueDocValues(doc,params.v1,
-     * X2 -> InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.sub(X1,X2),params.v2))))}
-     */
-    public static ScriptTemplate sameValueDocValuesRewrite(ScriptTemplate script) {
-        return docValuesRewrite(script, true);
-    }
-
-    /**
-     * This method replaces any .docValue(doc,params.%s) call with a variable.
-     * Each variable is then used in a {@code java.util.function.Predicate} to iterate over the doc_values in a Painless script.
-     * Multiple .docValue(doc,params.%s) calls for the same field will use, in the end, only one .docValue call, meaning
-     * the same value of the field will be used in all usages in the script.
+     * Multiple .docValue(doc,params.%s) calls for the same field will use multiple .docValue calls, meaning
+     * a different value of the field will be used for each usage in the script.
      * 
      * For example, a query of the form fieldA - fieldB > 0 that gets translated into the following Painless script
      * {@code InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(InternalQlScriptUtils.sub(
@@ -186,11 +169,9 @@ public final class Scripts {
             } else {
                 newTemplate.append(token);
             }
-            if (negated > 0) {
-                for (int i = 0; i < negated - 1; i++) {
-                    // remove this many closing parantheses as "InternalQlScriptUtils.not(" matches found minus one
-                    newTemplate.deleteCharAt(newTemplate.length() - 1);
-                }
+            for (int i = 0; i < negated - 1; i++) {
+                // remove this many closing parantheses as "InternalQlScriptUtils.not(" matches found, minus one
+                newTemplate.deleteCharAt(newTemplate.length() - 1);
             }
         }
 

@@ -64,8 +64,6 @@ import java.util.Objects;
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
 
@@ -202,22 +200,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected Expression simplifyNot(Not n) {
-            Expression c = n.field();
-
-            if (TRUE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.FALSE, DataTypes.BOOLEAN);
-            }
-            if (FALSE.semanticEquals(c)) {
-                return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
-            }
-
-            if (c instanceof Not) {
-                return ((Not) c).field();
-            }
-
-            return n;
+        protected Expression maybeSimplifyNegatable(Expression e) {
+            return null;
         }
+
     }
 
     static class PruneFilters extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneFilters {

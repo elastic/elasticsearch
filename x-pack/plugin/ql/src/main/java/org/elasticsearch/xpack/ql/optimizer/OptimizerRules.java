@@ -229,7 +229,7 @@ public final class OptimizerRules {
         }
 
         @SuppressWarnings("rawtypes")
-        protected Expression simplifyNot(Not n) {
+        private Expression simplifyNot(Not n) {
             Expression c = n.field();
 
             if (TRUE.semanticEquals(c)) {
@@ -239,8 +239,9 @@ public final class OptimizerRules {
                 return new Literal(n.source(), Boolean.TRUE, DataTypes.BOOLEAN);
             }
 
-            if (c instanceof Negatable) {
-                return ((Negatable) c).negate();
+            Expression negated = maybeSimplifyNegatable(c);
+            if (negated != null) {
+                return negated;
             }
 
             if (c instanceof Not) {
@@ -248,6 +249,17 @@ public final class OptimizerRules {
             }
 
             return n;
+        }
+
+        /**
+         * @param e
+         * @return the negated expression or {@code null} if the parameter is not an instance of {@code Negatable}
+         */
+        protected Expression maybeSimplifyNegatable(Expression e) {
+            if (e instanceof Negatable) {
+                return ((Negatable<?>) e).negate();
+            }
+            return null;
         }
     }
 

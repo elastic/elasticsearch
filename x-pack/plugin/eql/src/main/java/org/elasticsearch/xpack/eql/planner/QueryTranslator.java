@@ -68,10 +68,11 @@ final class QueryTranslator {
 
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;
-        int i = 0;
-        while (translation == null && i < QUERY_TRANSLATORS.size()) {
-            translation = QUERY_TRANSLATORS.get(i).translate(e, handler);
-            i++;
+        for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {
+            translation = translator.translate(e, handler);
+            if (translation != null) {
+                break;
+            }
         }
         if (translation != null) {
             if (translation instanceof ScriptQuery) {

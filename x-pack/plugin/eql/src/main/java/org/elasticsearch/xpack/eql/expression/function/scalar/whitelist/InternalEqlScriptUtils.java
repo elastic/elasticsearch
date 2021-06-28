@@ -37,27 +37,17 @@ public class InternalEqlScriptUtils extends InternalQlScriptUtils {
     }
 
     public static <T> Boolean multiValueDocValues(Map<String, ScriptDocValues<T>> doc, String fieldName, Predicate<T> script) {
-        if (doc.containsKey(fieldName)) {
-            ScriptDocValues<T> docValues = doc.get(fieldName);
-            if (docValues.isEmpty() == false) {
-                for (int i = 0; i < docValues.size(); i++) {
-                    T value = docValues.get(i);
-                    if (script.test(value)) {
-                        return true;
-                    }
-                }
-                return false;
-            } else {
-                if (script.test(null)) {
+        ScriptDocValues<T> docValues = doc.get(fieldName);
+        if (docValues != null && docValues.isEmpty() == false) {
+            for (T value : docValues) {
+                if (script.test(value)) {
                     return true;
                 }
             }
-        } else {
-            if (script.test(null)) {
-                return true;
-            }
+            return false;
         }
-        return false;
+        // missing value means "null"
+        return script.test(null);
     }
 
     public static Boolean seq(Object left, Object right) {

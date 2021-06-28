@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.sql.expression;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expression.TypeResolution;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
@@ -19,7 +18,7 @@ public final class SqlTypeResolutions {
 
     private SqlTypeResolutions() {}
 
-    public static TypeResolution isDate(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+    public static TypeResolution isDate(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, SqlDataTypes::isDateBased, operationName, paramOrd, "date", "datetime");
     }
 
@@ -36,7 +35,7 @@ public final class SqlTypeResolutions {
             "date", "datetime", "numeric");
     }
 
-    public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+    public static TypeResolution isNumericOrDateOrTime(Expression e, String operationName, ParamOrdinal paramOrd) {
         return isType(e, dt -> dt.isNumeric() || SqlDataTypes.isDateOrTimeBased(dt), operationName, paramOrd,
             "date", "time", "datetime", "numeric");
     }

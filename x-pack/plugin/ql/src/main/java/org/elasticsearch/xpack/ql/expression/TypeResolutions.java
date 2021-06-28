@@ -86,12 +86,16 @@ public final class TypeResolutions {
         if (e instanceof FieldAttribute) {
             EsField.Exact exact = ((FieldAttribute) e).getExactInfo();
             if (exact.hasExact() == false) {
-                return new TypeResolution(format(null, "[{}] cannot operate on {}field of data type [{}]: {}",
-                    operationName,
-                    paramOrd == null || paramOrd == DEFAULT
-                        ?
-                        "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
-                    e.dataType().typeName(), exact.errorMsg()));
+                return new TypeResolution(
+                    format(
+                        null,
+                        "[{}] cannot operate on {}field of data type [{}]: {}",
+                        operationName,
+                        paramOrd == null || paramOrd == DEFAULT ? "" : paramOrd.name().toLowerCase(Locale.ROOT) + " argument ",
+                        e.dataType().typeName(),
+                        exact.errorMsg()
+                    )
+                );
             }
         }
         return TypeResolution.TYPE_RESOLVED;
@@ -161,4 +165,4 @@ public final class TypeResolutions {
             return acceptedTypes[0];
         }
     }
-};
+}

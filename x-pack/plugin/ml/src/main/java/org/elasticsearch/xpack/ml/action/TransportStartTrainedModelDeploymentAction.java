@@ -26,7 +26,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
@@ -74,21 +73,18 @@ public class TransportStartTrainedModelDeploymentAction
     private final XPackLicenseState licenseState;
     private final Client client;
     private final PersistentTasksService persistentTasksService;
-    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportStartTrainedModelDeploymentAction(TransportService transportService, Client client, ClusterService clusterService,
                                                       ThreadPool threadPool, ActionFilters actionFilters, XPackLicenseState licenseState,
                                                       IndexNameExpressionResolver indexNameExpressionResolver,
-                                                      PersistentTasksService persistentTasksService,
-                                                      NamedXContentRegistry xContentRegistry) {
+                                                      PersistentTasksService persistentTasksService) {
         super(StartTrainedModelDeploymentAction.NAME, transportService, clusterService, threadPool, actionFilters,
             StartTrainedModelDeploymentAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new,
             ThreadPool.Names.SAME);
         this.licenseState = Objects.requireNonNull(licenseState);
         this.client = Objects.requireNonNull(client);
         this.persistentTasksService = Objects.requireNonNull(persistentTasksService);
-        this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
     }
 
     @Override
@@ -162,7 +158,7 @@ public class TransportStartTrainedModelDeploymentAction
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTask) {
                     if (predicate.exception != null) {
-                        cancelDeploymentStart(task, predicate.exception, listener);
+                        cancelFailedDeployment(task, predicate.exception, listener);
                     } else {
                         listener.onResponse(new NodeAcknowledgedResponse(true, predicate.node));
                     }
@@ -175,14 +171,14 @@ public class TransportStartTrainedModelDeploymentAction
             });
     }
 
-    private void cancelDeploymentStart(
+    private void cancelFailedDeployment(
         PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask, Exception exception,
         ActionListener<NodeAcknowledgedResponse> listener) {
         persistentTasksService.sendRemoveRequest(persistentTask.getId(), ActionListener.wrap(
             pTask -> listener.onFailure(exception),
             e -> {
                 logger.error(
-                    new ParameterizedMessage("[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                    new ParameterizedMessage("[{}] Failed to cancel persistent task that had failed with the reason [{}]",
                         persistentTask.getParams().getModelId(), exception.getMessage()),
                     e
                 );
@@ -238,6 +234,9 @@ public class TransportStartTrainedModelDeploymentAction
                 case STOPPING:
                 case STOPPED:
                     return false;
+                case FAILED:
+                    exception = ExceptionsHelper.serverError("Deployment failed with reason: {}", reason);
+                    return true;
                 default:
                     exception = ExceptionsHelper.serverError("Unexpected task state [{}] with reason [{}] while waiting to be started",
                         taskState.getState(), reason);

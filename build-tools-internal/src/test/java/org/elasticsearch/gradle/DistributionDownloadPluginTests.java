@@ -21,7 +21,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
 
     public void testVersionDefault() {
         ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             null,
             ElasticsearchDistributionTypes.ARCHIVE,
@@ -33,7 +33,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
 
     public void testBadVersionFormat() {
         assertDistroError(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             "badversion",
             ElasticsearchDistributionTypes.ARCHIVE,
@@ -44,13 +44,13 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
     }
 
     public void testTypeDefault() {
-        ElasticsearchDistribution distro = checkDistro(createProject(null, false), "testdistro", "5.0.0", null, Platform.LINUX, true);
+        ElasticsearchDistribution distro = checkDistro(createProject(null), "testdistro", "5.0.0", null, Platform.LINUX, true);
         assertEquals(distro.getType(), ElasticsearchDistributionTypes.ARCHIVE);
     }
 
     public void testPlatformDefault() {
         ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             "5.0.0",
             ElasticsearchDistributionTypes.ARCHIVE,
@@ -62,7 +62,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
 
     public void testPlatformForIntegTest() {
         assertDistroError(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             "5.0.0",
             ElasticsearchDistributionTypes.INTEG_TEST_ZIP,
@@ -74,7 +74,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
 
     public void testBundledJdkDefault() {
         ElasticsearchDistribution distro = checkDistro(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             "5.0.0",
             ElasticsearchDistributionTypes.ARCHIVE,
@@ -86,7 +86,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
 
     public void testBundledJdkForIntegTest() {
         assertDistroError(
-            createProject(null, false),
+            createProject(null),
             "testdistro",
             "5.0.0",
             ElasticsearchDistributionTypes.INTEG_TEST_ZIP,
@@ -97,7 +97,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
     }
 
     public void testLocalCurrentVersionIntegTestZip() {
-        Project project = createProject(BWC_MINOR, true);
+        Project project = createProject(BWC_MINOR);
         Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName("integ-test-zip").build();
         archiveProject.getConfigurations().create("default");
         archiveProject.getArtifacts().add("default", new File("doesnotmatter"));
@@ -108,7 +108,7 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
         for (Platform platform : Platform.values()) {
             for (boolean bundledJdk : new boolean[] { true, false }) {
                 // create a new project in each iteration, so that we know we are resolving the only additional project being created
-                Project project = createProject(BWC_MINOR, true);
+                Project project = createProject(BWC_MINOR);
                 String projectName = projectName(platform.toString(), bundledJdk);
                 projectName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
                 Project archiveProject = ProjectBuilder.builder().withParent(archivesProject).withName(projectName).build();
@@ -132,10 +132,10 @@ public class DistributionDownloadPluginTests extends AbstractDistributionDownloa
             String configName = projectName(platform.toString(), true);
             configName += (platform == Platform.WINDOWS ? "-zip" : "-tar");
             ElasticsearchDistributionType archiveType = ElasticsearchDistributionTypes.ARCHIVE;
-            checkBwc("minor", configName, BWC_MINOR_VERSION, archiveType, platform, BWC_MINOR, true);
-            checkBwc("staged", configName, BWC_STAGED_VERSION, archiveType, platform, BWC_STAGED, true);
-            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, archiveType, platform, BWC_BUGFIX, true);
-            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, archiveType, platform, BWC_MAINTENANCE, true);
+            checkBwc("minor", configName, BWC_MINOR_VERSION, archiveType, platform, BWC_MINOR);
+            checkBwc("staged", configName, BWC_STAGED_VERSION, archiveType, platform, BWC_STAGED);
+            checkBwc("bugfix", configName, BWC_BUGFIX_VERSION, archiveType, platform, BWC_BUGFIX);
+            checkBwc("maintenance", configName, BWC_MAINTENANCE_VERSION, archiveType, platform, BWC_MAINTENANCE);
         }
     }
 

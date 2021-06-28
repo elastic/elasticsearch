@@ -38,6 +38,8 @@ public class SearchRequestInterceptor extends FieldAndDocumentLevelSecurityReque
                          Map<String, IndicesAccessControl.IndexAccessControl> indexAccessControlByIndex,
                          ActionListener<Void> listener) {
         final SearchRequest request = (SearchRequest) indicesRequest;
+        // The 7.11.2 version check is needed because request caching has a bug related to DLS/FLS
+        // versions before 7.11.2. It is fixed by #69505. See also ESA-2021-08.
         // TODO: The version check can be removed in 8.0 because 7.last will have support for request caching with DLS/FLS
         if (clusterService.state().nodes().getMinNodeVersion().before(VERSION_SHARD_SEARCH_INTERCEPTOR) || hasRemoteIndices(request)) {
             request.requestCache(false);

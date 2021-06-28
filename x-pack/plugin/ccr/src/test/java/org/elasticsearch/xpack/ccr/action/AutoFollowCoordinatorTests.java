@@ -2156,7 +2156,6 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
     }
 
     public void testDeprecationWarningsAreEmittedWhenASystemIndexIsAutoFollowed() throws Exception {
-        // Set up a mock log appender to watch for the log message we expect
         final Client client = mock(Client.class);
         when(client.getRemoteClusterClient(anyString())).thenReturn(client);
 

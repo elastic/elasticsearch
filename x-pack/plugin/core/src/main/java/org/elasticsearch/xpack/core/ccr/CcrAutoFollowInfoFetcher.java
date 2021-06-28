@@ -15,6 +15,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -56,12 +57,12 @@ public class CcrAutoFollowInfoFetcher {
             final String leaderIndexName = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
             final String remoteCluster = ccrMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
-            final String followerIndexName = indexMetadata.getIndex().getName();
-            if (followedLeaderIndexUUIDs.contains(leaderIndexUUID) && isCurrentlyFollowed(persistentTasks, followerIndexName)) {
+            final Index followerIndex = indexMetadata.getIndex();
+            if (followedLeaderIndexUUIDs.contains(leaderIndexUUID) && isCurrentlyFollowed(persistentTasks, followerIndex)) {
                 List<AutoFollowedIndex> autoFollowedIndices =
                     remoteClusterAutoFollowedIndices.computeIfAbsent(remoteCluster, unused -> new ArrayList<>());
 
-                autoFollowedIndices.add(new AutoFollowedIndex(leaderIndexName, followerIndexName));
+                autoFollowedIndices.add(new AutoFollowedIndex(leaderIndexName, followerIndex.getName()));
             }
         }
 
@@ -118,10 +119,10 @@ public class CcrAutoFollowInfoFetcher {
         }
     }
 
-    private static boolean isCurrentlyFollowed(PersistentTasksCustomMetadata persistentTasks, String indexName) {
+    private static boolean isCurrentlyFollowed(PersistentTasksCustomMetadata persistentTasks, Index index) {
         return persistentTasks != null && persistentTasks.findTasks(ShardFollowTask.NAME, task -> true).stream()
             .map(task -> (ShardFollowTask) task.getParams())
-            .anyMatch(shardFollowTask -> indexName.equals(shardFollowTask.getFollowShardId().getIndexName()));
+            .anyMatch(shardFollowTask -> index.equals(shardFollowTask.getFollowShardId().getIndex()));
     }
 
     private static boolean areShardFollowTasksRunning(PersistentTasksCustomMetadata persistentTasks) {

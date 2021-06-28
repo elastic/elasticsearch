@@ -21,8 +21,6 @@ import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
@@ -54,7 +52,6 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -263,35 +260,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .doc(source, XContentType.JSON)
             .retryOnConflict(5);
         clientWithOrigin.update(request, listener);
-    }
-
-    /**
-     * Attempts to update the stored response with failure
-     * This is called after we failed to update the stored response (e.g. because it exceeded allowed memory size),
-     * and we need to update the stored response with this failure.
-     * @param docId – document ID of the stored response
-     * @param responseHeaders – response headers
-     * @param response – response to store that contains the description of failure
-     */
-    public void updateResponseWithFailure(String docId,
-                                          Map<String, List<String>> responseHeaders,
-                                          R response) {
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            Version.writeVersion(Version.CURRENT, out);
-            response.writeTo(out);
-            String encoded = Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
-            Map<String, Object> source = new HashMap<>();
-            source.put(RESPONSE_HEADERS_FIELD, responseHeaders);
-            source.put(RESULT_FIELD, encoded);
-            UpdateRequest request = new UpdateRequest()
-                .index(index)
-                .id(docId)
-                .doc(source, XContentType.JSON)
-                .retryOnConflict(5);
-            clientWithOrigin.update(request, ActionListener.wrap(res -> {}, exc -> {}));
-        } catch (Exception e) {
-            // don't do anything here as we have already logged the original failure before calling this method
-        }
     }
 
     /**

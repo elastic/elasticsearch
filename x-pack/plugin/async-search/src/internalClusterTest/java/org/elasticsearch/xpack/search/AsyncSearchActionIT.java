@@ -66,7 +66,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         createIndex(indexName, Settings.builder()
             .put("index.number_of_shards", numShards)
             .build());
-        numKeywords = randomIntBetween(10, 100);
+        numKeywords = randomIntBetween(50, 100);
         keywordFreqs = new HashMap<>();
         Set<String> keywordSet = new HashSet<>();
         for (int i = 0; i < numKeywords; i++) {
@@ -469,7 +469,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             .query(new MatchAllQueryBuilder())
             .aggregation(AggregationBuilders.terms("terms").field("terms.keyword").size(numKeywords));
 
-        int limit = 500; // should be enough to store initial response, but not enough for final response
+        int limit = 1000; // should be enough to store initial response, but not enough for final response
         ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -483,22 +483,24 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNull(initialResponse.getFailure());
 
         // final response – with failure; test that stored async search response is updated with this failure
-        AsyncSearchResponse finalResponse;
-        do {
-            finalResponse = client().execute(GetAsyncSearchAction.INSTANCE,
+        assertBusy(() -> {
+            final AsyncSearchResponse finalResponse = client().execute(GetAsyncSearchAction.INSTANCE,
                 new GetAsyncResultRequest(initialResponse.getId())
                     .setWaitForCompletionTimeout(TimeValue.timeValueMillis(300))).get();
-        } while (finalResponse.isRunning() || finalResponse.getFailure() == null);
-        assertNotNull(finalResponse.getFailure());
-        assertEquals("Can't store an async search response larger than ["+ limit + "] bytes. " +
-                "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
-            finalResponse.getFailure().getMessage());
+            assertNotNull(finalResponse.getFailure());
+            assertFalse(finalResponse.isRunning());
+            if (finalResponse.getFailure() != null) {
+                assertEquals("Can't store an async search response larger than [" + limit + "] bytes. " +
+                        "This limit can be set by changing the [" + MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.getKey() + "] setting.",
+                    finalResponse.getFailure().getMessage());
+            }
+        });
 
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        deleteAsyncSearch(finalResponse.getId());
-        ensureTaskRemoval(finalResponse.getId());
+        deleteAsyncSearch(initialResponse.getId());
+        ensureTaskRemoval(initialResponse.getId());
     }
 }

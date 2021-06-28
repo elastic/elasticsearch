@@ -64,6 +64,9 @@ public abstract class ChunkedBlobOutputStream<T> extends OutputStream {
 
     protected ChunkedBlobOutputStream(BigArrays bigArrays, long maxBytesToBuffer) {
         this.bigArrays = bigArrays;
+        if (maxBytesToBuffer <= 0) {
+            throw new IllegalArgumentException("maximum buffer size must be positive");
+        }
         this.maxBytesToBuffer = maxBytesToBuffer;
         buffer = new ReleasableBytesStreamOutput(bigArrays);
     }

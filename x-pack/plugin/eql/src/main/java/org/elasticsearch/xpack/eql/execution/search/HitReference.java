@@ -13,6 +13,8 @@ import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
+
 public class HitReference implements Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(HitReference.class);
@@ -26,7 +28,7 @@ public class HitReference implements Accountable {
     }
 
     public HitReference(SearchHit hit) {
-        this(hit.getIndex(), hit.getId());
+        this(qualifiedIndex(hit), hit.getId());
     }
 
     public String index() {

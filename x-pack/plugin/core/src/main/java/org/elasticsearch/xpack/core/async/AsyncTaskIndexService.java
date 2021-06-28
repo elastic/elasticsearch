@@ -117,7 +117,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final NamedWriteableRegistry registry;
     private final Writeable.Reader<R> reader;
 
-
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
                                  ThreadContext threadContext,
@@ -472,7 +471,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Encode the provided response in a binary form using base64 encoding.
      */
     String encodeResponse(R response) throws IOException {
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setVersion(minNodeVersion);
             Version.writeVersion(Version.CURRENT, out);
             response.writeTo(out);
             return Base64.getEncoder().encodeToString(BytesReference.toBytes(out.bytes()));
@@ -485,7 +486,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     R decodeResponse(String value) throws IOException {
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                in.setVersion(Version.readVersion(in));
+                final Version version = Version.readVersion(in);
+                assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
+                in.setVersion(version);
                 return reader.read(in);
             }
         }

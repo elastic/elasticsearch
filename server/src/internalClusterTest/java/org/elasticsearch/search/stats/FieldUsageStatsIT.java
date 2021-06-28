@@ -69,9 +69,10 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .setQuery(QueryBuilders.termQuery("field", "value"))
             .addAggregation(AggregationBuilders.terms("agg1").field("field.keyword"))
             .addAggregation(AggregationBuilders.filter("agg2", QueryBuilders.spanTermQuery("field2", "value2")))
-            .setSize(100)
+            .setSize(between(5, 100))
             .setPreference("fixed")
             .get();
+
         assertHitCount(searchResponse, 30);
         assertAllSuccessful(searchResponse);
 

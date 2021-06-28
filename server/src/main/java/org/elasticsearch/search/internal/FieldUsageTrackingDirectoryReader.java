@@ -103,16 +103,7 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            super.document(docID, new FilterStoredFieldVisitor(visitor) {
-                @Override
-                public Status needsField(FieldInfo fieldInfo) throws IOException {
-                    Status status = visitor.needsField(fieldInfo);
-                    if (status == Status.YES) {
-                        notifier.onStoredFieldsUsed(fieldInfo.name);
-                    }
-                    return status;
-                }
-            });
+            super.document(docID, new FieldUsageStoredFieldVisitor(visitor));
         }
 
         @Override
@@ -183,7 +174,45 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         @Override
         protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
-            return reader;
+            return new FieldUsageTrackingStoredFieldsReader(reader);
+        }
+
+        class FieldUsageTrackingStoredFieldsReader extends StoredFieldsReader {
+            final StoredFieldsReader reader;
+
+            FieldUsageTrackingStoredFieldsReader(StoredFieldsReader reader) {
+                this.reader = reader;
+            }
+
+            @Override
+            public void visitDocument(int docID, StoredFieldVisitor visitor) throws IOException {
+                reader.visitDocument(docID, new FieldUsageStoredFieldVisitor(visitor));
+            }
+
+            @Override
+            public StoredFieldsReader clone() {
+                return new FieldUsageTrackingStoredFieldsReader(reader.clone());
+            }
+
+            @Override
+            public StoredFieldsReader getMergeInstance() {
+                return new FieldUsageTrackingStoredFieldsReader(reader.getMergeInstance());
+            }
+
+            @Override
+            public void checkIntegrity() throws IOException {
+                reader.checkIntegrity();
+            }
+
+            @Override
+            public void close() throws IOException {
+                reader.close();
+            }
+
+            @Override
+            public long ramBytesUsed() {
+                return reader.ramBytesUsed();
+            }
         }
 
         private class FieldUsageTrackingTerms extends FilterTerms {
@@ -296,6 +325,21 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
 
         }
 
+        private class FieldUsageStoredFieldVisitor extends FilterStoredFieldVisitor {
+            FieldUsageStoredFieldVisitor(StoredFieldVisitor visitor) {
+                super(visitor);
+            }
+
+            @Override
+            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                Status status = super.needsField(fieldInfo);
+                if (status == Status.YES) {
+                    notifier.onStoredFieldsUsed(fieldInfo.name);
+                }
+                return status;
+            }
+        }
+
         @Override
         public CacheHelper getCoreCacheHelper() {
             return in.getCoreCacheHelper();
@@ -305,6 +349,5 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         public CacheHelper getReaderCacheHelper() {
             return in.getReaderCacheHelper();
         }
-
     }
 }

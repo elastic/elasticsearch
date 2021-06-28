@@ -89,6 +89,15 @@ problem, prevent concurrent snapshot operations by setting
 This issue is fixed in {es} versions 7.13.1 and later. For more details, see
 {es-issue}73456[#73456].
 
+* When using the Field Capabilities API with CCS in 7.13 and local and remote 
+clusters are on an different patch release, response serialization will fail for 
+requests that hit the remote cluster. Since Kibana uses this API internally, 
+this will break requests to CCS index patterns.
++
+This issue is fixed in {es} version 7.13.3 and later. For more details, see
+{es-issue}74504[#74504].
+
+
 [[deprecation-7.13.0]]
 [float]
 === Deprecations

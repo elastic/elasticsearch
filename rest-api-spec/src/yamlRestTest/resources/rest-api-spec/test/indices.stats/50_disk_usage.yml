@@ -47,7 +47,7 @@ setup:
   # all_fields
   - set: { testindex.all_fields: all }
   - gt: { $all.total_in_bytes: 0 }
-  - gt: { $all.inverted_index_in_bytes: 0 }
+  - gt: { $all.inverted_index.total_in_bytes: 0 }
   - gt: { $all.stored_fields_in_bytes: 0 }
   - gt: { $all.doc_values_in_bytes: 0 }
   - gt: { $all.points_in_bytes: 0 }
@@ -56,7 +56,7 @@ setup:
   # genre
   - set: { testindex.fields.genre: genre }
   - gt: { $genre.total_in_bytes: 0 }
-  - gt: { $genre.inverted_index_in_bytes: 0 }
+  - gt: { $genre.inverted_index.total_in_bytes: 0 }
   - match: { $genre.stored_fields_in_bytes: 0 }
   - gt: { $genre.doc_values_in_bytes: 0 }
   - match: { $genre.points_in_bytes: 0 }
@@ -66,7 +66,7 @@ setup:
   # name
   - set: { testindex.fields.name: name }
   - gt: { $name.total_in_bytes: 0 }
-  - gt: { $name.inverted_index_in_bytes: 0 }
+  - gt: { $name.inverted_index.total_in_bytes: 0 }
   - match: { $name.stored_fields_in_bytes: 0 }
   - match: { $name.doc_values_in_bytes: 0 }
   - match: { $name.points_in_bytes: 0 }
@@ -75,7 +75,7 @@ setup:
   # quantity
   - set: { testindex.fields.quantity: quantity }
   - gt: { $quantity.total_in_bytes: 0 }
-  - match: { $quantity.inverted_index_in_bytes: 0 }
+  - match: { $quantity.inverted_index.total_in_bytes: 0 }
   - match: { $quantity.stored_fields_in_bytes: 0 }
   - match: { $quantity.doc_values_in_bytes: 0 }
   - gt: { $quantity.points_in_bytes: 0 }
@@ -85,7 +85,7 @@ setup:
   # _source
   - set: { testindex.fields._source: source }
   - gt: { $source.total_in_bytes: 0 }
-  - match: { $source.inverted_index_in_bytes: 0 }
+  - match: { $source.inverted_index.total_in_bytes: 0 }
   - gt: { $source.stored_fields_in_bytes: 0 }
   - match: { $source.doc_values_in_bytes: 0 }
   - match: { $source.points_in_bytes: 0 }
@@ -95,7 +95,7 @@ setup:
   # _id
   - set: { testindex.fields._id: id }
   - gt: { $id.total_in_bytes: 0 }
-  - gt: { $id.inverted_index_in_bytes: 0 }
+  - gt: { $id.inverted_index.total_in_bytes: 0 }
   - gt: { $id.stored_fields_in_bytes: 0 }
   - match: { $id.doc_values_in_bytes: 0 }
   - match: { $id.points_in_bytes: 0 }
@@ -105,7 +105,7 @@ setup:
   # _seq_no
   - set: { testindex.fields._seq_no: seqno }
   - gt: { $seqno.total_in_bytes: 0 }
-  - match: { $seqno.inverted_index_in_bytes: 0 }
+  - match: { $seqno.inverted_index.total_in_bytes: 0 }
   - match: { $seqno.stored_fields_in_bytes: 0 }
   - gt: { $seqno.points_in_bytes: 0 }
   - match: { $seqno.norms_in_bytes: 0 }

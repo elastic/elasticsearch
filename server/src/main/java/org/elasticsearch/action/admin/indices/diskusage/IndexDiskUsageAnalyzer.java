@@ -95,8 +95,8 @@ import java.util.Objects;
                 final SegmentReader reader = Lucene.segmentReader(leaf.reader());
 
                 startTimeInNanos = System.nanoTime();
-                analyzePostings(reader, stats);
-                executionTime.postingsTimeInNanos += System.nanoTime() - startTimeInNanos;
+                analyzeInvertedIndex(reader, stats);
+                executionTime.invertedIndexTimeInNanos += System.nanoTime() - startTimeInNanos;
 
                 startTimeInNanos = System.nanoTime();
                 analyzeStoredFields(reader, stats);
@@ -318,7 +318,7 @@ import java.util.Objects;
         }
     }
 
-    void analyzePostings(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
+    void analyzeInvertedIndex(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
         FieldsProducer postingsReader = reader.getPostingsReader();
         if (postingsReader == null) {
             return;
@@ -718,7 +718,7 @@ import java.util.Objects;
     }
 
     private static class ExecutionTime {
-        long postingsTimeInNanos;
+        long invertedIndexTimeInNanos;
         long storedFieldsTimeInNanos;
         long docValuesTimeInNanos;
         long pointsTimeInNanos;
@@ -726,14 +726,14 @@ import java.util.Objects;
         long termVectorsTimeInNanos;
 
         long totalInNanos() {
-            return postingsTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
+            return invertedIndexTimeInNanos + storedFieldsTimeInNanos + docValuesTimeInNanos
                 + pointsTimeInNanos + normsTimeInNanos + termVectorsTimeInNanos;
         }
 
         @Override
         public String toString() {
             return "total: " + totalInNanos() / 1000_000 + "ms" +
-                ", postings: " + postingsTimeInNanos / 1000_000 + "ms" +
+                ", inverted index: " + invertedIndexTimeInNanos / 1000_000 + "ms" +
                 ", stored fields: " + storedFieldsTimeInNanos / 1000_000 + "ms" +
                 ", doc values: " + docValuesTimeInNanos / 1000_000 + "ms" +
                 ", points: " + pointsTimeInNanos / 1000_000 + "ms" +

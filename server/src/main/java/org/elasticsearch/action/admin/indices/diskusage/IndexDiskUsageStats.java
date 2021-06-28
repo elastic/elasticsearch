@@ -30,7 +30,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
     public static final String TOTAL = "total";
     public static final String TOTAL_IN_BYTES = "total_in_bytes";
     public static final String INVERTED_INDEX = "inverted_index";
-    public static final String INVERTED_INDEX_IN_BYTES = "inverted_index_in_bytes";
     public static final String STORED_FIELDS = "stored_fields";
     public static final String STORED_FIELDS_IN_BYTES = "stored_fields_in_bytes";
     public static final String DOC_VALUES = "doc_values";
@@ -192,7 +191,6 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             out.writeVLong(termVectorsBytes);
         }
 
-
         private void add(PerFieldDiskUsage other) {
             invertedIndexBytes += other.invertedIndexBytes;
             storedFieldBytes += other.storedFieldBytes;
@@ -237,8 +235,10 @@ public final class IndexDiskUsageStats implements ToXContentFragment, Writeable 
             builder.field(TOTAL, new ByteSizeValue(totalBytes));
             builder.field(TOTAL_IN_BYTES, totalBytes);
 
-            builder.field(INVERTED_INDEX, new ByteSizeValue(invertedIndexBytes));
-            builder.field(INVERTED_INDEX_IN_BYTES, invertedIndexBytes);
+            builder.startObject(INVERTED_INDEX);
+            builder.field(TOTAL, new ByteSizeValue(invertedIndexBytes));
+            builder.field(TOTAL_IN_BYTES, invertedIndexBytes);
+            builder.endObject();
 
             builder.field(STORED_FIELDS, new ByteSizeValue(storedFieldBytes));
             builder.field(STORED_FIELDS_IN_BYTES, storedFieldBytes);

@@ -101,10 +101,11 @@ public class CircuitBreakerTests extends ESTestCase {
         }));
 
         CIRCUIT_BREAKER.startBreaking();
-        expectThrows(CircuitBreakingException.class, () -> {
-                    window.execute(wrap(p -> {
-                    }, ex -> throw ex;))
-                });
+        RuntimeException e = expectThrows(
+                RuntimeException.class,
+                () -> window.execute(wrap(p -> {}, ex -> { throw new RuntimeException(ex); }))
+        );
+        assertEquals(CircuitBreakingException.class, e.getCause().getClass());
 
         CIRCUIT_BREAKER.stopBreaking();
         window.execute(wrap(p -> {}, ex -> {

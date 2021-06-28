@@ -364,7 +364,7 @@ import java.util.Objects;
                 while (termsEnum.next() != null) {
                     cancellationChecker.logEvent();
                     ++visitedTerms;
-                    if (totalTerms > 1000 & visitedTerms % 50 == 0 && directory.getBytesRead() > bytesRead) {
+                    if (totalTerms > 1000 && visitedTerms % 50 == 0 && directory.getBytesRead() > bytesRead) {
                         break;
                     }
                 }

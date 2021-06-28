@@ -140,7 +140,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
 
     @Override
     public void setCircuitBreaker(CircuitBreaker circuitBreaker) {
-        //assert circuitBreaker.getName().equals(TRAINED_MODEL_CIRCUIT_BREAKER_NAME);
+        assert circuitBreaker.getName().equals(CIRCUIT_BREAKER_NAME);
         this.circuitBreaker.set(circuitBreaker);
     }
 }

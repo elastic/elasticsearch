@@ -58,6 +58,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
+    private CompressionScheme compressionScheme;
 
     @Before
     public void setUp() throws Exception {
@@ -66,8 +67,9 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         StatsTracker statsTracker = new StatsTracker();
+        compressionScheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
         handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-            randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4));
+            compressionScheme);
 
         final LongSupplier millisSupplier = () -> TimeValue.nsecToMSec(System.nanoTime());
         final InboundDecoder decoder = new InboundDecoder(Version.CURRENT, PageCacheRecycler.NON_RECYCLING_INSTANCE);
@@ -120,7 +122,13 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress = randomBoolean();
+        boolean compress;
+        // TODO: Change after backport
+        if (compressionScheme == CompressionScheme.LZ4 && version.before(Version.V_8_0_0)) {
+            compress = false;
+        } else {
+            compress = randomBoolean();
+        }
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -183,7 +191,13 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress = randomBoolean();
+        boolean compress;
+        // TODO: Change after backport
+        if (compressionScheme == CompressionScheme.LZ4 && version.before(Version.V_8_0_0)) {
+            compress = false;
+        } else {
+            compress = randomBoolean();
+        }
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestResponse response = new TestResponse(value);

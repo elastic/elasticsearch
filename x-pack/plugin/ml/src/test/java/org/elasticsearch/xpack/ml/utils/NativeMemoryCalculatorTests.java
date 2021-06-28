@@ -15,8 +15,12 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
+import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.OptionalLong;
@@ -49,6 +53,39 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
         }
     }
 
+    public void testConsistencyInAutoCalculation() {
+        for (Tuple<Long, Long> nodeAndJvmSize : Arrays.asList(
+            Tuple.tuple(1073741824L, 432013312L), // 1GB and true JVM size
+            Tuple.tuple(2147483648L, 536870912L), // 2GB ...
+            Tuple.tuple(4294967296L, 1073741824L), // 4GB ...
+            Tuple.tuple(8589934592L, 2147483648L), // 8GB ...
+            Tuple.tuple(17179869184L, 2147483648L), // 16GB ...
+            Tuple.tuple(34359738368L, 2147483648L), // 32GB ...
+            Tuple.tuple(68719476736L, 2147483648L) // 64GB ...
+        )) {
+            long nodeSize = nodeAndJvmSize.v1();
+            long trueJvmSize = nodeAndJvmSize.v2();
+
+            DiscoveryNode node = newNode(trueJvmSize, nodeSize);
+            Settings settings = newSettings(30, true);
+            ClusterSettings clusterSettings = newClusterSettings(30, true);
+
+            long bytesForML = randomBoolean() ?
+                NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong() :
+                NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong();
+
+            NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
+                bytesForML,
+                bytesForML,
+                trueJvmSize
+            );
+
+            AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true);
+            assertThat(capacity.node().memory().getBytes(), equalTo(nodeSize));
+            assertThat(capacity.total().memory().getBytes(), equalTo(nodeSize));
+        }
+    }
+
     public void testAllowedBytesForMlWhenAutoIsTrue() {
         for (int i = 0; i < NUM_TEST_RUNS; i++) {
             long nodeSize = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(64).getBytes());
@@ -58,10 +95,10 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             Settings settings = newSettings(percent, true);
             ClusterSettings clusterSettings = newClusterSettings(percent, true);
 
-            int truePercent = Math.min(
+            double truePercent = Math.min(
                 90,
-                (int)Math.ceil(((nodeSize - jvmSize - ByteSizeValue.ofMb(200).getBytes()) / (double)nodeSize) * 100.0D));
-            long expected = (long)(nodeSize * (truePercent / 100.0));
+                ((nodeSize - jvmSize - ByteSizeValue.ofMb(200).getBytes()) / (double)nodeSize) * 100.0D);
+            long expected = Math.round(nodeSize * (truePercent / 100.0));
 
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
@@ -110,7 +147,6 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
     }
 
     public void testActualNodeSizeCalculationConsistency() {
-
         final TriConsumer<Long, Integer, Long> consistentAutoAssertions = (nativeMemory, memoryPercentage, delta) -> {
             long autoNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(nativeMemory, null, memoryPercentage, true);
             // It should always be greater than the minimum supported node size
@@ -119,12 +155,13 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
                 greaterThanOrEqualTo(MINIMUM_AUTOMATIC_NODE_SIZE));
             // Our approximate real node size should always return a usable native memory size that is at least the original native memory
             // size. Rounding errors may cause it to be non-exact.
+            long allowedBytesForMl = NativeMemoryCalculator.allowedBytesForMl(autoNodeSize, memoryPercentage, true);
             assertThat("native memory ["
-                    + NativeMemoryCalculator.allowedBytesForMl(autoNodeSize, memoryPercentage, true)
+                    + allowedBytesForMl
                     + "] smaller than original native memory ["
                     + nativeMemory
                     + "]",
-                NativeMemoryCalculator.allowedBytesForMl(autoNodeSize, memoryPercentage, true),
+                allowedBytesForMl,
                 greaterThanOrEqualTo(nativeMemory - delta));
         };
 
@@ -155,18 +192,18 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             int memoryPercentage = randomIntBetween(5, 200);
             { // tiny memory
                 long nodeMemory = randomLongBetween(ByteSizeValue.ofKb(100).getBytes(), ByteSizeValue.ofMb(500).getBytes());
-                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, 0L);
+                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, 1L);
                 consistentManualAssertions.accept(nodeMemory, memoryPercentage);
             }
             { // normal-ish memory
                 long nodeMemory = randomLongBetween(ByteSizeValue.ofMb(500).getBytes(), ByteSizeValue.ofGb(4).getBytes());
                 // periodically, the calculated assertions end up being about 6% off, allowing this small delta to account for flakiness
-                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, (long) (0.06 * nodeMemory));
+                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, 1L);
                 consistentManualAssertions.accept(nodeMemory, memoryPercentage);
             }
             { // huge memory
                 long nodeMemory = randomLongBetween(ByteSizeValue.ofGb(30).getBytes(), ByteSizeValue.ofGb(60).getBytes());
-                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, 0L);
+                consistentAutoAssertions.apply(nodeMemory, memoryPercentage, 1L);
                 consistentManualAssertions.accept(nodeMemory, memoryPercentage);
             }
         }

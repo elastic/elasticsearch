@@ -372,6 +372,36 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             return scaleUpFromZero(waitingAnomalyJobs, waitingAnalyticsJobs, reasonBuilder);
         }
 
+        // We don't need to check anything as there are no tasks
+        // This is a quick path to downscale.
+        // simply return `0` for scale down if delay is satisfied
+        if (anomalyDetectionTasks.isEmpty() && dataframeAnalyticsTasks.isEmpty()) {
+            long msLeftToScale = msLeftToDownScale(configuration);
+            if (msLeftToScale > 0) {
+                return new AutoscalingDeciderResult(
+                    context.currentCapacity(),
+                    reasonBuilder
+                        .setSimpleReason(
+                            String.format(
+                                Locale.ROOT,
+                                "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
+                                    + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
+                                DOWN_SCALE_DELAY.get(configuration).getStringRep(),
+                                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                                TimeValue.timeValueMillis(msLeftToScale).getStringRep()
+                            )
+                        )
+                        .build());
+            }
+            return new AutoscalingDeciderResult(
+                AutoscalingCapacity.ZERO,
+                reasonBuilder
+                    .setRequiredCapacity(AutoscalingCapacity.ZERO)
+                    .setSimpleReason("Requesting scale down as tier and/or node size could be smaller")
+                    .build()
+            );
+        }
+
         if (mlMemoryTracker.isRecentlyRefreshed(memoryTrackingStale) == false) {
             logger.debug(() -> new ParameterizedMessage(
                 "view of job memory is stale given duration [{}]. Not attempting to make scaling decision",
@@ -521,15 +551,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 }
             }
 
-            final long now = timeSupplier.get();
-            if (newScaleDownCheck()) {
-                scaleDownDetected = now;
-            }
-            TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
-            long msLeftToScale = downScaleDelay.millis() - (now - scaleDownDetected);
+            long msLeftToScale = msLeftToDownScale(configuration);
             if (msLeftToScale <= 0) {
                 return scaleDownDecision.get();
             }
+            TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
             logger.debug(() -> new ParameterizedMessage(
                 "not scaling down as the current scale down delay [{}] is not satisfied." +
                     " The last time scale down was detected [{}]. Calculated scaled down capacity [{}] ",
@@ -542,7 +568,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .setSimpleReason(
                         String.format(
                             Locale.ROOT,
-                            "Passing currently perceived capacity as down scale delay has not be satisfied; configured delay [%s]"
+                            "Passing currently perceived capacity as down scale delay has not been satisfied; configured delay [%s]"
                                 + "last detected scale down event [%s]. Will request scale down in approximately [%s]",
                             downScaleDelay.getStringRep(),
                             XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
@@ -833,6 +859,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         }
 
         return Optional.empty();
+    }
+
+    private long msLeftToDownScale(Settings configuration) {
+        final long now = timeSupplier.get();
+        if (newScaleDownCheck()) {
+            scaleDownDetected = now;
+        }
+        TimeValue downScaleDelay = DOWN_SCALE_DELAY.get(configuration);
+        return downScaleDelay.millis() - (now - scaleDownDetected);
     }
 
     @Override

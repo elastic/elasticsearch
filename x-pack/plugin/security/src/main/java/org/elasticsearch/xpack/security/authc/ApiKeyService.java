@@ -34,6 +34,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification.RemovalReason;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.xcontent.ParseField;
@@ -117,6 +119,8 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -171,7 +175,7 @@ public class ApiKeyService {
     public static final Setting<TimeValue> CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.cache.ttl",
         TimeValue.timeValueHours(24L), Property.NodeScope);
     public static final Setting<Integer> CACHE_MAX_KEYS_SETTING = Setting.intSetting("xpack.security.authc.api_key.cache.max_keys",
-        10000, Property.NodeScope);
+        25000, Property.NodeScope);
     public static final Setting<TimeValue> DOC_CACHE_TTL_SETTING = Setting.timeSetting("xpack.security.authc.api_key.doc_cache.ttl",
         TimeValue.timeValueMinutes(5), TimeValue.timeValueMinutes(0), TimeValue.timeValueMinutes(15), Property.NodeScope);
 
@@ -192,6 +196,12 @@ public class ApiKeyService {
 
     private volatile long lastExpirationRunMs;
 
+    private static final long EVICTION_MONITOR_INTERVAL_SECONDS = 300L; // 5 minutes
+    private static final long EVICTION_MONITOR_INTERVAL_NANOS = EVICTION_MONITOR_INTERVAL_SECONDS * 1_000_000_000L;
+    private static final long EVICTION_WARNING_THRESHOLD = 15L * EVICTION_MONITOR_INTERVAL_SECONDS; // 15 eviction per sec = 4500 in 5 min
+    private final AtomicLong lastEvictionCheckedAt = new AtomicLong(0);
+    private final LongAdder evictionCounter = new LongAdder();
+
     public ApiKeyService(Settings settings, Clock clock, Client client, XPackLicenseState licenseState, SecurityIndexManager securityIndex,
                          ClusterService clusterService, CacheInvalidatorRegistry cacheInvalidatorRegistry, ThreadPool threadPool) {
         this.clock = clock;
@@ -207,11 +217,12 @@ public class ApiKeyService {
         this.threadPool = threadPool;
         this.cacheHasher = Hasher.resolve(CACHE_HASH_ALGO_SETTING.get(settings));
         final TimeValue ttl = CACHE_TTL_SETTING.get(settings);
-        final Integer maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
+        final int maximumWeight = CACHE_MAX_KEYS_SETTING.get(settings);
         if (ttl.getNanos() > 0) {
             this.apiKeyAuthCache = CacheBuilder.<String, ListenableFuture<CachedApiKeyHashResult>>builder()
                 .setExpireAfterAccess(ttl)
                 .setMaximumWeight(maximumWeight)
+                .removalListener(getAuthCacheRemovalListener(maximumWeight))
                 .build();
             final TimeValue doc_ttl = DOC_CACHE_TTL_SETTING.get(settings);
             this.apiKeyDocCache = doc_ttl.getNanos() == 0 ? null : new ApiKeyDocCache(doc_ttl, maximumWeight);
@@ -1112,6 +1123,32 @@ public class ApiKeyService {
             }, listener::onFailure));
     }
 
+    private RemovalListener<String, ListenableFuture<CachedApiKeyHashResult>> getAuthCacheRemovalListener(int maximumWeight) {
+        return notification -> {
+            if (RemovalReason.EVICTED == notification.getRemovalReason() && getApiKeyAuthCache().count() >= maximumWeight) {
+                evictionCounter.increment();
+                logger.trace("API key with ID [{}] was evicted from the authentication cache, "
+                        + "possibly due to cache size limit", notification.getKey());
+                final long last = lastEvictionCheckedAt.get();
+                final long now = System.nanoTime();
+                if (now - last >= EVICTION_MONITOR_INTERVAL_NANOS && lastEvictionCheckedAt.compareAndSet(last, now)) {
+                    final long sum = evictionCounter.sum();
+                    evictionCounter.add(-sum); // reset by decrease
+                    if (sum >= EVICTION_WARNING_THRESHOLD) {
+                        logger.warn("Possible thrashing for API key authentication cache, "
+                                + "[{}] eviction due to cache size within last [{}] seconds",
+                            sum, EVICTION_MONITOR_INTERVAL_SECONDS);
+                    }
+                }
+            }
+        };
+    }
+
+    // package private for test
+    LongAdder getEvictionCounter() {
+        return evictionCounter;
+    }
+
     /**
      * Returns realm name for the authenticated user.
      * If the user is authenticated by realm type {@value API_KEY_REALM_TYPE}
@@ -1332,7 +1369,7 @@ public class ApiKeyService {
             // multiple API keys, so we cache for longer and rely on the weight to manage the cache size.
             this.roleDescriptorsBytesCache = CacheBuilder.<String, BytesReference>builder()
                 .setExpireAfterAccess(TimeValue.timeValueHours(1))
-                .setMaximumWeight(maximumWeight * 2)
+                .setMaximumWeight(maximumWeight * 2L)
                 .build();
             this.lockingAtomicCounter = new LockingAtomicCounter();
         }

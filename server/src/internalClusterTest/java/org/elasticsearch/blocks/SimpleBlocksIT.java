@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -361,7 +362,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         int nbDocs = 0;
 
         try {
-            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), 1000)) {
+            try (BackgroundIndexer indexer = new BackgroundIndexer(indexName, "_doc", client(), 1000, 2)) {
                 indexer.setFailureAssertion(t -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(t);
                     assertThat(cause, instanceOf(ClusterBlockException.class));
@@ -371,7 +372,8 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 });
 
                 waitForDocs(randomIntBetween(10, 50), indexer);
-                assertAcked(client().admin().indices().prepareAddBlock(block, indexName));
+                final TimeValue timeout = TimeValue.timeValueSeconds(120L);
+                assertAcked(client().admin().indices().prepareAddBlock(block, indexName).setMasterNodeTimeout(timeout).setTimeout(timeout));
                 indexer.stopAndAwaitStopped();
                 nbDocs += indexer.totalIndexedDocs();
             }

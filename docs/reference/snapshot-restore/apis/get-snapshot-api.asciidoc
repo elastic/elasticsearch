@@ -395,7 +395,7 @@ The API returns the following response:
       }
     }
   ],
-  "next": "c25hcHNob3RfMixzbmFwc2hvdF8y"
+  "next": "c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI="
 }
 ----
 // TESTRESPONSE[s/"uuid": "dKb54xw67gvdRctLCxSket"/"uuid": $body.snapshots.0.uuid/]
@@ -417,7 +417,7 @@ A subsequent request for the remaining snapshots can then be made using the `nex
 
 [source,console]
 ----
-GET /_snapshot/my_repository/snapshot*?size=2&sort=name&after=c25hcHNob3RfMixzbmFwc2hvdF8y
+GET /_snapshot/my_repository/snapshot*?size=2&sort=name&after=c25hcHNob3RfMixteV9yZXBvc2l0b3J5LHNuYXBzaG90XzI=
 ----
 
 The API returns the following response:

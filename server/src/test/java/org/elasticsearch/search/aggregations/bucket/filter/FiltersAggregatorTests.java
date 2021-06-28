@@ -1060,7 +1060,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             true,
             null,
             Map.of(),
-            null
+            null,
+            false
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             return numberType.createFields("f", i, true, true, false);
@@ -1077,7 +1078,8 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             true,
             null,
             Map.of(),
-            null
+            null,
+            false
         ));
     }
 

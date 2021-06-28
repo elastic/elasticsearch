@@ -125,7 +125,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private byte[] compressedBuffer = new byte[0];
+    private byte[] compressedBuffer = BytesRef.EMPTY_BYTES;
     private boolean hasSkippedESHeader = false;
 
     public Lz4TransportDecompressor(PageCacheRecycler recycler) {
@@ -166,7 +166,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         int bytesConsumed = 0;
         if (hasSkippedESHeader == false) {
             hasSkippedESHeader = true;
-            int esHeaderLength = CompressionScheme.HEADER_LENGTH;
+            int esHeaderLength = Compression.HEADER_LENGTH;
             bytesReference = bytesReference.slice(esHeaderLength, bytesReference.length() - esHeaderLength);
             bytesConsumed += esHeaderLength;
         }

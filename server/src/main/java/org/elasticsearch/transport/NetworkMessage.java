@@ -21,9 +21,9 @@ public abstract class NetworkMessage {
     protected final Writeable threadContext;
     protected final long requestId;
     protected final byte status;
-    protected final CompressionScheme compressionScheme;
+    protected final Compression.Scheme compressionScheme;
 
-    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, CompressionScheme compressionScheme) {
+    NetworkMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme) {
         this.threadContext = threadContext.captureAsWriteable();
         this.version = version;
         this.requestId = requestId;
@@ -63,7 +63,7 @@ public abstract class NetworkMessage {
         return TransportStatus.isError(status);
     }
 
-    private static CompressionScheme adjustedScheme(Version version, CompressionScheme compressionScheme) {
-        return compressionScheme == CompressionScheme.LZ4 && version.before(CompressionScheme.LZ4_VERSION) ? null : compressionScheme;
+    private static Compression.Scheme adjustedScheme(Version version, Compression.Scheme compressionScheme) {
+        return compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.LZ4_VERSION) ? null : compressionScheme;
     }
 }

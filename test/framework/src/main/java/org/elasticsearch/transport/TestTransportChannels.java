@@ -20,7 +20,7 @@ public class TestTransportChannels {
                                                                  String action, long requestId, Version version) {
         return new TcpTransportChannel(
             new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE,
-                randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4)),
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4)),
             channel, action, requestId, version, false, false, () -> {});
     }
 }

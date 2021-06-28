@@ -58,7 +58,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private OutboundHandler handler;
     private FakeTcpChannel channel;
     private DiscoveryNode node;
-    private CompressionScheme compressionScheme;
+    private Compression.Scheme compressionScheme;
 
     @Before
     public void setUp() throws Exception {
@@ -67,7 +67,7 @@ public class OutboundHandlerTests extends ESTestCase {
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = new DiscoveryNode("", transportAddress, Version.CURRENT);
         StatsTracker statsTracker = new StatsTracker();
-        compressionScheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+        compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         handler = new OutboundHandler("node", Version.CURRENT, statsTracker, threadPool, BigArrays.NON_RECYCLING_INSTANCE,
             compressionScheme);
 
@@ -123,7 +123,7 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress;
-        if (compressionScheme == CompressionScheme.LZ4 && version.before(CompressionScheme.LZ4_VERSION)) {
+        if (compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.LZ4_VERSION)) {
             compress = false;
         } else {
             compress = randomBoolean();
@@ -191,7 +191,7 @@ public class OutboundHandlerTests extends ESTestCase {
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
         boolean compress;
-        if (compressionScheme == CompressionScheme.LZ4 && version.before(CompressionScheme.LZ4_VERSION)) {
+        if (compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.LZ4_VERSION)) {
             compress = false;
         } else {
             compress = randomBoolean();

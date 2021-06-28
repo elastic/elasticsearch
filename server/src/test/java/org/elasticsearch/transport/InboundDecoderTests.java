@@ -96,7 +96,7 @@ public class InboundDecoderTests extends ESTestCase {
 
     public void testDecodePreHeaderSizeVariableInt() throws IOException {
         // TODO: Can delete test on 9.0
-        CompressionScheme compressionScheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.DEFLATE, null);
+        Compression.Scheme compressionScheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.DEFLATE, null);
         String action = "test-request";
         long requestId = randomNonNegativeLong();
         final Version preHeaderVariableInt = Version.V_7_5_0;
@@ -180,7 +180,7 @@ public class InboundDecoderTests extends ESTestCase {
         }
         OutboundMessage message;
         TransportMessage transportMessage;
-        CompressionScheme scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+        Compression.Scheme scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         if (isRequest) {
             transportMessage = new TestRequest(randomAlphaOfLength(100));
             message = new OutboundMessage.Request(threadContext, transportMessage, Version.CURRENT, action, requestId, false, scheme);
@@ -240,7 +240,7 @@ public class InboundDecoderTests extends ESTestCase {
         threadContext.putHeader(headerKey, headerValue);
         Version handshakeCompat = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
         OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)),
-            handshakeCompat, action, requestId, true, CompressionScheme.DEFLATE);
+            handshakeCompat, action, requestId, true, Compression.Scheme.DEFLATE);
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
         int totalHeaderSize = TcpHeader.headerSize(handshakeCompat);
@@ -268,7 +268,7 @@ public class InboundDecoderTests extends ESTestCase {
         long requestId = randomNonNegativeLong();
         Version incompatibleVersion = Version.CURRENT.minimumCompatibilityVersion().minimumCompatibilityVersion();
         OutboundMessage message = new OutboundMessage.Request(threadContext, new TestRequest(randomAlphaOfLength(100)),
-            incompatibleVersion, action, requestId, false, CompressionScheme.DEFLATE);
+            incompatibleVersion, action, requestId, false, Compression.Scheme.DEFLATE);
 
         final BytesReference bytes = message.serialize(new BytesStreamOutput());
 

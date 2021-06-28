@@ -96,14 +96,14 @@ public class InboundPipelineTests extends ESTestCase {
                     final String value = randomAlphaOfLength(randomIntBetween(10, 200));
                     final boolean isRequest = randomBoolean();
 
-                    CompressionScheme scheme;
+                    Compression.Scheme scheme;
                     if (randomBoolean()) {
                         scheme = null;
                     } else {
-                        if (version.onOrAfter(CompressionScheme.LZ4_VERSION)) {
-                            scheme = randomFrom(CompressionScheme.DEFLATE, CompressionScheme.LZ4);
+                        if (version.onOrAfter(Compression.LZ4_VERSION)) {
+                            scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
                         } else {
-                            scheme = CompressionScheme.DEFLATE;
+                            scheme = Compression.Scheme.DEFLATE;
                         }
                     }
                     final long requestId = totalMessages++;

@@ -97,7 +97,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.CompressionScheme;
+import org.elasticsearch.transport.Compression;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
@@ -443,9 +443,9 @@ public final class InternalTestCluster extends TestCluster {
         builder.put(TransportSettings.TRANSPORT_COMPRESS.getKey(), rarely(random));
         builder.put(TransportSettings.TRANSPORT_COMPRESS_INDEXING_DATA.getKey(), random.nextBoolean());
         if (random.nextBoolean()) {
-            builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), CompressionScheme.DEFLATE);
+            builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), Compression.Scheme.DEFLATE);
         } else {
-            builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), CompressionScheme.LZ4);
+            builder.put(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.getKey(), Compression.Scheme.LZ4);
         }
         if (random.nextBoolean()) {
             builder.put("cache.recycler.page.type", RandomPicks.randomFrom(random, PageCacheRecycler.Type.values()));

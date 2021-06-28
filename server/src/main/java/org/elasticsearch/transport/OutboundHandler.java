@@ -38,14 +38,14 @@ final class OutboundHandler {
     private final StatsTracker statsTracker;
     private final ThreadPool threadPool;
     private final BigArrays bigArrays;
-    private final CompressionScheme configuredCompressionScheme;
+    private final Compression.Scheme configuredCompressionScheme;
 
     private volatile long slowLogThresholdMs = Long.MAX_VALUE;
 
     private volatile TransportMessageListener messageListener = TransportMessageListener.NOOP_LISTENER;
 
     OutboundHandler(String nodeName, Version version, StatsTracker statsTracker, ThreadPool threadPool, BigArrays bigArrays,
-                    CompressionScheme compressionScheme) {
+                    Compression.Scheme compressionScheme) {
         this.nodeName = nodeName;
         this.version = version;
         this.statsTracker = statsTracker;
@@ -70,7 +70,7 @@ final class OutboundHandler {
                      final TransportRequest request, final TransportRequestOptions options, final Version channelVersion,
                      final boolean compressRequest, final boolean isHandshake) throws IOException, TransportException {
         Version version = Version.min(this.version, channelVersion);
-        final CompressionScheme compressionScheme;
+        final Compression.Scheme compressionScheme;
         if (compressRequest) {
             compressionScheme = configuredCompressionScheme;
         } else {
@@ -101,7 +101,7 @@ final class OutboundHandler {
     void sendResponse(final Version nodeVersion, final TcpChannel channel, final long requestId, final String action,
                       final TransportResponse response, final boolean compressResponse, final boolean isHandshake) throws IOException {
         Version version = Version.min(this.version, nodeVersion);
-        final CompressionScheme compressionScheme;
+        final Compression.Scheme compressionScheme;
         if (compressResponse) {
             compressionScheme = configuredCompressionScheme;
         } else {

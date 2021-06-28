@@ -26,7 +26,7 @@ abstract class OutboundMessage extends NetworkMessage {
 
     protected final Writeable message;
 
-    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, CompressionScheme compressionScheme,
+    OutboundMessage(ThreadContext threadContext, Version version, byte status, long requestId, Compression.Scheme compressionScheme,
                     Writeable message) {
         super(threadContext, version, status, requestId, compressionScheme);
         this.message = message;
@@ -88,10 +88,10 @@ abstract class OutboundMessage extends NetworkMessage {
     // compressed stream wrapped bytes must be no-close wrapped since we need to close the compressed wrapper below to release
     // resources and write EOS marker bytes but must not yet release the bytes themselves
     private StreamOutput wrapCompressed(BytesStreamOutput bytesStream) throws IOException {
-        if (compressionScheme == CompressionScheme.DEFLATE) {
+        if (compressionScheme == Compression.Scheme.DEFLATE) {
             return new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(bytesStream)));
-        } else if (compressionScheme == CompressionScheme.LZ4) {
-            return new OutputStreamStreamOutput(CompressionScheme.lz4OutputStream(Streams.noCloseStream(bytesStream)));
+        } else if (compressionScheme == Compression.Scheme.LZ4) {
+            return new OutputStreamStreamOutput(Compression.lz4OutputStream(Streams.noCloseStream(bytesStream)));
         } else {
             throw new IllegalArgumentException("Invalid compression scheme: " + compressionScheme);
         }
@@ -106,7 +106,7 @@ abstract class OutboundMessage extends NetworkMessage {
         private final String action;
 
         Request(ThreadContext threadContext, Writeable message, Version version, String action, long requestId,
-                boolean isHandshake, CompressionScheme compressionScheme) {
+                boolean isHandshake, Compression.Scheme compressionScheme) {
             super(threadContext, version, setStatus(isHandshake), requestId, adjustCompressionScheme(compressionScheme, message), message);
             this.action = action;
         }
@@ -122,7 +122,7 @@ abstract class OutboundMessage extends NetworkMessage {
         }
 
         // Do not compress instances of BytesTransportRequest
-        private static CompressionScheme adjustCompressionScheme(CompressionScheme compressionScheme, Writeable message) {
+        private static Compression.Scheme adjustCompressionScheme(Compression.Scheme compressionScheme, Writeable message) {
             if (message instanceof BytesTransportRequest) {
                 return null;
             } else {
@@ -150,7 +150,7 @@ abstract class OutboundMessage extends NetworkMessage {
     static class Response extends OutboundMessage {
 
         Response(ThreadContext threadContext, Writeable message, Version version, long requestId, boolean isHandshake,
-                 CompressionScheme compressionScheme) {
+                 Compression.Scheme compressionScheme) {
             super(threadContext, version, setStatus(isHandshake, message), requestId, compressionScheme, message);
         }
 

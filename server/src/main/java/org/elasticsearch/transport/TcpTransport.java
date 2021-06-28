@@ -104,7 +104,6 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     protected final NetworkService networkService;
     protected final Set<ProfileSettings> profileSettings;
     private final CircuitBreakerService circuitBreakerService;
-    private final CompressionScheme compressionScheme;
 
     private final ConcurrentMap<String, BoundTransportAddress> profileBoundAddresses = newConcurrentMap();
     private final Map<String, List<TcpServerChannel>> serverChannels = newConcurrentMap();
@@ -134,11 +133,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.pageCacheRecycler = pageCacheRecycler;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        this.compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings);
+        Compression.Scheme compressionScheme = TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(settings);
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
         BigArrays bigArrays = new BigArrays(pageCacheRecycler, circuitBreakerService, CircuitBreaker.IN_FLIGHT_REQUESTS);
 
-        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays, this.compressionScheme);
+        this.outboundHandler = new OutboundHandler(nodeName, version, statsTracker, threadPool, bigArrays, compressionScheme);
         this.handshaker = new TransportHandshaker(version, threadPool,
             (node, channel, requestId, v) -> outboundHandler.sendRequest(node, channel, requestId,
                 TransportHandshaker.HANDSHAKE_ACTION_NAME, new TransportHandshaker.HandshakeRequest(version),

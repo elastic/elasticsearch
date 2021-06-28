@@ -54,8 +54,8 @@ public final class TransportSettings {
         boolSetting("transport.compress", false, Setting.Property.NodeScope);
     public static final Setting<Boolean> TRANSPORT_COMPRESS_INDEXING_DATA =
         boolSetting("transport.compress_indexing_data", false, Setting.Property.NodeScope);
-    public static final Setting<CompressionScheme> TRANSPORT_COMPRESSION_SCHEME =
-        enumSetting(CompressionScheme.class, "transport.compression_scheme", CompressionScheme.DEFLATE,
+    public static final Setting<Compression.Scheme> TRANSPORT_COMPRESSION_SCHEME =
+        enumSetting(Compression.Scheme.class, "transport.compression_scheme", Compression.Scheme.DEFLATE,
             Setting.Property.NodeScope);
     // the scheduled internal ping interval setting, defaults to disabled (-1)
     public static final Setting<TimeValue> PING_SCHEDULE =

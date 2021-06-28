@@ -31,21 +31,21 @@ public interface TransportDecompressor extends Releasable {
         }
         byte firstByte = bytes.get(0);
         byte[] header;
-        if (firstByte == CompressionScheme.DEFLATE_HEADER[0]) {
-            header = CompressionScheme.DEFLATE_HEADER;
-        } else if (firstByte == CompressionScheme.LZ4_HEADER[0]) {
-            header = CompressionScheme.LZ4_HEADER;
+        if (firstByte == Compression.DEFLATE_HEADER[0]) {
+            header = Compression.DEFLATE_HEADER;
+        } else if (firstByte == Compression.LZ4_HEADER[0]) {
+            header = Compression.LZ4_HEADER;
         } else {
             throw createIllegalState(bytes);
         }
 
-        for (int i = 1; i < CompressionScheme.HEADER_LENGTH; ++i) {
+        for (int i = 1; i < Compression.HEADER_LENGTH; ++i) {
             if (bytes.get(i) != header[i]) {
                 throw createIllegalState(bytes);
             }
         }
 
-        if (header == CompressionScheme.DEFLATE_HEADER) {
+        if (header == Compression.DEFLATE_HEADER) {
             return new DeflateTransportDecompressor(recycler);
         } else {
             return new Lz4TransportDecompressor(recycler);

@@ -522,19 +522,34 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         if (after != null) {
             final Predicate<SnapshotInfo> isAfter;
-            final String name = after.snapshotName();
+            final String snapshotName = after.snapshotName();
+            final String repoName = after.repoName();
             switch (sortBy) {
                 case START_TIME:
-                    isAfter = filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after.value()), name, order);
+                    isAfter = filterByLongOffset(SnapshotInfo::startTime, Long.parseLong(after.value()), snapshotName, repoName, order);
                     break;
                 case NAME:
-                    isAfter = order == SortOrder.ASC ? (info -> compareName(name, info) < 0) : (info -> compareName(name, info) > 0);
+                    isAfter = order == SortOrder.ASC
+                        ? (info -> compareName(snapshotName, repoName, info) < 0)
+                        : (info -> compareName(snapshotName, repoName, info) > 0);
                     break;
                 case DURATION:
-                    isAfter = filterByLongOffset(info -> info.endTime() - info.startTime(), Long.parseLong(after.value()), name, order);
+                    isAfter = filterByLongOffset(
+                        info -> info.endTime() - info.startTime(),
+                        Long.parseLong(after.value()),
+                        snapshotName,
+                        repoName,
+                        order
+                    );
                     break;
                 case INDICES:
-                    isAfter = filterByLongOffset(info -> info.indices().size(), Integer.parseInt(after.value()), name, order);
+                    isAfter = filterByLongOffset(
+                        info -> info.indices().size(),
+                        Integer.parseInt(after.value()),
+                        snapshotName,
+                        repoName,
+                        order
+                    );
                     break;
                 default:
                     throw new AssertionError("unexpected sort column [" + sortBy + "]");
@@ -553,20 +568,26 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
     private static Predicate<SnapshotInfo> filterByLongOffset(
         ToLongFunction<SnapshotInfo> extractor,
         long after,
-        String name,
+        String snapshotName,
+        String repoName,
         SortOrder order
     ) {
         return order == SortOrder.ASC ? info -> {
             final long val = extractor.applyAsLong(info);
-            return after < val || (after == val && compareName(name, info) < 0);
+
+            return after < val || (after == val && compareName(snapshotName, repoName, info) < 0);
         } : info -> {
             final long val = extractor.applyAsLong(info);
-            return after > val || (after == val && compareName(name, info) > 0);
+            return after > val || (after == val && compareName(snapshotName, repoName, info) > 0);
         };
     }
 
-    private static int compareName(String name, SnapshotInfo info) {
-        return name.compareTo(info.snapshotId().getName());
+    private static int compareName(String name, String repoName, SnapshotInfo info) {
+        final int res = name.compareTo(info.snapshotId().getName());
+        if (res != 0) {
+            return res;
+        }
+        return repoName.compareTo(info.repository());
     }
 
     private static final class SnapshotsInRepo {

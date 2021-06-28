@@ -158,12 +158,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures) && Objects.equals(next, that.next);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots, failures);
+        return Objects.hash(snapshots, failures, next);
     }
 
     @Override

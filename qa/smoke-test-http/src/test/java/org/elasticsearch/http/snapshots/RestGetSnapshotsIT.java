@@ -180,7 +180,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
-            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, i, order).v2();
+            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, null, i, order).v2();
             assertEquals(subsetSorted, allSorted.subList(0, i));
         }
 
@@ -216,20 +216,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         return new Request(HttpGet.METHOD_NAME, "/_snapshot/" + repoName + "/*");
     }
 
-    private static Tuple<String, List<SnapshotInfo>> sortedWithLimit(String repoName,
-                                                                     GetSnapshotsRequest.SortBy sortBy,
-                                                                     int size,
-                                                                     SortOrder order) throws IOException {
-        final Request request = baseGetSnapshotsRequest(repoName);
-        request.addParameter("sort", sortBy.toString());
-        if (order == SortOrder.DESC || randomBoolean()) {
-            request.addParameter("order", order.toString());
-        }
-        request.addParameter("size", String.valueOf(size));
-        final Response response = getRestClient().performRequest(request);
-        return readSnapshotInfos(response);
-    }
-
     private static Tuple<String, List<SnapshotInfo>> readSnapshotInfos(Response response) throws IOException {
         try (InputStream input = response.getEntity().getContent();
              XContentParser parser = JsonXContent.jsonXContent.createParser(
@@ -240,10 +226,10 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private static Tuple<String, List<SnapshotInfo>> sortedWithLimit(String repoName,
-                                                      GetSnapshotsRequest.SortBy sortBy,
-                                                      String after,
-                                                      int size,
-                                                      SortOrder order) throws IOException {
+                                                                     GetSnapshotsRequest.SortBy sortBy,
+                                                                     String after,
+                                                                     int size,
+                                                                     SortOrder order) throws IOException {
         final Request request = baseGetSnapshotsRequest(repoName);
         request.addParameter("sort", sortBy.toString());
         if (size != GetSnapshotsRequest.NO_LIMIT || randomBoolean()) {

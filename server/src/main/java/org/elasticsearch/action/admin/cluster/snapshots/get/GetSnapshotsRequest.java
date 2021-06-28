@@ -321,20 +321,24 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
         private final String value;
 
+        private final String repoName;
+
         private final String snapshotName;
 
         After(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
+            this(in.readString(), in.readString(), in.readString());
         }
 
         public static After fromParam(String param) {
             final String[] parts = new String(Base64.getDecoder().decode(param), StandardCharsets.UTF_8).split(",");
-            if (parts.length != 2) {
+            if (parts.length != 3) {
                 throw new IllegalArgumentException(
-                    "after param must be base64 encoded and of the form ${sort_value},${snapshot_name} but was [" + param + "]"
+                    "after param must be base64 encoded and of the form ${sort_value},${repository_name},${snapshot_name} but was ["
+                        + param
+                        + "]"
                 );
             }
-            return new After(parts[0], parts[1]);
+            return new After(parts[0], parts[1], parts[2]);
         }
 
         @Nullable
@@ -359,11 +363,12 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 default:
                     throw new AssertionError("unknown sort column [" + sortBy + "]");
             }
-            return new After(afterValue, snapshotInfo.snapshotId().getName());
+            return new After(afterValue, snapshotInfo.repository(), snapshotInfo.snapshotId().getName());
         }
 
-        public After(String value, String snapshotName) {
+        public After(String value, String repoName, String snapshotName) {
             this.value = value;
+            this.repoName = repoName;
             this.snapshotName = snapshotName;
         }
 
@@ -375,13 +380,18 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             return snapshotName;
         }
 
+        public String repoName() {
+            return repoName;
+        }
+
         public String asQueryParam() {
-            return Base64.getEncoder().encodeToString((value + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
+            return Base64.getEncoder().encodeToString((value + "," + repoName + "," + snapshotName).getBytes(StandardCharsets.UTF_8));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(value);
+            out.writeString(repoName);
             out.writeString(snapshotName);
         }
     }

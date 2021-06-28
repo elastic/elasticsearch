@@ -290,7 +290,14 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         bytesConsumed += compressedLength;
 
                         if (checksum != null) {
-//                            CompressionUtil.checkChecksum(checksum, uncompressed, currentChecksum);
+                            checksum.reset();
+                            checksum.update(uncompressed, 0, decompressedLength);
+                            final int checksumResult = (int) checksum.getValue();
+                            if (checksumResult != currentChecksum) {
+                                throw new IllegalStateException(String.format(Locale.ROOT,
+                                    "stream corrupted: mismatching checksum: %d (expected: %d)",
+                                    checksumResult, currentChecksum));
+                            }
                         }
 
                         int bytesToCopy = decompressedLength;

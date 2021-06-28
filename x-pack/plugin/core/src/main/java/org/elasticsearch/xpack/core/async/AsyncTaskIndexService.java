@@ -141,6 +141,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     private final Writeable.Reader<R> reader;
     private final BigArrays bigArrays;
     private volatile long maxResponseSize;
+    private final ClusterService clusterService;
 
     public AsyncTaskIndexService(String index,
                                  ClusterService clusterService,
@@ -160,6 +161,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         this.maxResponseSize = MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING.get(clusterService.getSettings()).getBytes();
         clusterService.getClusterSettings().addSettingsUpdateConsumer(
             MAX_ASYNC_SEARCH_RESPONSE_SIZE_SETTING, (v) -> maxResponseSize = v.getBytes());
+        this.clusterService = clusterService;
     }
 
     /**
@@ -486,8 +488,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     private void writeResponse(R response, OutputStream os) throws IOException {
+        final Version minNodeVersion = clusterService.state().nodes().getMinNodeVersion();
         final OutputStreamStreamOutput out = new OutputStreamStreamOutput(os);
-        Version.writeVersion(Version.CURRENT, out);
+        out.setVersion(minNodeVersion);
+        Version.writeVersion(minNodeVersion, out);
         response.writeTo(out);
     }
 
@@ -498,7 +502,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         // TODO: Integrate with the circuit breaker
         try (ByteBufferStreamInput buf = new ByteBufferStreamInput(ByteBuffer.wrap(Base64.getDecoder().decode(value)))) {
             try (StreamInput in = new NamedWriteableAwareStreamInput(buf, registry)) {
-                in.setVersion(Version.readVersion(in));
+                final Version version = Version.readVersion(in);
+                assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
+                in.setVersion(version);
                 return reader.read(in);
             }
         }

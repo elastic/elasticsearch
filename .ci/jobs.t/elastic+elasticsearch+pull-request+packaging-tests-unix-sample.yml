@@ -22,6 +22,7 @@
           white-list-target-branches:
             - %BRANCH%
             - ^feat(ure)?/.*
+            - eql_multi_value_fields
           excluded-regions:
             - ^docs/.*
           black-list-labels:

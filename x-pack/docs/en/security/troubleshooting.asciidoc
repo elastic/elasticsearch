@@ -698,7 +698,7 @@ the `basic` `authProvider` in {kib}. The process is documented in the
 
 *Logging:*
 
-Very detailed trace logging can be enabled specifically for the SAML realm by
+Very detailed debug logging can be enabled specifically for the SAML realm by
 setting the following transient setting:
 
 [source, shell]
@@ -706,7 +706,7 @@ setting the following transient setting:
 PUT /_cluster/settings
 {
   "transient": {
-    "logger.org.elasticsearch.xpack.security.authc.saml": "trace"
+    "logger.org.elasticsearch.xpack.security.authc.saml": "debug"
   }
 }
 -----------------------------------------------
@@ -718,7 +718,7 @@ Alternatively, you can add the following lines to the end of the
 [source,properties]
 ----------------
 logger.saml.name = org.elasticsearch.xpack.security.authc.saml
-logger.saml.level = TRACE
+logger.saml.level = DEBUG
 ----------------
 
 [[trb-security-internalserver]]

@@ -21,6 +21,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
@@ -46,7 +47,7 @@ public class FieldUsageStatsIT extends ESIntegTestCase {
             .put(SETTING_NUMBER_OF_SHARDS, numShards)
             .put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy/MM/dd", Locale.ROOT);
         LocalDate date = LocalDate.of(2015, 9, 1);
 
         for (int i = 0; i < 30; i++) {

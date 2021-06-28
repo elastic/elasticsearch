@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -75,7 +74,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
 
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
+        LuceneDocument doc = new LuceneDocument();
         LongPoint field = new LongPoint("my_date", ft.parse("2015-10-12"));
         doc.add(field);
         w.addDocument(doc);
@@ -241,7 +240,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         // Create an index with some docValues
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
-        Document doc = new Document();
+        LuceneDocument doc = new LuceneDocument();
         NumericDocValuesField docValuesField = new NumericDocValuesField("my_date", 1444608000000L);
         doc.add(docValuesField);
         w.addDocument(doc);

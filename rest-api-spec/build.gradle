@@ -100,7 +100,9 @@ tasks.named("yamlRestCompatTest").configure {
     'search.aggregation/10_histogram/Deprecated _time order',
     'search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers',
     'search.aggregation/20_terms/Deprecated _term order',
+    'search.aggregation/20_terms/*profiler*', // The profiler results aren't backwards compatible.
     'search.aggregation/51_filter_with_types/Filter aggs with terms lookup and ensure it\'s cached',
+    'search.aggregation/370_doc_count_field/Test filters agg with doc_count', // Uses profiler for assertions which is not backwards compatible
     'mtermvectors/11_basic_with_types/Basic tests for multi termvector get',
     'mtermvectors/21_deprecated_with_types/Deprecated camel case and _ parameters should fail in Term Vectors query',
     'mtermvectors/30_mix_typeless_typeful/mtermvectors without types on an index that has types',
@@ -108,13 +110,6 @@ tasks.named("yamlRestCompatTest").configure {
     'search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception', //cutoff_frequency
     'search/340_type_query/type query', // type_query - probably should behave like match_all
     'search_shards/10_basic/Search shards aliases with and without filters',
-    'snapshot.get/10_basic/Get missing snapshot info succeeds when ignore_unavailable is true',
-    'snapshot.get/10_basic/Get missing snapshot info throws an exception',
-    'snapshot.get/10_basic/Get snapshot info',
-    'snapshot.get/10_basic/Get snapshot info contains include_global_state',
-    'snapshot.get/10_basic/Get snapshot info when verbose is false',
-    'snapshot.get/10_basic/Get snapshot info with metadata',
-    'snapshot.get/10_basic/Get snapshot info with index details',
     'suggest/20_completion/Suggestions with source should work'
    ] + v7compatiblityNotSupportedTests())
     .join(',')

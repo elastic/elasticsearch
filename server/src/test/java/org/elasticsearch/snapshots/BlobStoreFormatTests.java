@@ -78,7 +78,11 @@ public class BlobStoreFormatTests extends ESTestCase {
     public void testBlobStoreOperations() throws IOException {
         BlobStore blobStore = createTestBlobStore();
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
-        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        ChecksumBlobStoreFormat<BlobObj> checksumSMILE = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repoName, parser) -> BlobObj.fromXContent(parser)
+        );
 
         // Write blobs in different formats
         final String randomText = randomAlphaOfLengthBetween(0, 1024 * 8 * 3);
@@ -88,8 +92,8 @@ public class BlobStoreFormatTests extends ESTestCase {
         checksumSMILE.write(new BlobObj(compressedText), blobContainer, "check-smile-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
 
         // Assert that all checksum blobs can be read
-        assertEquals(normalText, checksumSMILE.read(blobContainer, "check-smile", xContentRegistry()).getText());
-        assertEquals(compressedText, checksumSMILE.read(blobContainer, "check-smile-comp", xContentRegistry()).getText());
+        assertEquals(normalText, checksumSMILE.read("repo", blobContainer, "check-smile", xContentRegistry()).getText());
+        assertEquals(compressedText, checksumSMILE.read("repo", blobContainer, "check-smile-comp", xContentRegistry()).getText());
     }
 
     public void testCompressionIsApplied() throws IOException {
@@ -99,7 +103,11 @@ public class BlobStoreFormatTests extends ESTestCase {
         for (int i = 0; i < randomIntBetween(100, 300); i++) {
             veryRedundantText.append("Blah ");
         }
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repo, parser) -> BlobObj.fromXContent(parser)
+        );
         BlobObj blobObj = new BlobObj(veryRedundantText.toString());
         checksumFormat.write(blobObj, blobContainer, "blob-comp", true, MockBigArrays.NON_RECYCLING_INSTANCE);
         checksumFormat.write(blobObj, blobContainer, "blob-not-comp", false, MockBigArrays.NON_RECYCLING_INSTANCE);
@@ -113,12 +121,16 @@ public class BlobStoreFormatTests extends ESTestCase {
         BlobContainer blobContainer = blobStore.blobContainer(BlobPath.EMPTY);
         String testString = randomAlphaOfLength(randomInt(10000));
         BlobObj blobObj = new BlobObj(testString);
-        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(BLOB_CODEC, "%s", BlobObj::fromXContent);
+        ChecksumBlobStoreFormat<BlobObj> checksumFormat = new ChecksumBlobStoreFormat<>(
+            BLOB_CODEC,
+            "%s",
+            (repo, parser) -> BlobObj.fromXContent(parser)
+        );
         checksumFormat.write(blobObj, blobContainer, "test-path", randomBoolean(), MockBigArrays.NON_RECYCLING_INSTANCE);
-        assertEquals(checksumFormat.read(blobContainer, "test-path", xContentRegistry()).getText(), testString);
+        assertEquals(checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry()).getText(), testString);
         randomCorruption(blobContainer, "test-path");
         try {
-            checksumFormat.read(blobContainer, "test-path", xContentRegistry());
+            checksumFormat.read("repo", blobContainer, "test-path", xContentRegistry());
             fail("Should have failed due to corruption");
         } catch (ElasticsearchCorruptionException | EOFException ex) {
             // expected exceptions from random byte corruption

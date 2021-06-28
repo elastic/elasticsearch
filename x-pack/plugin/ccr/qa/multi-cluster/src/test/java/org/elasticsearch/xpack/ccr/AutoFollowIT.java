@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +21,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -36,7 +36,7 @@ import static org.elasticsearch.common.xcontent.ObjectPath.eval;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -320,12 +320,21 @@ public class AutoFollowIT extends ESCCRRestTestCase {
 
         final int initialNumDocs = 16;
         int initialNumberOfSuccessfulFollowedIndices = getNumberOfSuccessfulFollowedIndices();
-        final String dataStreamName = "logs-syslog-prod";
-        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
+        // The data stream name shouldn't match with builtin ilm policies to avoid test instabilities.
+        // (the manual rollover that happens in this test, may cause ilm to add `index.lifecycle.indexing_complete` setting,
+        // which causes explicit follow index api call to fail in this test)
+        final String dataStreamName = getTestName().toLowerCase(Locale.ROOT) + "-logs-syslog-prod";
+        // Because the builtin logs template isn't used, a template should be defined here.
+        Request putComposableIndexTemplateRequest = new Request("POST", "/_index_template/" + getTestName().toLowerCase(Locale.ROOT));
+        putComposableIndexTemplateRequest.setJsonEntity("{\"index_patterns\":[\"" + dataStreamName + "*\"],\"data_stream\":{}}");
+        assertOK(client().performRequest(putComposableIndexTemplateRequest));
 
+        final String autoFollowPatternName = getTestName().toLowerCase(Locale.ROOT);
         try {
             // Initialize data stream prior to auto following
             try (RestClient leaderClient = buildLeaderClient()) {
+                assertOK(leaderClient.performRequest(putComposableIndexTemplateRequest));
+
                 for (int i = 0; i < initialNumDocs; i++) {
                     Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
@@ -337,7 +346,7 @@ public class AutoFollowIT extends ESCCRRestTestCase {
             }
 
             // Create auto follow pattern
-            createAutoFollowPattern(client(), autoFollowPatternName, "logs-syslog-*", "leader_cluster");
+            createAutoFollowPattern(client(), autoFollowPatternName, dataStreamName + "*", "leader_cluster");
 
             // Rollover and ensure only second backing index is replicated:
             try (RestClient leaderClient = buildLeaderClient()) {
@@ -765,14 +774,43 @@ public class AutoFollowIT extends ESCCRRestTestCase {
         }
 
         final String testPrefix = getTestName().toLowerCase(Locale.ROOT);
-        int initialNumberOfSuccessfulFollowedIndicesInFollowCluster = getNumberOfSuccessfulFollowedIndices();
+        final String repository = testPrefix + "-repository";
+        final String snapshot = testPrefix + "-snapshot";
+
+        // Create a repository and a snapshot of a 5 docs index on leader
+        final String indexName = testPrefix + "-index";
+        try {
+            try (var leaderClient = buildLeaderClient()) {
+                final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
+                assertThat("Missing system property [tests.leader_cluster_repository_path]",
+                    systemPropertyRepoPath, not(emptyOrNullString()));
+                final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
+
+                registerRepository(leaderClient, repository, "fs", true, Settings.builder().put("location", repositoryPath).build());
+
+                for (int i = 0; i < 5; i++) {
+                    var indexRequest = new Request("POST", "/" + indexName + "/_doc");
+                    indexRequest.addParameter("refresh", "true");
+                    indexRequest.setJsonEntity("{\"value\":" + i + "}");
+                    assertOK(leaderClient.performRequest(indexRequest));
+                }
+                verifyDocuments(leaderClient, indexName, 5);
+
+                deleteSnapshot(leaderClient, repository, snapshot, true);
+                createSnapshot(leaderClient, repository, snapshot, true);
+            }
+        } finally {
+            cleanUpLeader(List.of(indexName), List.of(), List.of());
+        }
 
         final String autoFollowPattern = "pattern-" + testPrefix;
-        createAutoFollowPattern(client(), autoFollowPattern, testPrefix + "-*", "leader_cluster");
-
-        // Create a regular index on leader
         final String regularIndex = testPrefix + "-regular";
-        {
+        final String mountedIndex = testPrefix + "-mounted";
+
+        try {
+            createAutoFollowPattern(client(), autoFollowPattern, testPrefix + "-*", "leader_cluster");
+
+            // Create a regular index on leader
             try (var leaderClient = buildLeaderClient()) {
                 for (int i = 0; i < 10; i++) {
                     var indexRequest = new Request("POST", "/" + regularIndex + "/_doc");
@@ -782,56 +820,32 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                 }
                 verifyDocuments(leaderClient, regularIndex, 10);
             }
-        }
 
-        // Create a snapshot backed index on leader
-        final String mountedIndex = testPrefix + "-mounted";
-        {
+            // Mount the snapshot on leader
             try (var leaderClient = buildLeaderClient()) {
-                final String systemPropertyRepoPath = System.getProperty("tests.leader_cluster_repository_path");
-                assertThat("Missing system property [tests.leader_cluster_repository_path]",
-                    systemPropertyRepoPath, not(emptyOrNullString()));
-                final String repositoryPath = systemPropertyRepoPath + '/' + testPrefix;
-
-                final String repository = testPrefix + "-repository";
-                registerRepository(leaderClient, repository, "fs", true, Settings.builder().put("location", repositoryPath).build());
-
-                final String indexName = testPrefix + "-index";
-                for (int i = 0; i < 5; i++) {
-                    var indexRequest = new Request("POST", "/" + indexName + "/_doc");
-                    indexRequest.addParameter("refresh", "true");
-                    indexRequest.setJsonEntity("{\"value\":" + i + "}");
-                    assertOK(leaderClient.performRequest(indexRequest));
-                }
-                verifyDocuments(leaderClient, indexName, 5);
-
-                final String snapshot = testPrefix + "-snapshot";
-                deleteSnapshot(leaderClient, repository, snapshot, true);
-                createSnapshot(leaderClient, repository, snapshot, true);
-                deleteIndex(leaderClient, indexName);
-
                 final Request mountRequest = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + '/' + snapshot + "/_mount");
                 mountRequest.setJsonEntity("{\"index\": \"" + indexName + "\",\"renamed_index\": \"" + mountedIndex + "\"}");
                 final Response mountResponse = leaderClient.performRequest(mountRequest);
                 assertThat(mountResponse.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
                 ensureYellow(mountedIndex, leaderClient);
             }
+
+            assertLongBusy(() -> {
+                Map<?, ?> response = toMap(getAutoFollowStats());
+                assertThat(eval("auto_follow_stats.number_of_failed_follow_indices", response),
+                    greaterThanOrEqualTo(1));
+                assertThat(eval("auto_follow_stats.recent_auto_follow_errors", response),
+                    hasSize(greaterThanOrEqualTo(1)));
+                assertThat(eval("auto_follow_stats.recent_auto_follow_errors.0.auto_follow_exception.reason", response),
+                    containsString("index to follow [" + mountedIndex + "] is a searchable snapshot index and cannot be used " +
+                        "for cross-cluster replication purpose"));
+                ensureYellow(regularIndex);
+                verifyDocuments(client(), regularIndex, 10);
+            });
+        } finally {
+            cleanUpLeader(List.of(regularIndex, mountedIndex), List.of(), List.of());
+            cleanUpFollower(List.of(regularIndex), List.of(), List.of(autoFollowPattern));
         }
-
-        assertLongBusy(() -> {
-            Map<?, ?> response = toMap(getAutoFollowStats());
-            assertThat(eval("auto_follow_stats.number_of_successful_follow_indices", response),
-                equalTo(initialNumberOfSuccessfulFollowedIndicesInFollowCluster + 2));
-            assertThat(eval("auto_follow_stats.recent_auto_follow_errors", response),
-                hasSize(greaterThan(0)));
-            assertThat(eval("auto_follow_stats.recent_auto_follow_errors.0.auto_follow_exception.reason", response),
-                containsString("index to follow [" + mountedIndex + "] is a searchable snapshot index and cannot be used " +
-                    "for cross-cluster replication purpose"));
-            ensureYellow(regularIndex);
-            verifyDocuments(client(), regularIndex, 10);
-        });
-
-        deleteAutoFollowPattern(client(), autoFollowPattern);
     }
 
     private int getNumberOfSuccessfulFollowedIndices() throws IOException {

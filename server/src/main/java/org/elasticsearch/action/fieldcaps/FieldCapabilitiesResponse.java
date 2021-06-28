@@ -10,16 +10,16 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
+import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -77,7 +77,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
         this.responseMap = in.readMap(StreamInput::readString, FieldCapabilitiesResponse::readField);
         indexResponses = in.readList(FieldCapabilitiesIndexResponse::new);
-        if (in.getVersion().onOrAfter(Version.CURRENT)) {
+        if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
             this.failures = in.readList(FieldCapabilitiesFailure::new);
         } else {
             this.failures = Collections.emptyList();
@@ -149,7 +149,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
         out.writeMap(responseMap, StreamOutput::writeString, FieldCapabilitiesResponse::writeField);
         out.writeList(indexResponses);
-        if (out.getVersion().onOrAfter(Version.CURRENT)) {
+        if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
             out.writeList(failures);
         }
     }

@@ -172,6 +172,15 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             );
         }
 
+        if (currentState.getRoutingNodes().node(nodeId) == null) {
+            // We don't know about that node
+            return new ShutdownShardMigrationStatus(
+                SingleNodeShutdownMetadata.Status.NOT_STARTED,
+                0,
+                "node is not currently part of the cluster"
+            );
+        }
+
         // First, check if there are any shards currently on this node, and if there are any relocating shards
         int startedShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.STARTED);
         int relocatingShards = currentState.getRoutingNodes().node(nodeId).numberOfShardsWithState(ShardRoutingState.RELOCATING);
@@ -244,7 +253,7 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                 SingleNodeShutdownMetadata.Status.STALLED,
                 totalRemainingShards,
                 new ParameterizedMessage(
-                    "shard [{}] [{}] of index [{}] cannot move, see Cluster Allocation Explain API for details",
+                    "shard [{}] [{}] of index [{}] cannot move, use the Cluster Allocation Explain API on this shard for details",
                     shardRouting.shardId().getId(),
                     shardRouting.primary() ? "primary" : "replica",
                     shardRouting.index().getName()

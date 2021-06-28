@@ -87,7 +87,7 @@ public class TransportFieldUsageAction extends TransportBroadcastAction<FieldUsa
             if (r instanceof FieldUsageShardResponse) {
                 ++successfulShards;
                 FieldUsageShardResponse resp = (FieldUsageShardResponse) r;
-                combined.compute(resp.getIndex(), (k, v) -> v == null ? resp.stats : v.add(resp.stats));
+                combined.merge(resp.getIndex(), resp.stats, FieldUsageStats::add);
             } else if (r instanceof DefaultShardOperationFailedException) {
                 shardFailures.add((DefaultShardOperationFailedException) r);
             } else {

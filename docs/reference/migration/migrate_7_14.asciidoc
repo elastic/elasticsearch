@@ -114,24 +114,6 @@ Discontinue use of the `type` parameter in `geo_bounding_box` queries.
 ====
 
 [discrete]
-[[breaking_714_ccr_changes]]
-==== CCR deprecations
-
-[[system-indices-auto-follow-deprecation]]
-.Auto-follow remote system indices is deprecated.
-[%collapsible]
-====
-*Details* +
-Currently, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-are configured as a follower index automatically, this behavior is deprecated.
-
-*Impact* +
-In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
-won't be configured as a follower index automatically. In order to adapt to this new
-behaviour it is advised to exclude patterns matching system indices such as `.tasks` and
-`kibana-*`.
-
-[discrete]
 [[breaking_714_security_changes]]
 ==== Security deprecations
 
@@ -149,4 +131,24 @@ This creates confusion since realm names are meant to be unique for a node.
 Configuring a realm name with a leading underscore is deprecated. In a future release of {es}
 it will result in an error on startup if any user configured realm has a name
 with a leading underscore.
+====
+
+[discrete]
+[[breaking_714_ccr_changes]]
+==== CCR deprecations
+
+[[system-indices-auto-follow-deprecation]]
+.Auto-follow remote system indices is deprecated.
+[%collapsible]
+====
+*Details* +
+Currently, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+are configured as a follower index automatically, this behavior is deprecated.
+
+*Impact* +
+In 8.0.0, remote system indices matching an <<ccr-auto-follow,auto-follow pattern>>
+won't be configured as a follower index automatically. In order to adapt to this new
+behaviour it is advised to exclude patterns matching system indices such as `.tasks` and
+`kibana-*`.
+====
 // end::notable-breaking-changes[]

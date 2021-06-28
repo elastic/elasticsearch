@@ -218,6 +218,14 @@ steps for a <<restart-cluster-rolling,rolling restart>>.
 . One node at a time, complete <<start-rolling-restart>> through
 <<verify-keystore>> until you've updated all keystores in your cluster.
 
+[discrete]
+[[transport-layer-sameca-whatsnext]]
+==== What's next?
+Well done! You've updated the keystore for the transport layer. You can also
+<<node-certs-same-http,update the keystore for the HTTP layer>> if
+necessary. If you're not updating the keystore for the HTTP layer, then you're
+all set. 
+
 [[node-certs-same-http]]
 ==== Generate a new certificate for the HTTP layer
 Other components such as {kib} or any of the Elastic language clients verify
@@ -567,6 +575,30 @@ steps for a <<restart-cluster-rolling,rolling restart>>.
 . One node at a time, complete <<start-rolling-restart-newca>> through
 <<verify-keystore-newca>> until you've updated all keystores in your cluster.
 
+. (Optional) After rotating keystores on each node in your cluster, remove the
+old CA certificate from your truststore.
++
+[source,shell]
+----
+keytool -delete -noprompt -alias <old-ca>  -keystore config/elastic-stack-ca.p12 \
+-storepass <password>
+----
++
+[%collapsible%open]
+.Command parameters
+====
+   `-alias`:: Name of the old CA certificate that you want to remove from your
+   truststore.
+====
+
+[discrete]
+[[transport-layer-newca-whatsnext]]
+==== What's next?
+Well done! You've updated the keystore for the transport layer. You can also
+<<node-certs-different-http,update the keystore for the HTTP layer>> if
+necessary. If you're not updating the keystore for the HTTP layer, then you're
+all set. 
+
 [[node-certs-different-http]]
 ==== Generate a new certificate for the HTTP layer
 You can generate certificates for the HTTP layer using your new CA certificate
@@ -707,7 +739,7 @@ old CA certificate from your truststore.
 +
 [source,shell]
 ----
-keytool -delete -noprompt -alias old-ca  -keystore config/elastic-stack-ca.p12 \
+keytool -delete -noprompt -alias <old-ca>  -keystore config/http.p12 \
 -storepass <password>
 ----
 +

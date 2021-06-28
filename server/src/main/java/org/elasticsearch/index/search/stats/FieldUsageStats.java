@@ -100,8 +100,9 @@ public class FieldUsageStats implements ToXContentFragment, Writeable {
     }
 
     public FieldUsageStats add(FieldUsageStats other) {
-        other.stats.forEach((k, v) -> stats.computeIfAbsent(k, f -> new PerFieldUsageStats()).add(v));
-        return this;
+        FieldUsageStats newStats = new FieldUsageStats(stats);
+        other.stats.forEach((k, v) -> newStats.stats.computeIfAbsent(k, f -> new PerFieldUsageStats()).add(v));
+        return newStats;
     }
 
     public enum UsageContext {

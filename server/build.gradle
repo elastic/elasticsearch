@@ -92,6 +92,9 @@ dependencies {
   api project(":libs:elasticsearch-cli")
   api 'com.carrotsearch:hppc:0.8.1'
 
+  // LZ4
+  api 'org.lz4:lz4-java:1.8.0'
+
   // time handling, remove with java 8 time
   api "joda-time:joda-time:${versions.joda}"
 
@@ -306,6 +309,11 @@ tasks.named("thirdPartyAudit").configure {
     if (BuildParams.runtimeJavaVersion > JavaVersion.VERSION_1_8) {
         ignoreMissingClasses 'javax.xml.bind.DatatypeConverter'
     }
+
+    ignoreViolations(
+      // from java-lz4
+      'net.jpountz.util.UnsafeUtils'
+    )
 }
 
 tasks.named("dependencyLicenses").configure {

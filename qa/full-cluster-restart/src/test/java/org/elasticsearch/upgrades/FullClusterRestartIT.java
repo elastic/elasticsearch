@@ -15,6 +15,7 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYS
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.transport.RemoteClusterService.REMOTE_CLUSTER_COMPRESS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -30,6 +31,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +43,7 @@ import java.util.regex.Pattern;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -48,6 +51,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.WarningFailureException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
@@ -66,6 +70,7 @@ import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.transport.Compression;
 import org.junit.Before;
 
 /**
@@ -1661,6 +1666,41 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             restoreRequest.setJsonEntity(Strings.toString(restoreCommand));
             final ResponseException error = expectThrows(ResponseException.class, () -> client().performRequest(restoreRequest));
             assertThat(error.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+        }
+    }
+
+    /**
+     * In 7.14 the cluster.remote.*.transport.compress setting was change from a boolean to an enum setting
+     * with true/false as options. This test ensures that the old boolean setting in cluster state is
+     * translated properly. This test can be removed in 9.0.
+     */
+    public void testTransportCompressionSetting() throws IOException {
+        if (isRunningAgainstOldCluster()) {
+            final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                {
+                    builder.startObject("persistent");
+                    {
+                        builder.field("cluster.remote.foo.seeds", Collections.singletonList("localhost:9200"));
+                        builder.field("cluster.remote.foo.transport.compress", "true");
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+                putSettingsRequest.setJsonEntity(Strings.toString(builder));
+            }
+            client().performRequest(putSettingsRequest);
+        } else {
+            final Request getSettingsRequest = new Request("GET", "/_cluster/settings");
+            final Response getSettingsResponse = client().performRequest(getSettingsRequest);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, getSettingsResponse.getEntity().getContent())) {
+                final ClusterGetSettingsResponse clusterGetSettingsResponse = ClusterGetSettingsResponse.fromXContent(parser);
+                final Settings settings = clusterGetSettingsResponse.getPersistentSettings();
+                assertThat(
+                    REMOTE_CLUSTER_COMPRESS.getConcreteSettingForNamespace("foo").get(settings),
+                    equalTo(Compression.Enabled.TRUE));
+            }
         }
     }
 

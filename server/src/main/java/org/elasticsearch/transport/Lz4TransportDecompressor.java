@@ -126,7 +126,6 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     private final PageCacheRecycler recycler;
     private final ArrayDeque<Recycler.V<byte[]>> pages;
     private int pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-    private byte[] compressedBuffer = BytesRef.EMPTY_BYTES;
     private boolean hasSkippedESHeader = false;
 
     public Lz4TransportDecompressor(PageCacheRecycler recycler) {
@@ -304,13 +303,12 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int bytesToCopy = decompressedLength;
                         int uncompressedOffset = 0;
                         while (bytesToCopy > 0) {
-                            final Recycler.V<byte[]> page;
                             final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
                             if (isNewPage) {
                                 pageOffset = 0;
                                 pages.add(recycler.bytePage(false));
                             }
-                            page = pages.getLast();
+                            final Recycler.V<byte[]> page = pages.getLast();
 
                             int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
                             System.arraycopy(uncompressed, uncompressedOffset, page.v(), pageOffset, toCopy);

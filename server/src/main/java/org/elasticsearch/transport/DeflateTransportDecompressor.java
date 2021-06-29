@@ -52,24 +52,23 @@ public class DeflateTransportDecompressor implements TransportDecompressor {
             bytesConsumed += ref.length;
             boolean continueInflating = true;
             while (continueInflating) {
-                final Recycler.V<byte[]> page;
                 final boolean isNewPage = pageOffset == PageCacheRecycler.BYTE_PAGE_SIZE;
                 if (isNewPage) {
                     pageOffset = 0;
-                    page = recycler.bytePage(false);
-                } else {
-                    page = pages.getLast();
+                    pages.add(recycler.bytePage(false));
                 }
+                final Recycler.V<byte[]> page = pages.getLast();
+
                 byte[] output = page.v();
                 try {
                     int bytesInflated = inflater.inflate(output, pageOffset, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
                     pageOffset += bytesInflated;
                     if (isNewPage) {
                         if (bytesInflated == 0) {
-                            page.close();
+                            Recycler.V<byte[]> removed = pages.pollLast();
+                            assert removed == page;
+                            removed.close();
                             pageOffset = PageCacheRecycler.BYTE_PAGE_SIZE;
-                        } else {
-                            pages.add(page);
                         }
                     }
                 } catch (DataFormatException e) {

@@ -548,10 +548,14 @@ public abstract class Engine implements Closeable {
 
     }
 
-    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher, boolean readFromTranslog) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
-            docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            if (readFromTranslog) {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersionUncached(searcher.getIndexReader(), get.uid(), true);
+            } else {
+                docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
+            }
         } catch (Exception e) {
             Releasables.closeWhileHandlingException(searcher);
             //TODO: A better exception goes here
@@ -576,7 +580,7 @@ public abstract class Engine implements Closeable {
         if (docIdAndVersion != null) {
             // don't release the searcher on this path, it is the
             // responsibility of the caller to call GetResult.release
-            return new GetResult(searcher, docIdAndVersion, false);
+            return new GetResult(searcher, docIdAndVersion, readFromTranslog);
         } else {
             Releasables.close(searcher);
             return GetResult.NOT_EXISTS;
@@ -1571,7 +1575,6 @@ public abstract class Engine implements Closeable {
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
             this.fromTranslog = fromTranslog;
-            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
         public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
@@ -1587,8 +1590,8 @@ public abstract class Engine implements Closeable {
         }
 
         /**
-         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
-         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
+         * Returns {@code true} iff the get was performed from a translog operation. This possibly means that an in-memory Lucene segment
+         * needed to be created from the corresponding translog operation.
          */
         public boolean isFromTranslog() {
             return fromTranslog;

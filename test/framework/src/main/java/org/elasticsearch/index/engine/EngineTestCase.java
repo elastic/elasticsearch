@@ -35,6 +35,7 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -1242,6 +1243,18 @@ public abstract class EngineTestCase extends ESTestCase {
                 public LeafReader wrap(LeafReader leaf) {
                     try {
                         final IndexSearcher searcher = new IndexSearcher(leaf);
+                        searcher.setQueryCache((weight, policy) -> weight);
+                        searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+                            @Override
+                            public void onUse(Query query) {
+
+                            }
+
+                            @Override
+                            public boolean shouldCache(Query query) {
+                                return false;
+                            }
+                        });
                         final Weight weight = searcher.createWeight(query, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
                         final Scorer scorer = weight.scorer(leaf.getContext());
                         final DocIdSetIterator iterator = scorer != null ? scorer.iterator() : null;

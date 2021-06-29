@@ -917,6 +917,8 @@ public class InternalEngineTests extends EngineTestCase {
         MapperService mapperService = createMapperService();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         DocumentParser documentParser = mapperService.documentParser();
+        LongSupplier translogInMemorySegmentCount = engine.translogInMemorySegmentsCount::get;
+        long translogInMemorySegmentCountExpected = 0;
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, randomSearcherWrapper())) {
             // we do not track the translog location yet
             assertTrue(get.exists());
@@ -924,6 +926,7 @@ public class InternalEngineTests extends EngineTestCase {
         }
         // refresh triggered, as we did not track translog location until the first realtime get.
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L));
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         engine.index(indexForDoc(createParsedDoc("1", null)));
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser, searcher -> searcher)) {
@@ -931,14 +934,17 @@ public class InternalEngineTests extends EngineTestCase {
             assertTrue(get.isFromTranslog());
         }
         assertThat(engine.lastRefreshedCheckpoint(), equalTo(0L)); // no refresh; just read from translog
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+
         if (randomBoolean()) {
             engine.index(indexForDoc(createParsedDoc("1", null)));
         }
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchAllDocsQuery())))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertTrue(get.isFromTranslog());
         }
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new MatchNoDocsQuery())))) {
@@ -949,8 +955,10 @@ public class InternalEngineTests extends EngineTestCase {
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("1")))))) {
             assertTrue(get.exists());
-            assertFalse(get.isFromTranslog());
+            assertTrue(get.isFromTranslog());
         }
+        // term query on _id field is properly faked
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
 
         try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
             searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader, new TermQuery(newUid("2")))))) {
@@ -958,6 +966,17 @@ public class InternalEngineTests extends EngineTestCase {
             assertFalse(get.isFromTranslog());
         }
         assertThat("no refresh, just read from translog or in-memory segment", engine.lastRefreshedCheckpoint(), equalTo(0L));
+        // term query on _id field is properly faked
+        assertEquals(translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
+
+        engine.index(indexForDoc(createParsedDoc("1", null)));
+        try (Engine.GetResult get = engine.get(new Engine.Get(true, true, "1"), mappingLookup, documentParser,
+            searcher -> SearcherHelper.wrapSearcher(searcher, reader -> new MatchingDirectoryReader(reader,
+                new TermQuery(new Term("other_field", Uid.encodeId("test"))))))) {
+            assertFalse(get.exists());
+        }
+        // term query on some other field needs in-memory index
+        assertEquals(++translogInMemorySegmentCountExpected, translogInMemorySegmentCount.getAsLong());
     }
 
     public void testSearchResultRelease() throws Exception {

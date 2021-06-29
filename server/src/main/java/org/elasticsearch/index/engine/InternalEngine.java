@@ -30,6 +30,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -61,6 +62,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.cache.query.DisabledQueryCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
@@ -607,26 +610,31 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private static final QueryCachingPolicy NEVER_CACHE_POLICY = new QueryCachingPolicy() {
+        @Override
+        public void onUse(Query query) {
+
+        }
+
+        @Override
+        public boolean shouldCache(Query query) {
+            return false;
+        }
+    };
+
+    private final QueryCache translogQueryCache = new DisabledQueryCache(config().getIndexSettings());
+
+    public final AtomicLong translogInMemorySegmentsCount = new AtomicLong();
+
     private GetResult getFromTranslog(Get get, Translog.Index index, MappingLookup mappingLookup, DocumentParser documentParser,
                                       Function<Searcher, Searcher> searcherWrapper) throws IOException {
         assert get.isReadFromTranslog();
-        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mappingLookup, documentParser,
-            config().getAnalyzer());
+        final TranslogDirectoryReader inMemoryReader = new TranslogDirectoryReader(shardId, index, mappingLookup, documentParser,
+            config().getAnalyzer(), translogInMemorySegmentsCount::incrementAndGet);
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
-            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+            config().getSimilarity(), translogQueryCache, NEVER_CACHE_POLICY, inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
-        if (wrappedSearcher == searcher) {
-            searcher.close();
-            assert inMemoryReader.assertMemorySegmentStatus(false);
-            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
-            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
-                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
-                new VersionsAndSeqNoResolver.DocIdAndVersion(
-                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
-        } else {
-            assert inMemoryReader.assertMemorySegmentStatus(true);
-            return getFromSearcher(get, wrappedSearcher);
-        }
+        return getFromSearcher(get, wrappedSearcher, true);
     }
 
     @Override
@@ -675,10 +683,10 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper), false);
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
             }
         }
     }

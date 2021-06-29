@@ -49,7 +49,7 @@ import java.util.stream.Collectors;
  * reference field data and stored fields from a document that has not yet been
  * indexed.
  */
-class DocumentLeafReader extends LeafReader {
+public class DocumentLeafReader extends LeafReader {
 
     private final LuceneDocument document;
     private final Map<String, Consumer<LeafReaderContext>> calculatedFields;
@@ -252,7 +252,7 @@ class DocumentLeafReader extends LeafReader {
         );
     }
 
-    private static NumericDocValues numericDocValues(List<Number> values) {
+    public static NumericDocValues numericDocValues(List<Number> values) {
         if (values.size() == 0) {
             return null;
         }

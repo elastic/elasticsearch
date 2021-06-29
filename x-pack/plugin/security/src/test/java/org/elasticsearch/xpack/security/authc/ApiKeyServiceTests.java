@@ -123,6 +123,7 @@ import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -778,17 +779,16 @@ public class ApiKeyServiceTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/74586")
     public void testApiKeyAuthCacheWillLogWarningOnPossibleThrashing() throws Exception {
         ApiKeyService service = createApiKeyService(
-            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 1).build());
+            Settings.builder().put("xpack.security.authc.api_key.cache.max_keys", 2).build());
         final Cache<String, ListenableFuture<CachedApiKeyHashResult>> apiKeyAuthCache = service.getApiKeyAuthCache();
 
         // Fill the cache
-        final String apiKeyId = randomAlphaOfLength(22);
-        apiKeyAuthCache.put(apiKeyId, new ListenableFuture<>());
+        apiKeyAuthCache.put(randomAlphaOfLength(20), new ListenableFuture<>());
+        apiKeyAuthCache.put(randomAlphaOfLength(21), new ListenableFuture<>());
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
-        Loggers.setLevel(logger, Level.WARN);
+        Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
         Loggers.addAppender(logger, appender);
         appender.start();
@@ -796,21 +796,34 @@ public class ApiKeyServiceTests extends ESTestCase {
         try {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
+            service.getLastEvictionCheckedAt().set(System.nanoTime() - 310L * 1_000_000_000L);
             // Ensure the counter is updated
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "evict", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [*] was evicted from the authentication cache*"
+            ));
             appender.addExpectation(new MockLogAppender.SeenEventExpectation(
                 "thrashing", ApiKeyService.class.getName(), Level.WARN,
                 "Possible thrashing for API key authentication cache,*"
             ));
-            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
+            apiKeyAuthCache.put(randomAlphaOfLength(22), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
 
+            // Counter and timer should be reset
+            assertThat(service.getLastEvictionCheckedAt().get(), lessThanOrEqualTo(System.nanoTime()));
+            assertBusy(() -> assertThat(service.getEvictionCounter().longValue(), equalTo(0L)));
+
             // Will not log warning again for the next eviction because of throttling
+            appender.addExpectation(new MockLogAppender.SeenEventExpectation(
+                "evict-again", ApiKeyService.class.getName(), Level.TRACE,
+                "API key with ID [*] was evicted from the authentication cache*"
+            ));
             appender.addExpectation(new MockLogAppender.UnseenEventExpectation(
                 "throttling", ApiKeyService.class.getName(), Level.WARN,
                 "Possible thrashing for API key authentication cache,*"
             ));
-            apiKeyAuthCache.put(randomAlphaOfLength(24), new ListenableFuture<>());
+            apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
         } finally {
             appender.stop();

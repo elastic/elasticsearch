@@ -28,7 +28,6 @@ import java.util.Collections;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class URLSnapshotRestoreIT extends ESIntegTestCase {
@@ -105,7 +104,6 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
 
         logger.info("--> list available shapshots");
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
 
         logger.info("--> delete snapshot");
@@ -114,7 +112,6 @@ public class URLSnapshotRestoreIT extends ESIntegTestCase {
 
         logger.info("--> list available shapshot again, no snapshots should be returned");
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("url-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(0));
     }
 }

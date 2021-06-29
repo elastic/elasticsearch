@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -933,10 +932,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
     private long getDocCount(String indexName) {
         return client().admin().indices().prepareStats(indexName).get().getPrimaries().getDocs().getCount();
-    }
-
-    private IndexResponse indexDoc(String index, String id, Object... source) {
-        return client().prepareIndex(index, "_doc").setId(id).setSource(source).execute().actionGet();
     }
 
     public static class SystemIndexTestPlugin extends Plugin implements SystemIndexPlugin {

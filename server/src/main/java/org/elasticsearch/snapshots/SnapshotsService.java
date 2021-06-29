@@ -773,7 +773,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         // 1. step, load SnapshotInfo to make sure that source snapshot was successful for the indices we want to clone
         // TODO: we could skip this step for snapshots with state SUCCESS
         final StepListener<SnapshotInfo> snapshotInfoListener = new StepListener<>();
-        executor.execute(ActionRunnable.supply(snapshotInfoListener, () -> repository.getSnapshotInfo(sourceSnapshot)));
+        repository.getSnapshotInfo(sourceSnapshot, snapshotInfoListener);
 
         final StepListener<Collection<Tuple<IndexId, Integer>>> allShardCountsListener = new StepListener<>();
         final GroupedActionListener<Tuple<IndexId, Integer>> shardCountListener = new GroupedActionListener<>(
@@ -1965,7 +1965,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 indexSnapshotDetails.entrySet().removeIf(e -> e.getValue().getShardCount() == 0);
 
                 final SnapshotInfo snapshotInfo = new SnapshotInfo(
-                    snapshot.getSnapshotId(),
+                    snapshot,
                     finalIndices,
                     entry.dataStreams().stream().filter(metaForSnapshot.dataStreams()::containsKey).collect(Collectors.toList()),
                     entry.partial() ? onlySuccessfulFeatureStates(entry, finalIndices) : entry.featureStates(),
@@ -1974,7 +1974,9 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.partial() ? shardGenerations.totalShards() : entry.shards().size(),
                     shardFailures,
                     entry.includeGlobalState(),
-                    entry.userMetadata(),
+                    // TODO: remove this hack making the metadata mutable once
+                    // https://github.com/elastic/elasticsearch/pull/72776 has been merged
+                    entry.userMetadata() == null ? null : new HashMap<>(entry.userMetadata()),
                     entry.startTime(),
                     indexSnapshotDetails
                 );

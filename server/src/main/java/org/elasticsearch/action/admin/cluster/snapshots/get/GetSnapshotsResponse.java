@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,11 +19,14 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -34,7 +38,7 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
     private static final ConstructingObjectParser<GetSnapshotsResponse, Void> GET_SNAPSHOT_PARSER = new ConstructingObjectParser<>(
         GetSnapshotsResponse.class.getName(),
         true,
-        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0])
+        (args) -> new GetSnapshotsResponse((List<SnapshotInfo>) args[0], (Map<String, ElasticsearchException>) args[1], (String) args[2])
     );
 
     static {
@@ -43,17 +47,37 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             (p, c) -> SnapshotInfo.SNAPSHOT_INFO_PARSER.apply(p, c).build(),
             new ParseField("snapshots")
         );
+        GET_SNAPSHOT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> p.map(HashMap::new, ElasticsearchException::fromXContent),
+            new ParseField("failures")
+        );
+        GET_SNAPSHOT_PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), new ParseField("next"));
     }
 
     private final List<SnapshotInfo> snapshots;
 
-    public GetSnapshotsResponse(List<SnapshotInfo> snapshots) {
-        this.snapshots = Collections.unmodifiableList(snapshots);
+    private final Map<String, ElasticsearchException> failures;
+
+    @Nullable
+    private final String next;
+
+    public GetSnapshotsResponse(List<SnapshotInfo> snapshots, Map<String, ElasticsearchException> failures, @Nullable String next) {
+        this.snapshots = org.elasticsearch.core.List.copyOf(snapshots);
+        this.failures = failures == null ? org.elasticsearch.core.Map.of() : org.elasticsearch.core.Map.copyOf(failures);
+        this.next = next;
     }
 
-    GetSnapshotsResponse(StreamInput in) throws IOException {
-        super(in);
-        snapshots = Collections.unmodifiableList(in.readList(SnapshotInfo::readFrom));
+    public GetSnapshotsResponse(StreamInput in) throws IOException {
+        this.snapshots = in.readList(SnapshotInfo::readFrom);
+        if (in.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            final Map<String, ElasticsearchException> failedResponses = in.readMap(StreamInput::readString, StreamInput::readException);
+            this.failures = Collections.unmodifiableMap(failedResponses);
+            this.next = in.readOptionalString();
+        } else {
+            this.failures = Collections.emptyMap();
+            this.next = null;
+        }
     }
 
     /**
@@ -65,9 +89,37 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         return snapshots;
     }
 
+    /**
+     * Returns a map of repository name to {@link ElasticsearchException} for each unsuccessful response.
+     */
+    public Map<String, ElasticsearchException> getFailures() {
+        return failures;
+    }
+
+    @Nullable
+    public String next() {
+        return next;
+    }
+
+    /**
+     * Returns true if there is a least one failed response.
+     */
+    public boolean isFailed() {
+        return failures.isEmpty() == false;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(snapshots);
+        if (out.getVersion().onOrAfter(GetSnapshotsRequest.MULTIPLE_REPOSITORIES_SUPPORT_ADDED)) {
+            out.writeMap(failures, StreamOutput::writeString, StreamOutput::writeException);
+            out.writeOptionalString(next);
+        } else {
+            if (failures.isEmpty() == false) {
+                assert false : "transport action should have thrown directly for old version but saw " + failures;
+                throw failures.values().iterator().next();
+            }
+        }
     }
 
     @Override
@@ -78,6 +130,21 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
             snapshotInfo.toXContent(builder, params);
         }
         builder.endArray();
+        if (failures.isEmpty() == false) {
+            builder.startObject("failures");
+            for (Map.Entry<String, ElasticsearchException> error : failures.entrySet()) {
+                builder.field(error.getKey(), (b, pa) -> {
+                    b.startObject();
+                    error.getValue().toXContent(b, pa);
+                    b.endObject();
+                    return b;
+                });
+            }
+            builder.endObject();
+        }
+        if (next != null) {
+            builder.field("next", next);
+        }
         builder.endObject();
         return builder;
     }
@@ -91,12 +158,12 @@ public class GetSnapshotsResponse extends ActionResponse implements ToXContentOb
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetSnapshotsResponse that = (GetSnapshotsResponse) o;
-        return Objects.equals(snapshots, that.snapshots);
+        return Objects.equals(snapshots, that.snapshots) && Objects.equals(failures, that.failures) && Objects.equals(next, that.next);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshots);
+        return Objects.hash(snapshots, failures, next);
     }
 
     @Override

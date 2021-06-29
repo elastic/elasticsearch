@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.core.Map;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotFeatureInfo;
 import org.elasticsearch.snapshots.SnapshotFeatureInfoTests;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -56,7 +57,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
             List<SnapshotFeatureInfo> featureInfos = randomList(0, SnapshotFeatureInfoTests::randomSnapshotFeatureInfo);
             snapshots.add(
                 new SnapshotInfo(
-                    snapshotId,
+                    new Snapshot(randomAlphaOfLength(5), snapshotId),
                     Arrays.asList("index1", "index2"),
                     Collections.singletonList("ds"),
                     featureInfos,
@@ -71,7 +72,7 @@ public class GetSnapshotsResponseTests extends AbstractSerializingTestCase<GetSn
                 )
             );
         }
-        return new GetSnapshotsResponse(snapshots);
+        return new GetSnapshotsResponse(snapshots, Collections.emptyMap(), null);
     }
 
     @Override

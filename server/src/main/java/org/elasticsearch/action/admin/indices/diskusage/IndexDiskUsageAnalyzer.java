@@ -137,7 +137,7 @@ import java.util.Objects;
             // to avoid missing many skew documents. But, documents are stored in chunks in compressed format and a chunk can
             // have up to 4096 docs, we need to skip a large number of docs to avoid loading/decompressing some chunks.
             if ((docID & skipMask) == skipMask && docID < reader.maxDoc() - 512) {
-                docID = Math.max(docID + 5120, reader.maxDoc() - 512); // always visit both ends
+                docID = Math.toIntExact(Math.min(docID + 5120L, reader.maxDoc() - 512L)); // always visit both ends
             } else {
                 docID++;
             }

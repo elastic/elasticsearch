@@ -348,13 +348,13 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                 return;
             }
-            final BytesReference source = getResponse.getSourceInternal();
-            // reserve twice memory of the source length: one for the internal XContent parser and one for the response
-            final int reservedBytes = source.length() * 2;
-            circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
-            listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
             final R resp;
             try {
+                final BytesReference source = getResponse.getSourceInternal();
+                // reserve twice memory of the source length: one for the internal XContent parser and one for the response
+                final int reservedBytes = source.length() * 2;
+                circuitBreaker.addEstimateBytesAndMaybeBreak(source.length() * 2L, "decode async response");
+                listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
                 resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
             } catch (Exception e) {
                 listener.onFailure(e);

@@ -78,6 +78,7 @@ public class Constants {
         "cluster:admin/snapshot/create",
         "cluster:admin/snapshot/delete",
         "cluster:admin/snapshot/get",
+        "cluster:admin/snapshot/get_shard",
         "cluster:admin/snapshot/mount",
         "cluster:admin/snapshot/restore",
         "cluster:admin/snapshot/status",

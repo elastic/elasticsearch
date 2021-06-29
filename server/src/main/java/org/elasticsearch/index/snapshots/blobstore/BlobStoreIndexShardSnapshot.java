@@ -11,6 +11,9 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -31,7 +34,7 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
     /**
      * Information about snapshotted file
      */
-    public static class FileInfo {
+    public static class FileInfo implements Writeable {
 
         private final String name;
         private final ByteSizeValue partSize;
@@ -68,6 +71,17 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
             this.partSize = partSize;
             this.partBytes = partBytes;
             assert IntStream.range(0, numberOfParts).mapToLong(this::partBytes).sum() == metadata.length();
+        }
+
+        public FileInfo(StreamInput in) throws IOException {
+            this(in.readString(), new StoreFileMetadata(in), new ByteSizeValue(in));
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(name);
+            metadata.writeTo(out);
+            partSize.writeTo(out);
         }
 
         /**

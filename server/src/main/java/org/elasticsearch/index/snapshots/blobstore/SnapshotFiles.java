@@ -7,9 +7,13 @@
  */
 package org.elasticsearch.index.snapshots.blobstore;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -18,7 +22,7 @@ import java.util.Objects;
 /**
  * Contains a list of files participating in a snapshot
  */
-public class SnapshotFiles {
+public class SnapshotFiles implements Writeable {
 
     private final String snapshot;
 
@@ -47,6 +51,27 @@ public class SnapshotFiles {
         this.snapshot = snapshot;
         this.indexFiles = indexFiles;
         this.shardStateIdentifier = shardStateIdentifier;
+    }
+
+    public SnapshotFiles(StreamInput in) throws IOException {
+        this.snapshot = in.readString();
+        this.indexFiles = in.readList(FileInfo::new);
+        this.shardStateIdentifier = in.readOptionalString();
+        if (in.readBoolean()) {
+            this.physicalFiles = in.readMap(StreamInput::readString, FileInfo::new);
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(snapshot);
+        out.writeList(indexFiles);
+        out.writeOptionalString(shardStateIdentifier);
+        final boolean hasPhysicalFiles = physicalFiles != null;
+        out.writeBoolean(hasPhysicalFiles);
+        if (hasPhysicalFiles) {
+            out.writeMap(physicalFiles, StreamOutput::writeString, (o, fileInfo) -> fileInfo.writeTo(o));
+        }
     }
 
     /**

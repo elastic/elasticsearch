@@ -76,12 +76,21 @@ public final class IndexMetaDataGenerations {
      * @return blob id for the given index metadata
      */
     public String indexMetaBlobId(SnapshotId snapshotId, IndexId indexId) {
-        final String identifier = lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
+        final String identifier = snapshotIndexMetadataIdentifier(snapshotId, indexId);
         if (identifier == null) {
             return snapshotId.getUUID();
         } else {
             return identifiers.get(identifier);
         }
+    }
+
+    /**
+     * Gets the {@link org.elasticsearch.cluster.metadata.IndexMetadata} identifier for the given snapshot
+     * if the snapshot contains the referenced index, otherwise it returns {@code null}.
+     */
+    @Nullable
+    public String snapshotIndexMetadataIdentifier(SnapshotId snapshotId, IndexId indexId) {
+        return lookup.getOrDefault(snapshotId, Collections.emptyMap()).get(indexId);
     }
 
     /**

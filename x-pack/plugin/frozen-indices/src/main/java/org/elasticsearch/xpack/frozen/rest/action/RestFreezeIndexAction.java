@@ -24,13 +24,12 @@ public final class RestFreezeIndexAction extends XPackRestHandler {
 
     public static final String DEPRECATION_WARNING = "Frozen indices are deprecated because they provide no benefit given improvements "
         + "in heap memory utilization. They will be removed in a future release.";
-    private static final RestApiVersion DEPRECATION_VERSION = RestApiVersion.V_7;
 
     @Override
     public List<Route> routes() {
         return org.elasticsearch.core.List.of(
-            Route.builder(POST, "/{index}/_freeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build(),
-            Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, DEPRECATION_VERSION).build()
+            Route.builder(POST, "/{index}/_freeze").deprecated(DEPRECATION_WARNING, RestApiVersion.V_7).build(),
+            Route.builder(POST, "/{index}/_unfreeze").deprecated(DEPRECATION_WARNING, RestApiVersion.V_7).build()
         );
     }
 

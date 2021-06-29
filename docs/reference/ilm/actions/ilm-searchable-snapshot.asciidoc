@@ -14,7 +14,7 @@ index>>. If the original index is part of a
 the data stream.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
-subsequent phases cannot define any of the `shrink`, `forcemerge` or `freeze`
+subsequent phases cannot include the `shrink`, `forcemerge`, or `freeze`
 actions.
 
 [NOTE]

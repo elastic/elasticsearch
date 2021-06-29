@@ -200,7 +200,6 @@ import java.util.Objects;
         }
     }
 
-    // The type bound should be DocValuesIterator instead of DocIdSetIterator.
     private <DV extends DocIdSetIterator> DV iterateDocValues(int maxDocs,
                                                               CheckedSupplier<DV, IOException> dvReader,
                                                               CheckedConsumer<DV, IOException> valueAccessor) throws IOException {

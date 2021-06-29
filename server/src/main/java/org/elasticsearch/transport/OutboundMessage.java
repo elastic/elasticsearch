@@ -51,7 +51,9 @@ abstract class OutboundMessage extends NetworkMessage {
         final BytesReference zeroCopyBuffer;
         try {
             stream.setVersion(version);
-            stream.setFeatures(bytesStream.getFeatures());
+            if (bytesStream != stream) {
+                stream.setFeatures(bytesStream.getFeatures());
+            }
 
             if (variableHeaderLength == -1) {
                 writeVariableHeader(stream);

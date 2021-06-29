@@ -172,6 +172,7 @@ tasks.named("yamlRestCompatTest").configure {
     'vectors/30_sparse_vector_basic/Dot Product',
     'vectors/35_sparse_vector_l1l2/L1 norm',
     'vectors/35_sparse_vector_l1l2/L2 norm',
+    'privileges/40_get_user_privs/Test get_user_privileges for merged roles',  // temporary disabled till #70191 gets backported
     'vectors/40_sparse_vector_special_cases/Dimensions can be sorted differently',
     'vectors/40_sparse_vector_special_cases/Documents missing a vector field',
     'vectors/40_sparse_vector_special_cases/Query vector has different dimensions from documents\' vectors',

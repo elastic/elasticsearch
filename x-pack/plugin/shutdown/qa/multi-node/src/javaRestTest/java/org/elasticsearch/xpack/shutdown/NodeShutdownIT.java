@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -216,7 +219,10 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(numberOfShards));
             assertThat(
                 ObjectPath.eval("nodes.0.shard_migration.explanation", status),
-                allOf(containsString(indexName), containsString("cannot move, see Cluster Allocation Explain API for details"))
+                allOf(
+                    containsString(indexName),
+                    containsString("cannot move, use the Cluster Allocation Explain API on this shard for details")
+                )
             );
         }
 
@@ -233,6 +239,16 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(ObjectPath.eval("nodes.0.shard_migration.shard_migrations_remaining", status), equalTo(0));
                         assertThat(ObjectPath.eval("nodes.0.shard_migration.explanation", status), nullValue());
         });
+    }
+
+    /**
+     * Ensures that attempting to delete the status of a node that is not registered for shutdown gives a 404 response code.
+     */
+    public void testDeleteNodeNotRegisteredForShutdown() throws Exception {
+        assumeTrue("must be on a snapshot build of ES to run in order for the feature flag to be set", Build.CURRENT.isSnapshot());
+        Request deleteReq = new Request("DELETE", "_nodes/this-node-doesnt-exist/shutdown");
+        ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(deleteReq));
+        assertThat(ex.getResponse().getStatusLine().getStatusCode(), is(404));
     }
 
     @SuppressWarnings("unchecked")

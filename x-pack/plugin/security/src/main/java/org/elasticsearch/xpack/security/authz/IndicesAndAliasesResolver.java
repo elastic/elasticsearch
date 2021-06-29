@@ -302,7 +302,8 @@ class IndicesAndAliasesResolver {
     static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
                 || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request
-                || request instanceof OpenPointInTimeRequest;
+                || request instanceof OpenPointInTimeRequest
+                || request.getClass().getCanonicalName().equals("org.elasticsearch.xpack.eql.action.EqlSearchRequest");
     }
 
     private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {

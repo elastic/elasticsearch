@@ -14,7 +14,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.Type;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -26,6 +25,7 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
@@ -112,7 +112,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case.
+     * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
         Context context = new Context(state, options, getSystemIndexAccessLevel(),
@@ -167,7 +167,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case.
+     * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public Index[] concreteIndices(ClusterState state, IndicesOptions options, String... indexExpressions) {
         return concreteIndices(state, options, false, indexExpressions);
@@ -189,7 +189,7 @@ public class IndexNameExpressionResolver {
      * provided indices options in the context don't allow such a case, or if the final result of the indices resolution
      * contains no indices and the indices options in the context don't allow such a case.
      * @throws IllegalArgumentException if one of the aliases resolve to multiple indices and the provided
-     * indices options in the context don't allow such a case.
+     * indices options in the context don't allow such a case; if a remote index is requested.
      */
     public Index[] concreteIndices(ClusterState state, IndicesRequest request, long startTime) {
         Context context = new Context(state, request.indicesOptions(), startTime, false, false, request.includeDataStreams(), false,
@@ -207,11 +207,20 @@ public class IndexNameExpressionResolver {
     }
 
     Index[] concreteIndices(Context context, String... indexExpressions) {
-        if (indexExpressions == null || indexExpressions.length == 0) {
-            indexExpressions = new String[]{Metadata.ALL};
-        }
         Metadata metadata = context.getState().metadata();
         IndicesOptions options = context.getOptions();
+        if (indexExpressions == null || indexExpressions.length == 0) {
+            indexExpressions = new String[]{Metadata.ALL};
+        } else {
+            if (options.ignoreUnavailable() == false) {
+                List<String> crossClusterIndices = Arrays.stream(indexExpressions)
+                    .filter(index -> index.contains(":")).collect(Collectors.toList());
+                if (crossClusterIndices.size() > 0) {
+                    throw new IllegalArgumentException("Cross-cluster calls are not supported in this context but remote indices " +
+                        "were requested: " + crossClusterIndices);
+                }
+            }
+        }
         // If only one index is specified then whether we fail a request if an index is missing depends on the allow_no_indices
         // option. At some point we should change this, because there shouldn't be a reason why whether a single index
         // or multiple indices are specified yield different behaviour.
@@ -396,7 +405,7 @@ public class IndexNameExpressionResolver {
      * @param state             the cluster state containing all the data to resolve to expression to a concrete index
      * @param request           The request that defines how the an alias or an index need to be resolved to a concrete index
      *                          and the expression that can be resolved to an alias or an index name.
-     * @throws IllegalArgumentException if the index resolution lead to more than one index
+     * @throws IllegalArgumentException if the index resolution returns more than one index; if a remote index is requested.
      * @return the concrete index obtained as a result of the index resolution
      */
     public Index concreteSingleIndex(ClusterState state, IndicesRequest request) {
@@ -433,7 +442,8 @@ public class IndexNameExpressionResolver {
      * @param index             index that can be resolved to alias or index name.
      * @param allowNoIndices    whether to allow resolve to no index
      * @param includeDataStreams Whether data streams should be included in the evaluation.
-     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index
+     * @throws IllegalArgumentException if the index resolution does not lead to an index, or leads to more than one index, as well as
+     * if a remote index is requested.
      * @return the write index obtained as a result of the index resolution or null if no index
      */
     public Index concreteWriteIndex(ClusterState state, IndicesOptions options, String index, boolean allowNoIndices,

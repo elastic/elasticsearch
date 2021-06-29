@@ -1352,6 +1352,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Syntactic sugar for:
      * <pre>
+     *   return client().prepareIndex(index).setId(id).setSource(source).execute().actionGet();
+     * </pre>
+     */
+    protected final IndexResponse indexDoc(String index, String id, Object... source) {
+        return client().prepareIndex(index, "_doc").setId(id).setSource(source).execute().actionGet();
+    }
+
+    /**
+     * Syntactic sugar for:
+     * <pre>
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      * <p>

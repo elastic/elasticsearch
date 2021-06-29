@@ -517,14 +517,14 @@ public interface ClusterAdminClient extends ElasticsearchClient {
     ActionFuture<GetSnapshotsResponse> getSnapshots(GetSnapshotsRequest request);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
     void getSnapshots(GetSnapshotsRequest request, ActionListener<GetSnapshotsResponse> listener);
 
     /**
-     * Get snapshot.
+     * Get snapshots.
      */
-    GetSnapshotsRequestBuilder prepareGetSnapshots(String repository);
+    GetSnapshotsRequestBuilder prepareGetSnapshots(String... repository);
 
     /**
      * Delete snapshot.

@@ -1071,7 +1071,6 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> list available shapshots");
         GetSnapshotsResponse getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots("readonly-repo").get();
-        assertThat(getSnapshotsResponse.getSnapshots(), notNullValue());
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(1));
 
         logger.info("--> try deleting snapshot");

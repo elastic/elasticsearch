@@ -183,7 +183,8 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
                 .prepareGetSnapshots("test-repo")
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots().get(0)
+                .getSnapshots()
+                .get(0)
                 .state(),
             equalTo(SnapshotState.SUCCESS));
 

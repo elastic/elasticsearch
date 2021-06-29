@@ -17,11 +17,13 @@ import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.api.tasks.testing.Test;
 
 /**
  * Utility class to configure the necessary tasks and dependencies.
@@ -48,7 +50,10 @@ public class RestTestUtil {
         Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
             testTask.setDescription("Runs the REST tests against an external cluster");
-            testTask.mustRunAfter(project.getTasks().named("test"));
+            project.getPlugins().withType(JavaPlugin.class, t ->
+                testTask.mustRunAfter(project.getTasks().named("test"))
+            );
+
             testTask.setTestClassesDirs(sourceSet.getOutput().getClassesDirs());
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
             // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster

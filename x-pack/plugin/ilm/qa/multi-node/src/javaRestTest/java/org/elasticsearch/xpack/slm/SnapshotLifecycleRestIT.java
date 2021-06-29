@@ -46,10 +46,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -60,9 +58,11 @@ import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryItem.DELET
 import static org.elasticsearch.xpack.core.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class SnapshotLifecycleRestIT extends ESRestTestCase {
@@ -115,11 +115,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
 
-        // A test for whether the repository's snapshots have any snapshots starting with "snap-"
-        Predicate<Map<String, Object>> repoHasSnapshot = snapMap -> Optional.ofNullable((String) snapMap.get("snapshot"))
-            .map(snapName -> snapName.startsWith("snap-"))
-            .orElse(false);
-
         // Check that the snapshot was actually taken
         assertBusy(() -> {
             Response response = client().performRequest(new Request("GET", "/_snapshot/" + repoId + "/_all"));
@@ -128,14 +123,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
                 snapshotResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
             }
             assertThat(snapshotResponseMap.size(), greaterThan(0));
-            Map<String, Object> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots")).stream()
-                .peek(allReposSnapshots -> logger.info("--> all repository's snapshots: {}", allReposSnapshots))
-                .filter(repoHasSnapshot)
-                .peek(allRepos -> logger.info("--> snapshots with 'snap-' snapshot: {}", allRepos))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("failed to find snapshot response in " + snapshotResponseMap));
-            assertThat(snapResponse.get("indices"), equalTo(Collections.singletonList(indexName)));
-            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get("metadata");
+            List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
+            assertThat(snapResponse, not(empty()));
+            assertThat(snapResponse.get(0).get("indices"), equalTo(Collections.singletonList(indexName)));
+            assertThat((String) snapResponse.get(0).get("snapshot"), startsWith("snap-"));
+            Map<String, Object> metadata = (Map<String, Object>) snapResponse.get(0).get("metadata");
             assertNotNull(metadata);
             assertThat(metadata.get("policy"), equalTo(policyName));
         });
@@ -605,8 +597,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> extractSnapshot(Map<String, Object> snapshotResponseMap, String snapshotPrefix) {
-        List<Map<String, Object>> snapshots = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
-        return snapshots.stream()
+        List<Map<String, Object>> snapResponse = ((List<Map<String, Object>>) snapshotResponseMap.get("snapshots"));
+        return snapResponse.stream()
             .filter(snapshot -> ((String) snapshot.get("snapshot")).startsWith(snapshotPrefix))
             .findFirst()
             .orElse(null);

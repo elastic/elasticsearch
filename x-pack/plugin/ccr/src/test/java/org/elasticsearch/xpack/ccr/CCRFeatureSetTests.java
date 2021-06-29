@@ -18,6 +18,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.CCRFeatureSet;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -86,7 +87,7 @@ public class CCRFeatureSetTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(0)
                 .creationDate(i)
-                .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
+                .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY, new HashMap<>());
             metadata.put(followerIndex);
         }
 

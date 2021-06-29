@@ -13,6 +13,7 @@ import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -364,7 +365,7 @@ public class HistoBackedRangeAggregatorTests extends AggregatorTestCase {
 
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
-        return List.of(new AnalyticsPlugin());
+        return org.elasticsearch.core.List.of(new AnalyticsPlugin(Settings.EMPTY));
     }
 
     @Override

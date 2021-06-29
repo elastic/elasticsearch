@@ -5,6 +5,7 @@
 Phases allowed: hot, cold, frozen.
 
 Takes a snapshot of the managed index in the configured repository and mounts it
+<<<<<<< Updated upstream
 as a <<searchable-snapshots,{search-snap}>>.
 
 In the frozen phase, the action mounts a <<partially-mounted,partially mounted
@@ -12,6 +13,16 @@ index>> to the frozen data tier. In other phases, the action mounts a
 <<fully-mounted,fully mounted index>> to the corresponding data tier. If the 
 original index is part of a <<data-streams, data stream>>, the mounted index 
 replaces the original index in the data stream.
+=======
+as a <<searchable-snapshots,{search-snap}>>. If the original index is part of a
+<<data-streams, data stream>>, the mounted index replaces the original index in
+the data stream.
+>>>>>>> Stashed changes
+
+The `searchable_snapshot` action requires <<data-tiers,data tiers>>. In the
+frozen phase, the action mounts a <<partially-mounted,partially mounted index>>
+to the frozen tier. In other phases, the action mounts a <<fully-mounted,fully
+mounted index>> to the corresponding data tier.
 
 IMPORTANT: If the `searchable_snapshot` action is used in the hot phase the
 subsequent phases cannot include the `shrink`, `forcemerge`, or `freeze`

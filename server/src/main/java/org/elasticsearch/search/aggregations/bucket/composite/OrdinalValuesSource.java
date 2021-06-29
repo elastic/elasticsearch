@@ -235,14 +235,15 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        final boolean leafReaderContextChanged = context.ord != leafReaderOrd;
+        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        if (context.ord != leafReaderOrd) {
-            assert invariant();
+        if (leafReaderContextChanged) {
             remapOrdinals(lookup, dvs);
             leafReaderOrd = context.ord;
-            assert invariant();
         }
         lookup = dvs;
+        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -267,18 +268,19 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
+        final boolean leafReaderContextChanged = context.ord != leafReaderOrd;
+        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        if (context.ord != leafReaderOrd) {
-            assert invariant();
+        if (leafReaderContextChanged) {
             remapOrdinals(lookup, dvs);
             leafReaderOrd = context.ord;
-            assert invariant();
         }
         lookup = dvs;
+        assert leafReaderContextChanged == false || invariant(); // for performance reasons only check invariant upon change
         return new LeafBucketCollector() {
             boolean currentValueIsSet = false;
 

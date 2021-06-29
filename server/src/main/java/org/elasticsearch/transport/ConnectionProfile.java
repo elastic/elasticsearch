@@ -206,7 +206,7 @@ public final class ConnectionProfile {
         }
 
         /**
-         * Sets indexing data compression enabled for this connection profile
+         * Sets compression scheme for this connection profile
          */
         public Builder setCompressionScheme(Compression.Scheme compressionScheme) {
             this.compressionScheme = compressionScheme;

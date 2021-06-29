@@ -13,5 +13,5 @@ package org.elasticsearch.transport;
  * is configured to {@link Compression.Enabled#INDEXING_DATA}. This is primary intended to be
  * requests/responses primarily composed of raw source data.
  */
-public interface RawDataTransportRequest {
+public interface RawIndexingDataTransportRequest {
 }

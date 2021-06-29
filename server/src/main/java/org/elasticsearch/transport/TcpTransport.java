@@ -244,7 +244,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             }
             TcpChannel channel = channel(options.type());
             boolean shouldCompress = compress == Compression.Enabled.TRUE ||
-                (compress == Compression.Enabled.INDEXING_DATA && request instanceof RawDataTransportRequest);
+                (compress == Compression.Enabled.INDEXING_DATA && request instanceof RawIndexingDataTransportRequest);
             outboundHandler.sendRequest(node, channel, requestId, action, request, options, getVersion(), shouldCompress, false);
         }
 

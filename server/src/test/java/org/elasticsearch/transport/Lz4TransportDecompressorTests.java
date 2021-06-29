@@ -23,6 +23,8 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.OutputStream;
 
+import static org.hamcrest.Matchers.lessThan;
+
 public class Lz4TransportDecompressorTests extends ESTestCase {
 
     public void testSimpleCompression() throws IOException {
@@ -40,48 +42,88 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage(true);
             assertEquals(randomByte, releasableBytesReference.get(0));
             releasableBytesReference.close();
-
         }
     }
 
     public void testMultiPageCompression() throws IOException {
+        int intsToWrite = 50000;
+        int uncompressedLength = intsToWrite * 4;
+
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(Compression.Scheme.lz4OutputStream(
                 Streams.flushOnCloseStream(output)))) {
-                for (int i = 0; i < 10000; ++i) {
-                    lz4BlockStream.writeInt(i);
+                for (int i = 0; i < intsToWrite; ++i) {
+                    int lowByte = (i & 0xFF);
+                    if (lowByte < 128) {
+                        lz4BlockStream.writeInt(0);
+                    } else if (lowByte < 200) {
+                        lz4BlockStream.writeInt(1);
+                    } else {
+                        lz4BlockStream.writeInt(i);
+                    }
                 }
             }
 
             BytesReference bytes = output.bytes();
+            // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
+            assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
             Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
-            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage(false);
-            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage(false);
-            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage(true);
-            assertNull(decompressor.pollDecompressedPage(true));
-            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
-            assertEquals(4 * 10000, composite.length());
-            StreamInput streamInput = composite.streamInput();
-            for (int i = 0; i < 10000; ++i) {
-                assertEquals(i, streamInput.readInt());
+
+            int numOfUncompressedPages = uncompressedLength / PageCacheRecycler.BYTE_PAGE_SIZE;
+            if (bytes.length() % PageCacheRecycler.BYTE_PAGE_SIZE > 0) {
+                numOfUncompressedPages += 1;
             }
-            Releasables.close(reference1, reference2, reference3);
+
+            ReleasableBytesReference[] polledReferences = new ReleasableBytesReference[numOfUncompressedPages];
+            for (int i = 0; i < numOfUncompressedPages - 1; ++i) {
+                polledReferences[i] = decompressor.pollDecompressedPage(false);
+            }
+
+            polledReferences[numOfUncompressedPages - 1] = decompressor.pollDecompressedPage(true);
+            assertNull(decompressor.pollDecompressedPage(true));
+
+            BytesReference composite = CompositeBytesReference.of(polledReferences);
+            assertEquals(uncompressedLength, composite.length());
+            StreamInput streamInput = composite.streamInput();
+            for (int i = 0; i < intsToWrite; ++i) {
+                int lowByte = (i & 0xFF);
+                if (lowByte < 128) {
+                    assertEquals(0, streamInput.readInt());
+                }  else if (lowByte < 200) {
+                    assertEquals(1, streamInput.readInt());
+                } else {
+                    assertEquals(i, streamInput.readInt());
+                }
+            }
+            Releasables.close(polledReferences);
         }
     }
 
     public void testIncrementalMultiPageCompression() throws IOException {
+        int intsToWrite = 50000;
+        int uncompressedLength = intsToWrite * 4;
+
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             try (StreamOutput lz4BlockStream = new OutputStreamStreamOutput(
                 Compression.Scheme.lz4OutputStream(Streams.flushOnCloseStream(output)))) {
-                for (int i = 0; i < 10000; ++i) {
-                    lz4BlockStream.writeInt(i);
+                for (int i = 0; i < intsToWrite; ++i) {
+                    int lowByte = (i & 0xFF);
+                    if (lowByte < 128) {
+                        lz4BlockStream.writeInt(0);
+                    } else if (lowByte < 200) {
+                        lz4BlockStream.writeInt(1);
+                    } else {
+                        lz4BlockStream.writeInt(i);
+                    }
                 }
             }
 
             BytesReference bytes = output.bytes();
+            // Since 200 / 255 data is repeated, we should get a compression ratio of at least 50%
+            assertThat(bytes.length(), lessThan(uncompressedLength / 2));
 
             Lz4TransportDecompressor decompressor = new Lz4TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
@@ -96,19 +138,35 @@ public class Lz4TransportDecompressorTests extends ESTestCase {
             int bytesConsumed2 = decompressor.decompress(next);
             BytesReference next2 = CompositeBytesReference.of(next.slice(bytesConsumed2, next.length() - bytesConsumed2), inbound3);
             int bytesConsumed3 = decompressor.decompress(next2);
-
             assertEquals(bytes.length(), bytesConsumed1 + bytesConsumed2 + bytesConsumed3);
-            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage(false);
-            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage(false);
-            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage(true);
-            assertNull(decompressor.pollDecompressedPage(false));
-            BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
-            assertEquals(4 * 10000, composite.length());
-            StreamInput streamInput = composite.streamInput();
-            for (int i = 0; i < 10000; ++i) {
-                assertEquals(i, streamInput.readInt());
+
+            int numOfUncompressedPages = uncompressedLength / PageCacheRecycler.BYTE_PAGE_SIZE;
+            if (bytes.length() % PageCacheRecycler.BYTE_PAGE_SIZE > 0) {
+                numOfUncompressedPages += 1;
             }
-            Releasables.close(reference1, reference2, reference3);
+
+            ReleasableBytesReference[] polledReferences = new ReleasableBytesReference[numOfUncompressedPages];
+            for (int i = 0; i < numOfUncompressedPages - 1; ++i) {
+                polledReferences[i] = decompressor.pollDecompressedPage(false);
+            }
+
+            polledReferences[numOfUncompressedPages - 1] = decompressor.pollDecompressedPage(true);
+            assertNull(decompressor.pollDecompressedPage(true));
+
+            BytesReference composite = CompositeBytesReference.of(polledReferences);
+            assertEquals(uncompressedLength, composite.length());
+            StreamInput streamInput = composite.streamInput();
+            for (int i = 0; i < intsToWrite; ++i) {
+                int lowByte = (i & 0xFF);
+                if (lowByte < 128) {
+                    assertEquals(0, streamInput.readInt());
+                }  else if (lowByte < 200) {
+                    assertEquals(1, streamInput.readInt());
+                } else {
+                    assertEquals(i, streamInput.readInt());
+                }
+            }
+            Releasables.close(polledReferences);
 
         }
     }

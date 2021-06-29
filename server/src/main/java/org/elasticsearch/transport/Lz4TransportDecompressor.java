@@ -52,7 +52,7 @@ import java.util.zip.Checksum;
  */
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
-    private static final ThreadLocal<byte[]> UNCOMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
+    private static final ThreadLocal<byte[]> DECOMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
     private static final ThreadLocal<byte[]> COMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
 
     /**
@@ -254,17 +254,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                     }
 
                     final Checksum checksum = this.checksum;
-                    byte[] uncompressed = UNCOMPRESSED.get();
-                    if (decompressedLength > uncompressed.length) {
-                        uncompressed = new byte[decompressedLength];
-                        UNCOMPRESSED.set(uncompressed);
-                    }
+                    byte[] decompressed = getThreadLocalBuffer(DECOMPRESSED, decompressedLength);
 
                     try {
                         switch (blockType) {
                             case BLOCK_TYPE_NON_COMPRESSED:
                                 try (StreamInput streamInput = reference.streamInput()) {
-                                    streamInput.readBytes(uncompressed, 0, decompressedLength);
+                                    streamInput.readBytes(decompressed, 0, decompressedLength);
                                 }
                                 break;
                             case BLOCK_TYPE_COMPRESSED:
@@ -275,13 +271,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                                     compressed = ref.bytes;
                                     compressedOffset = ref.offset;
                                 } else {
-                                    compressed = getCompressedBuffer(compressedLength);
+                                    compressed = getThreadLocalBuffer(COMPRESSED, compressedLength);
                                     compressedOffset = 0;
                                     try (StreamInput streamInput = reference.streamInput()) {
                                         streamInput.readBytes(compressed, 0, compressedLength);
                                     }
                                 }
-                                decompressor.decompress(compressed, compressedOffset, uncompressed, 0, decompressedLength);
+                                decompressor.decompress(compressed, compressedOffset, decompressed, 0, decompressedLength);
                                 break;
                             default:
                                 throw new IllegalStateException(String.format(Locale.ROOT,
@@ -293,7 +289,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
                         if (checksum != null) {
                             checksum.reset();
-                            checksum.update(uncompressed, 0, decompressedLength);
+                            checksum.update(decompressed, 0, decompressedLength);
                             final int checksumResult = (int) checksum.getValue();
                             if (checksumResult != currentChecksum) {
                                 throw new IllegalStateException(String.format(Locale.ROOT,
@@ -313,7 +309,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                             final Recycler.V<byte[]> page = pages.getLast();
 
                             int toCopy = Math.min(bytesToCopy, PageCacheRecycler.BYTE_PAGE_SIZE - pageOffset);
-                            System.arraycopy(uncompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
+                            System.arraycopy(decompressed, uncompressedOffset, page.v(), pageOffset, toCopy);
                             pageOffset += toCopy;
                             bytesToCopy -= toCopy;
                             uncompressedOffset += toCopy;
@@ -337,13 +333,13 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
         return bytesConsumed;
     }
 
-    private byte[] getCompressedBuffer(int requiredSize) {
-        byte[] compressedBuffer = COMPRESSED.get();
-        if (requiredSize > compressedBuffer.length) {
-            compressedBuffer = new byte[requiredSize];
-            COMPRESSED.set(compressedBuffer);
+    private byte[] getThreadLocalBuffer(ThreadLocal<byte[]> threadLocal, int requiredSize) {
+        byte[] buffer = threadLocal.get();
+        if (requiredSize > buffer.length) {
+            buffer = new byte[requiredSize];
+            threadLocal.set(buffer);
         }
-        return compressedBuffer;
+        return buffer;
     }
 
     /**

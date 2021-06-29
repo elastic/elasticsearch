@@ -17,6 +17,12 @@ import java.io.IOException;
 
 public interface TransportDecompressor extends Releasable {
 
+    /**
+     * Decompress the provided bytes
+     *
+     * @param bytesReference to decompress
+     * @return number of compressed bytes consumed
+     */
     int decompress(BytesReference bytesReference) throws IOException;
 
     ReleasableBytesReference pollDecompressedPage(boolean isEOS);

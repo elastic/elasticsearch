@@ -122,12 +122,9 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress;
-        if (compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION)) {
-            compress = false;
-        } else {
-            compress = randomBoolean();
-        }
+        boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestRequest request = new TestRequest(value);
@@ -174,7 +171,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());
@@ -190,12 +187,10 @@ public class OutboundHandlerTests extends ESTestCase {
         String action = "handshake";
         long requestId = randomLongBetween(0, 300);
         boolean isHandshake = randomBoolean();
-        boolean compress;
-        if (compressionScheme == Compression.Scheme.LZ4 && version.before(Compression.Scheme.LZ4_VERSION)) {
-            compress = false;
-        } else {
-            compress = randomBoolean();
-        }
+        boolean compress = randomBoolean();
+        boolean compressUnsupportedDueToVersion = compressionScheme == Compression.Scheme.LZ4
+            && version.before(Compression.Scheme.LZ4_VERSION);
+
         String value = "message";
         threadContext.putHeader("header", "header_value");
         TestResponse response = new TestResponse(value);
@@ -238,7 +233,7 @@ public class OutboundHandlerTests extends ESTestCase {
         } else {
             assertFalse(header.isHandshake());
         }
-        if (compress) {
+        if (compress && compressUnsupportedDueToVersion == false) {
             assertTrue(header.isCompressed());
         } else {
             assertFalse(header.isCompressed());

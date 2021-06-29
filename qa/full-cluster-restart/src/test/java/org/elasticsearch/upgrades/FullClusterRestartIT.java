@@ -1593,6 +1593,11 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
+    /**
+     * In 7.14 the cluster.remote.*.transport.compress setting was change from a boolean to an enum setting
+     * with true/false as options. This test ensures that the old boolean setting in cluster state is
+     * translated properly. This test can be removed in 9.0.
+     */
     public void testTransportCompressionSetting() throws IOException {
         if (isRunningAgainstOldCluster()) {
             final Request putSettingsRequest = new Request("PUT", "/_cluster/settings");

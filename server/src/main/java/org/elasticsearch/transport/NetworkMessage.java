@@ -28,7 +28,7 @@ public abstract class NetworkMessage {
         this.version = version;
         this.requestId = requestId;
         this.compressionScheme = adjustedScheme(version, compressionScheme);
-        if (compressionScheme != null) {
+        if (this.compressionScheme != null) {
             this.status = TransportStatus.setCompress(status);
         } else {
             this.status = status;

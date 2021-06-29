@@ -93,19 +93,16 @@ public class InboundPipelineTests extends ESTestCase {
             try (BytesStreamOutput streamOutput = new BytesStreamOutput()) {
                 while (streamOutput.size() < BYTE_THRESHOLD) {
                     final Version version = randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion());
-                    final String value = randomAlphaOfLength(randomIntBetween(10, 200));
+                    final String value = randomRealisticUnicodeOfCodepointLength(randomIntBetween(200, 400));
                     final boolean isRequest = randomBoolean();
 
                     Compression.Scheme scheme;
                     if (randomBoolean()) {
                         scheme = null;
                     } else {
-                        if (version.onOrAfter(Compression.Scheme.LZ4_VERSION)) {
-                            scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
-                        } else {
-                            scheme = Compression.Scheme.DEFLATE;
-                        }
+                        scheme = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
                     }
+                    boolean isCompressed = isCompressed(version, scheme);
                     final long requestId = totalMessages++;
 
                     final MessageData messageData;
@@ -114,17 +111,17 @@ public class InboundPipelineTests extends ESTestCase {
                     OutboundMessage message;
                     if (isRequest) {
                         if (rarely()) {
-                            messageData = new MessageData(version, requestId, true, scheme != null, breakThisAction, null);
+                            messageData = new MessageData(version, requestId, true, isCompressed, breakThisAction, null);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
                                 version, breakThisAction, requestId, false, scheme);
                             expectedExceptionClass = new CircuitBreakingException("", CircuitBreaker.Durability.PERMANENT);
                         } else {
-                            messageData = new MessageData(version, requestId, true, scheme != null, actionName, value);
+                            messageData = new MessageData(version, requestId, true, isCompressed, actionName, value);
                             message = new OutboundMessage.Request(threadContext, new TestRequest(value),
                                 version, actionName, requestId, false, scheme);
                         }
                     } else {
-                        messageData = new MessageData(version, requestId, false, scheme != null, null, value);
+                        messageData = new MessageData(version, requestId, false, isCompressed, null, value);
                         message = new OutboundMessage.Response(threadContext, new TestResponse(value),
                             version, requestId, false, scheme);
                     }
@@ -172,6 +169,14 @@ public class InboundPipelineTests extends ESTestCase {
 
             assertEquals(bytesReceived, statsTracker.getBytesRead());
             assertEquals(totalMessages, statsTracker.getMessagesReceived());
+        }
+    }
+
+    private static boolean isCompressed(Version version, Compression.Scheme scheme) {
+        if (version.before(Compression.Scheme.LZ4_VERSION) && scheme == Compression.Scheme.LZ4) {
+            return false;
+        } else {
+            return scheme != null;
         }
     }
 

@@ -2411,6 +2411,27 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         assertEquals(resolved, "older-date-2020-12");
     }
+
+    public void testRemoteIndex() {
+        Metadata.Builder mdBuilder = Metadata.builder();
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
+
+        {
+            IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, NONE);
+            IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
+                () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local"));
+            assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
+                iae.getMessage());
+        }
+        {
+            IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, NONE);
+            String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
+            assertEquals(0, indexNames.length);
+        }
+    }
+
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()

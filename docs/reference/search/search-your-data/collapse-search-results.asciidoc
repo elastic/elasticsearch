@@ -92,7 +92,7 @@ GET /my-index-000001/_search
       {
         "name": "largest_responses",         <2>
         "size": 3,
-        "sort": [ "http.response.bytes":"desc" ]
+        "sort": [ {"http.response.bytes":"desc"} ]
       },
       {
         "name": "most_recent",               <3>

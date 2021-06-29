@@ -11,7 +11,7 @@ package org.elasticsearch.transport;
 import net.jpountz.lz4.LZ4Factory;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.compress.DeflateCompressor;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -21,11 +21,12 @@ public class Compression {
     public enum Scheme {
         LZ4,
         DEFLATE;
+
         // TODO: Change after backport
         static final Version LZ4_VERSION = Version.V_8_0_0;
-        static final byte[] DEFLATE_HEADER = DeflateCompressor.HEADER;
-        static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
         static final int HEADER_LENGTH = 4;
+        private static final byte[] DEFLATE_HEADER = new byte[]{'D', 'F', 'L', '\0'};
+        private static final byte[] LZ4_HEADER = new byte[]{'L', 'Z', '4', '\0'};
         private static final int LZ4_BLOCK_SIZE;
 
         static {
@@ -37,14 +38,39 @@ public class Compression {
                 }
                 LZ4_BLOCK_SIZE = lz4BlockSize;
             } else {
-                // 16KB block size to minimize the allocation of large buffers
-                LZ4_BLOCK_SIZE = 16 * 1024;
+                LZ4_BLOCK_SIZE = 64 * 1024;
             }
+        }
+
+        public static boolean isDeflate(BytesReference bytes) {
+            byte firstByte = bytes.get(0);
+            if (firstByte != Compression.Scheme.DEFLATE_HEADER[0]) {
+                return false;
+            } else {
+                return validateHeader(bytes, DEFLATE_HEADER);
+            }
+        }
+
+        public static boolean isLZ4(BytesReference bytes) {
+            byte firstByte = bytes.get(0);
+            if (firstByte != Scheme.LZ4_HEADER[0]) {
+                return false;
+            } else {
+                return validateHeader(bytes, LZ4_HEADER);
+            }
+        }
+
+        private static boolean validateHeader(BytesReference bytes, byte[] header) {
+            for (int i = 1; i < Compression.Scheme.HEADER_LENGTH; ++i) {
+                if (bytes.get(i) != header[i]) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         public static OutputStream lz4OutputStream(OutputStream outputStream) throws IOException {
             outputStream.write(LZ4_HEADER);
-            // 16KB block size to minimize the allocation of large buffers
             return new ReuseBuffersLZ4BlockOutputStream(outputStream, LZ4_BLOCK_SIZE, LZ4Factory.safeInstance().fastCompressor());
         }
     }

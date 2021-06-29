@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.compress.DeflateCompressor;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 
@@ -26,29 +25,16 @@ public interface TransportDecompressor extends Releasable {
     void close();
 
     static TransportDecompressor getDecompressor(PageCacheRecycler recycler, BytesReference bytes) throws IOException {
-        if (bytes.length() < DeflateCompressor.HEADER.length) {
+        if (bytes.length() < Compression.Scheme.HEADER_LENGTH) {
             return null;
         }
-        byte firstByte = bytes.get(0);
-        byte[] header;
-        if (firstByte == Compression.Scheme.DEFLATE_HEADER[0]) {
-            header = Compression.Scheme.DEFLATE_HEADER;
-        } else if (firstByte == Compression.Scheme.LZ4_HEADER[0]) {
-            header = Compression.Scheme.LZ4_HEADER;
+
+        if (Compression.Scheme.isDeflate(bytes)) {
+            return new DeflateTransportDecompressor(recycler);
+        } else if (Compression.Scheme.isLZ4(bytes)) {
+            return new Lz4TransportDecompressor(recycler);
         } else {
             throw createIllegalState(bytes);
-        }
-
-        for (int i = 1; i < Compression.Scheme.HEADER_LENGTH; ++i) {
-            if (bytes.get(i) != header[i]) {
-                throw createIllegalState(bytes);
-            }
-        }
-
-        if (header == Compression.Scheme.DEFLATE_HEADER) {
-            return new DeflateTransportDecompressor(recycler);
-        } else {
-            return new Lz4TransportDecompressor(recycler);
         }
     }
 

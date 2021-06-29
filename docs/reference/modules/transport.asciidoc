@@ -52,8 +52,8 @@ time setting format). Defaults to `30s`.
 Set to `true`, `indexing_data`, or `false` to configure transport compression
 between nodes. The option `true` will compress all data. The option
 `indexing_data` will compress only the raw index data sent between nodes during
-ingest, ccr following, and shard recovery. The option `indexing_data` is
-experimental. Defaults to `false`.
+ingest, ccr, and shard recovery. The option `indexing_data` is experimental.
+Defaults to `false`.
 
 `transport.compress_scheme`::
 (<<static-cluster-setting,Static>>)
@@ -182,8 +182,8 @@ connections between nodes.
 
 The `transport.compress` configuration option `indexing_data` will only
 compress requests that relate to the transport of raw indexing source data
-between nodes. This is primarily the case for ingest, ccr, and shard recovery
-traffic. This option is experimental.
+between nodes. This option primarily compresses data sent during ingest,
+ccr, and shard recovery. This option is experimental.
 
 The `transport.compress` setting always configures local cluster request
 compression and is the fallback setting for remote cluster request compression.

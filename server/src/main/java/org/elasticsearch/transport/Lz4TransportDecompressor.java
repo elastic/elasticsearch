@@ -47,6 +47,8 @@ import java.util.zip.Checksum;
  * It modifies the original netty code to operate on byte arrays opposed to ByteBufs.
  * Additionally, it integrates the decompression code to work in the Elasticsearch transport
  * pipeline, Finally, it replaces the custom Netty decoder exceptions.
+ *
+ * This class is necessary as Netty is not a dependency in Elasticsearch server module.
  */
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
@@ -228,7 +230,7 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                         int currentChecksum = Integer.reverseBytes(in.readInt());
                         bytesConsumed += HEADER_LENGTH;
 
-                        if (decompressedLength == 0 && compressedLength == 0) {
+                        if (decompressedLength == 0) {
                             if (currentChecksum != 0) {
                                 throw new IllegalStateException("stream corrupted: checksum error");
                             }
@@ -337,12 +339,11 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
 
     private byte[] getCompressedBuffer(int requiredSize) {
         byte[] compressedBuffer = COMPRESSED.get();
-        if (compressedBuffer.length >= requiredSize) {
-            return compressedBuffer;
-        } else {
-            COMPRESSED.set(new byte[requiredSize]);
-            return COMPRESSED.get();
+        if (requiredSize > compressedBuffer.length) {
+            compressedBuffer = new byte[requiredSize];
+            COMPRESSED.set(compressedBuffer);
         }
+        return compressedBuffer;
     }
 
     /**

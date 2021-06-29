@@ -92,12 +92,12 @@ GET /my-index-000001/_search
       {
         "name": "largest_responses",         <2>
         "size": 3,
-        "sort": [ "http.response.bytes" ]
+        "sort": [ "http.response.bytes":"desc" ]
       },
       {
         "name": "most_recent",               <3>
         "size": 3,
-        "sort": [ { "@timestamp": "asc" } ]
+        "sort": [ { "@timestamp": "desc" } ]
       }
     ]
   },

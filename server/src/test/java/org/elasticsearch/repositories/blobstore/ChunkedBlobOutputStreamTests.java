@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -17,7 +18,6 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.io.OutputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -43,11 +43,11 @@ public class ChunkedBlobOutputStreamTests extends ESTestCase {
         final long chunkSize = randomLongBetween(10, 1024);
         final CRC32 checksumIn = new CRC32();
         final CRC32 checksumOut = new CRC32();
-        final CheckedOutputStream out = new CheckedOutputStream(OutputStream.nullOutputStream(), checksumOut);
+        final CheckedOutputStream out = new CheckedOutputStream(Streams.NULL_OUTPUT_STREAM, checksumOut);
         final AtomicLong writtenBytesCounter = new AtomicLong(0L);
         final long bytesToWrite = randomLongBetween(chunkSize - 5, 1000 * chunkSize);
         long written = 0;
-        try (ChunkedBlobOutputStream<Integer> stream = new ChunkedBlobOutputStream<>(bigArrays, chunkSize) {
+        try (ChunkedBlobOutputStream<Integer> stream = new ChunkedBlobOutputStream<Integer>(bigArrays, chunkSize) {
 
             private final AtomicInteger partIdSupplier = new AtomicInteger();
 
@@ -104,7 +104,7 @@ public class ChunkedBlobOutputStreamTests extends ESTestCase {
         final long bytesToWrite = randomLongBetween(chunkSize - 5, 1000 * chunkSize);
         long written = 0;
         final AtomicBoolean onFailureCalled = new AtomicBoolean(false);
-        try (ChunkedBlobOutputStream<Integer> stream = new ChunkedBlobOutputStream<>(bigArrays, chunkSize) {
+        try (ChunkedBlobOutputStream<Integer> stream = new ChunkedBlobOutputStream<Integer>(bigArrays, chunkSize) {
 
             private final AtomicInteger partIdSupplier = new AtomicInteger();
 

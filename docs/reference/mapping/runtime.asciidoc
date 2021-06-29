@@ -43,8 +43,15 @@ runtime fields allows for a smaller index and faster ingest time, which
 combined use less resources and reduce your operating costs.
 
 [discrete]
-[[runtime-performance]]
-=== Performance
+[[runtime-incentives]]
+=== Incentives
+Runtime fields can replace many of the ways you can use scripting with the
+`_search` API. How you use a runtime field is impacted by the number of
+documents that the included script runs against. For example, if you're using
+the `fields` parameter on the `_search` API to 
+<<runtime-retrieving-fields,retrieve the values of a runtime field>>, the script
+returns only the top hits just like script fields do.
+
 You can use <<script-fields,script fields>> to access values in `_source` and
 return calculated values based on a script valuation. Runtime fields have these
 same capabilities, but provide greater flexibility because you can query and
@@ -59,19 +66,13 @@ field values and they are available everywhere, such as
 <<search-aggregations, aggregations>>.
 
 You can also use scripts to <<script-based-sorting,sort search results>>, but
-but that same script works exactly the same in a runtime field.
+that same script works exactly the same in a runtime field.
 
 If you move a script from any of these sections in a search request to a
 runtime field that is retrieving values from the same number of documents, the
 performance should be about the same. The performance for these features is
 largely dependent upon the calculations that the included script is running and
 how many documents the script runs against. 
-
-How you use a runtime field determines the number of documents that the included
-script runs against. For example, if you're using the fields parameter on the
-`_search` API to 
-<<runtime-retrieving-fields,retrieve the values of a runtime field>>, the script
-returns only the top hits just like script fields do.
 
 [discrete]
 [[runtime-compromises]]

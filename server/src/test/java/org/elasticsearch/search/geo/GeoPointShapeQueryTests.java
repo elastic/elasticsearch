@@ -14,16 +14,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 public class GeoPointShapeQueryTests extends GeoQueryTests {
 
     @Override
-    protected XContentBuilder createTypedMapping() throws Exception {
-        XContentBuilder xcb = XContentFactory.jsonBuilder().startObject().startObject("type1")
-            .startObject("properties").startObject("location")
-            .field("type", "geo_point")
-            .endObject().endObject().endObject().endObject();
-
-        return xcb;
-    }
-
-    @Override
     protected XContentBuilder createDefaultMapping() throws Exception {
         XContentBuilder xcb = XContentFactory.jsonBuilder().startObject()
             .startObject("properties").startObject(defaultGeoFieldName)

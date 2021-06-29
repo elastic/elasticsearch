@@ -205,32 +205,30 @@ import java.util.Objects;
                                                               CheckedSupplier<DV, IOException> dvReader,
                                                               CheckedConsumer<DV, IOException> valueAccessor) throws IOException {
         // As we track the min/max positions of read bytes, we just visit the first and last values of the docValues iterator.
+        // Here we use a binary search like to visit the right most index that has values
         DV dv = dvReader.get();
         int docID;
-        // Try to access the first value
         if ((docID = dv.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
             valueAccessor.accept(dv);
-            // Try to access the last value by advancing the last doc.
-            // If the last doc doesn't have value then fallback to access the entire iterator
-            if (dv.advance(maxDocs - 1) != DocIdSetIterator.NO_MORE_DOCS) { // TODO: replace `advance` with `advanceExact`
-                valueAccessor.accept(dv);
-            } else {
-                dv = dvReader.get();
-                if (dv.advance(docID + 1) != DocIdSetIterator.NO_MORE_DOCS) {
+            long left = docID;
+            long right = 2L * (maxDocs - 1L) - left; // starts with the last index
+            while (left < maxDocs - 1L && left <= right) {
+                cancellationChecker.logEvent();
+                final int mid = Math.toIntExact((left + right) >>> 1);
+                if ((docID = dv.advance(mid)) != DocIdSetIterator.NO_MORE_DOCS) {
                     valueAccessor.accept(dv);
-                    while (dv.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
-                        cancellationChecker.logEvent();
-                        valueAccessor.accept(dv);
-                    }
+                    left = docID + 1;
+                } else {
+                    right = mid - 1;
+                    dv = dvReader.get();
                 }
             }
+            assert dv.advance(Math.toIntExact(left + 1)) == DocIdSetIterator.NO_MORE_DOCS;
         }
         return dv;
     }
 
     void analyzeDocValues(SegmentReader reader, IndexDiskUsageStats stats) throws IOException {
-        // TODO: We can extract these stats from Lucene80DocValuesProducer without iterating all docValues
-        // or track the new sliced IndexInputs.
         if (reader.getDocValuesReader() == null) {
             return;
         }

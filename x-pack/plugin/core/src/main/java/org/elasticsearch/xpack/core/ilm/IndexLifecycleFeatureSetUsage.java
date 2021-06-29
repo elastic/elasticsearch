@@ -173,7 +173,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             actionNames = in.readStringArray();
             minimumAge = in.readTimeValue();
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                configurations = in.readOptionalWriteable(ActionConfigStats::new);
+                configurations = new ActionConfigStats(in);
             } else {
                 configurations = ActionConfigStats.builder().build();
             }

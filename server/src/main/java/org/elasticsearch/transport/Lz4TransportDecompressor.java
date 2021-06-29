@@ -41,7 +41,7 @@ import java.util.Locale;
 import java.util.zip.Checksum;
 
 /**
- * This file is forked from the https://netty.io project. In particular it forks the follow file
+ * This file is forked from the https://netty.io project. In particular it forks the following file
  * io.netty.handler.codec.compression.Lz4FrameDecoder.
  *
  * It modifies the original netty code to operate on byte arrays opposed to ByteBufs.
@@ -50,8 +50,8 @@ import java.util.zip.Checksum;
  */
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
-    private final ThreadLocal<byte[]> uncompressed = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
-    private final ThreadLocal<byte[]> compressed = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
+    private static final ThreadLocal<byte[]> UNCOMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
+    private static final ThreadLocal<byte[]> COMPRESSED = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
 
     /**
      * Magic number of LZ4 block.
@@ -252,10 +252,10 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
                     }
 
                     final Checksum checksum = this.checksum;
-                    byte[] uncompressed = this.uncompressed.get();
+                    byte[] uncompressed = UNCOMPRESSED.get();
                     if (decompressedLength > uncompressed.length) {
                         uncompressed = new byte[decompressedLength];
-                        this.uncompressed.set(uncompressed);
+                        UNCOMPRESSED.set(uncompressed);
                     }
 
                     try {
@@ -336,12 +336,12 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     }
 
     private byte[] getCompressedBuffer(int requiredSize) {
-        byte[] compressedBuffer = this.compressed.get();
+        byte[] compressedBuffer = COMPRESSED.get();
         if (compressedBuffer.length >= requiredSize) {
             return compressedBuffer;
         } else {
-            this.compressed.set(new byte[requiredSize]);
-            return this.compressed.get();
+            COMPRESSED.set(new byte[requiredSize]);
+            return COMPRESSED.get();
         }
     }
 

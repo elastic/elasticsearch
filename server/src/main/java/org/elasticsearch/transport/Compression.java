@@ -8,8 +8,6 @@
 
 package org.elasticsearch.transport;
 
-import net.jpountz.lz4.LZ4BlockOutputStream;
-
 import net.jpountz.lz4.LZ4Factory;
 
 import org.elasticsearch.Version;
@@ -47,7 +45,7 @@ public class Compression {
         public static OutputStream lz4OutputStream(OutputStream outputStream) throws IOException {
             outputStream.write(LZ4_HEADER);
             // 16KB block size to minimize the allocation of large buffers
-            return new LZ4BlockOutputStream(outputStream, LZ4_BLOCK_SIZE, LZ4Factory.safeInstance().fastCompressor());
+            return new ReuseBuffersLZ4BlockOutputStream(outputStream, LZ4_BLOCK_SIZE, LZ4Factory.safeInstance().fastCompressor());
         }
     }
 

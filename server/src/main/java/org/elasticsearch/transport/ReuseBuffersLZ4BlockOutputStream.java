@@ -39,6 +39,14 @@ import net.jpountz.xxhash.XXHashFactory;
 import org.apache.lucene.util.BytesRef;
 
 /**
+ * This file is forked from https://github.com/lz4/lz4-java. In particular it forks the following file
+ * net.jpountz.lz4.LZ4BlockOutputStream.
+ *
+ * It modifies the original lz4-java code to allow the reuse of local thread local byte arrays. This prevents
+ * the need to allocate two new byte arrays everytime a new stream is created. For the Elasticsearch use case,
+ * a single thread should fully compress the stream in one go to avoid memory corruption.
+ *
+ *
  * Streaming LZ4 (not compatible with the LZ4 Frame format).
  * This class compresses data into fixed-size blocks of compressed data.
  * This class uses its own format and is not compatible with the LZ4 Frame format.
@@ -47,7 +55,7 @@ import org.apache.lucene.util.BytesRef;
  * @see LZ4BlockInputStream
  * @see LZ4FrameOutputStream
  */
-public class TLLZ4BlockOutputStream extends FilterOutputStream {
+public class ReuseBuffersLZ4BlockOutputStream extends FilterOutputStream {
 
     private static class ArrayBox {
         private byte[] uncompressed = BytesRef.EMPTY_BYTES;
@@ -70,7 +78,7 @@ public class TLLZ4BlockOutputStream extends FilterOutputStream {
         }
     }
 
-    private final ThreadLocal<ArrayBox> threadLocalArrays = ThreadLocal.withInitial(ArrayBox::new);
+    private static final ThreadLocal<ArrayBox> ARRAY_BOX = ThreadLocal.withInitial(ArrayBox::new);
 
     static final byte[] MAGIC = new byte[] { 'L', 'Z', '4', 'B', 'l', 'o', 'c', 'k' };
     static final int MAGIC_LENGTH = MAGIC.length;
@@ -130,14 +138,15 @@ public class TLLZ4BlockOutputStream extends FilterOutputStream {
      *                    integrity.
      * @param syncFlush   true if pending data should also be flushed on {@link #flush()}
      */
-    public TLLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor, Checksum checksum, boolean syncFlush) {
+    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor, Checksum checksum,
+                                            boolean syncFlush) {
         super(out);
         this.blockSize = blockSize;
         this.compressor = compressor;
         this.checksum = checksum;
         this.compressionLevel = compressionLevel(blockSize);
         final int compressedBlockSize = HEADER_LENGTH + compressor.maxCompressedLength(blockSize);
-        this.arrayBox = threadLocalArrays.get();
+        this.arrayBox = ARRAY_BOX.get();
         arrayBox.markOwnership(blockSize, compressedBlockSize);
         this.buffer = arrayBox.uncompressed;
         this.compressedBuffer = arrayBox.compressed;
@@ -157,10 +166,10 @@ public class TLLZ4BlockOutputStream extends FilterOutputStream {
      * @param compressor  the {@link LZ4Compressor} instance to use to compress
      *                    data
      *
-     * @see #TLLZ4BlockOutputStream(OutputStream, int, LZ4Compressor, Checksum, boolean)
+     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int, LZ4Compressor, Checksum, boolean)
      * @see StreamingXXHash32#asChecksum()
      */
-    public TLLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor) {
+    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize, LZ4Compressor compressor) {
         this(out, blockSize, compressor, XXHashFactory.fastestInstance().newStreamingHash32(DEFAULT_SEED).asChecksum(), false);
     }
 
@@ -172,10 +181,10 @@ public class TLLZ4BlockOutputStream extends FilterOutputStream {
      * @param blockSize   the maximum number of bytes to try to compress at once,
      *                    must be &gt;= 64 and &lt;= 32 M
      *
-     * @see #TLLZ4BlockOutputStream(OutputStream, int, LZ4Compressor)
+     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int, LZ4Compressor)
      * @see LZ4Factory#fastCompressor()
      */
-    public TLLZ4BlockOutputStream(OutputStream out, int blockSize) {
+    public ReuseBuffersLZ4BlockOutputStream(OutputStream out, int blockSize) {
         this(out, blockSize, LZ4Factory.fastestInstance().fastCompressor());
     }
 
@@ -184,9 +193,9 @@ public class TLLZ4BlockOutputStream extends FilterOutputStream {
      *
      * @param out         the {@link OutputStream} to feed
      *
-     * @see #TLLZ4BlockOutputStream(OutputStream, int)
+     * @see #ReuseBuffersLZ4BlockOutputStream(OutputStream, int)
      */
-    public TLLZ4BlockOutputStream(OutputStream out) {
+    public ReuseBuffersLZ4BlockOutputStream(OutputStream out) {
         this(out, 1 << 16);
     }
 

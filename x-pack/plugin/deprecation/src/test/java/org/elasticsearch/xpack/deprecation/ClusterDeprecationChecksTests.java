@@ -25,8 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_POLL_INTERVAL_SETTING;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
@@ -311,5 +313,45 @@ public class ClusterDeprecationChecksTests extends ESTestCase {
             DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(goodState)),
             hasSize(0)
         );
+    }
+
+    public void testClusterRoutingAllocationIncludeRelocationsSetting() {
+        boolean settingValue = randomBoolean();
+        String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
+        final Settings deprecatedSetting = Settings.builder().put(settingKey, settingValue).build();
+
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        if (randomBoolean()) {
+            metadataBuilder.transientSettings(deprecatedSetting);
+        } else {
+            metadataBuilder.persistentSettings(deprecatedSetting);
+        }
+        ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+            .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
+            .build();
+
+
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.WARNING,
+            String.format(Locale.ROOT,
+                "setting [%s] is deprecated and will be removed in the next major version",
+                settingKey),
+            "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
+            String.format(Locale.ROOT,
+                "the setting [%s] is currently set to [%b], remove this setting",
+                settingKey,
+                settingValue),
+            null
+        );
+
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(CLUSTER_SETTINGS_CHECKS, c -> c.apply(clusterState));
+        assertThat(issues, hasSize(1));
+        assertThat(issues.get(0), equalTo(expectedIssue));
+
+        final String expectedWarning = String.format(Locale.ROOT,
+            "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
+                "See the breaking changes documentation for the next major version.",
+            settingKey);
+
+        assertWarnings(expectedWarning);
     }
 }

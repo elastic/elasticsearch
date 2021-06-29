@@ -8,20 +8,20 @@
 package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
-import org.elasticsearch.jdk.JavaVersion;
+import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.bootstrap.BootstrapSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.script.ScriptService;
@@ -43,8 +43,8 @@ import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 import static org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING;
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.RESERVED_REALM_NAME_PREFIX;
 
 class NodeDeprecationChecks {
 
@@ -554,25 +554,10 @@ class NodeDeprecationChecks {
     static DeprecationIssue checkClusterRoutingAllocationIncludeRelocationsSetting(final Settings settings,
                                                                                    final PluginsAndModules pluginsAndModules,
                                                                                    final ClusterState clusterState) {
-        DeprecationIssue nodeDeprecationIssue =
-            getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(settings, DeprecationIssue.Level.CRITICAL);
-        if (nodeDeprecationIssue != null) {
-            return nodeDeprecationIssue;
-        }
-
-        // The setting is dynamic so it can be defined in the ClusterState settings
-        return getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(
-            clusterState.metadata().settings(),
-            DeprecationIssue.Level.WARNING
-        );
-    }
-
-    private static DeprecationIssue getClusterRoutingAllocationIncludeRelocationsSettingDeprecationIssue(Settings settings,
-                                                                                                         DeprecationIssue.Level level) {
         return checkRemovedSetting(settings,
             CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING,
             "https://www.elastic.co/guide/en/elasticsearch/reference/master/migrating-8.0.html#breaking_80_allocation_changes",
-            DeprecationIssue.Level.WARNING
+            DeprecationIssue.Level.CRITICAL
         );
     }
 }

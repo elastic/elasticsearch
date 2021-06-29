@@ -11,21 +11,24 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.bootstrap.BootstrapSettings;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.core.Set;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Set;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -43,13 +46,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-
-
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
-import org.elasticsearch.transport.RemoteClusterService;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.authc.RealmConfig;
-import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 
 public class NodeDeprecationChecksTests extends ESTestCase {
 
@@ -763,30 +759,9 @@ public class NodeDeprecationChecksTests extends ESTestCase {
     public void testClusterRoutingAllocationIncludeRelocationsSetting() {
         boolean settingValue = randomBoolean();
         String settingKey = CLUSTER_ROUTING_ALLOCATION_INCLUDE_RELOCATIONS_SETTING.getKey();
-        Settings deprecatedSetting = Settings.builder().put(settingKey, settingValue).build();
-
-        final Settings nodeSettings;
-        final ClusterState clusterState;
-        final DeprecationIssue.Level expectedLevel;
-        if (randomBoolean()) {
-            nodeSettings = deprecatedSetting;
-            clusterState = ClusterState.EMPTY_STATE;
-            expectedLevel = DeprecationIssue.Level.CRITICAL;
-        } else {
-            nodeSettings = Settings.EMPTY;
-            Metadata.Builder metadataBuilder = Metadata.builder();
-            if (randomBoolean()) {
-                metadataBuilder.transientSettings(deprecatedSetting);
-            } else {
-                metadataBuilder.persistentSettings(deprecatedSetting);
-            }
-            clusterState = ClusterState.builder(new ClusterName("test"))
-                .metadata(metadataBuilder.transientSettings(deprecatedSetting).build())
-                .build();
-            expectedLevel = DeprecationIssue.Level.WARNING;
-        }
-
-        final DeprecationIssue expectedIssue = new DeprecationIssue(expectedLevel,
+        final Settings nodeSettings = Settings.builder().put(settingKey, settingValue).build();
+        final ClusterState clusterState = ClusterState.EMPTY_STATE;
+        final DeprecationIssue expectedIssue = new DeprecationIssue(DeprecationIssue.Level.CRITICAL,
             String.format(Locale.ROOT,
                 "setting [%s] is deprecated and will be removed in the next major version",
                 settingKey),
@@ -805,7 +780,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
 
         final String expectedWarning = String.format(Locale.ROOT,
             "[%s] setting was deprecated in Elasticsearch and will be removed in a future release! " +
-                    "See the breaking changes documentation for the next major version.",
+                "See the breaking changes documentation for the next major version.",
             settingKey);
 
         assertWarnings(expectedWarning);

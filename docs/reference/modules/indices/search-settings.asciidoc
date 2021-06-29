@@ -22,7 +22,7 @@ few resources.
 `search.max_buckets`::
 (<<cluster-update-settings,Dynamic>>, integer)
 Maximum number of <<search-aggregations-bucket,aggregation buckets>> allowed in
-a single response. Defaults to 65,535.
+a single response. Defaults to 65,536.
 +
 Requests that attempt to return more than this limit will return an error.
 

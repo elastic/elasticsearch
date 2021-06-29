@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.NormsProducer;
 import org.apache.lucene.codecs.PointsReader;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.codecs.TermVectorsReader;
-import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.lucene50.Lucene50PostingsFormat;
 import org.apache.lucene.codecs.lucene84.Lucene84PostingsFormat;
 import org.apache.lucene.index.BinaryDocValues;
@@ -340,9 +339,8 @@ import java.util.Objects;
             // As we track the min/max positions of read bytes, we just visit the two ends of a partition containing
             // the data. We might miss some small parts of the data, but it's an good trade-off to speed up the process.
             TermsEnum termsEnum = terms.iterator();
-            if (terms instanceof FieldReader) {
-                final BlockTermState minState = Objects.requireNonNull(
-                    getBlockTermState(termsEnum, terms.getMin()), "can't retrieve the block term state of the min term");
+            final BlockTermState minState = getBlockTermState(termsEnum, terms.getMin());
+            if (minState != null) {
                 final BlockTermState maxState = Objects.requireNonNull(
                     getBlockTermState(termsEnum, terms.getMax()), "can't retrieve the block term state of the max term");
                 final long skippedBytes = maxState.distance(minState);
@@ -366,13 +364,15 @@ import java.util.Objects;
                     }
                 }
             } else {
-                // slow mode: traverse every postings of all terms
+                // We aren't sure if the optimization can be applied for other implementations rather than the BlockTree
+                // based implementation. Hence, we just traverse every postings of all terms in this case.
                 while (termsEnum.next() != null) {
                     cancellationChecker.logEvent();
                     termsEnum.docFreq();
                     termsEnum.totalTermFreq();
                     postings = termsEnum.postings(postings, PostingsEnum.ALL);
                     while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        cancellationChecker.logEvent();
                         postings.freq();
                         readProximity(terms, postings);
                     }

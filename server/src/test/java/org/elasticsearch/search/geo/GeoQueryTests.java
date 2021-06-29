@@ -213,7 +213,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             )
         );
 
-        MultiPolygon multiPolygon = new MultiPolygon(List.of(encloseDocument1Cb, encloseDocument2Cb));
+        MultiPolygon multiPolygon = new MultiPolygon(org.elasticsearch.core.List.of(encloseDocument1Cb, encloseDocument2Cb));
         {
             SearchResponse searchResponse = client().prepareSearch(defaultIndexName)
                 .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiPolygon)
@@ -454,7 +454,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             )
         );
 
-        MultiPolygon multiPolygon = new MultiPolygon(List.of(polygon1, polygon2));
+        MultiPolygon multiPolygon = new MultiPolygon(org.elasticsearch.core.List.of(polygon1, polygon2));
 
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery("geo", multiPolygon);
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
@@ -490,7 +490,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
         Line lsb1 = new Line(new double[]{-35, -25}, new double[] {-35, -25});
         Line lsb2 = new Line(new double[]{-15, -5}, new double[] {-15, -5});
 
-        MultiLine multiline = new MultiLine(List.of(lsb1, lsb2));
+        MultiLine multiline = new MultiLine(org.elasticsearch.core.List.of(lsb1, lsb2));
 
         GeoShapeQueryBuilder builder = QueryBuilders.geoShapeQuery(defaultGeoFieldName, multiline).relation(ShapeRelation.WITHIN);
         SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setQuery(builder);
@@ -563,7 +563,7 @@ public abstract class GeoQueryTests extends ESSingleNodeTestCase {
             .field(defaultGeoFieldName, "POINT(-35 -25)")
             .endObject()).setRefreshPolicy(IMMEDIATE).get();
 
-        MultiPoint multiPoint = new MultiPoint(List.of(new Point(-35,-25), new Point(-15,-5)));
+        MultiPoint multiPoint = new MultiPoint(org.elasticsearch.core.List.of(new Point(-35,-25), new Point(-15,-5)));
 
         {
             SearchResponse response = client().prepareSearch("test")

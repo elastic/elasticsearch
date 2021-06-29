@@ -686,14 +686,16 @@ public class GeoShapeQueryTests extends GeoQueryTests {
 
         {
             GeoShapeQueryBuilder filter =
-                QueryBuilders.geoShapeQuery("geo", new GeometryCollection<>(List.of(polygon1))).relation(ShapeRelation.INTERSECTS);
+                QueryBuilders.geoShapeQuery("geo",
+                    new GeometryCollection<>(org.elasticsearch.core.List.of(polygon1))).relation(ShapeRelation.INTERSECTS);
             SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
             assertSearchResponse(result);
             assertHitCount(result, 1);
         }
         {
             GeoShapeQueryBuilder filter =
-                QueryBuilders.geoShapeQuery("geo", new GeometryCollection<>(List.of(polygon2))).relation(ShapeRelation.INTERSECTS);
+                QueryBuilders.geoShapeQuery("geo",
+                    new GeometryCollection<>(org.elasticsearch.core.List.of(polygon2))).relation(ShapeRelation.INTERSECTS);
             SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
             assertSearchResponse(result);
             assertHitCount(result, 0);
@@ -701,7 +703,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         {
             GeoShapeQueryBuilder filter =
                 QueryBuilders.geoShapeQuery("geo",
-                    new GeometryCollection<>(List.of(polygon1, polygon2))).relation(ShapeRelation.INTERSECTS);
+                    new GeometryCollection<>(org.elasticsearch.core.List.of(polygon1, polygon2))).relation(ShapeRelation.INTERSECTS);
             SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).get();
             assertSearchResponse(result);
             assertHitCount(result, 1);

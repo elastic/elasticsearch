@@ -41,7 +41,8 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         // make sure that minX != maxX after geohash encoding
-        Rectangle box = randomValueOtherThanMany((r) -> Math.abs(r.getMaxX() - r.getMinX()) < 0.1, GeometryTestUtils::randomRectangle);
+        Rectangle box = randomValueOtherThanMany((r) ->
+            Math.abs(r.getMaxX() - r.getMinX()) < 0.1 ||  Math.abs(r.getMaxY() - r.getMinY()) < 0.1, GeometryTestUtils::randomRectangle);
 
         if (randomBoolean()) {
             // check the top-left/bottom-right combination of setters

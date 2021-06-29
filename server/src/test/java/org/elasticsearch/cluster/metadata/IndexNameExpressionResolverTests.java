@@ -2418,7 +2418,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
 
         {
             IndicesOptions options = IndicesOptions.fromOptions(false, randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, NONE);
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+                options, SystemIndexAccessLevel.NONE);
             IllegalArgumentException iae = expectThrows(IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local"));
             assertEquals("Cross-cluster calls are not supported in this context but remote indices were requested: [cluster:index]",
@@ -2426,7 +2427,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         }
         {
             IndicesOptions options = IndicesOptions.fromOptions(true, true, randomBoolean(), randomBoolean(), randomBoolean());
-            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options, NONE);
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state,
+                options, SystemIndexAccessLevel.NONE);
             String[] indexNames = indexNameExpressionResolver.concreteIndexNames(context, "cluster:index", "local");
             assertEquals(0, indexNames.length);
         }

@@ -29,7 +29,8 @@ public interface IndicesRequest {
      */
     IndicesOptions indicesOptions();
 
-    /** Determines whether the request can contain indices on a remote cluster.
+    /** 
+     * Determines whether the request can contain indices on a remote cluster.
      */
     default boolean allowsRemoteIndices() {
         return false;

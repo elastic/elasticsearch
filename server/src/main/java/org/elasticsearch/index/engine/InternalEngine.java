@@ -81,6 +81,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.search.internal.FieldUsageTrackingDirectoryReader;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -615,8 +616,11 @@ public class InternalEngine extends Engine {
         final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
             config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
         final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
-        if (wrappedSearcher == searcher) {
-            searcher.close();
+        // TODO: we always wrap with field usage tracking, so we need to find another way to determine if we can safely do this
+        if (wrappedSearcher == searcher ||
+            (wrappedSearcher.getIndexReader() instanceof FieldUsageTrackingDirectoryReader &&
+                ((FieldUsageTrackingDirectoryReader) wrappedSearcher.getIndexReader()).getDelegate() == searcher.getIndexReader())) {
+            wrappedSearcher.close();
             assert inMemoryReader.assertMemorySegmentStatus(false);
             final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
             return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,

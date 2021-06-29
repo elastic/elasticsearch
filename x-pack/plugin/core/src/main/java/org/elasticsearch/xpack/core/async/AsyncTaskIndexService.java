@@ -515,7 +515,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         try (StreamInput in = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(encodedIn), registry)) {
             final Version version = Version.readVersion(in);
             assert version.onOrBefore(Version.CURRENT) : version + " >= " + Version.CURRENT;
-            in.setVersion(Version.readVersion(in));
+            in.setVersion(version);
             return reader.read(in);
         }
     }

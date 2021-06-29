@@ -129,8 +129,8 @@ public final class NativeMemoryCalculator {
             // 2GB node -> 66%
             // 16GB node -> 87%
             // 64GB node -> 90%
-            double memoryPercent = Math.min(0.90, (machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory);
-            return Math.round(machineMemory * memoryPercent);
+            double memoryProportion = Math.min(0.90, (machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory);
+            return Math.round(machineMemory * memoryProportion);
         }
 
         return (long)(machineMemory * (maxMemoryPercent / 100.0));
@@ -145,6 +145,9 @@ public final class NativeMemoryCalculator {
 
     // TODO replace with official ergonomic calculation
     public static long dynamicallyCalculateJvmSizeFromNodeSize(long nodeSize) {
+        // While the original idea here was to predicate on 2Gb, it has been found that the knot points of
+        // 2GB and 8GB cause weird issues where the JVM size will "jump the gap" from one to the other when
+        // considering true tier sizes in elastic cloud.
         if (nodeSize < ByteSizeValue.ofMb(1280).getBytes()) {
             return (long)(nodeSize * 0.40);
         }

@@ -71,6 +71,8 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     private static final Duration DEFAULT_MEMORY_REFRESH_RATE = Duration.ofMinutes(15);
     private static final String MEMORY_STALE = "unable to make scaling decision as job memory requirements are stale";
     private static final long NO_SCALE_DOWN_POSSIBLE = -1L;
+    // If ensureScaleDown changes the calculation by more than this much, log the error
+    private static final long ACCEPTABLE_DIFFERENCE = ByteSizeValue.ofMb(1).getBytes();
 
     public static final String NAME = "ml";
     public static final Setting<Integer> NUM_ANOMALY_JOBS_IN_QUEUE = Setting.intSetting("num_anomaly_jobs_in_queue", 0, 0);
@@ -597,7 +599,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     }
 
     static AutoscalingCapacity ensureScaleDown(AutoscalingCapacity scaleDownResult, AutoscalingCapacity currentCapacity) {
-        return new AutoscalingCapacity(
+        AutoscalingCapacity newCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(
                 currentCapacity.total().storage(),
                 ByteSizeValue.ofBytes(Math.min(scaleDownResult.total().memory().getBytes(), currentCapacity.total().memory().getBytes()))
@@ -607,6 +609,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 ByteSizeValue.ofBytes(Math.min(scaleDownResult.node().memory().getBytes(), currentCapacity.node().memory().getBytes()))
             )
         );
+        if (scaleDownResult.node().memory().getBytes() - newCapacity.node().memory().getBytes() > ACCEPTABLE_DIFFERENCE
+            || scaleDownResult.total().memory().getBytes() - newCapacity.total().memory().getBytes() > ACCEPTABLE_DIFFERENCE) {
+            logger.warn(
+                "scale down accidentally requested a scale up, auto-corrected; initial scaling [{}], corrected [{}]",
+                scaleDownResult,
+                newCapacity
+            );
+        }
+        return newCapacity;
     }
 
     AutoscalingDeciderResult noScaleResultOrRefresh(MlScalingReason.Builder reasonBuilder,

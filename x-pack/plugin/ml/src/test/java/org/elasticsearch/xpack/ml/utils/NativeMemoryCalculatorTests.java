@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 import java.util.function.BiConsumer;
@@ -61,28 +62,38 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             Tuple.tuple(8589934592L, 2147483648L), // 8GB ...
             Tuple.tuple(17179869184L, 2147483648L), // 16GB ...
             Tuple.tuple(34359738368L, 2147483648L), // 32GB ...
-            Tuple.tuple(68719476736L, 2147483648L) // 64GB ...
+            Tuple.tuple(68719476736L, 2147483648L), // 64GB ...
+            Tuple.tuple(16106127360L, 2147483648L), // 15GB ...
+            Tuple.tuple(32212254720L, 2147483648L), // 30GB ...
+            Tuple.tuple(64424509440L, 2147483648L) // 60GB ...
         )) {
-            long nodeSize = nodeAndJvmSize.v1();
-            long trueJvmSize = nodeAndJvmSize.v2();
-
-            DiscoveryNode node = newNode(trueJvmSize, nodeSize);
-            Settings settings = newSettings(30, true);
-            ClusterSettings clusterSettings = newClusterSettings(30, true);
-
-            long bytesForML = randomBoolean() ?
-                NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong() :
-                NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong();
-
-            NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
-                bytesForML,
-                bytesForML,
-                trueJvmSize
+            final long trueJvmSize = nodeAndJvmSize.v2();
+            final long trueNodeSize = nodeAndJvmSize.v1();
+            List<Long> nodeSizes = Arrays.asList(
+                trueNodeSize + ByteSizeValue.ofMb(10).getBytes(),
+                trueNodeSize - ByteSizeValue.ofMb(10).getBytes(),
+                trueNodeSize
             );
+            for (long nodeSize : nodeSizes) {
+                DiscoveryNode node = newNode(trueJvmSize, nodeSize);
+                Settings settings = newSettings(30, true);
+                ClusterSettings clusterSettings = newClusterSettings(30, true);
 
-            AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true);
-            assertThat(capacity.node().memory().getBytes(), equalTo(nodeSize));
-            assertThat(capacity.total().memory().getBytes(), equalTo(nodeSize));
+                long bytesForML = randomBoolean() ?
+                    NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong() :
+                    NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong();
+
+                NativeMemoryCapacity nativeMemoryCapacity = new NativeMemoryCapacity(
+                    bytesForML,
+                    bytesForML,
+                    trueJvmSize
+                );
+
+                AutoscalingCapacity capacity = nativeMemoryCapacity.autoscalingCapacity(30, true);
+                // We don't allow node sizes below 1GB, so we will always be at least that large
+                assertThat(capacity.node().memory().getBytes(), equalTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes())));
+                assertThat(capacity.total().memory().getBytes(), equalTo(Math.max(nodeSize, ByteSizeValue.ofGb(1).getBytes())));
+            }
         }
     }
 

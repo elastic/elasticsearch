@@ -33,20 +33,17 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
 
     private final TransportService transportService;
     private final DatabaseRegistry registry;
-    private GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
+    private final GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor;
 
     @Inject
     public GeoIpDownloaderStatsTransportAction(TransportService transportService, ClusterService clusterService,
-                                               ThreadPool threadPool, ActionFilters actionFilters, DatabaseRegistry registry) {
+                                               ThreadPool threadPool, ActionFilters actionFilters, DatabaseRegistry registry,
+                                               GeoIpDownloaderTaskExecutor geoIpDownloaderTaskExecutor) {
         super(GeoIpDownloaderStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, Request::new,
             NodeRequest::new, ThreadPool.Names.MANAGEMENT, NodeResponse.class);
         this.transportService = transportService;
         this.registry = registry;
-    }
-
-    @Inject(optional = true)
-    public void setTaskExecutor(GeoIpDownloaderTaskExecutor taskExecutor){
-        geoIpDownloaderTaskExecutor = taskExecutor;
+        this.geoIpDownloaderTaskExecutor = geoIpDownloaderTaskExecutor;
     }
 
     @Override
@@ -66,7 +63,7 @@ public class GeoIpDownloaderStatsTransportAction extends TransportNodesAction<Re
 
     @Override
     protected NodeResponse nodeOperation(NodeRequest request, Task task) {
-        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor == null ? null : geoIpDownloaderTaskExecutor.getCurrentTask();
+        GeoIpDownloader geoIpTask = geoIpDownloaderTaskExecutor.getCurrentTask();
         GeoIpDownloaderStats stats = geoIpTask == null || geoIpTask.getStatus() == null ? null : geoIpTask.getStatus();
         return new NodeResponse(transportService.getLocalNode(), stats, registry.getAvailableDatabases(), registry.getFilesInTemp());
     }

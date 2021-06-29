@@ -1,5 +1,18 @@
 ---
 setup:
+  # Lock to one shard so the tests don't sometimes try to collect from an empty
+  # index. If they do they'll use the GlobalOrdinals collector regardless of the
+  # optimization setting. That's fine - but it causes the test to fail so we
+  # need to dodge that case.
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              number_of_shards: 1
+              number_of_replicas: 0
+
   - do:
       bulk:
         index: test

@@ -103,7 +103,7 @@ public class HistoBackedHistogramAggregatorTests extends AggregatorTestCase {
 
     public void testHistogramWithDocCountField() throws Exception {
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
-            w.addDocument(List.of(
+            w.addDocument(org.elasticsearch.core.List.of(
                 // Add the _doc_dcount field
                 new CustomTermFreqField("_doc_count", "_doc_count", 8),
                 histogramFieldDocValues(FIELD_NAME, new double[] {0, 1.2, 10, 10, 12, 24, 24, 24}))

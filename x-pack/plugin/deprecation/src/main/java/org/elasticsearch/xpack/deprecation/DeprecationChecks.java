@@ -37,7 +37,8 @@ public class DeprecationChecks {
             ClusterDeprecationChecks::checkTemplatesWithTooManyFields,
             ClusterDeprecationChecks::checkPollIntervalTooLow,
             ClusterDeprecationChecks::checkTemplatesWithFieldNamesDisabled,
-            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes
+            ClusterDeprecationChecks::checkTemplatesWithMultipleTypes,
+            ClusterDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
         ));
 
     static final List<TriFunction<Settings, PluginsAndModules, ClusterState, DeprecationIssue>> NODE_SETTINGS_CHECKS;
@@ -88,7 +89,8 @@ public class DeprecationChecks {
                     NodeDeprecationChecks::checkBootstrapSystemCallFilterSetting,
                     NodeDeprecationChecks::checkSharedDataPathSetting,
                     NodeDeprecationChecks::checkSingleDataNodeWatermarkSetting,
-                    NodeDeprecationChecks::checkMonitoringExporterPassword
+                    NodeDeprecationChecks::checkMonitoringExporterPassword,
+                    NodeDeprecationChecks::checkClusterRoutingAllocationIncludeRelocationsSetting
                 )
             ).collect(Collectors.toList());
         }

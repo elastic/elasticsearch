@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.not;
 
 public class NetNewSystemIndicesIT extends ESRestTestCase {
 
-    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("password".toCharArray()));
+    static final String BASIC_AUTH_VALUE = basicAuthHeaderValue("rest_user", new SecureString("rest-user-password".toCharArray()));
 
     @Override
     protected Settings restClientSettings() {

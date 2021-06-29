@@ -154,4 +154,14 @@ public final class Processors {
             icmpCode);
     }
 
+    /**
+     * Uses {@link UriPartsProcessor} to decompose an URI into its constituent parts.
+     *
+     * @param uri string to decode
+     * @return Map containing URI components
+     */
+    public static Map<String, Object> uriParts(String uri) {
+        return UriPartsProcessor.apply(uri);
+    }
+
 }

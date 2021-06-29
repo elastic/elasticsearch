@@ -6,6 +6,10 @@
  */
 package org.elasticsearch.xpack.core.async;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -35,6 +39,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
@@ -66,6 +72,7 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AU
  * A service that exposes the CRUD operations for the async task-specific index.
  */
 public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
+    private static final Logger logger = LogManager.getLogger(AsyncTaskIndexService.class);
 
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
@@ -188,6 +195,40 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     /**
      * Stores the initial response with the original headers of the authenticated user
      * and the expected expiration time.
+     * Currently for EQL we don't set limit for a stored async response
+     * TODO: add limit for stored async response in EQL, and instead of this method use createResponse
+     */
+    public void createResponseForEQL(String docId,
+                               Map<String, String> headers,
+                               R response,
+                               ActionListener<IndexResponse> listener) throws IOException {
+        try {
+            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking());
+            final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
+            listener = ActionListener.runBefore(listener, buffer::close);
+            source
+                .startObject()
+                .field(HEADERS_FIELD, headers)
+                .field(EXPIRATION_TIME_FIELD, response.getExpirationTime())
+                .directFieldAsBase64(RESULT_FIELD, os -> writeResponse(response, os))
+                .endObject();
+
+            // do not close the buffer or the XContentBuilder until the IndexRequest is completed (i.e., listener is notified);
+            // otherwise, we underestimate the memory usage in case the circuit breaker does not use the real memory usage.
+            source.flush();
+            final IndexRequest indexRequest = new IndexRequest(index)
+                .create(true)
+                .id(docId)
+                .source(buffer.bytes(), source.contentType());
+            clientWithOrigin.index(indexRequest, listener);
+        } catch (Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * Stores the initial response with the original headers of the authenticated user
+     * and the expected expiration time.
      */
     public void createResponse(String docId,
                                Map<String, String> headers,
@@ -218,16 +259,25 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
-    /**
-     * Stores the final response if the place-holder document is still present (update).
-     */
     public void updateResponse(String docId,
                                Map<String, List<String>> responseHeaders,
                                R response,
                                ActionListener<UpdateResponse> listener) {
+        updateResponse(docId, responseHeaders, response, listener, false);
+    }
+
+    /**
+     * Stores the final response if the place-holder document is still present (update).
+     */
+    private void updateResponse(String docId,
+                                Map<String, List<String>> responseHeaders,
+                                R response,
+                                ActionListener<UpdateResponse> listener,
+                                boolean isFailure) {
         try {
-            final ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutputWithLimit(
-                0, bigArrays.withCircuitBreaking(), maxResponseSize);
+            final ReleasableBytesStreamOutput buffer = isFailure ?
+                new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking()) :
+                new ReleasableBytesStreamOutputWithLimit(0, bigArrays.withCircuitBreaking(), maxResponseSize);
             final XContentBuilder source = XContentFactory.jsonBuilder(buffer);
             listener = ActionListener.runBefore(listener, buffer::close);
             source
@@ -245,8 +295,40 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .retryOnConflict(5);
             clientWithOrigin.update(request, listener);
         } catch (Exception e) {
-            listener.onFailure(e);
+            // even if we expect updating with a failure always succeed
+            // this is just an extra precaution not to create infinite loops
+            if (isFailure) {
+                listener.onFailure(e);
+            } else {
+                Throwable cause = ExceptionsHelper.unwrapCause(e);
+                if (cause instanceof DocumentMissingException == false && cause instanceof VersionConflictEngineException == false) {
+                    logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]", docId), e);
+                    ActionListener<UpdateResponse> newListener = listener;
+                    updateStoredResponseWithFailure(
+                        docId,
+                        responseHeaders,
+                        response,
+                        e,
+                        // at end, we should report a failure to the listener
+                        ActionListener.wrap(() -> newListener.onFailure(e))
+                    );
+                } else {
+                    listener.onFailure(e);
+                }
+            }
         }
+    }
+
+    /**
+     * Update the initial stored response with a failure
+     */
+    private void updateStoredResponseWithFailure(String docId,
+                                                 Map<String, List<String>> responseHeaders,
+                                                 R response,
+                                                 Exception updateException,
+                                                 ActionListener<UpdateResponse> listener) {
+        R failureResponse = response.convertToFailure(updateException);
+        updateResponse(docId, responseHeaders, failureResponse, listener, true);
     }
 
     /**

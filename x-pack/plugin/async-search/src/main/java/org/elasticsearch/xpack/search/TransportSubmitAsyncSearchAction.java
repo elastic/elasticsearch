@@ -6,20 +6,13 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTask;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,12 +22,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.engine.DocumentMissingException;
-import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
@@ -53,8 +42,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
 
 public class TransportSubmitAsyncSearchAction extends HandledTransportAction<SubmitAsyncSearchRequest, AsyncSearchResponse> {
-    private static final Logger logger = LogManager.getLogger(TransportSubmitAsyncSearchAction.class);
-
     private final NodeClient nodeClient;
     private final Function<SearchRequest, InternalAggregation.ReduceContext> requestToAggReduceContextBuilder;
     private final TransportSearchAction searchAction;
@@ -181,66 +168,14 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(), response,
-            ActionListener.wrap(
-                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(exc);
-                    if (cause instanceof DocumentMissingException == false &&
-                            cause instanceof VersionConflictEngineException == false) {
-                        logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
-                            searchTask.getExecutionId().getEncoded()), exc);
-                        updateStoredResponseWithFailure(
-                            searchTask.getExecutionId().getDocId(),
-                            response,
-                            exc,
-                            ActionListener.wrap(() ->  unregisterTaskAndMoveOn(searchTask, nextAction))
-                        );
-                    } else {
-                        unregisterTaskAndMoveOn(searchTask, nextAction);
-                    }
-                }));
+        store.updateResponse(searchTask.getExecutionId().getDocId(),
+            threadContext.getResponseHeaders(),
+            response,
+            ActionListener.wrap(() ->  {
+                taskManager.unregister(searchTask);
+                nextAction.run();
+            })
+        );
     }
 
-    private void updateStoredResponseWithFailure(String docId,
-                                                 AsyncSearchResponse originalASR,
-                                                 Exception updateException,
-                                                 ActionListener<UpdateResponse> listener) {
-        SearchResponse originalSR = originalASR.getSearchResponse();
-        InternalSearchResponse failureISR = new InternalSearchResponse(
-            new SearchHits(SearchHits.EMPTY, originalSR.getHits().getTotalHits(), Float.NaN),
-            null,
-            null,
-            null,
-            false,
-            false,
-            originalSR.getNumReducePhases()
-        );
-        SearchResponse failureSR = new SearchResponse(
-            failureISR,
-            null,
-            originalSR.getTotalShards(),
-            originalSR.getSuccessfulShards(),
-            originalSR.getSkippedShards(),
-            originalSR.getTook().getMillis(),
-            originalSR.getShardFailures(),
-            originalSR.getClusters()
-        );
-        updateException.setStackTrace(new StackTraceElement[0]); // we don't need to store stack traces
-        AsyncSearchResponse failureASR = new AsyncSearchResponse(
-            originalASR.getId(),
-            failureSR,
-            updateException,
-            originalASR.isPartial(),
-            false,
-            originalASR.getStartTime(),
-            originalASR.getExpirationTime()
-        );
-        store.updateResponse(docId, threadContext.getResponseHeaders(), failureASR, listener);
-    }
-
-    private void unregisterTaskAndMoveOn(SearchTask searchTask, Runnable nextAction) {
-        taskManager.unregister(searchTask);
-        nextAction.run();
-    }
 }

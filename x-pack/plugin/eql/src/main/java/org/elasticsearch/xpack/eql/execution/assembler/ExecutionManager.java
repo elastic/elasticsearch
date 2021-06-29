@@ -109,7 +109,7 @@ public class ExecutionManager {
         }
 
         int completionStage = criteria.size() - 1;
-        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit);
+        SequenceMatcher matcher = new SequenceMatcher(completionStage, descending, maxSpan, limit, session.circuitBreaker());
 
         TumblingWindow w = new TumblingWindow(new PITAwareQueryClient(session),
                 criteria.subList(0, completionStage),

@@ -33,7 +33,7 @@ public class SequenceMatcher {
 
     private final Logger log = LogManager.getLogger(SequenceMatcher.class);
 
-    static class Stats  {
+    static class Stats {
 
         long seen = 0;
         long ignored = 0;
@@ -110,7 +110,7 @@ public class SequenceMatcher {
      * Match hits for the given stage.
      * Returns false if the process needs to be stopped.
      */
-    public boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
+    boolean match(int stage, Iterable<Tuple<KeyAndOrdinal, HitReference>> hits) {
         long ramBytesUsedInFlight = ramBytesUsedInFlight();
         long ramBytesUsedCompleted = ramBytesUsedCompleted();
 

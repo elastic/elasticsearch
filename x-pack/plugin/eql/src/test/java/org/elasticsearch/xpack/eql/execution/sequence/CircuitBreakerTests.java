@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.execution.assembler;
+package org.elasticsearch.xpack.eql.execution.sequence;
 
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
@@ -17,6 +17,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
@@ -25,17 +26,15 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.eql.execution.assembler.SequenceSpecTests.TimestampExtractor;
+import org.elasticsearch.xpack.eql.execution.assembler.BoxedQueryRequest;
+import org.elasticsearch.xpack.eql.execution.assembler.Criterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.extractor.ImplicitTiebreakerHitExtractor;
-import org.elasticsearch.xpack.eql.execution.sequence.KeyAndOrdinal;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceMatcher;
-import org.elasticsearch.xpack.eql.execution.sequence.TumblingWindow;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -165,6 +164,29 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void addWithoutBreaking(long bytes) {
             ramBytesUsed += bytes;
+        }
+    }
+
+    private static class TimestampExtractor implements HitExtractor {
+
+        static final TimestampExtractor INSTANCE = new TimestampExtractor();
+
+        @Override
+        public String getWriteableName() {
+            return null;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public String hitName() {
+            return null;
+        }
+
+        @Override
+        public Long extract(SearchHit hit) {
+            return (long) hit.docId();
         }
     }
 }

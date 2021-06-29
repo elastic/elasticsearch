@@ -7,8 +7,11 @@
  */
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -120,7 +123,9 @@ public class CuckooFilter implements Writeable {
         this.rng = rng;
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
-
+        if (in.getVersion().before(Version.V_8_0_0)) {
+            in.skip(CodecUtil.headerLength(PackedInts.CODEC_NAME));
+        }
         data = new Mutable(in);
     }
 
@@ -131,6 +136,19 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(entriesPerBucket);
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            CodecUtil.writeHeader(new DataOutput() {
+                @Override
+                public void writeByte(byte b) throws IOException {
+                    out.writeByte(b);
+                }
+
+                @Override
+                public void writeBytes(byte[] b, int offset, int length) throws IOException {
+                    out.writeBytes(b, offset, length);
+                }
+            }, PackedInts.CODEC_NAME, PackedInts.VERSION_CURRENT);
+        }
         data.save(out);
     }
 
@@ -486,12 +504,11 @@ public class CuckooFilter implements Writeable {
             && Objects.equals(this.evictedFingerprint, that.evictedFingerprint);
     }
 
-    //  ./gradlew ':qa:mixed-cluster:v7.14.0#mixedClusterTest' --tests "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT.test"
-    //  -Dtests.method="test {p0=search.aggregation/280_rare_terms/*}"
+    //  version if Lucene's Packed64 class that can be read / write to Elasticsearch streams.
     private static class Mutable {
-        static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
-        static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
-        static final int MOD_MASK = BLOCK_SIZE - 1; // x % BLOCK_SIZE
+        private static final int BLOCK_SIZE = 64; // 32 = int, 64 = long
+        private static final int BLOCK_BITS = 6; // The #bits representing BLOCK_SIZE
+        private static final int MOD_MASK = BLOCK_SIZE - 1; // x % BLOCK_SIZE
 
         /**
          * Values are stores contiguously in the blocks array.
@@ -523,6 +540,9 @@ public class CuckooFilter implements Writeable {
             throws IOException {
             this.bitsPerValue = in.readVInt();
             this.valueCount = in.readVInt();
+            if (in.getVersion().before(Version.V_8_0_0)) {
+                in.readVInt(); // FORMAT
+            }
             this.blocks = new long[in.readVInt()];
             for (int i = 0; i < blocks.length; ++i) {
                 blocks[i] = in.readLong();
@@ -535,6 +555,9 @@ public class CuckooFilter implements Writeable {
             assert valueCount != -1;
             out.writeVInt(bitsPerValue);
             out.writeVInt(valueCount);
+            if (out.getVersion().before(Version.V_8_0_0)) {
+                out.writeVInt(PackedInts.Format.PACKED.getId());
+            }
             out.writeVInt(blocks.length);
             for (int i = 0; i < blocks.length; ++i) {
                 out.writeLong(blocks[i]);

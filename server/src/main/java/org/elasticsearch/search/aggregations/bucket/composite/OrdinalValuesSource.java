@@ -115,7 +115,6 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     void copyCurrent(int slot) {
-        assert invariant();
         numSlots = Math.max(numSlots, slot + 1);
         valuesOrd = bigArrays.grow(valuesOrd, numSlots);
         valuesUnmapped = bigArrays.grow(valuesUnmapped, numSlots);
@@ -123,14 +122,16 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         assert currentValueUnmapped == null;
         valuesOrd.set(slot, currentValueOrd);
         setValueWithBreaking(slot, currentValueUnmapped);
-        assert invariant();
     }
 
     private void setValueWithBreaking(long index, BytesRef newValue) {
         BytesRef previousValue = valuesUnmapped.get(index);
         long previousSize = previousValue == null ? 0 : previousValue.length;
         long newSize = newValue == null ? 0 : newValue.length;
-        breakerConsumer.accept(newSize - previousSize);
+        long delta = newSize - previousSize;
+        if (delta != 0) {
+            breakerConsumer.accept(delta);
+        }
         valuesUnmapped.set(index, newValue);
     }
 
@@ -234,14 +235,14 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        assert invariant();
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (context.ord != leafReaderOrd) {
+            assert invariant();
             remapOrdinals(lookup, dvs);
+            leafReaderOrd = context.ord;
+            assert invariant();
         }
         lookup = dvs;
-        leafReaderOrd = context.ord;
-        assert invariant();
         return new LeafBucketCollector() {
             @Override
             public void collect(int doc, long bucket) throws IOException {
@@ -266,18 +267,18 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     LeafBucketCollector getLeafCollector(Comparable value, LeafReaderContext context, LeafBucketCollector next) throws IOException {
-        assert invariant();
         if (value.getClass() != BytesRef.class) {
             throw new IllegalArgumentException("Expected BytesRef, got " + value.getClass());
         }
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
         if (context.ord != leafReaderOrd) {
+            assert invariant();
             remapOrdinals(lookup, dvs);
+            leafReaderOrd = context.ord;
+            assert invariant();
         }
         lookup = dvs;
-        leafReaderOrd = context.ord;
-        assert invariant();
         return new LeafBucketCollector() {
             boolean currentValueIsSet = false;
 

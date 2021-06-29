@@ -24,7 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class TransportDecompressorTests extends ESTestCase {
+public class DeflateTransportDecompressorTests extends ESTestCase {
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -35,11 +35,11 @@ public class TransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            TransportDecompressor decompressor = new TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             assertTrue(decompressor.isEOS());
-            ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage();
+            ReleasableBytesReference releasableBytesReference = decompressor.pollDecompressedPage(true);
             assertEquals(randomByte, releasableBytesReference.get(0));
             releasableBytesReference.close();
 
@@ -57,14 +57,14 @@ public class TransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            TransportDecompressor decompressor = new TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
             int bytesConsumed = decompressor.decompress(bytes);
             assertEquals(bytes.length(), bytesConsumed);
             assertTrue(decompressor.isEOS());
-            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage();
-            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
-            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
-            assertNull(decompressor.pollDecompressedPage());
+            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage(false);
+            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage(false);
+            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage(true);
+            assertNull(decompressor.pollDecompressedPage(true));
             BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
@@ -86,7 +86,7 @@ public class TransportDecompressorTests extends ESTestCase {
 
             BytesReference bytes = output.bytes();
 
-            TransportDecompressor decompressor = new TransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
+            DeflateTransportDecompressor decompressor = new DeflateTransportDecompressor(PageCacheRecycler.NON_RECYCLING_INSTANCE);
 
             int split1 = (int) (bytes.length() * 0.3);
             int split2 = (int) (bytes.length() * 0.65);
@@ -103,10 +103,10 @@ public class TransportDecompressorTests extends ESTestCase {
             int bytesConsumed3 = decompressor.decompress(inbound3);
             assertEquals(inbound3.length(), bytesConsumed3);
             assertTrue(decompressor.isEOS());
-            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage();
-            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage();
-            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage();
-            assertNull(decompressor.pollDecompressedPage());
+            ReleasableBytesReference reference1 = decompressor.pollDecompressedPage(false);
+            ReleasableBytesReference reference2 = decompressor.pollDecompressedPage(false);
+            ReleasableBytesReference reference3 = decompressor.pollDecompressedPage(true);
+            assertNull(decompressor.pollDecompressedPage(false));
             BytesReference composite = CompositeBytesReference.of(reference1, reference2, reference3);
             assertEquals(4 * 10000, composite.length());
             StreamInput streamInput = composite.streamInput();
@@ -117,5 +117,4 @@ public class TransportDecompressorTests extends ESTestCase {
 
         }
     }
-
 }

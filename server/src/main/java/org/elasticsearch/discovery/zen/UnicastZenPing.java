@@ -198,7 +198,7 @@ public class UnicastZenPing implements ZenPing {
 
         final ConnectionProfile connectionProfile =
             ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, requestDuration, requestDuration,
-                TimeValue.MINUS_ONE, null);
+                TimeValue.MINUS_ONE, null, null);
         final PingingRound pingingRound = new PingingRound(pingingRoundIdGenerator.incrementAndGet(), seedAddresses, resultsConsumer,
             nodes.getLocalNode(), connectionProfile);
         activePingingRounds.put(pingingRound.id(), pingingRound);

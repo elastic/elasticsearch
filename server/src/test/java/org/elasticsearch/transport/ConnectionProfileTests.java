@@ -31,7 +31,10 @@ public class ConnectionProfileTests extends ESTestCase {
         TimeValue connectTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         TimeValue handshakeTimeout = TimeValue.timeValueMillis(randomIntBetween(1, 10));
         TimeValue pingInterval = TimeValue.timeValueMillis(randomIntBetween(1, 10));
-        boolean compressionEnabled = randomBoolean();
+        Compression.Enabled compressionEnabled =
+            randomFrom(Compression.Enabled.TRUE, Compression.Enabled.FALSE, Compression.Enabled.INDEXING_DATA);
+        Compression.Scheme compressionScheme =
+            randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
         final boolean setConnectTimeout = randomBoolean();
         if (setConnectTimeout) {
             builder.setConnectTimeout(connectTimeout);
@@ -40,9 +43,15 @@ public class ConnectionProfileTests extends ESTestCase {
         if (setHandshakeTimeout) {
             builder.setHandshakeTimeout(handshakeTimeout);
         }
+
         final boolean setCompress = randomBoolean();
         if (setCompress) {
             builder.setCompressionEnabled(compressionEnabled);
+        }
+
+        final boolean setCompressionScheme = randomBoolean();
+        if (setCompressionScheme) {
+            builder.setCompressionScheme(compressionScheme);
         }
         final boolean setPingInterval = randomBoolean();
         if (setPingInterval) {
@@ -79,6 +88,12 @@ public class ConnectionProfileTests extends ESTestCase {
             assertEquals(compressionEnabled, build.getCompressionEnabled());
         } else {
             assertNull(build.getCompressionEnabled());
+        }
+
+        if (setCompressionScheme) {
+            assertEquals(compressionScheme, build.getCompressionScheme());
+        } else {
+            assertNull(build.getCompressionScheme());
         }
 
         if (setPingInterval) {
@@ -171,7 +186,15 @@ public class ConnectionProfileTests extends ESTestCase {
         }
         final boolean connectionCompressSet = randomBoolean();
         if (connectionCompressSet) {
-            builder.setCompressionEnabled(randomBoolean());
+            Compression.Enabled compressionEnabled =
+                randomFrom(Compression.Enabled.TRUE, Compression.Enabled.FALSE, Compression.Enabled.INDEXING_DATA);
+            builder.setCompressionEnabled(compressionEnabled);
+        }
+        final boolean connectionCompressionScheme = randomBoolean();
+        if (connectionCompressionScheme) {
+            Compression.Scheme compressionScheme =
+                randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4);
+            builder.setCompressionScheme(compressionScheme);
         }
 
         final ConnectionProfile profile = builder.build();
@@ -188,6 +211,9 @@ public class ConnectionProfileTests extends ESTestCase {
             equalTo(pingIntervalSet ? profile.getPingInterval() : defaultProfile.getPingInterval()));
         assertThat(resolved.getCompressionEnabled(),
             equalTo(connectionCompressSet ? profile.getCompressionEnabled() : defaultProfile.getCompressionEnabled()));
+        assertThat(resolved.getCompressionScheme(),
+            equalTo(connectionCompressionScheme ? profile.getCompressionScheme() :
+                defaultProfile.getCompressionScheme()));
     }
 
     public void testDefaultConnectionProfile() {
@@ -201,6 +227,7 @@ public class ConnectionProfileTests extends ESTestCase {
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getConnectTimeout());
         assertEquals(TransportSettings.CONNECT_TIMEOUT.get(Settings.EMPTY), profile.getHandshakeTimeout());
         assertEquals(TransportSettings.TRANSPORT_COMPRESS.get(Settings.EMPTY), profile.getCompressionEnabled());
+        assertEquals(TransportSettings.TRANSPORT_COMPRESSION_SCHEME.get(Settings.EMPTY), profile.getCompressionScheme());
         assertEquals(TransportSettings.PING_SCHEDULE.get(Settings.EMPTY), profile.getPingInterval());
 
         profile = ConnectionProfile.buildDefaultConnectionProfile(nonMasterNode());

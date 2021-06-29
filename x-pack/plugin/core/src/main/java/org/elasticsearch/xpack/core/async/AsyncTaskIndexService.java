@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.async;
 
-import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
@@ -349,26 +348,24 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
                 return;
             }
-            final Counter reservedBytes = Counter.newCounter();
+            final BytesReference source = getResponse.getSourceInternal();
+            // reserve twice memory of the source length: one for the internal XContent parser and one for the response
+            final int reservedBytes = source.length() * 2;
+            circuitBreaker.addEstimateBytesAndMaybeBreak(reservedBytes, "decode async response");
+            listener = ActionListener.runAfter(listener, () -> circuitBreaker.addWithoutBreaking(-reservedBytes));
+            final R resp;
             try {
-                final R resp = parseResponseFromIndex(
-                    asyncExecutionId, getResponse.getSourceInternal(), restoreResponseHeaders, checkAuthentication, reservedBytes);
-                listener.onResponse(resp);
+                resp = parseResponseFromIndex(asyncExecutionId, source, restoreResponseHeaders, checkAuthentication);
             } catch (Exception e) {
                 listener.onFailure(e);
-            } finally {
-                // Release the reserved memory for the response only after the listener has completed its execution.
-                circuitBreaker.addWithoutBreaking(-reservedBytes.get());
+                return;
             }
+            listener.onResponse(resp);
         }));
     }
 
-
     private R parseResponseFromIndex(AsyncExecutionId asyncExecutionId, BytesReference source,
-                                     boolean restoreResponseHeaders, boolean checkAuthentication,
-                                     Counter reservedBytes) {
-        // Reserve an extra buffer as XContentParser can use it to hold parsed values.
-        circuitBreaker.addEstimateBytesAndMaybeBreak(source.length(), "parse xContent of async response");
+                                     boolean restoreResponseHeaders, boolean checkAuthentication) {
         try (XContentParser parser = XContentHelper.createParser(NamedXContentRegistry.EMPTY,
             DeprecationHandler.THROW_UNSUPPORTED_OPERATION, source, XContentType.JSON)) {
             ensureExpectedToken(parser.nextToken(), XContentParser.Token.START_OBJECT, parser);
@@ -376,23 +373,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             Long expirationTime = null;
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-                final String fieldName = parser.currentName();
                 parser.nextToken();
-                switch (fieldName) {
+                switch (parser.currentName()) {
                     case RESULT_FIELD:
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                        CharBuffer encodedBuffer = parser.charBuffer();
-                        // We can record the ram usage of a response in the index and use it here; however, we don't do it because
-                        // RamUsageEstimator overestimates the ram usage of a search response by twice as a search response mostly
-                        // consists of string fields. Here we use the length of a decoded string (i.e., 0.75% of Base64 encoded
-                        // string) as the ram usage estimate for the corresponding response.
-                        final long estimatedRamUsageOfResponse = encodedBuffer.length() * 3L / 4L;
-                        circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedRamUsageOfResponse, "decode async response");
-                        reservedBytes.addAndGet(estimatedRamUsageOfResponse);
-                        resp = decodeResponse(encodedBuffer);
+                        resp = decodeResponse(parser.charBuffer());
                         break;
                     case EXPIRATION_TIME_FIELD:
-                        ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
                         expirationTime = (long) parser.numberValue();
                         break;
                     case HEADERS_FIELD:
@@ -421,9 +407,6 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             return resp.withExpirationTime(expirationTime);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse the get result", e);
-        } finally {
-            // Release the reserved memory for the parser
-            circuitBreaker.addWithoutBreaking(-source.length());
         }
     }
 

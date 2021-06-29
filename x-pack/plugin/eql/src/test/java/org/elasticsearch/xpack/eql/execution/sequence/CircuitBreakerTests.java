@@ -18,6 +18,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.DocValueFormat;
@@ -56,7 +57,7 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), null, null);
+            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal), new Text("_doc"), null, null);
             searchHit.sortValues(new SearchSortValues(
                     new Long[] { (long) ordinal, 1L },
                     new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW }));
@@ -72,7 +73,7 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                    hits.add(new SearchHit(-1, hitRef.id(), new Text("_doc"), null, null));
                 }
                 searchHits.add(hits);
             }

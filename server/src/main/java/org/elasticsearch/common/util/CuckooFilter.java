@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.DataOutput;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.PackedInts;
@@ -123,10 +123,27 @@ public class CuckooFilter implements Writeable {
         this.rng = rng;
 
         this.fingerprintMask = (0x80000000 >> (bitsPerEntry - 1)) >>> (Integer.SIZE - bitsPerEntry);
+
         if (in.getVersion().before(Version.V_8_0_0)) {
-            in.skip(CodecUtil.headerLength(PackedInts.CODEC_NAME));
+            final PackedInts.Reader reader = PackedInts.getReader(new DataInput() {
+                @Override
+                public byte readByte() throws IOException {
+                    return in.readByte();
+                }
+
+                @Override
+                public void readBytes(byte[] b, int offset, int len) throws IOException {
+                    in.readBytes(b, offset, len);
+                }
+            });
+            // This is pretty inefficient but it should only happen if we have a mixed clusters (e.g during upgrade).
+            data = new Mutable(numBuckets * entriesPerBucket, bitsPerEntry);
+            for (int i = 0; i < count; i++) {
+                data.set(i, reader.get(i));
+            }
+        } else {
+            data = new Mutable(in);
         }
-        data = new Mutable(in);
     }
 
     @Override
@@ -137,7 +154,12 @@ public class CuckooFilter implements Writeable {
         out.writeVInt(count);
         out.writeVInt(evictedFingerprint);
         if (out.getVersion().before(Version.V_8_0_0)) {
-            CodecUtil.writeHeader(new DataOutput() {
+            // This is pretty inefficient but it should only happen if we have a mixed clusters (e.g during upgrade).
+            PackedInts.Mutable mutable = PackedInts.getMutable(numBuckets * entriesPerBucket, bitsPerEntry, PackedInts.COMPACT);
+            for (int i = 0; i < count; i++) {
+                mutable.set(i, data.get(i));
+            }
+            mutable.save(new DataOutput() {
                 @Override
                 public void writeByte(byte b) throws IOException {
                     out.writeByte(b);
@@ -147,9 +169,10 @@ public class CuckooFilter implements Writeable {
                 public void writeBytes(byte[] b, int offset, int length) throws IOException {
                     out.writeBytes(b, offset, length);
                 }
-            }, PackedInts.CODEC_NAME, PackedInts.VERSION_CURRENT);
+            });
+        } else {
+            data.save(out);
         }
-        data.save(out);
     }
 
     /**
@@ -540,32 +563,11 @@ public class CuckooFilter implements Writeable {
             throws IOException {
             this.bitsPerValue = in.readVInt();
             this.valueCount = in.readVInt();
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                in.readVInt(); // FORMAT
-                final PackedInts.Format format = PackedInts.Format.PACKED;
-                final long byteCount = format.byteCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
-                final int longCount = format.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
-                blocks = new long[longCount];
-                // read as many longs as we can
-                for (int i = 0; i < byteCount / 8; ++i) {
-                    blocks[i] = in.readLong();
-                }
-                final int remaining = (int) (byteCount % 8);
-                if (remaining != 0) {
-                    // read the last bytes
-                    long lastLong = 0;
-                    for (int i = 0; i < remaining; ++i) {
-                        lastLong |= (in.readByte() & 0xFFL) << (56 - i * 8);
-                    }
-                    blocks[blocks.length - 1] = lastLong;
-                }
-            } else {
-                this.blocks = new long[in.readVInt()];
-                for (int i = 0; i < blocks.length; ++i) {
-                    blocks[i] = in.readLong();
-                }
+            this.blocks = new long[in.readVInt()];
+            for (int i = 0; i < blocks.length; ++i) {
+                blocks[i] = in.readLong();
             }
-            maskRight = ~0L << (BLOCK_SIZE-bitsPerValue) >>> (BLOCK_SIZE-bitsPerValue);
+            maskRight = ~0L << (BLOCK_SIZE - bitsPerValue) >>> (BLOCK_SIZE - bitsPerValue);
             bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
         }
 
@@ -573,19 +575,9 @@ public class CuckooFilter implements Writeable {
             assert valueCount != -1;
             out.writeVInt(bitsPerValue);
             out.writeVInt(valueCount);
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                out.writeVInt(PackedInts.Format.PACKED.getId());
-                // TODO: need to be adapted
-                out.writeVInt(blocks.length);
-                for (int i = 0; i < blocks.length; ++i) {
-                    out.writeLong(blocks[i]);
-                }
-
-            } else {
-                out.writeVInt(blocks.length);
-                for (int i = 0; i < blocks.length; ++i) {
-                    out.writeLong(blocks[i]);
-                }
+            out.writeVInt(blocks.length);
+            for (int i = 0; i < blocks.length; ++i) {
+                out.writeLong(blocks[i]);
             }
         }
 

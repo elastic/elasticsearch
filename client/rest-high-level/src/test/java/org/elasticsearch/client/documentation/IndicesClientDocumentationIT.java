@@ -2986,7 +2986,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // end::freeze-index-request-indicesOptions
 
             final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+                .setWarningsHandler(
+                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+                )
+                .build();
 
             // tag::freeze-index-execute
             ShardsAcknowledgedResponse openIndexResponse = client.indices().freeze(request, freezeIndexOptions);
@@ -3068,7 +3071,10 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::unfreeze-index-execute
             final RequestOptions unfreezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-                .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+                .setWarningsHandler(
+                    warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+                )
+                .build();
             ShardsAcknowledgedResponse openIndexResponse = client.indices().unfreeze(request, unfreezeIndexOptions);
             // end::unfreeze-index-execute
 

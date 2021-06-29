@@ -2006,7 +2006,9 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         RestHighLevelClient client = highLevelClient();
 
         final RequestOptions freezeIndexOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false).build();
+            .setWarningsHandler(
+                warnings -> org.elasticsearch.core.List.of(FROZEN_INDICES_DEPRECATION_WARNING).equals(warnings) == false
+            ).build();
 
         ShardsAcknowledgedResponse freeze = execute(new FreezeIndexRequest("test"), client.indices()::freeze,
             client.indices()::freezeAsync, freezeIndexOptions);

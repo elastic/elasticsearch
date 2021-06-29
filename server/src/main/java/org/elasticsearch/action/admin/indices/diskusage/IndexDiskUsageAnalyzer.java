@@ -423,23 +423,14 @@ import java.util.Objects;
 
         @Override
         public PointValues.Relation compare(byte[] minPackedValue, byte[] maxPackedValue) {
-            boolean crosses = false;
             for (int dim = 0; dim < numDims; dim++) {
                 int offset = dim * bytesPerDim;
                 if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0 ||
                     FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0) {
                     return PointValues.Relation.CELL_OUTSIDE_QUERY;
                 }
-                if (FutureArrays.compareUnsigned(minPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) < 0 ||
-                    FutureArrays.compareUnsigned(maxPackedValue, offset, offset + bytesPerDim, point, offset, offset + bytesPerDim) > 0) {
-                    crosses = true;
-                }
             }
-            if (crosses) {
-                return PointValues.Relation.CELL_CROSSES_QUERY;
-            } else {
-                return PointValues.Relation.CELL_INSIDE_QUERY;
-            }
+            return PointValues.Relation.CELL_CROSSES_QUERY;
         }
     }
 

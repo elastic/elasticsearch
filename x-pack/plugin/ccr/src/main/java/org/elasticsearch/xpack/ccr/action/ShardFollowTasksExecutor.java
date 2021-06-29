@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsAction;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsRequest;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
@@ -521,7 +522,7 @@ public class ShardFollowTasksExecutor extends PersistentTasksExecutor<ShardFollo
 
     private String getLeaderShardHistoryUUID(ShardFollowTask params) {
         IndexMetadata followIndexMetadata = clusterService.state().metadata().index(params.getFollowShardId().getIndex());
-        Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
+        Map<String, String> ccrIndexMetadata = followIndexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
         String[] recordedLeaderShardHistoryUUIDs = extractLeaderShardHistoryUUIDs(ccrIndexMetadata);
         return recordedLeaderShardHistoryUUIDs[params.getLeaderShardId().id()];
     }

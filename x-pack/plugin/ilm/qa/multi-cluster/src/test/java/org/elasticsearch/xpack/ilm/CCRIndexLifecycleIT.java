@@ -795,13 +795,15 @@ public class CCRIndexLifecycleIT extends ESCCRRestTestCase {
         assertOK(client().performRequest(changePolicyRequest));
     }
 
+    @SuppressWarnings("unchecked")
     private String getSnapshotState(String snapshot) throws IOException {
         Response response = client().performRequest(new Request("GET", "/_snapshot/repo/" + snapshot));
         Map<String, Object> responseMap;
         try (InputStream is = response.getEntity().getContent()) {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
-        @SuppressWarnings("unchecked") Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
+
+        Map<String, Object> snapResponse = ((List<Map<String, Object>>) responseMap.get("snapshots")).get(0);
         assertThat(snapResponse.get("snapshot"), equalTo(snapshot));
         return (String) snapResponse.get("state");
     }

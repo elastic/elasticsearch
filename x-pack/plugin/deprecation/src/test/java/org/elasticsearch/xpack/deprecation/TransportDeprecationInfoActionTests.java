@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 public class TransportDeprecationInfoActionTests extends ESTestCase {
 
     public void testPluginSettingIssues() {
-        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
+        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),
@@ -45,7 +45,7 @@ public class TransportDeprecationInfoActionTests extends ESTestCase {
     }
 
     public void testPluginSettingIssuesWithFailures() {
-        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null);
+        DeprecationChecker.Components components = new DeprecationChecker.Components(null, Settings.EMPTY, null, null);
         PlainActionFuture<Map<String, List<DeprecationIssue>>> future = new PlainActionFuture<>();
         TransportDeprecationInfoAction.pluginSettingIssues(Arrays.asList(
             new NamedChecker("foo", Collections.emptyList(), false),

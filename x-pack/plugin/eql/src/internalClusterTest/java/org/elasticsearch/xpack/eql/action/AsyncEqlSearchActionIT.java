@@ -33,7 +33,7 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
-import org.elasticsearch.xpack.eql.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
 import org.elasticsearch.xpack.eql.plugin.EqlAsyncGetResultAction;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;

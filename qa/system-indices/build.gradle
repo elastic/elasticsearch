@@ -25,5 +25,5 @@ tasks.named("javaRestTest").configure {
 testClusters.all {
   testDistribution = 'DEFAULT'
   setting 'xpack.security.enabled', 'true'
-  user username: 'rest_user', password: 'password', role: 'superuser'
+  user username: 'rest_user', password: 'rest-user-password', role: 'superuser'
 }

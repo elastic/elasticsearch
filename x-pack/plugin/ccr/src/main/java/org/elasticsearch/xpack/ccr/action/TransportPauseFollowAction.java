@@ -23,7 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
@@ -56,7 +56,7 @@ public class TransportPauseFollowAction extends AcknowledgedTransportMasterNodeA
             listener.onFailure(new IndexNotFoundException(request.getFollowIndex()));
             return;
         }
-        if (followerIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) == null) {
+        if (followerIMD.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY) == null) {
             listener.onFailure(new IllegalArgumentException("index [" + request.getFollowIndex() + "] is not a follower index"));
             return;
         }

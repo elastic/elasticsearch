@@ -198,8 +198,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
                 try (InputStream is = getSnapshotsResponse.getEntity().getContent()) {
                     responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
                 }
-                List<Map<String, Object>> snapshots = (List<Map<String, Object>>) responseMap.get("snapshots");
-                return snapshots.size() == 0;
+                Object snapshots = responseMap.get("snapshots");
+                return ((List<Map<String, Object>>) snapshots).size() == 0;
             } catch (Exception e) {
                 logger.error(e.getMessage(), e);
                 return false;
@@ -400,7 +400,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Object>) responseMap.get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));
@@ -448,7 +448,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
         }
         assertThat("expected to have only one snapshot, but got: " + responseMap,
-            ((List<Object>) responseMap.get("snapshots")).size(), equalTo(1));
+            ((List<Map<String, Object>>) responseMap.get("snapshots")).size(), equalTo(1));
 
         Request hitCount = new Request("GET", "/" + searchableSnapMountedIndexName + "/_count");
         Map<String, Object> count = entityAsMap(client().performRequest(hitCount));

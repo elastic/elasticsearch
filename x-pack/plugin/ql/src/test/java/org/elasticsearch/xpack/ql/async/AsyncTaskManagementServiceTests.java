@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.eql.async;
+package org.elasticsearch.xpack.ql.async;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncResultsService;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
+import org.elasticsearch.xpack.core.async.StoredAsyncResponse;
+import org.elasticsearch.xpack.core.async.StoredAsyncTask;
 import org.junit.After;
 import org.junit.Before;
 
@@ -34,7 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.xpack.eql.async.AsyncTaskManagementService.addCompletionListener;
+import static org.elasticsearch.xpack.ql.async.AsyncTaskManagementService.addCompletionListener;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;

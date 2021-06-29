@@ -279,7 +279,6 @@ import java.util.Objects;
     }
 
     private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
-        postings.freq();
         if (terms.hasPositions()) {
             for (int pos = 0; pos < postings.freq(); pos++) {
                 postings.nextPosition();
@@ -352,6 +351,7 @@ import java.util.Objects;
                 termsEnum.seekExact(terms.getMax());
                 postings = termsEnum.postings(postings, PostingsEnum.ALL);
                 if (postings.advance(termsEnum.docFreq() - 1) != DocIdSetIterator.NO_MORE_DOCS) {
+                    postings.freq();
                     readProximity(terms, postings);
                 }
                 final long bytesRead = directory.getBytesRead();
@@ -374,6 +374,7 @@ import java.util.Objects;
                     termsEnum.totalTermFreq();
                     postings = termsEnum.postings(postings, PostingsEnum.ALL);
                     while (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                        postings.freq();
                         readProximity(terms, postings);
                     }
                 }

@@ -16,10 +16,10 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 public class RareTermsIT extends ESRestTestCase {
 
     private int indexDocs(int numDocs, int id) throws Exception  {
-        Request request = new Request("POST", "/_bulk");
-        StringBuilder builder = new StringBuilder();
+        final Request request = new Request("POST", "/_bulk");
+        final StringBuilder builder = new StringBuilder();
         for (int i = 0; i < numDocs; ++i) {
-            builder.append("{ \"index\" : { \"_index\" : \"idx\", \"_id\": \"" + (id++) + "\" } }\n");
+            builder.append("{ \"index\" : { \"_index\" : \"idx\", \"_id\": \"" + id++ + "\" } }\n");
             builder.append("{\"str_value\" : \"s" + i + "\"}\n");
         }
         request.setJsonEntity(builder.toString());
@@ -28,20 +28,20 @@ public class RareTermsIT extends ESRestTestCase {
     }
 
     public void testSingleValuedString() throws Exception {
-        Settings.Builder settings = Settings.builder()
+        final Settings.Builder settings = Settings.builder()
             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 2)
             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0);
         final String index = "idx";
         createIndex(index, settings.build());
 
-        int numDocs = 15000;
+        final int numDocs = 15000;
         int id = 1;
-        for (int i = 0; i< 5; i++) {
+        for (int i = 0; i < 5; i++) {
             id = indexDocs(numDocs, id);
             refreshAllIndices();
         }
 
-        Request request = new Request("POST", "idx/_search");
+        final Request request = new Request("POST", "idx/_search");
         request.setJsonEntity("{\"size\": 0,\"aggs\":{\"rareTerms\":{\"rare_terms\" : {\"field\": \"str_value.keyword\"}}}}");
         assertOK(client().performRequest(request));
     }

@@ -315,7 +315,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testIgnoreMissingIsFalse() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.remove("ip");
 
         IllegalArgumentException e = expectThrows(

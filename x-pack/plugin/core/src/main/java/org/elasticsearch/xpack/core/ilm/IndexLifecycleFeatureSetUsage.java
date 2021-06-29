@@ -164,9 +164,9 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
         private final TimeValue minimumAge;
 
         public PhaseStats(TimeValue after, String[] actionNames, ActionConfigStats configurations) {
-            this.actionNames = actionNames;
-            this.configurations = configurations;
-            this.minimumAge = after;
+            this.actionNames = Objects.requireNonNull(actionNames, "Missing required action names");
+            this.configurations = Objects.requireNonNull(configurations, "Missing required action configurations");
+            this.minimumAge = Objects.requireNonNull(after, "Missing required minimum age");
         }
 
         public PhaseStats(StreamInput in) throws IOException {
@@ -184,7 +184,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             out.writeStringArray(actionNames);
             out.writeTimeValue(minimumAge);
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeOptionalWriteable(configurations);
+                configurations.writeTo(out);
             }
         }
 
@@ -193,9 +193,7 @@ public class IndexLifecycleFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.startObject();
             builder.field(Phase.MIN_AGE.getPreferredName(), minimumAge.getMillis());
             builder.field(Phase.ACTIONS_FIELD.getPreferredName(), actionNames);
-            if (configurations != null) {
-                builder.field(CONFIGURATIONS_FIELD.getPreferredName(), configurations);
-            }
+            builder.field(CONFIGURATIONS_FIELD.getPreferredName(), configurations);
             builder.endObject();
             return builder;
         }

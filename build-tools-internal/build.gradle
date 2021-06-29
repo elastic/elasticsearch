@@ -7,7 +7,7 @@
  */
 
 
-//import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
+import org.elasticsearch.gradle.internal.conventions.VersionPropertiesLoader
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.gradle.plugins.ide.eclipse.model.AccessRule
 import org.gradle.plugins.ide.eclipse.model.SourceFolder

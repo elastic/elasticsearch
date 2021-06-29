@@ -542,10 +542,28 @@ public class CuckooFilter implements Writeable {
             this.valueCount = in.readVInt();
             if (in.getVersion().before(Version.V_8_0_0)) {
                 in.readVInt(); // FORMAT
-            }
-            this.blocks = new long[in.readVInt()];
-            for (int i = 0; i < blocks.length; ++i) {
-                blocks[i] = in.readLong();
+                final PackedInts.Format format = PackedInts.Format.PACKED;
+                final long byteCount = format.byteCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
+                final int longCount = format.longCount(PackedInts.VERSION_CURRENT, valueCount, bitsPerValue);
+                blocks = new long[longCount];
+                // read as many longs as we can
+                for (int i = 0; i < byteCount / 8; ++i) {
+                    blocks[i] = in.readLong();
+                }
+                final int remaining = (int) (byteCount % 8);
+                if (remaining != 0) {
+                    // read the last bytes
+                    long lastLong = 0;
+                    for (int i = 0; i < remaining; ++i) {
+                        lastLong |= (in.readByte() & 0xFFL) << (56 - i * 8);
+                    }
+                    blocks[blocks.length - 1] = lastLong;
+                }
+            } else {
+                this.blocks = new long[in.readVInt()];
+                for (int i = 0; i < blocks.length; ++i) {
+                    blocks[i] = in.readLong();
+                }
             }
             maskRight = ~0L << (BLOCK_SIZE-bitsPerValue) >>> (BLOCK_SIZE-bitsPerValue);
             bpvMinusBlockSize = bitsPerValue - BLOCK_SIZE;
@@ -557,10 +575,17 @@ public class CuckooFilter implements Writeable {
             out.writeVInt(valueCount);
             if (out.getVersion().before(Version.V_8_0_0)) {
                 out.writeVInt(PackedInts.Format.PACKED.getId());
-            }
-            out.writeVInt(blocks.length);
-            for (int i = 0; i < blocks.length; ++i) {
-                out.writeLong(blocks[i]);
+                // TODO: need to be adapted
+                out.writeVInt(blocks.length);
+                for (int i = 0; i < blocks.length; ++i) {
+                    out.writeLong(blocks[i]);
+                }
+
+            } else {
+                out.writeVInt(blocks.length);
+                for (int i = 0; i < blocks.length; ++i) {
+                    out.writeLong(blocks[i]);
+                }
             }
         }
 

@@ -13,8 +13,8 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -34,13 +34,13 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.ccr.action.AutoFollowCoordinator.AutoFollower;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata.AutoFollowPattern;
 import org.elasticsearch.xpack.core.ccr.AutoFollowStats;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ActivateAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutAutoFollowPatternAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -1813,8 +1813,9 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             .metadata(Metadata.builder()
                 .put(IndexMetadata.builder("logs-20190101")
                     .settings(settings(Version.CURRENT))
-                    .putCustom(Ccr.CCR_CUSTOM_METADATA_KEY, Collections.singletonMap(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
-                        remoteState.metadata().index("logs-20190101").getIndexUUID()))
+                    .putCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY,
+                        Collections.singletonMap(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY,
+                                                 remoteState.metadata().index("logs-20190101").getIndexUUID()))
                     .numberOfShards(1)
                     .numberOfReplicas(0))
                 .putCustom(AutoFollowMetadata.TYPE, autoFollowMetadata))
@@ -2152,6 +2153,113 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(followedIndices.contains(index.key), is(followed));
             assertThat(autoFollowedIndices.contains(remoteIndex.getUUID()), equalTo(followed));
         }
+    }
+
+    public void testDeprecationWarningsAreEmittedWhenASystemIndexIsAutoFollowed() throws Exception {
+        final Client client = mock(Client.class);
+        when(client.getRemoteClusterClient(anyString())).thenReturn(client);
+
+        final String pattern = "pattern1";
+        final ClusterState localState = ClusterState.builder(new ClusterName("local"))
+            .metadata(Metadata.builder()
+                .putCustom(AutoFollowMetadata.TYPE,
+                    new AutoFollowMetadata(
+                        Collections.singletonMap(
+                            pattern,
+                            new AutoFollowPattern(
+                                "remote",
+                                Collections.singletonList(".*"),
+                                Collections.emptyList(),
+                                null,
+                                Settings.EMPTY,
+                                true,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null,
+                                null
+                            )
+                        ),
+                        Collections.singletonMap(pattern, Collections.emptyList()),
+                        Collections.singletonMap(pattern, Collections.emptyMap()))))
+            .build();
+
+        final Metadata.Builder metadataBuilder = Metadata.builder();
+        final RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
+        final int nbLeaderSystemIndices = randomIntBetween(1, 10);
+        for (int i = 0; i < nbLeaderSystemIndices; i++) {
+            final String indexName = ".system-" + i;
+            IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(Version.CURRENT)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random())))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .system(true)
+                .build();
+            metadataBuilder.put(indexMetadata, true);
+
+            routingTableBuilder.add(IndexRoutingTable.builder(indexMetadata.getIndex())
+                .addShard(TestShardRouting.newShardRouting(indexName, 0, "1", true, ShardRoutingState.INITIALIZING).moveToStarted())
+                .build());
+        }
+
+        final ClusterState remoteState = ClusterState.builder(new ClusterName("remote"))
+            .metadata(metadataBuilder.build())
+            .routingTable(routingTableBuilder.build())
+            .build();
+
+        final List<AutoFollowCoordinator.AutoFollowResult> results = new ArrayList<>();
+        final Set<Object> followedIndices = ConcurrentCollections.newConcurrentSet();
+        final AutoFollower autoFollower =
+            new AutoFollower("remote", results::addAll, localClusterStateSupplier(localState), () -> 1L, Runnable::run) {
+                @Override
+                void getRemoteClusterState(String remoteCluster,
+                                           long metadataVersion,
+                                           BiConsumer<ClusterStateResponse, Exception> handler) {
+                    assertThat(remoteCluster, equalTo("remote"));
+                    handler.accept(new ClusterStateResponse(new ClusterName("remote"), remoteState, false), null);
+                }
+
+                @Override
+                void createAndFollow(Map<String, String> headers,
+                                     PutFollowAction.Request followRequest,
+                                     Runnable successHandler,
+                                     Consumer<Exception> failureHandler) {
+                    followedIndices.add(followRequest.getLeaderIndex());
+                    successHandler.run();
+                }
+
+                @Override
+                void updateAutoFollowMetadata(Function<ClusterState, ClusterState> updateFunction, Consumer<Exception> handler) {
+                    handler.accept(null);
+                }
+
+                @Override
+                void cleanFollowedRemoteIndices(ClusterState remoteClusterState, List<String> patterns) {
+                    // Ignore, to avoid invoking updateAutoFollowMetadata(...) twice
+                }
+            };
+        autoFollower.start();
+
+        assertThat(results, notNullValue());
+        assertThat(results.size(), equalTo(1));
+
+        List<String> expectedDeprecationWarnings = new ArrayList<>(nbLeaderSystemIndices);
+        for (ObjectObjectCursor<String, IndexMetadata> index : remoteState.metadata().indices()) {
+            assertThat(results.get(0).autoFollowExecutionResults.containsKey(index.value.getIndex()), is(true));
+            assertThat(followedIndices.contains(index.key), is(true));
+            final String indexName = index.value.getIndex().getName();
+            expectedDeprecationWarnings.add(
+                "Auto following a leader system index " + indexName + " will not work in the next major version"
+            );
+        }
+
+        assertWarnings(expectedDeprecationWarnings.toArray(new String[0]));
     }
 
     private static ClusterState createRemoteClusterState(String indexName, Boolean enableSoftDeletes) {

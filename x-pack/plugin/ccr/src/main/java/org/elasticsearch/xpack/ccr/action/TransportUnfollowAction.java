@@ -38,9 +38,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.CcrConstants;
 import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
@@ -95,11 +95,11 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             @Override
             public void clusterStateProcessed(final String source, final ClusterState oldState, final ClusterState newState) {
                 final IndexMetadata indexMetadata = oldState.metadata().index(request.getFollowerIndex());
-                final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY);
-                final String remoteClusterName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
+                final Map<String, String> ccrCustomMetadata = indexMetadata.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY);
+                final String remoteClusterName = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_REMOTE_CLUSTER_NAME_KEY);
 
-                final String leaderIndexName = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
-                final String leaderIndexUuid = ccrCustomMetadata.get(Ccr.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
+                final String leaderIndexName = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_NAME_KEY);
+                final String leaderIndexUuid = ccrCustomMetadata.get(CcrConstants.CCR_CUSTOM_METADATA_LEADER_INDEX_UUID_KEY);
                 final Index leaderIndex = new Index(leaderIndexName, leaderIndexUuid);
                 final String retentionLeaseId = CcrRetentionLeases.retentionLeaseId(
                         oldState.getClusterName().value(),
@@ -222,7 +222,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
             throw new IndexNotFoundException(followerIndex);
         }
 
-        if (followerIMD.getCustomData(Ccr.CCR_CUSTOM_METADATA_KEY) == null) {
+        if (followerIMD.getCustomData(CcrConstants.CCR_CUSTOM_METADATA_KEY) == null) {
             throw new IllegalArgumentException("index [" + followerIndex + "] is not a follower index");
         }
 
@@ -253,7 +253,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         newIndexMetadata.settings(builder);
         newIndexMetadata.settingsVersion(followerIMD.getSettingsVersion() + 1);
         // Remove ccr custom metadata
-        newIndexMetadata.removeCustom(Ccr.CCR_CUSTOM_METADATA_KEY);
+        newIndexMetadata.removeCustom(CcrConstants.CCR_CUSTOM_METADATA_KEY);
 
         Metadata newMetadata = Metadata.builder(current.metadata())
             .put(newIndexMetadata)

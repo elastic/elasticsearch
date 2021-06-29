@@ -51,6 +51,7 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     private final CheckedFunction<LeafReaderContext, SortedSetDocValues, IOException> docValuesFunc;
 
     private SortedSetDocValues lookup; // current ordinals lookup
+    private int leafReaderOrd = -1; // current LeafReaderContext ordinal
 
     private LongArray valuesOrd; // ordinals, which are remapped whenever we visit a new segment
     private ObjectArray<BytesRef> valuesUnmapped;
@@ -235,8 +236,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
     LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector next) throws IOException {
         assert invariant();
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(lookup, dvs);
+        if (context.ord != leafReaderOrd) {
+            remapOrdinals(lookup, dvs);
+        }
         lookup = dvs;
+        leafReaderOrd = context.ord;
         assert invariant();
         return new LeafBucketCollector() {
             @Override
@@ -268,8 +272,11 @@ class OrdinalValuesSource extends SingleDimensionValuesSource<BytesRef> {
         }
         BytesRef term = (BytesRef) value;
         final SortedSetDocValues dvs = docValuesFunc.apply(context);
-        remapOrdinals(lookup, dvs);
+        if (context.ord != leafReaderOrd) {
+            remapOrdinals(lookup, dvs);
+        }
         lookup = dvs;
+        leafReaderOrd = context.ord;
         assert invariant();
         return new LeafBucketCollector() {
             boolean currentValueIsSet = false;

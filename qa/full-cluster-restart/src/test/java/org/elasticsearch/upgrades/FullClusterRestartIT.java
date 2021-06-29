@@ -1602,7 +1602,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     builder.startObject("persistent");
                     {
                         builder.field("cluster.remote.foo.seeds", Collections.singletonList("localhost:9200"));
-                        builder.field("cluster.remote.foo.transport.compression", "true");
+                        builder.field("cluster.remote.foo.transport.compress", "true");
                     }
                     builder.endObject();
                 }

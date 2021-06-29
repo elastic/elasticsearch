@@ -11,11 +11,15 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction.Request;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class RestartPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
+public class CompletionPersistentTaskRequestTests extends AbstractWireSerializingTestCase<Request> {
 
     @Override
     protected Request createTestInstance() {
-        return new Request(randomAlphaOfLength(10), randomLong(), null);
+        if (randomBoolean()) {
+            return new Request(randomAlphaOfLength(10), randomNonNegativeLong(), null, null);
+        } else {
+            return new Request(randomAlphaOfLength(10), randomNonNegativeLong(), null, randomAlphaOfLength(20));
+        }
     }
 
     @Override

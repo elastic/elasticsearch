@@ -94,8 +94,13 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
 
             if (aliases.get(index) == null && noAliasesSpecified) {
-                List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
-                assert previous == null;
+                if (systemIndices.isNetNewSystemIndex(ia.getName()) == false) {
+                    List<AliasMetadata> previous = mapBuilder.put(index, Collections.emptyList());
+                    assert previous == null;
+                } else {
+                    // This is a net-new system index, it didn't resolve any aliases, no aliases were specified, just drop it.
+                    continue;
+                }
             }
         }
         final ImmutableOpenMap<String, List<AliasMetadata>> finalResponse = mapBuilder.build();

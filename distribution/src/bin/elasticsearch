@@ -45,12 +45,12 @@ then
   fi
 fi
 
-# TODO only run if ENROLLMENT env var is not set
+# TODO only run if ENROLLMENT option is not set
 ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigInitialNode \
   ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
   ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
   "`dirname "$0"`"/elasticsearch-cli \
-  "$@" <<<"$KEYSTORE_PASSWORD"
+  <<<"$KEYSTORE_PASSWORD"
 
 # The JVM options parser produces the final JVM options to start Elasticsearch.
 # It does this by incorporating JVM options in the following way:

@@ -611,7 +611,7 @@ public class KeyStoreWrapper implements SecureSettings {
     /**
      * Set a string setting.
      */
-    synchronized void setString(String setting, char[] value) {
+    public synchronized void setString(String setting, char[] value) {
         ensureOpen();
         validateSettingName(setting);
 

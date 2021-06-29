@@ -25,7 +25,7 @@
           excluded-regions:
             - ^docs/.*
           white-list-labels:
-            - ':Security/FIPS'
+            - 'Team:Security'
           black-list-labels:
             - '>test-mute'
     builders:

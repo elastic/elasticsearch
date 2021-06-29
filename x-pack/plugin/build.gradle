@@ -143,6 +143,8 @@ tasks.named("yamlRestCompatTest").configure {
 
   //TODO: blacklist specific to REST API compatibility
   restTestBlacklist.addAll([
+//    'analytics/histogram/Ranges over histogram',
+
 //    'indices.freeze/10_basic/Basic',
 //    'indices.freeze/10_basic/Test index options',
 //    'indices.freeze/20_stats/Translog stats on frozen indices',
@@ -186,6 +188,8 @@ tasks.named("yamlRestCompatTest").configure {
 //    'transform/transforms_cat_apis/Test cat transform stats hiding headers',
 //    'transform/transforms_cat_apis/Test cat transform stats with column selection',
 //    'transform/transforms_cat_apis/Test cat transform stats with continuous transform',
+//'privileges/40_get_user_privs/Test get_user_privileges for merged roles',  // temporary disabled till #70191 gets backported
+
   ]+ v7compatiblityNotSupportedTests())
 
 

@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 /**
@@ -29,7 +30,7 @@ public abstract class BinaryDateTimeDatePartFunction extends BinaryDateTimeFunct
 
     @Override
     protected TypeResolution resolveType() {
-        TypeResolution resolution = isString(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isString(left(), sourceText(), FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }

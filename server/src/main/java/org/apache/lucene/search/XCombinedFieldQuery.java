@@ -73,7 +73,6 @@ import java.util.TreeMap;
  * same approach but allows other similarities besides {@link
  * org.apache.lucene.search.similarities.BM25Similarity}.
  *
- * @lucene.experimental
  */
 public final class XCombinedFieldQuery extends Query implements Accountable {
   private static final long BASE_RAM_BYTES =

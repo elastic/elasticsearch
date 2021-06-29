@@ -61,6 +61,17 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 currentMetadata.getOperationMode() + "]"));
             return;
         }
+
+        if (request.isDryRun()) {
+            MigratedEntities entities =
+                migrateToDataTiersRouting(state, request.getNodeAttributeName(), request.getLegacyTemplateToDelete(),
+                    xContentRegistry, client, licenseState).v2();
+            listener.onResponse(
+                new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies, entities.migratedIndices, true)
+            );
+            return;
+        }
+
         final SetOnce<MigratedEntities> migratedEntities = new SetOnce<>();
         clusterService.submitStateUpdateTask("migrate-to-data-tiers []", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
@@ -82,8 +93,8 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 super.clusterStateProcessed(source, oldState, newState);
                 MigratedEntities entities = migratedEntities.get();
-                listener.onResponse(
-                    new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies, entities.migratedIndices)
+                listener.onResponse(new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies,
+                    entities.migratedIndices, false)
                 );
             }
         });

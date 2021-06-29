@@ -74,10 +74,46 @@ setup:
                 field: "latency"
                 interval: 0.3
 
-
   - match: { hits.total.value: 2 }
   - length: { aggregations.histo.buckets: 2 }
   - match: { aggregations.histo.buckets.0.key: 0.0 }
   - match: { aggregations.histo.buckets.0.doc_count: 20 }
   - match: { aggregations.histo.buckets.1.key: 0.3 }
   - match: { aggregations.histo.buckets.1.doc_count: 60 }
+
+---
+"Histogram with _doc_count":
+  - do:
+      indices.create:
+        index: "histo_with_doc_count"
+        body:
+          mappings:
+            properties:
+              latency:
+                type: "histogram"
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      bulk:
+        index: "histo_with_doc_count"
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"_doc_count": 50, "latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [3, 7, 23, 12, 5]}}'
+          - '{"index": {}}'
+          - '{"_doc_count": 10, "latency": {"values" : [0.1, 0.2, 0.3, 0.4, 0.5], "counts" : [1, 1, 1, 1, 6]}}'
+  - do:
+      search:
+        index: "histo_with_doc_count"
+        body:
+          size: 0
+          aggs:
+            histo:
+              histogram:
+                field: "latency"
+                interval: 1
+
+  - match: { hits.total.value: 2 }
+  - length: { aggregations.histo.buckets: 1 }
+  - match: { aggregations.histo.buckets.0.key: 0.0 }
+  - match: { aggregations.histo.buckets.0.doc_count: 60 }

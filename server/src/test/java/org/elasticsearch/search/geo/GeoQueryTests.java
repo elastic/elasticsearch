@@ -37,7 +37,6 @@ import org.elasticsearch.test.TestGeoShapeFieldMapperPlugin;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;

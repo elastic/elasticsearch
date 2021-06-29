@@ -227,7 +227,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             showTermDocCountError,
             otherDocsCount,
             buckets,
-            0
+            0L
         );
     }
 

@@ -130,15 +130,9 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
-<<<<<<< HEAD
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
-=======
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), BucketOrder.count(false), 1, 0,
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
->>>>>>> elastic/master
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 
@@ -156,15 +150,9 @@ public class InternalMultiBucketAggregationTests extends ESTestCase {
             new BytesRef("foo".getBytes(StandardCharsets.UTF_8), 0, "foo".getBytes(StandardCharsets.UTF_8).length), 1,
             internalStringAggs, false, 0, DocValueFormat.RAW));
 
-<<<<<<< HEAD
-        InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), 1, 0, Collections.emptyList(),
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
-        InternalAggregations internalAggregations = new InternalAggregations(Collections.singletonList(termsAgg));
-=======
         InternalTerms termsAgg = new StringTerms("string_terms", BucketOrder.count(false), BucketOrder.count(false), 1, 0,
-            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0);
+            Collections.emptyMap(), DocValueFormat.RAW, 1, false, 0, stringBuckets, 0L);
         InternalAggregations internalAggregations = InternalAggregations.from(Collections.singletonList(termsAgg));
->>>>>>> elastic/master
         LongTerms.Bucket bucket = new LongTerms.Bucket(19, 1, internalAggregations, false, 0, DocValueFormat.RAW);
         buckets.add(bucket);
 

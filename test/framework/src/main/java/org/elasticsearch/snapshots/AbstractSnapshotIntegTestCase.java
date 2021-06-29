@@ -19,6 +19,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -657,14 +658,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
             final String snapshot = prefix + i;
             snapshotNames.add(snapshot);
             final Map<String, Object> userMetadata = randomUserMetadata();
-            clusterAdmin()
+            final ClusterAdminClient adminClient = clusterAdmin();
+            adminClient
                     .prepareCreateSnapshot(repoName, snapshot)
                     .setWaitForCompletion(true)
                     .setUserMetadata(userMetadata)
                     .execute(snapshotsListener.delegateFailure((l, response) -> {
                         final SnapshotInfo snapshotInfoInResponse = response.getSnapshotInfo();
                         assertEquals(userMetadata, snapshotInfoInResponse.userMetadata());
-                        clusterAdmin().prepareGetSnapshots(repoName)
+                        adminClient.prepareGetSnapshots(repoName)
                                 .setSnapshots(snapshot)
                                 .execute(l.delegateFailure((ll, getResponse) -> {
                                     assertEquals(snapshotInfoInResponse, getResponse.getSnapshots().get(0));

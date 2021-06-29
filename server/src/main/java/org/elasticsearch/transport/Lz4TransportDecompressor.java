@@ -50,7 +50,8 @@ import java.util.zip.Checksum;
  */
 public class Lz4TransportDecompressor implements TransportDecompressor {
 
-    private final ThreadLocal<byte[]> uncompressed = ThreadLocal.withInitial(() -> new byte[64 * 1024]);
+    private final ThreadLocal<byte[]> uncompressed = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
+    private final ThreadLocal<byte[]> compressed = ThreadLocal.withInitial(() -> BytesRef.EMPTY_BYTES);
 
     /**
      * Magic number of LZ4 block.
@@ -337,11 +338,12 @@ public class Lz4TransportDecompressor implements TransportDecompressor {
     }
 
     private byte[] getCompressedBuffer(int requiredSize) {
+        byte[] compressedBuffer = this.compressed.get();
         if (compressedBuffer.length >= requiredSize) {
             return compressedBuffer;
         } else {
-            this.compressedBuffer = new byte[requiredSize];
-            return compressedBuffer;
+            this.compressed.set(new byte[requiredSize]);
+            return this.compressed.get();
         }
     }
 

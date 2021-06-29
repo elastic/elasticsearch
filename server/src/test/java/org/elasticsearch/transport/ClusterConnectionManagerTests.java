@@ -56,7 +56,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         TimeValue oneSecond = new TimeValue(1000);
         TimeValue oneMinute = TimeValue.timeValueMinutes(1);
         connectionProfile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.REG, oneSecond, oneSecond,
-            oneMinute, Compression.Enabled.FALSE, null);
+            oneMinute, Compression.Enabled.FALSE, Compression.Scheme.DEFLATE);
     }
 
     @After
